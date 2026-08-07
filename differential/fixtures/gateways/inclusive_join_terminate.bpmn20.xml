@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <process id="inclusiveTerminateJoin" name="Inclusive Terminate Join" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="split" />
+
+    <inclusiveGateway id="split" />
+    <sequenceFlow id="f2" sourceRef="split" targetRef="sub">
+      <conditionExpression><![CDATA[${takeSub == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f3" sourceRef="split" targetRef="taskB">
+      <conditionExpression><![CDATA[${takeB == true}]]></conditionExpression>
+    </sequenceFlow>
+
+    <subProcess id="sub">
+      <startEvent id="subStart" />
+      <sequenceFlow id="sf1" sourceRef="subStart" targetRef="preTerminate" />
+      <userTask id="preTerminate" name="Pre Terminate" />
+      <sequenceFlow id="sf2" sourceRef="preTerminate" targetRef="termEnd" />
+      <endEvent id="termEnd">
+        <terminateEventDefinition />
+      </endEvent>
+    </subProcess>
+    <sequenceFlow id="f4" sourceRef="sub" targetRef="join" />
+
+    <userTask id="taskB" name="Branch B" />
+    <sequenceFlow id="f5" sourceRef="taskB" targetRef="join" />
+
+    <inclusiveGateway id="join" />
+    <sequenceFlow id="f6" sourceRef="join" targetRef="afterJoin" />
+    <userTask id="afterJoin" name="After Join" />
+    <sequenceFlow id="f7" sourceRef="afterJoin" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

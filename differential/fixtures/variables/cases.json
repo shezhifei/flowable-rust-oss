@@ -1,0 +1,78 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "observeVariables": ["orderId", "amount", "flag", "shared", "fromComplete"],
+  "cases": [
+    {
+      "id": "process_variable_roundtrip",
+      "observe": ["tasks", "variables", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        {
+          "op": "start",
+          "variables": {
+            "orderId": "O-42",
+            "amount": 19.5,
+            "flag": true
+          }
+        },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "task_local_shadows_process_name",
+      "observe": ["tasks", "variables", "taskLocalVariables", "processEnded", "error"],
+      "observeVariables": ["shared"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        {
+          "op": "start",
+          "variables": { "shared": "process-value" }
+        },
+        {
+          "op": "setVariableLocal",
+          "taskDefinitionKey": "review",
+          "name": "shared",
+          "value": "task-local-value"
+        },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "sibling_task_local_isolation",
+      "observe": ["tasks", "variables", "taskLocalVariables", "processEnded", "error"],
+      "observeVariables": ["root"],
+      "operations": [
+        { "op": "deploy", "bpmn": "parallel_tasks.bpmn20.xml" },
+        {
+          "op": "start",
+          "variables": { "root": "process" }
+        },
+        {
+          "op": "setVariableLocal",
+          "taskDefinitionKey": "taskA",
+          "name": "branch",
+          "value": "only-a"
+        },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "complete_task_writes_process_variables",
+      "observe": ["tasks", "variables", "processEnded", "error"],
+      "observeVariables": ["fromComplete", "orderId"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        {
+          "op": "start",
+          "variables": { "orderId": "O-1" }
+        },
+        {
+          "op": "completeTask",
+          "taskDefinitionKey": "review",
+          "variables": { "fromComplete": "done" }
+        },
+        { "op": "snapshot" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+[package]
+name = "flowable-event-registry-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
+flowable-engine = { path = "../flowable-engine" }
+flowable-event-registry-converter = { path = "../flowable-event-registry-converter" }
+flowable-event-registry-model = { path = "../flowable-event-registry-model" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.23.1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.43", features = ["net", "rt", "time"] }
+
+[dev-dependencies]
+flowable-form-service = { path = "../flowable-form-service" }
+flowable-content-service = { path = "../flowable-content-service" }
+native-tls = "0.2"
+tokio = { version = "1.43", features = ["full"] }

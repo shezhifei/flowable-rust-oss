@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <process id="unrecoverable" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="flow1" sourceRef="start" targetRef="httpTask" />
+    <serviceTask id="httpTask" flowable:type="http" flowable:async="true">
+      <extensionElements>
+        <flowable:httpResponseHandler class="org.flowable.rust.contract.UnrecoverableResponseHandler" />
+        <flowable:field name="requestMethod"><flowable:string>GET</flowable:string></flowable:field>
+        <flowable:field name="requestUrl"><flowable:expression>${endpoint}</flowable:expression></flowable:field>
+        <flowable:failedJobRetryTimeCycle>R5/PT0S</flowable:failedJobRetryTimeCycle>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="flow2" sourceRef="httpTask" targetRef="review" />
+    <userTask id="review" name="Review" />
+  </process>
+</definitions>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <signal id="cancelSignal" name="cancelSignal" />
+  <process id="inclusiveBoundaryJoin" name="Inclusive Boundary Join" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="split" />
+
+    <inclusiveGateway id="split" />
+    <sequenceFlow id="f2" sourceRef="split" targetRef="taskA">
+      <conditionExpression><![CDATA[${takeA == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f3" sourceRef="split" targetRef="taskB">
+      <conditionExpression><![CDATA[${takeB == true}]]></conditionExpression>
+    </sequenceFlow>
+
+    <userTask id="taskA" name="Branch A" />
+    <boundaryEvent id="cancelA" attachedToRef="taskA" cancelActivity="true">
+      <signalEventDefinition signalRef="cancelSignal" />
+    </boundaryEvent>
+    <sequenceFlow id="f_cancel" sourceRef="cancelA" targetRef="cancelEnd" />
+    <endEvent id="cancelEnd" />
+    <sequenceFlow id="f4" sourceRef="taskA" targetRef="join" />
+
+    <userTask id="taskB" name="Branch B" />
+    <sequenceFlow id="f5" sourceRef="taskB" targetRef="join" />
+
+    <inclusiveGateway id="join" />
+    <sequenceFlow id="f6" sourceRef="join" targetRef="afterJoin" />
+    <userTask id="afterJoin" name="After Join" />
+    <sequenceFlow id="f7" sourceRef="afterJoin" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <process id="exclusiveNoOutgoing" name="Exclusive No Outgoing" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="exclusiveGateway1" />
+
+    <exclusiveGateway id="exclusiveGateway1" />
+    <sequenceFlow id="f2" sourceRef="exclusiveGateway1" targetRef="firstEnd">
+      <conditionExpression><![CDATA[${false}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f3" sourceRef="exclusiveGateway1" targetRef="secondEnd">
+      <conditionExpression><![CDATA[${false}]]></conditionExpression>
+    </sequenceFlow>
+
+    <endEvent id="firstEnd" />
+    <endEvent id="secondEnd" />
+  </process>
+</definitions>

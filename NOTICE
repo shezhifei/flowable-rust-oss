@@ -1,0 +1,26 @@
+This project is an independent, community-driven Rust reimplementation of the
+BPMN / CMMN / DMN / Event Registry engines and REST API of the Flowable
+workflow project.
+
+It is NOT affiliated with, endorsed by, or sponsored by Flowable AG.
+"Flowable" is a trademark of Flowable AG.
+
+---
+
+This product includes material derived from Flowable
+(https://github.com/flowable/flowable-engine), licensed under the
+Apache License, Version 2.0:
+
+- Process / case / decision XML test fixtures under
+  `modules/flowable-bpmn-converter/tests/resources/java_fixtures/`
+  are copied from the Flowable test suite.
+- Ground-truth JSON files under
+  `modules/flowable-bpmn-converter/tests/resources/ground_truth/`
+  are derived from the output of the Flowable BPMN converter.
+- Large parts of the engine logic were ported by closely following the
+  Flowable Java source code; source comments cite the corresponding
+  Java files and line numbers.
+
+For the terms of the Apache License, Version 2.0, see the LICENSE file
+in this repository and
+https://www.apache.org/licenses/LICENSE-2.0

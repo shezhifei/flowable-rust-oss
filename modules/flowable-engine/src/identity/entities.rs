@@ -1,0 +1,132 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    #[serde(default)]
+    pub tenant_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserInfo {
+    pub user_id: String,
+    pub key: String,
+    pub value: String,
+    #[serde(default)]
+    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub updated_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPicture {
+    pub user_id: String,
+    pub mime_type: String,
+    pub bytes: Vec<u8>,
+    #[serde(default)]
+    pub created_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    pub name: String,
+    pub group_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Membership {
+    pub user_id: String,
+    pub group_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Privilege {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrivilegeMapping {
+    pub id: String,
+    pub privilege_id: String,
+    pub user_id: Option<String>,
+    pub group_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Token {
+    pub id: String,
+    pub token_value: String,
+    pub user_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IdentityLink {
+    pub id: String,
+    pub link_type: String,
+    pub user_id: Option<String>,
+    pub group_id: Option<String>,
+    pub task_id: Option<String>,
+    pub process_instance_id: Option<String>,
+    pub process_definition_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntityLink {
+    pub id: String,
+    pub link_type: String,
+    pub scope_id: Option<String>,
+    pub scope_type: Option<String>,
+    pub reference_scope_id: Option<String>,
+    pub reference_scope_type: Option<String>,
+    pub hierarchy_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchEntity {
+    pub id: String,
+    pub batch_type: String,
+    #[serde(default)]
+    pub search_key: Option<String>,
+    #[serde(default)]
+    pub search_key2: Option<String>,
+    pub status: String,
+    pub total_items: i64,
+    pub items_processed: i64,
+    pub create_time: u64,
+    pub end_time: Option<u64>,
+    #[serde(default)]
+    pub tenant_id: Option<String>,
+    #[serde(default)]
+    pub batch_document_json: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchPartEntity {
+    pub id: String,
+    pub batch_id: String,
+    pub batch_type: String,
+    #[serde(default)]
+    pub search_key: Option<String>,
+    #[serde(default)]
+    pub search_key2: Option<String>,
+    #[serde(default)]
+    pub scope_id: Option<String>,
+    #[serde(default)]
+    pub sub_scope_id: Option<String>,
+    #[serde(default)]
+    pub scope_type: Option<String>,
+    pub create_time: u64,
+    #[serde(default)]
+    pub complete_time: Option<u64>,
+    pub status: String,
+    #[serde(default)]
+    pub tenant_id: Option<String>,
+    #[serde(default)]
+    pub batch_part_document_json: Option<String>,
+}

@@ -1,0 +1,11 @@
+[package]
+name = "flowable-cmmn-image-generator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-cmmn-model = { path = "../flowable-cmmn-model" }
+flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
+
+[dev-dependencies]
+flowable-cmmn-converter = { path = "../flowable-cmmn-converter" }

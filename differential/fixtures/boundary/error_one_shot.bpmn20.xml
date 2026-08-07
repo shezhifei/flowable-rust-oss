@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <error id="err1" errorCode="E1" />
+  <process id="errorOneShot" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="sub" />
+    <subProcess id="sub">
+      <startEvent id="subStart" />
+      <sequenceFlow id="sf1" sourceRef="subStart" targetRef="subTask" />
+      <userTask id="subTask" name="Sub Task" />
+      <sequenceFlow id="sf2" sourceRef="subTask" targetRef="throwErr" />
+      <endEvent id="throwErr">
+        <errorEventDefinition errorRef="err1" />
+      </endEvent>
+    </subProcess>
+    <boundaryEvent id="catchErr" attachedToRef="sub" cancelActivity="true">
+      <errorEventDefinition errorRef="err1" />
+    </boundaryEvent>
+    <sequenceFlow id="f2" sourceRef="sub" targetRef="subOk" />
+    <sequenceFlow id="f3" sourceRef="catchErr" targetRef="errTask" />
+    <userTask id="subOk" name="Sub Ok" />
+    <sequenceFlow id="f4" sourceRef="subOk" targetRef="end" />
+    <userTask id="errTask" name="Error Handler" />
+    <sequenceFlow id="f5" sourceRef="errTask" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

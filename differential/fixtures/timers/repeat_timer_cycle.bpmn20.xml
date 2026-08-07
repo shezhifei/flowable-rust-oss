@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <process id="repeatTimerCycle" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="userTask1" />
+    <userTask id="userTask1" name="Review Request" />
+    <boundaryEvent id="timerBoundary1" attachedToRef="userTask1" cancelActivity="false">
+      <timerEventDefinition>
+        <timeCycle>R2/PT1H</timeCycle>
+      </timerEventDefinition>
+    </boundaryEvent>
+    <sequenceFlow id="f2" sourceRef="userTask1" targetRef="normalEnd" />
+    <endEvent id="normalEnd" />
+    <sequenceFlow id="f3" sourceRef="timerBoundary1" targetRef="escalationTask" />
+    <userTask id="escalationTask" name="Escalate" />
+    <sequenceFlow id="f4" sourceRef="escalationTask" targetRef="escalationEnd" />
+    <endEvent id="escalationEnd" />
+  </process>
+</definitions>

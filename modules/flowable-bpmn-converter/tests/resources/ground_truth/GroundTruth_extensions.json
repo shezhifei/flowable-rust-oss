@@ -1,0 +1,1648 @@
+{
+  "definitionsAttributes" : { },
+  "processes" : [ {
+    "id" : "oneTaskProcess",
+    "xmlRowNumber" : 7,
+    "xmlColumnNumber" : 34,
+    "extensionElements" : {
+      "test" : [ {
+        "id" : null,
+        "xmlRowNumber" : 9,
+        "xmlColumnNumber" : 38,
+        "extensionElements" : { },
+        "attributes" : {
+          "name" : [ {
+            "name" : "name",
+            "value" : "test",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "test",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn",
+        "elementText" : "test",
+        "childElements" : { }
+      } ]
+    },
+    "attributes" : { },
+    "name" : null,
+    "executable" : true,
+    "documentation" : null,
+    "ioSpecification" : null,
+    "executionListeners" : [ ],
+    "lanes" : [ ],
+    "dataObjects" : [ ],
+    "candidateStarterUsers" : [ ],
+    "candidateStarterGroups" : [ ],
+    "eventListeners" : [ ],
+    "flowElementMap" : {
+      "theStart" : {
+        "id" : "theStart",
+        "xmlRowNumber" : 11,
+        "xmlColumnNumber" : 37,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ {
+          "id" : "flow1",
+          "xmlRowNumber" : 12,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : {
+            "condition" : [ {
+              "id" : null,
+              "xmlRowNumber" : 14,
+              "xmlColumnNumber" : 49,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "condition",
+              "namespacePrefix" : "flowable",
+              "namespace" : "http://flowable.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "condition" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 15,
+                  "xmlColumnNumber" : 52,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "ref" : [ {
+                      "name" : "ref",
+                      "value" : "test",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "condition",
+                  "namespacePrefix" : "flowable",
+                  "namespace" : "http://flowable.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            } ],
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 17,
+              "xmlColumnNumber" : 42,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : "test",
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : "${test}",
+          "conditionLanguage" : null,
+          "sourceRef" : "theStart",
+          "targetRef" : "theTask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "initiator" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "validateFormFields" : null,
+        "formProperties" : [ ],
+        "interrupting" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "flow1" : {
+        "id" : "flow1",
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : {
+          "condition" : [ {
+            "id" : null,
+            "xmlRowNumber" : 14,
+            "xmlColumnNumber" : 49,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "condition",
+            "namespacePrefix" : "flowable",
+            "namespace" : "http://flowable.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "condition" : [ {
+                "id" : null,
+                "xmlRowNumber" : 15,
+                "xmlColumnNumber" : 52,
+                "extensionElements" : { },
+                "attributes" : {
+                  "ref" : [ {
+                    "name" : "ref",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "condition",
+                "namespacePrefix" : "flowable",
+                "namespace" : "http://flowable.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          } ],
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : "test",
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : "${test}",
+        "conditionLanguage" : null,
+        "sourceRef" : "theStart",
+        "targetRef" : "theTask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "theTask" : {
+        "id" : "theTask",
+        "xmlRowNumber" : 21,
+        "xmlColumnNumber" : 47,
+        "extensionElements" : {
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 23,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "my task",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "flow1",
+          "xmlRowNumber" : 12,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : {
+            "condition" : [ {
+              "id" : null,
+              "xmlRowNumber" : 14,
+              "xmlColumnNumber" : 49,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "condition",
+              "namespacePrefix" : "flowable",
+              "namespace" : "http://flowable.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "condition" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 15,
+                  "xmlColumnNumber" : 52,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "ref" : [ {
+                      "name" : "ref",
+                      "value" : "test",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "condition",
+                  "namespacePrefix" : "flowable",
+                  "namespace" : "http://flowable.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            } ],
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 17,
+              "xmlColumnNumber" : 42,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : "test",
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : "${test}",
+          "conditionLanguage" : null,
+          "sourceRef" : "theStart",
+          "targetRef" : "theTask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "flow2",
+          "xmlRowNumber" : 26,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "theTask",
+          "targetRef" : "theEnd",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "defaultFlow" : null,
+        "forCompensation" : false,
+        "loopCharacteristics" : null,
+        "ioSpecification" : null,
+        "dataInputAssociations" : [ ],
+        "dataOutputAssociations" : [ ],
+        "boundaryEvents" : [ ],
+        "failedJobRetryTimeCycleValue" : null,
+        "mapExceptions" : [ ],
+        "assignee" : null,
+        "owner" : null,
+        "priority" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "dueDate" : null,
+        "businessCalendarName" : null,
+        "category" : null,
+        "extensionId" : null,
+        "candidateUsers" : [ ],
+        "candidateGroups" : [ ],
+        "formProperties" : [ ],
+        "taskListeners" : [ ],
+        "skipExpression" : null,
+        "validateFormFields" : null,
+        "taskIdVariableName" : null,
+        "taskCompleterVariableName" : null,
+        "customUserIdentityLinks" : { },
+        "customGroupIdentityLinks" : { },
+        "customProperties" : [ ],
+        "extended" : false,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "flow2" : {
+        "id" : "flow2",
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "theTask",
+        "targetRef" : "theEnd",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "theEnd" : {
+        "id" : "theEnd",
+        "xmlRowNumber" : 27,
+        "xmlColumnNumber" : 33,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "flow2",
+          "xmlRowNumber" : 26,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "theTask",
+          "targetRef" : "theEnd",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      }
+    },
+    "artifactMap" : { },
+    "initialFlowElement" : null,
+    "enableEagerExecutionTreeFetching" : false,
+    "flowElements" : [ {
+      "id" : "theStart",
+      "xmlRowNumber" : 11,
+      "xmlColumnNumber" : 37,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ {
+        "id" : "flow1",
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : {
+          "condition" : [ {
+            "id" : null,
+            "xmlRowNumber" : 14,
+            "xmlColumnNumber" : 49,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "condition",
+            "namespacePrefix" : "flowable",
+            "namespace" : "http://flowable.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "condition" : [ {
+                "id" : null,
+                "xmlRowNumber" : 15,
+                "xmlColumnNumber" : 52,
+                "extensionElements" : { },
+                "attributes" : {
+                  "ref" : [ {
+                    "name" : "ref",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "condition",
+                "namespacePrefix" : "flowable",
+                "namespace" : "http://flowable.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          } ],
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : "test",
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : "${test}",
+        "conditionLanguage" : null,
+        "sourceRef" : "theStart",
+        "targetRef" : "theTask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "initiator" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "validateFormFields" : null,
+      "formProperties" : [ ],
+      "interrupting" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "flow1",
+      "xmlRowNumber" : 12,
+      "xmlColumnNumber" : 75,
+      "extensionElements" : {
+        "condition" : [ {
+          "id" : null,
+          "xmlRowNumber" : 14,
+          "xmlColumnNumber" : 49,
+          "extensionElements" : { },
+          "attributes" : {
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "condition",
+          "namespacePrefix" : "flowable",
+          "namespace" : "http://flowable.org/bpmn",
+          "elementText" : null,
+          "childElements" : {
+            "condition" : [ {
+              "id" : null,
+              "xmlRowNumber" : 15,
+              "xmlColumnNumber" : 52,
+              "extensionElements" : { },
+              "attributes" : {
+                "ref" : [ {
+                  "name" : "ref",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "condition",
+              "namespacePrefix" : "flowable",
+              "namespace" : "http://flowable.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          }
+        } ],
+        "test" : [ {
+          "id" : null,
+          "xmlRowNumber" : 17,
+          "xmlColumnNumber" : 42,
+          "extensionElements" : { },
+          "attributes" : {
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : "test",
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : "${test}",
+      "conditionLanguage" : null,
+      "sourceRef" : "theStart",
+      "targetRef" : "theTask",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "theTask",
+      "xmlRowNumber" : 21,
+      "xmlColumnNumber" : 47,
+      "extensionElements" : {
+        "test" : [ {
+          "id" : null,
+          "xmlRowNumber" : 23,
+          "xmlColumnNumber" : 42,
+          "extensionElements" : { },
+          "attributes" : {
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "my task",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "flow1",
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : {
+          "condition" : [ {
+            "id" : null,
+            "xmlRowNumber" : 14,
+            "xmlColumnNumber" : 49,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "condition",
+            "namespacePrefix" : "flowable",
+            "namespace" : "http://flowable.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "condition" : [ {
+                "id" : null,
+                "xmlRowNumber" : 15,
+                "xmlColumnNumber" : 52,
+                "extensionElements" : { },
+                "attributes" : {
+                  "ref" : [ {
+                    "name" : "ref",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "condition",
+                "namespacePrefix" : "flowable",
+                "namespace" : "http://flowable.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          } ],
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : "test",
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : "${test}",
+        "conditionLanguage" : null,
+        "sourceRef" : "theStart",
+        "targetRef" : "theTask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "flow2",
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "theTask",
+        "targetRef" : "theEnd",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "defaultFlow" : null,
+      "forCompensation" : false,
+      "loopCharacteristics" : null,
+      "ioSpecification" : null,
+      "dataInputAssociations" : [ ],
+      "dataOutputAssociations" : [ ],
+      "boundaryEvents" : [ ],
+      "failedJobRetryTimeCycleValue" : null,
+      "mapExceptions" : [ ],
+      "assignee" : null,
+      "owner" : null,
+      "priority" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "dueDate" : null,
+      "businessCalendarName" : null,
+      "category" : null,
+      "extensionId" : null,
+      "candidateUsers" : [ ],
+      "candidateGroups" : [ ],
+      "formProperties" : [ ],
+      "taskListeners" : [ ],
+      "skipExpression" : null,
+      "validateFormFields" : null,
+      "taskIdVariableName" : null,
+      "taskCompleterVariableName" : null,
+      "customUserIdentityLinks" : { },
+      "customGroupIdentityLinks" : { },
+      "customProperties" : [ ],
+      "extended" : false,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "flow2",
+      "xmlRowNumber" : 26,
+      "xmlColumnNumber" : 75,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "theTask",
+      "targetRef" : "theEnd",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "theEnd",
+      "xmlRowNumber" : 27,
+      "xmlColumnNumber" : 33,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "flow2",
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "theTask",
+        "targetRef" : "theEnd",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    } ],
+    "artifacts" : [ ]
+  } ],
+  "locationMap" : { },
+  "labelLocationMap" : { },
+  "flowLocationMap" : { },
+  "edgeMap" : { },
+  "signals" : [ ],
+  "pools" : [ ],
+  "imports" : [ ],
+  "interfaces" : [ ],
+  "globalArtifacts" : [ ],
+  "resources" : [ ],
+  "targetNamespace" : "ExamplesCategory",
+  "sourceSystemId" : null,
+  "userTaskFormTypes" : null,
+  "startEventFormTypes" : null,
+  "exporter" : null,
+  "exporterVersion" : null,
+  "namespaces" : {
+    "xsi" : "http://www.w3.org/2001/XMLSchema-instance",
+    "flowable" : "http://flowable.org/bpmn",
+    "custom" : "http://custom.org/bpmn"
+  },
+  "messageFlows" : { },
+  "messages" : [ ],
+  "mainProcess" : {
+    "id" : "oneTaskProcess",
+    "xmlRowNumber" : 7,
+    "xmlColumnNumber" : 34,
+    "extensionElements" : {
+      "test" : [ {
+        "id" : null,
+        "xmlRowNumber" : 9,
+        "xmlColumnNumber" : 38,
+        "extensionElements" : { },
+        "attributes" : {
+          "name" : [ {
+            "name" : "name",
+            "value" : "test",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "test",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn",
+        "elementText" : "test",
+        "childElements" : { }
+      } ]
+    },
+    "attributes" : { },
+    "name" : null,
+    "executable" : true,
+    "documentation" : null,
+    "ioSpecification" : null,
+    "executionListeners" : [ ],
+    "lanes" : [ ],
+    "dataObjects" : [ ],
+    "candidateStarterUsers" : [ ],
+    "candidateStarterGroups" : [ ],
+    "eventListeners" : [ ],
+    "flowElementMap" : {
+      "theStart" : {
+        "id" : "theStart",
+        "xmlRowNumber" : 11,
+        "xmlColumnNumber" : 37,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ {
+          "id" : "flow1",
+          "xmlRowNumber" : 12,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : {
+            "condition" : [ {
+              "id" : null,
+              "xmlRowNumber" : 14,
+              "xmlColumnNumber" : 49,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "condition",
+              "namespacePrefix" : "flowable",
+              "namespace" : "http://flowable.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "condition" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 15,
+                  "xmlColumnNumber" : 52,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "ref" : [ {
+                      "name" : "ref",
+                      "value" : "test",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "condition",
+                  "namespacePrefix" : "flowable",
+                  "namespace" : "http://flowable.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            } ],
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 17,
+              "xmlColumnNumber" : 42,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : "test",
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : "${test}",
+          "conditionLanguage" : null,
+          "sourceRef" : "theStart",
+          "targetRef" : "theTask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "initiator" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "validateFormFields" : null,
+        "formProperties" : [ ],
+        "interrupting" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "flow1" : {
+        "id" : "flow1",
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : {
+          "condition" : [ {
+            "id" : null,
+            "xmlRowNumber" : 14,
+            "xmlColumnNumber" : 49,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "condition",
+            "namespacePrefix" : "flowable",
+            "namespace" : "http://flowable.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "condition" : [ {
+                "id" : null,
+                "xmlRowNumber" : 15,
+                "xmlColumnNumber" : 52,
+                "extensionElements" : { },
+                "attributes" : {
+                  "ref" : [ {
+                    "name" : "ref",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "condition",
+                "namespacePrefix" : "flowable",
+                "namespace" : "http://flowable.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          } ],
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : "test",
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : "${test}",
+        "conditionLanguage" : null,
+        "sourceRef" : "theStart",
+        "targetRef" : "theTask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "theTask" : {
+        "id" : "theTask",
+        "xmlRowNumber" : 21,
+        "xmlColumnNumber" : 47,
+        "extensionElements" : {
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 23,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "my task",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "flow1",
+          "xmlRowNumber" : 12,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : {
+            "condition" : [ {
+              "id" : null,
+              "xmlRowNumber" : 14,
+              "xmlColumnNumber" : 49,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "condition",
+              "namespacePrefix" : "flowable",
+              "namespace" : "http://flowable.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "condition" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 15,
+                  "xmlColumnNumber" : 52,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "ref" : [ {
+                      "name" : "ref",
+                      "value" : "test",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "condition",
+                  "namespacePrefix" : "flowable",
+                  "namespace" : "http://flowable.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            } ],
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 17,
+              "xmlColumnNumber" : 42,
+              "extensionElements" : { },
+              "attributes" : {
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : "test",
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : "${test}",
+          "conditionLanguage" : null,
+          "sourceRef" : "theStart",
+          "targetRef" : "theTask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "flow2",
+          "xmlRowNumber" : 26,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "theTask",
+          "targetRef" : "theEnd",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "defaultFlow" : null,
+        "forCompensation" : false,
+        "loopCharacteristics" : null,
+        "ioSpecification" : null,
+        "dataInputAssociations" : [ ],
+        "dataOutputAssociations" : [ ],
+        "boundaryEvents" : [ ],
+        "failedJobRetryTimeCycleValue" : null,
+        "mapExceptions" : [ ],
+        "assignee" : null,
+        "owner" : null,
+        "priority" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "dueDate" : null,
+        "businessCalendarName" : null,
+        "category" : null,
+        "extensionId" : null,
+        "candidateUsers" : [ ],
+        "candidateGroups" : [ ],
+        "formProperties" : [ ],
+        "taskListeners" : [ ],
+        "skipExpression" : null,
+        "validateFormFields" : null,
+        "taskIdVariableName" : null,
+        "taskCompleterVariableName" : null,
+        "customUserIdentityLinks" : { },
+        "customGroupIdentityLinks" : { },
+        "customProperties" : [ ],
+        "extended" : false,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "flow2" : {
+        "id" : "flow2",
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "theTask",
+        "targetRef" : "theEnd",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "theEnd" : {
+        "id" : "theEnd",
+        "xmlRowNumber" : 27,
+        "xmlColumnNumber" : 33,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "flow2",
+          "xmlRowNumber" : 26,
+          "xmlColumnNumber" : 75,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "theTask",
+          "targetRef" : "theEnd",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      }
+    },
+    "artifactMap" : { },
+    "initialFlowElement" : null,
+    "enableEagerExecutionTreeFetching" : false,
+    "flowElements" : [ {
+      "id" : "theStart",
+      "xmlRowNumber" : 11,
+      "xmlColumnNumber" : 37,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ {
+        "id" : "flow1",
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : {
+          "condition" : [ {
+            "id" : null,
+            "xmlRowNumber" : 14,
+            "xmlColumnNumber" : 49,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "condition",
+            "namespacePrefix" : "flowable",
+            "namespace" : "http://flowable.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "condition" : [ {
+                "id" : null,
+                "xmlRowNumber" : 15,
+                "xmlColumnNumber" : 52,
+                "extensionElements" : { },
+                "attributes" : {
+                  "ref" : [ {
+                    "name" : "ref",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "condition",
+                "namespacePrefix" : "flowable",
+                "namespace" : "http://flowable.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          } ],
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : "test",
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : "${test}",
+        "conditionLanguage" : null,
+        "sourceRef" : "theStart",
+        "targetRef" : "theTask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "initiator" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "validateFormFields" : null,
+      "formProperties" : [ ],
+      "interrupting" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "flow1",
+      "xmlRowNumber" : 12,
+      "xmlColumnNumber" : 75,
+      "extensionElements" : {
+        "condition" : [ {
+          "id" : null,
+          "xmlRowNumber" : 14,
+          "xmlColumnNumber" : 49,
+          "extensionElements" : { },
+          "attributes" : {
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "condition",
+          "namespacePrefix" : "flowable",
+          "namespace" : "http://flowable.org/bpmn",
+          "elementText" : null,
+          "childElements" : {
+            "condition" : [ {
+              "id" : null,
+              "xmlRowNumber" : 15,
+              "xmlColumnNumber" : 52,
+              "extensionElements" : { },
+              "attributes" : {
+                "ref" : [ {
+                  "name" : "ref",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "condition",
+              "namespacePrefix" : "flowable",
+              "namespace" : "http://flowable.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          }
+        } ],
+        "test" : [ {
+          "id" : null,
+          "xmlRowNumber" : 17,
+          "xmlColumnNumber" : 42,
+          "extensionElements" : { },
+          "attributes" : {
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : "test",
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : "${test}",
+      "conditionLanguage" : null,
+      "sourceRef" : "theStart",
+      "targetRef" : "theTask",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "theTask",
+      "xmlRowNumber" : 21,
+      "xmlColumnNumber" : 47,
+      "extensionElements" : {
+        "test" : [ {
+          "id" : null,
+          "xmlRowNumber" : 23,
+          "xmlColumnNumber" : 42,
+          "extensionElements" : { },
+          "attributes" : {
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "my task",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "flow1",
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : {
+          "condition" : [ {
+            "id" : null,
+            "xmlRowNumber" : 14,
+            "xmlColumnNumber" : 49,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "condition",
+            "namespacePrefix" : "flowable",
+            "namespace" : "http://flowable.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "condition" : [ {
+                "id" : null,
+                "xmlRowNumber" : 15,
+                "xmlColumnNumber" : 52,
+                "extensionElements" : { },
+                "attributes" : {
+                  "ref" : [ {
+                    "name" : "ref",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "condition",
+                "namespacePrefix" : "flowable",
+                "namespace" : "http://flowable.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          } ],
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 42,
+            "extensionElements" : { },
+            "attributes" : {
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : "test",
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : "${test}",
+        "conditionLanguage" : null,
+        "sourceRef" : "theStart",
+        "targetRef" : "theTask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "flow2",
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "theTask",
+        "targetRef" : "theEnd",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "defaultFlow" : null,
+      "forCompensation" : false,
+      "loopCharacteristics" : null,
+      "ioSpecification" : null,
+      "dataInputAssociations" : [ ],
+      "dataOutputAssociations" : [ ],
+      "boundaryEvents" : [ ],
+      "failedJobRetryTimeCycleValue" : null,
+      "mapExceptions" : [ ],
+      "assignee" : null,
+      "owner" : null,
+      "priority" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "dueDate" : null,
+      "businessCalendarName" : null,
+      "category" : null,
+      "extensionId" : null,
+      "candidateUsers" : [ ],
+      "candidateGroups" : [ ],
+      "formProperties" : [ ],
+      "taskListeners" : [ ],
+      "skipExpression" : null,
+      "validateFormFields" : null,
+      "taskIdVariableName" : null,
+      "taskCompleterVariableName" : null,
+      "customUserIdentityLinks" : { },
+      "customGroupIdentityLinks" : { },
+      "customProperties" : [ ],
+      "extended" : false,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "flow2",
+      "xmlRowNumber" : 26,
+      "xmlColumnNumber" : 75,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "theTask",
+      "targetRef" : "theEnd",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "theEnd",
+      "xmlRowNumber" : 27,
+      "xmlColumnNumber" : 33,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "flow2",
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 75,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "theTask",
+        "targetRef" : "theEnd",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    } ],
+    "artifacts" : [ ]
+  },
+  "dataStores" : { },
+  "itemDefinitions" : { },
+  "escalations" : [ ],
+  "errors" : { }
+}

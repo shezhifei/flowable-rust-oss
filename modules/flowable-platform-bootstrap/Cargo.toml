@@ -1,0 +1,18 @@
+[package]
+name = "flowable-platform-bootstrap"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-app-engine = { path = "../flowable-app-engine" }
+flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
+flowable-dmn-engine = { path = "../flowable-dmn-engine" }
+flowable-engine = { path = "../flowable-engine" }
+flowable-event-registry-service = { path = "../flowable-event-registry-service" }
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3.14"
+serde_json = "1.0"

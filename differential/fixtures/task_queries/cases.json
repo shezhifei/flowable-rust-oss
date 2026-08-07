@@ -1,0 +1,65 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "observeVariables": [],
+  "cases": [
+    {
+      "id": "candidate_user_expands_group_membership",
+      "observe": ["taskQuery", "tasks", "processEnded", "error"],
+      "operations": [
+        { "op": "createUser", "userId": "userA" },
+        { "op": "createGroup", "groupId": "G1", "groupName": "Group One" },
+        { "op": "createMembership", "userId": "userA", "groupId": "G1" },
+        { "op": "deploy", "bpmn": "group_candidate_task.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "queryTasks", "candidateUser": "userA" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "candidate_or_assigned_covers_both",
+      "observe": ["taskQuery", "tasks", "processEnded", "error"],
+      "operations": [
+        { "op": "createUser", "userId": "candOrUser" },
+        { "op": "deploy", "bpmn": "candidate_or_assigned.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "claimTask", "taskDefinitionKey": "assignedTask", "userId": "candOrUser" },
+        { "op": "queryTasks", "candidateOrAssigned": "candOrUser" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "candidate_query_excludes_assigned_by_default",
+      "observe": ["taskQuery", "tasks", "processEnded", "error"],
+      "operations": [
+        { "op": "createUser", "userId": "johnDoe" },
+        { "op": "createGroup", "groupId": "salesExcl", "groupName": "Sales Exclude" },
+        { "op": "deploy", "bpmn": "exclude_assigned.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "claimTask", "taskDefinitionKey": "claimedTask", "userId": "johnDoe" },
+        { "op": "queryTasks", "candidateGroup": "salesExcl" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "or_query_composite",
+      "observe": ["taskQuery", "tasks", "processEnded", "error"],
+      "operations": [
+        { "op": "createUser", "userId": "kermit" },
+        { "op": "createGroup", "groupId": "salesOr", "groupName": "Sales Or" },
+        { "op": "deploy", "bpmn": "or_query_tasks.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "claimTask", "taskDefinitionKey": "assignedTarget", "userId": "kermit" },
+        { "op": "claimTask", "taskDefinitionKey": "otherAssigned", "userId": "kermit" },
+        {
+          "op": "queryTasks",
+          "taskName": "Target",
+          "or": [
+            { "assignee": "kermit" },
+            { "candidateGroup": "salesOr" }
+          ]
+        },
+        { "op": "snapshot" }
+      ]
+    }
+  ]
+}

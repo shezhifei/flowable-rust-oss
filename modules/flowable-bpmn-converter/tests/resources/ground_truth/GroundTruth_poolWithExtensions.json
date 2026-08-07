@@ -1,0 +1,4861 @@
+{
+  "definitionsAttributes" : {
+    "id" : [ {
+      "name" : "id",
+      "value" : "sid-0fe20520-9296-420a-9be1-1a73b967cc2f",
+      "namespacePrefix" : null,
+      "namespace" : null
+    } ],
+    "schemaLocation" : [ {
+      "name" : "schemaLocation",
+      "value" : "http://www.omg.org/spec/BPMN/20100524/MODEL http://www.omg.org/spec/BPMN/2.0/20100501/BPMN20.xsd",
+      "namespacePrefix" : "xsi",
+      "namespace" : "http://www.w3.org/2001/XMLSchema-instance"
+    } ]
+  },
+  "processes" : [ {
+    "id" : "sid-E2EF1A3C-B582-4B78-ACBC-6A9EACBEA9BB",
+    "xmlRowNumber" : 19,
+    "xmlColumnNumber" : 127,
+    "extensionElements" : { },
+    "attributes" : {
+      "processType" : [ {
+        "name" : "processType",
+        "value" : "None",
+        "namespacePrefix" : null,
+        "namespace" : null
+      } ],
+      "isClosed" : [ {
+        "name" : "isClosed",
+        "value" : "false",
+        "namespacePrefix" : null,
+        "namespace" : null
+      } ]
+    },
+    "name" : "Kunde",
+    "executable" : true,
+    "documentation" : null,
+    "ioSpecification" : null,
+    "executionListeners" : [ ],
+    "lanes" : [ {
+      "id" : "sid-3C26D50B-7BEA-46D9-84EF-8714F643312F",
+      "xmlRowNumber" : 22,
+      "xmlColumnNumber" : 59,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 24,
+          "xmlColumnNumber" : 71,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 25,
+          "xmlColumnNumber" : 82,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : null,
+      "flowReferences" : [ "sid-F07C46E4-656A-4593-9163-704323134550", "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B", "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0", "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C", "sid-53CAB05F-06C8-4520-B918-004130F62EA5" ]
+    } ],
+    "dataObjects" : [ ],
+    "candidateStarterUsers" : [ ],
+    "candidateStarterGroups" : [ ],
+    "eventListeners" : [ ],
+    "flowElementMap" : {
+      "sid-F07C46E4-656A-4593-9163-704323134550" : {
+        "id" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "xmlRowNumber" : 34,
+        "xmlColumnNumber" : 95,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 36,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 37,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 38,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "vorgngerprozesse",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Schaden \neingetreten",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ {
+          "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+          "xmlRowNumber" : 93,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 95,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+          "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "initiator" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "validateFormFields" : null,
+        "formProperties" : [ ],
+        "interrupting" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B" : {
+        "id" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "xmlRowNumber" : 42,
+        "xmlColumnNumber" : 81,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 44,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffcc",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 45,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 46,
+            "xmlColumnNumber" : 77,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "erteiltfreigabe",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 47,
+            "xmlColumnNumber" : 72,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "meta-risks",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 48,
+            "xmlColumnNumber" : 79,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "wirdkonsultiert",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 49,
+            "xmlColumnNumber" : 81,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "externaldocuments",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 50,
+            "xmlColumnNumber" : 78,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "wirdinformiert",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Schaden erfassen",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+          "xmlRowNumber" : 93,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 95,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+          "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+          "xmlRowNumber" : 88,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 90,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "defaultFlow" : null,
+        "forCompensation" : false,
+        "loopCharacteristics" : null,
+        "ioSpecification" : null,
+        "dataInputAssociations" : [ ],
+        "dataOutputAssociations" : [ ],
+        "boundaryEvents" : [ ],
+        "failedJobRetryTimeCycleValue" : null,
+        "mapExceptions" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0" : {
+        "id" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "xmlRowNumber" : 55,
+        "xmlColumnNumber" : 111,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 57,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 58,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ],
+          "signavioLabel" : [ {
+            "id" : null,
+            "xmlRowNumber" : 59,
+            "xmlColumnNumber" : 138,
+            "extensionElements" : { },
+            "attributes" : {
+              "bottom" : [ {
+                "name" : "bottom",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "left" : [ {
+                "name" : "left",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "ref" : [ {
+                "name" : "ref",
+                "value" : "text_name",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "right" : [ {
+                "name" : "right",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "top" : [ {
+                "name" : "top",
+                "value" : "true",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "valign" : [ {
+                "name" : "valign",
+                "value" : "bottom",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "x" : [ {
+                "name" : "x",
+                "value" : "15.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "y" : [ {
+                "name" : "y",
+                "value" : "-8.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioLabel",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Kunde reicht\nSchaden ein",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+          "xmlRowNumber" : 88,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 90,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+          "xmlRowNumber" : 83,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 85,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 63,
+          "xmlColumnNumber" : 79,
+          "extensionElements" : { },
+          "attributes" : { },
+          "messageRef" : null,
+          "messageExpression" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C" : {
+        "id" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "xmlRowNumber" : 65,
+        "xmlColumnNumber" : 115,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 67,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 68,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ],
+          "signavioLabel" : [ {
+            "id" : null,
+            "xmlRowNumber" : 69,
+            "xmlColumnNumber" : 138,
+            "extensionElements" : { },
+            "attributes" : {
+              "bottom" : [ {
+                "name" : "bottom",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "left" : [ {
+                "name" : "left",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "ref" : [ {
+                "name" : "ref",
+                "value" : "text_name",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "right" : [ {
+                "name" : "right",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "top" : [ {
+                "name" : "top",
+                "value" : "true",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "valign" : [ {
+                "name" : "valign",
+                "value" : "bottom",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "x" : [ {
+                "name" : "x",
+                "value" : "15.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "y" : [ {
+                "name" : "y",
+                "value" : "-8.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioLabel",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Schaden erfolgreich\nangelegt",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+          "xmlRowNumber" : 83,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 85,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "SequenceFlow_0q3gpjw",
+          "xmlRowNumber" : 98,
+          "xmlColumnNumber" : 153,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 73,
+          "xmlColumnNumber" : 79,
+          "extensionElements" : { },
+          "attributes" : { },
+          "messageRef" : null,
+          "messageExpression" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-53CAB05F-06C8-4520-B918-004130F62EA5" : {
+        "id" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "xmlRowNumber" : 75,
+        "xmlColumnNumber" : 69,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 77,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 78,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 79,
+            "xmlColumnNumber" : 82,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "nachfolgerprozesse",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "SequenceFlow_0q3gpjw",
+          "xmlRowNumber" : 98,
+          "xmlColumnNumber" : 153,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816" : {
+        "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+        "xmlRowNumber" : 83,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 85,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC" : {
+        "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+        "xmlRowNumber" : 88,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 90,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "sid-EA06A991-7A40-4496-B72E-8D641A3650A5" : {
+        "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+        "xmlRowNumber" : 93,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 95,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "SequenceFlow_0q3gpjw" : {
+        "id" : "SequenceFlow_0q3gpjw",
+        "xmlRowNumber" : 98,
+        "xmlColumnNumber" : 153,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      }
+    },
+    "artifactMap" : { },
+    "initialFlowElement" : null,
+    "enableEagerExecutionTreeFetching" : false,
+    "flowElements" : [ {
+      "id" : "sid-F07C46E4-656A-4593-9163-704323134550",
+      "xmlRowNumber" : 34,
+      "xmlColumnNumber" : 95,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 36,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 37,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 38,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "vorgngerprozesse",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Schaden \neingetreten",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ {
+        "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+        "xmlRowNumber" : 93,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 95,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "initiator" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "validateFormFields" : null,
+      "formProperties" : [ ],
+      "interrupting" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+      "xmlRowNumber" : 42,
+      "xmlColumnNumber" : 81,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 44,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffcc",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 45,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 46,
+          "xmlColumnNumber" : 77,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "erteiltfreigabe",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 47,
+          "xmlColumnNumber" : 72,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "meta-risks",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 48,
+          "xmlColumnNumber" : 79,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "wirdkonsultiert",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 49,
+          "xmlColumnNumber" : 81,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "externaldocuments",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 50,
+          "xmlColumnNumber" : 78,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "wirdinformiert",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Schaden erfassen",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+        "xmlRowNumber" : 93,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 95,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+        "xmlRowNumber" : 88,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 90,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "defaultFlow" : null,
+      "forCompensation" : false,
+      "loopCharacteristics" : null,
+      "ioSpecification" : null,
+      "dataInputAssociations" : [ ],
+      "dataOutputAssociations" : [ ],
+      "boundaryEvents" : [ ],
+      "failedJobRetryTimeCycleValue" : null,
+      "mapExceptions" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+      "xmlRowNumber" : 55,
+      "xmlColumnNumber" : 111,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 57,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 58,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ],
+        "signavioLabel" : [ {
+          "id" : null,
+          "xmlRowNumber" : 59,
+          "xmlColumnNumber" : 138,
+          "extensionElements" : { },
+          "attributes" : {
+            "bottom" : [ {
+              "name" : "bottom",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "left" : [ {
+              "name" : "left",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "ref" : [ {
+              "name" : "ref",
+              "value" : "text_name",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "right" : [ {
+              "name" : "right",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "top" : [ {
+              "name" : "top",
+              "value" : "true",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "valign" : [ {
+              "name" : "valign",
+              "value" : "bottom",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "x" : [ {
+              "name" : "x",
+              "value" : "15.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "y" : [ {
+              "name" : "y",
+              "value" : "-8.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioLabel",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Kunde reicht\nSchaden ein",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+        "xmlRowNumber" : 88,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 90,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+        "xmlRowNumber" : 83,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 85,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 63,
+        "xmlColumnNumber" : 79,
+        "extensionElements" : { },
+        "attributes" : { },
+        "messageRef" : null,
+        "messageExpression" : null
+      } ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+      "xmlRowNumber" : 65,
+      "xmlColumnNumber" : 115,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 67,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 68,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ],
+        "signavioLabel" : [ {
+          "id" : null,
+          "xmlRowNumber" : 69,
+          "xmlColumnNumber" : 138,
+          "extensionElements" : { },
+          "attributes" : {
+            "bottom" : [ {
+              "name" : "bottom",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "left" : [ {
+              "name" : "left",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "ref" : [ {
+              "name" : "ref",
+              "value" : "text_name",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "right" : [ {
+              "name" : "right",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "top" : [ {
+              "name" : "top",
+              "value" : "true",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "valign" : [ {
+              "name" : "valign",
+              "value" : "bottom",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "x" : [ {
+              "name" : "x",
+              "value" : "15.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "y" : [ {
+              "name" : "y",
+              "value" : "-8.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioLabel",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Schaden erfolgreich\nangelegt",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+        "xmlRowNumber" : 83,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 85,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "SequenceFlow_0q3gpjw",
+        "xmlRowNumber" : 98,
+        "xmlColumnNumber" : 153,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 73,
+        "xmlColumnNumber" : 79,
+        "extensionElements" : { },
+        "attributes" : { },
+        "messageRef" : null,
+        "messageExpression" : null
+      } ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+      "xmlRowNumber" : 75,
+      "xmlColumnNumber" : 69,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 77,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 78,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 79,
+          "xmlColumnNumber" : 82,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "nachfolgerprozesse",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "SequenceFlow_0q3gpjw",
+        "xmlRowNumber" : 98,
+        "xmlColumnNumber" : 153,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+      "xmlRowNumber" : 83,
+      "xmlColumnNumber" : 179,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 85,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+      "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+      "xmlRowNumber" : 88,
+      "xmlColumnNumber" : 179,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 90,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+      "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+      "xmlRowNumber" : 93,
+      "xmlColumnNumber" : 179,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 95,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+      "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "SequenceFlow_0q3gpjw",
+      "xmlRowNumber" : 98,
+      "xmlColumnNumber" : 153,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+      "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    } ],
+    "artifacts" : [ ]
+  } ],
+  "locationMap" : {
+    "sid-E7EDAF90-0375-4A59-A43A-D872F73B5F0B" : {
+      "x" : 159.0,
+      "y" : 81.0,
+      "height" : 429.0,
+      "width" : 601.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 102,
+      "xmlColumnNumber" : 150,
+      "rotation" : 0.0
+    },
+    "sid-3C26D50B-7BEA-46D9-84EF-8714F643312F" : {
+      "x" : 189.0,
+      "y" : 81.0,
+      "height" : 429.0,
+      "width" : 571.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 108,
+      "xmlColumnNumber" : 150,
+      "rotation" : 0.0
+    },
+    "sid-F07C46E4-656A-4593-9163-704323134550" : {
+      "x" : 219.0,
+      "y" : 324.0,
+      "height" : 30.0,
+      "width" : 30.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 111,
+      "xmlColumnNumber" : 130,
+      "rotation" : 0.0
+    },
+    "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B" : {
+      "x" : 294.0,
+      "y" : 299.0,
+      "height" : 80.0,
+      "width" : 100.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 117,
+      "xmlColumnNumber" : 130,
+      "rotation" : 0.0
+    },
+    "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0" : {
+      "x" : 439.0,
+      "y" : 324.0,
+      "height" : 30.0,
+      "width" : 30.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 123,
+      "xmlColumnNumber" : 130,
+      "rotation" : 0.0
+    },
+    "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C" : {
+      "x" : 552.0,
+      "y" : 324.0,
+      "height" : 30.0,
+      "width" : 30.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 129,
+      "xmlColumnNumber" : 130,
+      "rotation" : 0.0
+    },
+    "sid-53CAB05F-06C8-4520-B918-004130F62EA5" : {
+      "x" : 687.0,
+      "y" : 325.0,
+      "height" : 28.0,
+      "width" : 28.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 135,
+      "xmlColumnNumber" : 130,
+      "rotation" : 0.0
+    }
+  },
+  "labelLocationMap" : {
+    "sid-E7EDAF90-0375-4A59-A43A-D872F73B5F0B" : {
+      "x" : 94.0,
+      "y" : 483.0,
+      "height" : 34.0,
+      "width" : 12.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 104,
+      "xmlColumnNumber" : 81,
+      "rotation" : 0.0
+    },
+    "sid-F07C46E4-656A-4593-9163-704323134550" : {
+      "x" : 206.0,
+      "y" : 356.0,
+      "height" : 27.0,
+      "width" : 56.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 113,
+      "xmlColumnNumber" : 81,
+      "rotation" : 0.0
+    },
+    "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B" : {
+      "x" : 251.0,
+      "y" : 306.0,
+      "height" : 24.0,
+      "width" : 46.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 119,
+      "xmlColumnNumber" : 81,
+      "rotation" : 0.0
+    },
+    "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0" : {
+      "x" : 423.0,
+      "y" : 294.0,
+      "height" : 27.0,
+      "width" : 62.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 125,
+      "xmlColumnNumber" : 81,
+      "rotation" : 0.0
+    },
+    "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C" : {
+      "x" : 542.0,
+      "y" : 294.0,
+      "height" : 40.0,
+      "width" : 52.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 131,
+      "xmlColumnNumber" : 81,
+      "rotation" : 0.0
+    }
+  },
+  "flowLocationMap" : {
+    "sid-EA06A991-7A40-4496-B72E-8D641A3650A5" : [ {
+      "x" : 249.0,
+      "y" : 338.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 139,
+      "xmlColumnNumber" : 57,
+      "rotation" : 0.0
+    }, {
+      "x" : 294.0,
+      "y" : 338.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 140,
+      "xmlColumnNumber" : 57,
+      "rotation" : 0.0
+    } ],
+    "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC" : [ {
+      "x" : 394.0,
+      "y" : 338.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 143,
+      "xmlColumnNumber" : 57,
+      "rotation" : 0.0
+    }, {
+      "x" : 439.0,
+      "y" : 338.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 144,
+      "xmlColumnNumber" : 57,
+      "rotation" : 0.0
+    } ],
+    "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816" : [ {
+      "x" : 469.0,
+      "y" : 338.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 147,
+      "xmlColumnNumber" : 57,
+      "rotation" : 0.0
+    }, {
+      "x" : 552.0,
+      "y" : 338.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 148,
+      "xmlColumnNumber" : 71,
+      "rotation" : 0.0
+    } ],
+    "SequenceFlow_0q3gpjw" : [ {
+      "x" : 582.0,
+      "y" : 339.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 151,
+      "xmlColumnNumber" : 43,
+      "rotation" : 0.0
+    }, {
+      "x" : 687.0,
+      "y" : 339.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 152,
+      "xmlColumnNumber" : 43,
+      "rotation" : 0.0
+    } ]
+  },
+  "edgeMap" : { },
+  "signals" : [ ],
+  "pools" : [ {
+    "id" : "sid-E7EDAF90-0375-4A59-A43A-D872F73B5F0B",
+    "xmlRowNumber" : 0,
+    "xmlColumnNumber" : 0,
+    "extensionElements" : {
+      "signavioMetaData" : [ {
+        "id" : null,
+        "xmlRowNumber" : 14,
+        "xmlColumnNumber" : 76,
+        "extensionElements" : { },
+        "attributes" : {
+          "metaKey" : [ {
+            "name" : "metaKey",
+            "value" : "bgcolor",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ],
+          "metaValue" : [ {
+            "name" : "metaValue",
+            "value" : "#ffffff",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "signavioMetaData",
+        "namespacePrefix" : "signavio",
+        "namespace" : "http://www.signavio.com",
+        "elementText" : null,
+        "childElements" : { }
+      }, {
+        "id" : null,
+        "xmlRowNumber" : 15,
+        "xmlColumnNumber" : 80,
+        "extensionElements" : { },
+        "attributes" : {
+          "metaKey" : [ {
+            "name" : "metaKey",
+            "value" : "bordercolor",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ],
+          "metaValue" : [ {
+            "name" : "metaValue",
+            "value" : "#000000",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "signavioMetaData",
+        "namespacePrefix" : "signavio",
+        "namespace" : "http://www.signavio.com",
+        "elementText" : null,
+        "childElements" : { }
+      } ]
+    },
+    "attributes" : { },
+    "name" : "Kunde",
+    "processRef" : "sid-E2EF1A3C-B582-4B78-ACBC-6A9EACBEA9BB",
+    "executable" : true
+  } ],
+  "imports" : [ ],
+  "interfaces" : [ ],
+  "globalArtifacts" : [ ],
+  "resources" : [ ],
+  "targetNamespace" : "http://www.signavio.com",
+  "sourceSystemId" : null,
+  "userTaskFormTypes" : null,
+  "startEventFormTypes" : null,
+  "exporter" : "bpmn-js (https://demo.bpmn.io)",
+  "exporterVersion" : "6.1.1",
+  "namespaces" : {
+    "bpmndi" : "http://www.omg.org/spec/BPMN/20100524/DI",
+    "omgdc" : "http://www.omg.org/spec/DD/20100524/DC",
+    "omgdi" : "http://www.omg.org/spec/DD/20100524/DI",
+    "xsi" : "http://www.w3.org/2001/XMLSchema-instance",
+    "signavio" : "http://www.signavio.com"
+  },
+  "messageFlows" : { },
+  "messages" : [ ],
+  "mainProcess" : {
+    "id" : "sid-E2EF1A3C-B582-4B78-ACBC-6A9EACBEA9BB",
+    "xmlRowNumber" : 19,
+    "xmlColumnNumber" : 127,
+    "extensionElements" : { },
+    "attributes" : {
+      "processType" : [ {
+        "name" : "processType",
+        "value" : "None",
+        "namespacePrefix" : null,
+        "namespace" : null
+      } ],
+      "isClosed" : [ {
+        "name" : "isClosed",
+        "value" : "false",
+        "namespacePrefix" : null,
+        "namespace" : null
+      } ]
+    },
+    "name" : "Kunde",
+    "executable" : true,
+    "documentation" : null,
+    "ioSpecification" : null,
+    "executionListeners" : [ ],
+    "lanes" : [ {
+      "id" : "sid-3C26D50B-7BEA-46D9-84EF-8714F643312F",
+      "xmlRowNumber" : 22,
+      "xmlColumnNumber" : 59,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 24,
+          "xmlColumnNumber" : 71,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 25,
+          "xmlColumnNumber" : 82,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : null,
+      "flowReferences" : [ "sid-F07C46E4-656A-4593-9163-704323134550", "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B", "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0", "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C", "sid-53CAB05F-06C8-4520-B918-004130F62EA5" ]
+    } ],
+    "dataObjects" : [ ],
+    "candidateStarterUsers" : [ ],
+    "candidateStarterGroups" : [ ],
+    "eventListeners" : [ ],
+    "flowElementMap" : {
+      "sid-F07C46E4-656A-4593-9163-704323134550" : {
+        "id" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "xmlRowNumber" : 34,
+        "xmlColumnNumber" : 95,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 36,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 37,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 38,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "vorgngerprozesse",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Schaden \neingetreten",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ {
+          "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+          "xmlRowNumber" : 93,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 95,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+          "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "initiator" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "validateFormFields" : null,
+        "formProperties" : [ ],
+        "interrupting" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B" : {
+        "id" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "xmlRowNumber" : 42,
+        "xmlColumnNumber" : 81,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 44,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffcc",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 45,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 46,
+            "xmlColumnNumber" : 77,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "erteiltfreigabe",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 47,
+            "xmlColumnNumber" : 72,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "meta-risks",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 48,
+            "xmlColumnNumber" : 79,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "wirdkonsultiert",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 49,
+            "xmlColumnNumber" : 81,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "externaldocuments",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 50,
+            "xmlColumnNumber" : 78,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "wirdinformiert",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Schaden erfassen",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+          "xmlRowNumber" : 93,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 95,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+          "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+          "xmlRowNumber" : 88,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 90,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "defaultFlow" : null,
+        "forCompensation" : false,
+        "loopCharacteristics" : null,
+        "ioSpecification" : null,
+        "dataInputAssociations" : [ ],
+        "dataOutputAssociations" : [ ],
+        "boundaryEvents" : [ ],
+        "failedJobRetryTimeCycleValue" : null,
+        "mapExceptions" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0" : {
+        "id" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "xmlRowNumber" : 55,
+        "xmlColumnNumber" : 111,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 57,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 58,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ],
+          "signavioLabel" : [ {
+            "id" : null,
+            "xmlRowNumber" : 59,
+            "xmlColumnNumber" : 138,
+            "extensionElements" : { },
+            "attributes" : {
+              "bottom" : [ {
+                "name" : "bottom",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "left" : [ {
+                "name" : "left",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "ref" : [ {
+                "name" : "ref",
+                "value" : "text_name",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "right" : [ {
+                "name" : "right",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "top" : [ {
+                "name" : "top",
+                "value" : "true",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "valign" : [ {
+                "name" : "valign",
+                "value" : "bottom",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "x" : [ {
+                "name" : "x",
+                "value" : "15.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "y" : [ {
+                "name" : "y",
+                "value" : "-8.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioLabel",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Kunde reicht\nSchaden ein",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+          "xmlRowNumber" : 88,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 90,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+          "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+          "xmlRowNumber" : 83,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 85,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 63,
+          "xmlColumnNumber" : 79,
+          "extensionElements" : { },
+          "attributes" : { },
+          "messageRef" : null,
+          "messageExpression" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C" : {
+        "id" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "xmlRowNumber" : 65,
+        "xmlColumnNumber" : 115,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 67,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 68,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ],
+          "signavioLabel" : [ {
+            "id" : null,
+            "xmlRowNumber" : 69,
+            "xmlColumnNumber" : 138,
+            "extensionElements" : { },
+            "attributes" : {
+              "bottom" : [ {
+                "name" : "bottom",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "left" : [ {
+                "name" : "left",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "ref" : [ {
+                "name" : "ref",
+                "value" : "text_name",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "right" : [ {
+                "name" : "right",
+                "value" : "false",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "top" : [ {
+                "name" : "top",
+                "value" : "true",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "valign" : [ {
+                "name" : "valign",
+                "value" : "bottom",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "x" : [ {
+                "name" : "x",
+                "value" : "15.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "y" : [ {
+                "name" : "y",
+                "value" : "-8.0",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioLabel",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Schaden erfolgreich\nangelegt",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+          "xmlRowNumber" : 83,
+          "xmlColumnNumber" : 179,
+          "extensionElements" : {
+            "signavioMetaData" : [ {
+              "id" : null,
+              "xmlRowNumber" : 85,
+              "xmlColumnNumber" : 80,
+              "extensionElements" : { },
+              "attributes" : {
+                "metaKey" : [ {
+                  "name" : "metaKey",
+                  "value" : "bordercolor",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "metaValue" : [ {
+                  "name" : "metaValue",
+                  "value" : "#000000",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "signavioMetaData",
+              "namespacePrefix" : "signavio",
+              "namespace" : "http://www.signavio.com",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "name" : "",
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+          "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "SequenceFlow_0q3gpjw",
+          "xmlRowNumber" : 98,
+          "xmlColumnNumber" : 153,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 73,
+          "xmlColumnNumber" : 79,
+          "extensionElements" : { },
+          "attributes" : { },
+          "messageRef" : null,
+          "messageExpression" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-53CAB05F-06C8-4520-B918-004130F62EA5" : {
+        "id" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "xmlRowNumber" : 75,
+        "xmlColumnNumber" : 69,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 77,
+            "xmlColumnNumber" : 76,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bgcolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#ffffff",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 78,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 79,
+            "xmlColumnNumber" : 82,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "nachfolgerprozesse",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "[]",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "SequenceFlow_0q3gpjw",
+          "xmlRowNumber" : 98,
+          "xmlColumnNumber" : 153,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+          "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816" : {
+        "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+        "xmlRowNumber" : 83,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 85,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC" : {
+        "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+        "xmlRowNumber" : 88,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 90,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "sid-EA06A991-7A40-4496-B72E-8D641A3650A5" : {
+        "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+        "xmlRowNumber" : 93,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 95,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "SequenceFlow_0q3gpjw" : {
+        "id" : "SequenceFlow_0q3gpjw",
+        "xmlRowNumber" : 98,
+        "xmlColumnNumber" : 153,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      }
+    },
+    "artifactMap" : { },
+    "initialFlowElement" : null,
+    "enableEagerExecutionTreeFetching" : false,
+    "flowElements" : [ {
+      "id" : "sid-F07C46E4-656A-4593-9163-704323134550",
+      "xmlRowNumber" : 34,
+      "xmlColumnNumber" : 95,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 36,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 37,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 38,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "vorgngerprozesse",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Schaden \neingetreten",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ {
+        "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+        "xmlRowNumber" : 93,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 95,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "initiator" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "validateFormFields" : null,
+      "formProperties" : [ ],
+      "interrupting" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+      "xmlRowNumber" : 42,
+      "xmlColumnNumber" : 81,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 44,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffcc",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 45,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 46,
+          "xmlColumnNumber" : 77,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "erteiltfreigabe",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 47,
+          "xmlColumnNumber" : 72,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "meta-risks",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 48,
+          "xmlColumnNumber" : 79,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "wirdkonsultiert",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 49,
+          "xmlColumnNumber" : 81,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "externaldocuments",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 50,
+          "xmlColumnNumber" : 78,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "wirdinformiert",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Schaden erfassen",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+        "xmlRowNumber" : 93,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 95,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+        "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+        "xmlRowNumber" : 88,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 90,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "defaultFlow" : null,
+      "forCompensation" : false,
+      "loopCharacteristics" : null,
+      "ioSpecification" : null,
+      "dataInputAssociations" : [ ],
+      "dataOutputAssociations" : [ ],
+      "boundaryEvents" : [ ],
+      "failedJobRetryTimeCycleValue" : null,
+      "mapExceptions" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+      "xmlRowNumber" : 55,
+      "xmlColumnNumber" : 111,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 57,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 58,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ],
+        "signavioLabel" : [ {
+          "id" : null,
+          "xmlRowNumber" : 59,
+          "xmlColumnNumber" : 138,
+          "extensionElements" : { },
+          "attributes" : {
+            "bottom" : [ {
+              "name" : "bottom",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "left" : [ {
+              "name" : "left",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "ref" : [ {
+              "name" : "ref",
+              "value" : "text_name",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "right" : [ {
+              "name" : "right",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "top" : [ {
+              "name" : "top",
+              "value" : "true",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "valign" : [ {
+              "name" : "valign",
+              "value" : "bottom",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "x" : [ {
+              "name" : "x",
+              "value" : "15.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "y" : [ {
+              "name" : "y",
+              "value" : "-8.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioLabel",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Kunde reicht\nSchaden ein",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+        "xmlRowNumber" : 88,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 90,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+        "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+        "xmlRowNumber" : 83,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 85,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 63,
+        "xmlColumnNumber" : 79,
+        "extensionElements" : { },
+        "attributes" : { },
+        "messageRef" : null,
+        "messageExpression" : null
+      } ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+      "xmlRowNumber" : 65,
+      "xmlColumnNumber" : 115,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 67,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 68,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ],
+        "signavioLabel" : [ {
+          "id" : null,
+          "xmlRowNumber" : 69,
+          "xmlColumnNumber" : 138,
+          "extensionElements" : { },
+          "attributes" : {
+            "bottom" : [ {
+              "name" : "bottom",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "left" : [ {
+              "name" : "left",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "ref" : [ {
+              "name" : "ref",
+              "value" : "text_name",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "right" : [ {
+              "name" : "right",
+              "value" : "false",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "top" : [ {
+              "name" : "top",
+              "value" : "true",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "valign" : [ {
+              "name" : "valign",
+              "value" : "bottom",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "x" : [ {
+              "name" : "x",
+              "value" : "15.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "y" : [ {
+              "name" : "y",
+              "value" : "-8.0",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioLabel",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Schaden erfolgreich\nangelegt",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+        "xmlRowNumber" : 83,
+        "xmlColumnNumber" : 179,
+        "extensionElements" : {
+          "signavioMetaData" : [ {
+            "id" : null,
+            "xmlRowNumber" : 85,
+            "xmlColumnNumber" : 80,
+            "extensionElements" : { },
+            "attributes" : {
+              "metaKey" : [ {
+                "name" : "metaKey",
+                "value" : "bordercolor",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "metaValue" : [ {
+                "name" : "metaValue",
+                "value" : "#000000",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "signavioMetaData",
+            "namespacePrefix" : "signavio",
+            "namespace" : "http://www.signavio.com",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "",
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+        "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "SequenceFlow_0q3gpjw",
+        "xmlRowNumber" : 98,
+        "xmlColumnNumber" : 153,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 73,
+        "xmlColumnNumber" : 79,
+        "extensionElements" : { },
+        "attributes" : { },
+        "messageRef" : null,
+        "messageExpression" : null
+      } ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+      "xmlRowNumber" : 75,
+      "xmlColumnNumber" : 69,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 77,
+          "xmlColumnNumber" : 76,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bgcolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#ffffff",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 78,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 79,
+          "xmlColumnNumber" : 82,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "nachfolgerprozesse",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "[]",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "SequenceFlow_0q3gpjw",
+        "xmlRowNumber" : 98,
+        "xmlColumnNumber" : 153,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+        "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-F0CAFCF9-4D35-4652-91AD-70FC302DB816",
+      "xmlRowNumber" : 83,
+      "xmlColumnNumber" : 179,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 85,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+      "targetRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "sid-7BBA2D19-CCDF-40D5-BD73-EB9A0EB324FC",
+      "xmlRowNumber" : 88,
+      "xmlColumnNumber" : 179,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 90,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+      "targetRef" : "sid-26F358CC-8F01-45FB-AA81-4FF9C5656BE0",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "sid-EA06A991-7A40-4496-B72E-8D641A3650A5",
+      "xmlRowNumber" : 93,
+      "xmlColumnNumber" : 179,
+      "extensionElements" : {
+        "signavioMetaData" : [ {
+          "id" : null,
+          "xmlRowNumber" : 95,
+          "xmlColumnNumber" : 80,
+          "extensionElements" : { },
+          "attributes" : {
+            "metaKey" : [ {
+              "name" : "metaKey",
+              "value" : "bordercolor",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "metaValue" : [ {
+              "name" : "metaValue",
+              "value" : "#000000",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "signavioMetaData",
+          "namespacePrefix" : "signavio",
+          "namespace" : "http://www.signavio.com",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "",
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-F07C46E4-656A-4593-9163-704323134550",
+      "targetRef" : "sid-7EA7F87B-2016-46D6-8DA2-921B8B14013B",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "SequenceFlow_0q3gpjw",
+      "xmlRowNumber" : 98,
+      "xmlColumnNumber" : 153,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-719B79F5-FEC0-4F75-AE1A-B86A1802561C",
+      "targetRef" : "sid-53CAB05F-06C8-4520-B918-004130F62EA5",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    } ],
+    "artifacts" : [ ]
+  },
+  "dataStores" : { },
+  "itemDefinitions" : { },
+  "escalations" : [ ],
+  "errors" : {
+    "sid-08041854-856d-4d13-b6a9-287006b499bb" : null
+  }
+}

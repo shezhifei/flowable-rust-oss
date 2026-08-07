@@ -1,0 +1,35 @@
+[package]
+name = "flowable-persistence"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+# Enables PostgreSQL backend support via sqlx. Off by default for backward compatibility.
+postgres = ["sqlx/postgres"]
+# Enables MySQL backend support via sqlx. Off by default for backward compatibility.
+mysql = ["sqlx/mysql"]
+
+[dependencies]
+thiserror = "1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"] }
+tokio = { version = "1.0", features = ["rt-multi-thread"] }
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+r2d2 = "0.8"
+
+[dev-dependencies]
+tempfile = "3.14"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"] }
+tokio = { version = "1.0", features = ["rt-multi-thread"] }
+
+# PostgreSQL smoke test only compiles when the `postgres` feature is enabled.
+[[test]]
+name = "smoke_test_postgres"
+required-features = ["postgres"]
+
+# MySQL smoke test only compiles when the `mysql` feature is enabled.
+[[test]]
+name = "smoke_test_mysql"
+required-features = ["mysql"]

@@ -1,0 +1,11 @@
+[package]
+name = "flowable-dmn-image-generator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-dmn-model = { path = "../flowable-dmn-model" }
+flowable-dmn-engine = { path = "../flowable-dmn-engine" }
+
+[dev-dependencies]
+flowable-dmn-converter = { path = "../flowable-dmn-converter" }

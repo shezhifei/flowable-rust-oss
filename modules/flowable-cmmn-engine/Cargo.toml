@@ -1,0 +1,24 @@
+[package]
+name = "flowable-cmmn-engine"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+postgres = ["flowable-persistence/postgres"]
+mysql = ["flowable-persistence/mysql"]
+
+[dependencies]
+tracing = "0.1"
+chrono = { version = "0.4.44", features = ["serde"] }
+flowable-cmmn-model = { path = "../flowable-cmmn-model" }
+flowable-cmmn-converter = { path = "../flowable-cmmn-converter" }
+flowable-engine-common = { path = "../flowable-engine-common" }
+flowable-persistence = { path = "../flowable-persistence" }
+# Java DefaultCorrelationKeyGenerator MD5 (EventRegistryEventListenerActivityBehaviour.java:180)
+md-5 = "0.10"
+regex = "1"
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.23.1", features = ["v4"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }

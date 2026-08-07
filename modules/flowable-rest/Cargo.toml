@@ -1,0 +1,48 @@
+[package]
+name = "flowable-rest"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+postgres = ["flowable-engine/postgres"]
+mysql = ["flowable-engine/mysql"]
+
+[dependencies]
+flowable-engine = { path = "../flowable-engine" }
+flowable-app-converter = { path = "../flowable-app-converter" }
+flowable-app-engine = { path = "../flowable-app-engine" }
+flowable-app-model = { path = "../flowable-app-model" }
+flowable-bpmn-layout = { path = "../flowable-bpmn-layout" }
+flowable-bpmn-model = { path = "../flowable-bpmn-model" }
+flowable-cmmn-converter = { path = "../flowable-cmmn-converter" }
+flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
+flowable-cmmn-image-generator = { path = "../flowable-cmmn-image-generator" }
+flowable-cmmn-model = { path = "../flowable-cmmn-model" }
+flowable-dmn-converter = { path = "../flowable-dmn-converter" }
+flowable-dmn-engine = { path = "../flowable-dmn-engine" }
+flowable-dmn-image-generator = { path = "../flowable-dmn-image-generator" }
+flowable-form-service = { path = "../flowable-form-service" }
+flowable-content-service = { path = "../flowable-content-service" }
+flowable-event-registry-service = { path = "../flowable-event-registry-service" }
+flowable-platform-bootstrap = { path = "../flowable-platform-bootstrap" }
+flowable-image-generator = { path = "../flowable-image-generator" }
+flowable-identity-service = { path = "../flowable-identity-service" }
+flowable-task-service = { path = "../flowable-task-service" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.149"
+axum = { version = "0.7.9", features = ["multipart"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tokio = { version = "1.43", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "request-id"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+base64 = "0.22.1"
+serde_urlencoded = "0.7"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+flowable-variable-service = { path = "../flowable-variable-service" }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+tempfile = "3.14"
+rusqlite = { version = "0.31", features = ["bundled"] }

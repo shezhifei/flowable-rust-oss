@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <message id="pingMsg" name="pingMsg" />
+  <process id="nonInterruptMessage" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="hostTask" />
+    <userTask id="hostTask" name="Host" />
+    <boundaryEvent id="catchMsg" attachedToRef="hostTask" cancelActivity="false">
+      <messageEventDefinition messageRef="pingMsg" />
+    </boundaryEvent>
+    <sequenceFlow id="f2" sourceRef="hostTask" targetRef="hostEnd" />
+    <sequenceFlow id="f3" sourceRef="catchMsg" targetRef="sideTask" />
+    <userTask id="sideTask" name="Side" />
+    <sequenceFlow id="f4" sourceRef="sideTask" targetRef="sideEnd" />
+    <endEvent id="hostEnd" />
+    <endEvent id="sideEnd" />
+  </process>
+</definitions>

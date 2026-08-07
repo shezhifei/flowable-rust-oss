@@ -1,0 +1,63 @@
+[package]
+name = "flowable-engine"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "flowable_timer_worker"
+path = "src/bin/flowable_timer_worker.rs"
+
+[[bin]]
+name = "flowable_timer_coordination_server"
+path = "src/bin/flowable_timer_coordination_server.rs"
+
+[[bin]]
+name = "flowable_benchmark"
+path = "src/bin/flowable_benchmark.rs"
+
+[[test]]
+name = "mysql_engine_integration_test"
+path = "tests/mysql_engine_integration_test.rs"
+required-features = ["mysql"]
+
+[[test]]
+name = "postgres_engine_integration_test"
+path = "tests/postgres_engine_integration_test.rs"
+required-features = ["postgres"]
+
+[dependencies]
+tracing = "0.1"
+flowable-engine-common = { path = "../flowable-engine-common" }
+chrono = { version = "0.4.44", features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.23.1", features = ["v4"] }
+flowable-bpmn-converter = { path = "../flowable-bpmn-converter" }
+flowable-bpmn-model = { path = "../flowable-bpmn-model" }
+flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
+flowable-dmn-engine = { path = "../flowable-dmn-engine" }
+flowable-persistence = { path = "../flowable-persistence" }
+flowable-http-service = { path = "../flowable-http-service" }
+flowable-mail-service = { path = "../flowable-mail-service" }
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+r2d2 = "0.8.10"
+ctrlc = "3.4"
+jsonwebtoken = "9.3.0"
+reqwest = { version = "0.12.3", features = ["blocking", "json"] }
+base64 = "0.22.1"
+crossbeam-channel = "0.5"
+dashmap = "6"
+scoped-tls = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+# Java DefaultCorrelationKeyGenerator MD5 (P93)
+md-5 = "0.10"
+indexmap = "2"
+
+[dev-dependencies]
+flowable-history-service = { path = "../flowable-history-service" }
+tempfile = "3.14"
+
+[features]
+postgres = ["flowable-persistence/postgres"]
+mysql = ["flowable-persistence/mysql"]

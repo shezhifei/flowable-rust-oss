@@ -1,0 +1,8 @@
+[package]
+name = "flowable-event-registry-converter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-event-registry-model = { version = "0.1.0", path = "../flowable-event-registry-model" }
+serde_json = "1.0.149"

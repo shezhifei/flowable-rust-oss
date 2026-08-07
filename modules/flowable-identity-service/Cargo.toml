@@ -1,0 +1,8 @@
+[package]
+name = "flowable-identity-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-engine = { path = "../flowable-engine" }
+flowable-platform-bootstrap = { path = "../flowable-platform-bootstrap" }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <process id="variableSimpleTask" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="review" />
+    <userTask id="review" name="Review" />
+    <sequenceFlow id="f2" sourceRef="review" targetRef="check" />
+    <userTask id="check" name="Check" />
+    <sequenceFlow id="f3" sourceRef="check" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

@@ -1,0 +1,14 @@
+target/
+**/*.rs.bk
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.pem
+**/flowable-content-storage/
+GroundTruth_*.json
+!/modules/flowable-bpmn-converter/tests/resources/ground_truth/
+!/modules/flowable-bpmn-converter/tests/resources/ground_truth/**

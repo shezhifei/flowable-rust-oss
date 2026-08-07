@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <process id="emptyTimer" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="wait" />
+    <intermediateCatchEvent id="wait">
+      <timerEventDefinition />
+    </intermediateCatchEvent>
+    <sequenceFlow id="f2" sourceRef="wait" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

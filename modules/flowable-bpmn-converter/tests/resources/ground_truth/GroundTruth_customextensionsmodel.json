@@ -1,0 +1,3054 @@
+{
+  "definitionsAttributes" : { },
+  "processes" : [ {
+    "id" : "process",
+    "xmlRowNumber" : 7,
+    "xmlColumnNumber" : 80,
+    "extensionElements" : {
+      "test" : [ {
+        "id" : null,
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 82,
+        "extensionElements" : { },
+        "attributes" : {
+          "id" : [ {
+            "name" : "id",
+            "value" : "test",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ],
+          "name" : [ {
+            "name" : "name",
+            "value" : "test",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "test",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn",
+        "elementText" : null,
+        "childElements" : {
+          "name" : [ {
+            "id" : null,
+            "xmlRowNumber" : 13,
+            "xmlColumnNumber" : 22,
+            "extensionElements" : { },
+            "attributes" : { },
+            "name" : "name",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "test" : [ {
+                "id" : null,
+                "xmlRowNumber" : 14,
+                "xmlColumnNumber" : 24,
+                "extensionElements" : { },
+                "attributes" : { },
+                "name" : "test",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : "test",
+                "childElements" : { }
+              } ]
+            }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 16,
+            "xmlColumnNumber" : 40,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "customName",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "name",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ],
+          "description" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 89,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test",
+                "namespacePrefix" : "custom2",
+                "namespace" : "http://custom2.org/bpmn"
+              } ]
+            },
+            "name" : "description",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        }
+      }, {
+        "id" : null,
+        "xmlRowNumber" : 19,
+        "xmlColumnNumber" : 84,
+        "extensionElements" : { },
+        "attributes" : {
+          "id" : [ {
+            "name" : "id",
+            "value" : "test2",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ],
+          "name" : [ {
+            "name" : "name",
+            "value" : "test2",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "test",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn",
+        "elementText" : null,
+        "childElements" : { }
+      } ]
+    },
+    "attributes" : {
+      "version" : [ {
+        "name" : "version",
+        "value" : "9",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn"
+      } ]
+    },
+    "name" : "process1",
+    "executable" : true,
+    "documentation" : null,
+    "ioSpecification" : null,
+    "executionListeners" : [ {
+      "id" : "3b14031f-dbad-46a2-9d39-7583f43059c5",
+      "xmlRowNumber" : 9,
+      "xmlColumnNumber" : 165,
+      "extensionElements" : { },
+      "attributes" : { },
+      "event" : "start",
+      "implementationType" : "class",
+      "implementation" : "org.test.TestClass",
+      "fieldExtensions" : [ ],
+      "onTransaction" : "before-commit",
+      "customPropertiesResolverImplementationType" : "class",
+      "customPropertiesResolverImplementation" : "org.test.TestResolverClass",
+      "scriptInfo" : null
+    }, {
+      "id" : "a488f561-7c4e-4f54-9372-8dfd3f9a6768",
+      "xmlRowNumber" : 10,
+      "xmlColumnNumber" : 167,
+      "extensionElements" : { },
+      "attributes" : { },
+      "event" : "end",
+      "implementationType" : "expression",
+      "implementation" : "${testExpression}",
+      "fieldExtensions" : [ ],
+      "onTransaction" : "committed",
+      "customPropertiesResolverImplementationType" : "expression",
+      "customPropertiesResolverImplementation" : "${testResolverExpression}",
+      "scriptInfo" : null
+    }, {
+      "id" : "fe2491b0-1762-4238-af55-091edea3b21a",
+      "xmlRowNumber" : 11,
+      "xmlColumnNumber" : 195,
+      "extensionElements" : { },
+      "attributes" : { },
+      "event" : "start",
+      "implementationType" : "delegateExpression",
+      "implementation" : "${delegateExpression}",
+      "fieldExtensions" : [ ],
+      "onTransaction" : "rolled-back",
+      "customPropertiesResolverImplementationType" : "delegateExpression",
+      "customPropertiesResolverImplementation" : "${delegateResolverExpression}",
+      "scriptInfo" : null
+    } ],
+    "lanes" : [ ],
+    "dataObjects" : [ ],
+    "candidateStarterUsers" : [ ],
+    "candidateStarterGroups" : [ ],
+    "eventListeners" : [ ],
+    "flowElementMap" : {
+      "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5" : {
+        "id" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "xmlRowNumber" : 22,
+        "xmlColumnNumber" : 61,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+          "xmlRowNumber" : 57,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "servicetask",
+          "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82" : {
+        "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+        "xmlRowNumber" : 23,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "targetRef" : "servicetask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "servicetask" : {
+        "id" : "servicetask",
+        "xmlRowNumber" : 24,
+        "xmlColumnNumber" : 140,
+        "extensionElements" : {
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 31,
+            "xmlColumnNumber" : 44,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "name" : [ {
+                "id" : null,
+                "xmlRowNumber" : 32,
+                "xmlColumnNumber" : 23,
+                "extensionElements" : { },
+                "attributes" : { },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : {
+                  "test" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 33,
+                    "xmlColumnNumber" : 24,
+                    "extensionElements" : { },
+                    "attributes" : { },
+                    "name" : "test",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : "test",
+                    "childElements" : { }
+                  } ]
+                }
+              }, {
+                "id" : null,
+                "xmlRowNumber" : 35,
+                "xmlColumnNumber" : 42,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "customName",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ],
+              "description" : [ {
+                "id" : null,
+                "xmlRowNumber" : 36,
+                "xmlColumnNumber" : 90,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test",
+                    "namespacePrefix" : "custom2",
+                    "namespace" : "http://custom2.org/bpmn"
+                  } ]
+                },
+                "name" : "description",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 38,
+            "xmlColumnNumber" : 86,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Service task",
+        "documentation" : null,
+        "executionListeners" : [ {
+          "id" : "ab0549cd-f943-4d98-8049-a1dfa26571cc",
+          "xmlRowNumber" : 28,
+          "xmlColumnNumber" : 167,
+          "extensionElements" : { },
+          "attributes" : { },
+          "event" : "start",
+          "implementationType" : "class",
+          "implementation" : "org.test.TestClass",
+          "fieldExtensions" : [ ],
+          "onTransaction" : "before-commit",
+          "customPropertiesResolverImplementationType" : "class",
+          "customPropertiesResolverImplementation" : "org.test.TestResolverClass",
+          "scriptInfo" : null
+        }, {
+          "id" : "04953ea6-7e96-4c53-b04b-532159e065a7",
+          "xmlRowNumber" : 29,
+          "xmlColumnNumber" : 169,
+          "extensionElements" : { },
+          "attributes" : { },
+          "event" : "end",
+          "implementationType" : "expression",
+          "implementation" : "${testExpression}",
+          "fieldExtensions" : [ ],
+          "onTransaction" : "committed",
+          "customPropertiesResolverImplementationType" : "expression",
+          "customPropertiesResolverImplementation" : "${testResolverExpression}",
+          "scriptInfo" : null
+        }, {
+          "id" : "53a8839e-d25d-4fc9-9622-4e075790c1f8",
+          "xmlRowNumber" : 30,
+          "xmlColumnNumber" : 197,
+          "extensionElements" : { },
+          "attributes" : { },
+          "event" : "start",
+          "implementationType" : "delegateExpression",
+          "implementation" : "${delegateExpression}",
+          "fieldExtensions" : [ ],
+          "onTransaction" : "rolled-back",
+          "customPropertiesResolverImplementationType" : "delegateExpression",
+          "customPropertiesResolverImplementation" : "${delegateResolverExpression}",
+          "scriptInfo" : null
+        } ],
+        "asynchronous" : true,
+        "asynchronousLeave" : false,
+        "notExclusive" : true,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+          "xmlRowNumber" : 23,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+          "targetRef" : "servicetask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+          "xmlRowNumber" : 57,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "servicetask",
+          "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "defaultFlow" : null,
+        "forCompensation" : false,
+        "loopCharacteristics" : null,
+        "ioSpecification" : null,
+        "dataInputAssociations" : [ ],
+        "dataOutputAssociations" : [ ],
+        "boundaryEvents" : [ {
+          "id" : "timerEvent",
+          "xmlRowNumber" : 41,
+          "xmlColumnNumber" : 64,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "asynchronous" : false,
+          "asynchronousLeave" : false,
+          "notExclusive" : false,
+          "asynchronousLeaveNotExclusive" : false,
+          "incomingFlows" : [ ],
+          "outgoingFlows" : [ ],
+          "eventDefinitions" : [ {
+            "id" : null,
+            "xmlRowNumber" : 42,
+            "xmlColumnNumber" : 29,
+            "extensionElements" : {
+              "test" : [ {
+                "id" : null,
+                "xmlRowNumber" : 44,
+                "xmlColumnNumber" : 84,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ],
+                  "name" : [ {
+                    "name" : "name",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "test",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : {
+                  "name" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 45,
+                    "xmlColumnNumber" : 26,
+                    "extensionElements" : { },
+                    "attributes" : { },
+                    "name" : "name",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : null,
+                    "childElements" : {
+                      "test" : [ {
+                        "id" : null,
+                        "xmlRowNumber" : 46,
+                        "xmlColumnNumber" : 28,
+                        "extensionElements" : { },
+                        "attributes" : { },
+                        "name" : "test",
+                        "namespacePrefix" : "custom",
+                        "namespace" : "http://custom.org/bpmn",
+                        "elementText" : "test",
+                        "childElements" : { }
+                      } ]
+                    }
+                  }, {
+                    "id" : null,
+                    "xmlRowNumber" : 48,
+                    "xmlColumnNumber" : 44,
+                    "extensionElements" : { },
+                    "attributes" : {
+                      "id" : [ {
+                        "name" : "id",
+                        "value" : "customName",
+                        "namespacePrefix" : null,
+                        "namespace" : null
+                      } ]
+                    },
+                    "name" : "name",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : null,
+                    "childElements" : { }
+                  } ],
+                  "description" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 49,
+                    "xmlColumnNumber" : 93,
+                    "extensionElements" : { },
+                    "attributes" : {
+                      "id" : [ {
+                        "name" : "id",
+                        "value" : "test",
+                        "namespacePrefix" : "custom2",
+                        "namespace" : "http://custom2.org/bpmn"
+                      } ]
+                    },
+                    "name" : "description",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : null,
+                    "childElements" : { }
+                  } ]
+                }
+              }, {
+                "id" : null,
+                "xmlRowNumber" : 51,
+                "xmlColumnNumber" : 88,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test2",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ],
+                  "name" : [ {
+                    "name" : "name",
+                    "value" : "test2",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "test",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            },
+            "attributes" : { },
+            "timeDate" : null,
+            "timeDuration" : null,
+            "timeCycle" : "${cronExpression}",
+            "endDate" : null,
+            "calendarName" : null
+          } ],
+          "inParameters" : [ ],
+          "outParameters" : [ ],
+          "attachedToRefId" : "servicetask",
+          "cancelActivity" : true,
+          "exclusive" : true,
+          "asynchronousLeaveExclusive" : true
+        } ],
+        "failedJobRetryTimeCycleValue" : null,
+        "mapExceptions" : [ ],
+        "fieldExtensions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 26,
+          "xmlColumnNumber" : 61,
+          "extensionElements" : { },
+          "attributes" : { },
+          "fieldName" : "testField",
+          "stringValue" : "test",
+          "expression" : null
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 27,
+          "xmlColumnNumber" : 64,
+          "extensionElements" : { },
+          "attributes" : { },
+          "fieldName" : "testField2",
+          "stringValue" : null,
+          "expression" : "${test}"
+        } ],
+        "implementation" : "org.test.TestClass",
+        "implementationType" : "class",
+        "resultVariableName" : null,
+        "type" : null,
+        "operationRef" : null,
+        "extensionId" : null,
+        "customProperties" : [ ],
+        "skipExpression" : null,
+        "useLocalScopeForResultVariable" : false,
+        "triggerable" : false,
+        "storeResultVariableAsTransient" : false,
+        "extended" : false,
+        "exclusive" : false,
+        "asynchronousLeaveExclusive" : true
+      },
+      "timerEvent" : {
+        "id" : "timerEvent",
+        "xmlRowNumber" : 41,
+        "xmlColumnNumber" : 64,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 42,
+          "xmlColumnNumber" : 29,
+          "extensionElements" : {
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 44,
+              "xmlColumnNumber" : 84,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "name" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 45,
+                  "xmlColumnNumber" : 26,
+                  "extensionElements" : { },
+                  "attributes" : { },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : {
+                    "test" : [ {
+                      "id" : null,
+                      "xmlRowNumber" : 46,
+                      "xmlColumnNumber" : 28,
+                      "extensionElements" : { },
+                      "attributes" : { },
+                      "name" : "test",
+                      "namespacePrefix" : "custom",
+                      "namespace" : "http://custom.org/bpmn",
+                      "elementText" : "test",
+                      "childElements" : { }
+                    } ]
+                  }
+                }, {
+                  "id" : null,
+                  "xmlRowNumber" : 48,
+                  "xmlColumnNumber" : 44,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "customName",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ],
+                "description" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 49,
+                  "xmlColumnNumber" : 93,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "test",
+                      "namespacePrefix" : "custom2",
+                      "namespace" : "http://custom2.org/bpmn"
+                    } ]
+                  },
+                  "name" : "description",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            }, {
+              "id" : null,
+              "xmlRowNumber" : 51,
+              "xmlColumnNumber" : 88,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "timeDate" : null,
+          "timeDuration" : null,
+          "timeCycle" : "${cronExpression}",
+          "endDate" : null,
+          "calendarName" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "attachedToRefId" : "servicetask",
+        "cancelActivity" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A" : {
+        "id" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "xmlRowNumber" : 56,
+        "xmlColumnNumber" : 63,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ {
+          "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+          "xmlRowNumber" : 23,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+          "targetRef" : "servicetask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "initiator" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "validateFormFields" : null,
+        "formProperties" : [ ],
+        "interrupting" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E" : {
+        "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+        "xmlRowNumber" : 57,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "servicetask",
+        "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      }
+    },
+    "artifactMap" : { },
+    "initialFlowElement" : null,
+    "enableEagerExecutionTreeFetching" : false,
+    "flowElements" : [ {
+      "id" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+      "xmlRowNumber" : 22,
+      "xmlColumnNumber" : 61,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+        "xmlRowNumber" : 57,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "servicetask",
+        "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+      "xmlRowNumber" : 23,
+      "xmlColumnNumber" : 142,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+      "targetRef" : "servicetask",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "servicetask",
+      "xmlRowNumber" : 24,
+      "xmlColumnNumber" : 140,
+      "extensionElements" : {
+        "test" : [ {
+          "id" : null,
+          "xmlRowNumber" : 31,
+          "xmlColumnNumber" : 44,
+          "extensionElements" : { },
+          "attributes" : {
+            "id" : [ {
+              "name" : "id",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : null,
+          "childElements" : {
+            "name" : [ {
+              "id" : null,
+              "xmlRowNumber" : 32,
+              "xmlColumnNumber" : 23,
+              "extensionElements" : { },
+              "attributes" : { },
+              "name" : "name",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "test" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 33,
+                  "xmlColumnNumber" : 24,
+                  "extensionElements" : { },
+                  "attributes" : { },
+                  "name" : "test",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : "test",
+                  "childElements" : { }
+                } ]
+              }
+            }, {
+              "id" : null,
+              "xmlRowNumber" : 35,
+              "xmlColumnNumber" : 42,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "customName",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "name",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ],
+            "description" : [ {
+              "id" : null,
+              "xmlRowNumber" : 36,
+              "xmlColumnNumber" : 90,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test",
+                  "namespacePrefix" : "custom2",
+                  "namespace" : "http://custom2.org/bpmn"
+                } ]
+              },
+              "name" : "description",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 38,
+          "xmlColumnNumber" : 86,
+          "extensionElements" : { },
+          "attributes" : {
+            "id" : [ {
+              "name" : "id",
+              "value" : "test2",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "name" : [ {
+              "name" : "name",
+              "value" : "test2",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Service task",
+      "documentation" : null,
+      "executionListeners" : [ {
+        "id" : "ab0549cd-f943-4d98-8049-a1dfa26571cc",
+        "xmlRowNumber" : 28,
+        "xmlColumnNumber" : 167,
+        "extensionElements" : { },
+        "attributes" : { },
+        "event" : "start",
+        "implementationType" : "class",
+        "implementation" : "org.test.TestClass",
+        "fieldExtensions" : [ ],
+        "onTransaction" : "before-commit",
+        "customPropertiesResolverImplementationType" : "class",
+        "customPropertiesResolverImplementation" : "org.test.TestResolverClass",
+        "scriptInfo" : null
+      }, {
+        "id" : "04953ea6-7e96-4c53-b04b-532159e065a7",
+        "xmlRowNumber" : 29,
+        "xmlColumnNumber" : 169,
+        "extensionElements" : { },
+        "attributes" : { },
+        "event" : "end",
+        "implementationType" : "expression",
+        "implementation" : "${testExpression}",
+        "fieldExtensions" : [ ],
+        "onTransaction" : "committed",
+        "customPropertiesResolverImplementationType" : "expression",
+        "customPropertiesResolverImplementation" : "${testResolverExpression}",
+        "scriptInfo" : null
+      }, {
+        "id" : "53a8839e-d25d-4fc9-9622-4e075790c1f8",
+        "xmlRowNumber" : 30,
+        "xmlColumnNumber" : 197,
+        "extensionElements" : { },
+        "attributes" : { },
+        "event" : "start",
+        "implementationType" : "delegateExpression",
+        "implementation" : "${delegateExpression}",
+        "fieldExtensions" : [ ],
+        "onTransaction" : "rolled-back",
+        "customPropertiesResolverImplementationType" : "delegateExpression",
+        "customPropertiesResolverImplementation" : "${delegateResolverExpression}",
+        "scriptInfo" : null
+      } ],
+      "asynchronous" : true,
+      "asynchronousLeave" : false,
+      "notExclusive" : true,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+        "xmlRowNumber" : 23,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "targetRef" : "servicetask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+        "xmlRowNumber" : 57,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "servicetask",
+        "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "defaultFlow" : null,
+      "forCompensation" : false,
+      "loopCharacteristics" : null,
+      "ioSpecification" : null,
+      "dataInputAssociations" : [ ],
+      "dataOutputAssociations" : [ ],
+      "boundaryEvents" : [ {
+        "id" : "timerEvent",
+        "xmlRowNumber" : 41,
+        "xmlColumnNumber" : 64,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 42,
+          "xmlColumnNumber" : 29,
+          "extensionElements" : {
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 44,
+              "xmlColumnNumber" : 84,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "name" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 45,
+                  "xmlColumnNumber" : 26,
+                  "extensionElements" : { },
+                  "attributes" : { },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : {
+                    "test" : [ {
+                      "id" : null,
+                      "xmlRowNumber" : 46,
+                      "xmlColumnNumber" : 28,
+                      "extensionElements" : { },
+                      "attributes" : { },
+                      "name" : "test",
+                      "namespacePrefix" : "custom",
+                      "namespace" : "http://custom.org/bpmn",
+                      "elementText" : "test",
+                      "childElements" : { }
+                    } ]
+                  }
+                }, {
+                  "id" : null,
+                  "xmlRowNumber" : 48,
+                  "xmlColumnNumber" : 44,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "customName",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ],
+                "description" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 49,
+                  "xmlColumnNumber" : 93,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "test",
+                      "namespacePrefix" : "custom2",
+                      "namespace" : "http://custom2.org/bpmn"
+                    } ]
+                  },
+                  "name" : "description",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            }, {
+              "id" : null,
+              "xmlRowNumber" : 51,
+              "xmlColumnNumber" : 88,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "timeDate" : null,
+          "timeDuration" : null,
+          "timeCycle" : "${cronExpression}",
+          "endDate" : null,
+          "calendarName" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "attachedToRefId" : "servicetask",
+        "cancelActivity" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      } ],
+      "failedJobRetryTimeCycleValue" : null,
+      "mapExceptions" : [ ],
+      "fieldExtensions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 61,
+        "extensionElements" : { },
+        "attributes" : { },
+        "fieldName" : "testField",
+        "stringValue" : "test",
+        "expression" : null
+      }, {
+        "id" : null,
+        "xmlRowNumber" : 27,
+        "xmlColumnNumber" : 64,
+        "extensionElements" : { },
+        "attributes" : { },
+        "fieldName" : "testField2",
+        "stringValue" : null,
+        "expression" : "${test}"
+      } ],
+      "implementation" : "org.test.TestClass",
+      "implementationType" : "class",
+      "resultVariableName" : null,
+      "type" : null,
+      "operationRef" : null,
+      "extensionId" : null,
+      "customProperties" : [ ],
+      "skipExpression" : null,
+      "useLocalScopeForResultVariable" : false,
+      "triggerable" : false,
+      "storeResultVariableAsTransient" : false,
+      "extended" : false,
+      "exclusive" : false,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "timerEvent",
+      "xmlRowNumber" : 41,
+      "xmlColumnNumber" : 64,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 42,
+        "xmlColumnNumber" : 29,
+        "extensionElements" : {
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 44,
+            "xmlColumnNumber" : 84,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "name" : [ {
+                "id" : null,
+                "xmlRowNumber" : 45,
+                "xmlColumnNumber" : 26,
+                "extensionElements" : { },
+                "attributes" : { },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : {
+                  "test" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 46,
+                    "xmlColumnNumber" : 28,
+                    "extensionElements" : { },
+                    "attributes" : { },
+                    "name" : "test",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : "test",
+                    "childElements" : { }
+                  } ]
+                }
+              }, {
+                "id" : null,
+                "xmlRowNumber" : 48,
+                "xmlColumnNumber" : 44,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "customName",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ],
+              "description" : [ {
+                "id" : null,
+                "xmlRowNumber" : 49,
+                "xmlColumnNumber" : 93,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test",
+                    "namespacePrefix" : "custom2",
+                    "namespace" : "http://custom2.org/bpmn"
+                  } ]
+                },
+                "name" : "description",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 51,
+            "xmlColumnNumber" : 88,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "timeDate" : null,
+        "timeDuration" : null,
+        "timeCycle" : "${cronExpression}",
+        "endDate" : null,
+        "calendarName" : null
+      } ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "attachedToRefId" : "servicetask",
+      "cancelActivity" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+      "xmlRowNumber" : 56,
+      "xmlColumnNumber" : 63,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ {
+        "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+        "xmlRowNumber" : 23,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "targetRef" : "servicetask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "initiator" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "validateFormFields" : null,
+      "formProperties" : [ ],
+      "interrupting" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+      "xmlRowNumber" : 57,
+      "xmlColumnNumber" : 142,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "servicetask",
+      "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    } ],
+    "artifacts" : [ ]
+  } ],
+  "locationMap" : {
+    "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5" : {
+      "x" : 324.5,
+      "y" : 137.0,
+      "height" : 28.0,
+      "width" : 28.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 61,
+      "xmlColumnNumber" : 136,
+      "rotation" : 0.0
+    },
+    "servicetask" : {
+      "x" : 179.5,
+      "y" : 111.0,
+      "height" : 80.0,
+      "width" : 100.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 64,
+      "xmlColumnNumber" : 78,
+      "rotation" : 0.0
+    },
+    "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A" : {
+      "x" : 104.5,
+      "y" : 136.0,
+      "height" : 30.0,
+      "width" : 30.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 67,
+      "xmlColumnNumber" : 136,
+      "rotation" : 0.0
+    }
+  },
+  "labelLocationMap" : { },
+  "flowLocationMap" : {
+    "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82" : [ {
+      "x" : 134.0,
+      "y" : 151.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 71,
+      "xmlColumnNumber" : 45,
+      "rotation" : 0.0
+    }, {
+      "x" : 179.0,
+      "y" : 151.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 72,
+      "xmlColumnNumber" : 45,
+      "rotation" : 0.0
+    } ],
+    "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E" : [ {
+      "x" : 279.0,
+      "y" : 151.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 75,
+      "xmlColumnNumber" : 45,
+      "rotation" : 0.0
+    }, {
+      "x" : 324.0,
+      "y" : 151.0,
+      "height" : 0.0,
+      "width" : 0.0,
+      "element" : null,
+      "expanded" : null,
+      "xmlRowNumber" : 76,
+      "xmlColumnNumber" : 45,
+      "rotation" : 0.0
+    } ]
+  },
+  "edgeMap" : { },
+  "signals" : [ ],
+  "pools" : [ ],
+  "imports" : [ ],
+  "interfaces" : [ ],
+  "globalArtifacts" : [ ],
+  "resources" : [ ],
+  "targetNamespace" : "http://www.activiti.org/test",
+  "sourceSystemId" : null,
+  "userTaskFormTypes" : null,
+  "startEventFormTypes" : null,
+  "exporter" : null,
+  "exporterVersion" : null,
+  "namespaces" : {
+    "xsi" : "http://www.w3.org/2001/XMLSchema-instance",
+    "custom" : "http://custom.org/bpmn",
+    "activiti" : "http://activiti.org/bpmn",
+    "bpmndi" : "http://www.omg.org/spec/BPMN/20100524/DI",
+    "omgdc" : "http://www.omg.org/spec/DD/20100524/DC",
+    "omgdi" : "http://www.omg.org/spec/DD/20100524/DI"
+  },
+  "messageFlows" : { },
+  "messages" : [ ],
+  "mainProcess" : {
+    "id" : "process",
+    "xmlRowNumber" : 7,
+    "xmlColumnNumber" : 80,
+    "extensionElements" : {
+      "test" : [ {
+        "id" : null,
+        "xmlRowNumber" : 12,
+        "xmlColumnNumber" : 82,
+        "extensionElements" : { },
+        "attributes" : {
+          "id" : [ {
+            "name" : "id",
+            "value" : "test",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ],
+          "name" : [ {
+            "name" : "name",
+            "value" : "test",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "test",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn",
+        "elementText" : null,
+        "childElements" : {
+          "name" : [ {
+            "id" : null,
+            "xmlRowNumber" : 13,
+            "xmlColumnNumber" : 22,
+            "extensionElements" : { },
+            "attributes" : { },
+            "name" : "name",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "test" : [ {
+                "id" : null,
+                "xmlRowNumber" : 14,
+                "xmlColumnNumber" : 24,
+                "extensionElements" : { },
+                "attributes" : { },
+                "name" : "test",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : "test",
+                "childElements" : { }
+              } ]
+            }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 16,
+            "xmlColumnNumber" : 40,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "customName",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "name",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ],
+          "description" : [ {
+            "id" : null,
+            "xmlRowNumber" : 17,
+            "xmlColumnNumber" : 89,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test",
+                "namespacePrefix" : "custom2",
+                "namespace" : "http://custom2.org/bpmn"
+              } ]
+            },
+            "name" : "description",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        }
+      }, {
+        "id" : null,
+        "xmlRowNumber" : 19,
+        "xmlColumnNumber" : 84,
+        "extensionElements" : { },
+        "attributes" : {
+          "id" : [ {
+            "name" : "id",
+            "value" : "test2",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ],
+          "name" : [ {
+            "name" : "name",
+            "value" : "test2",
+            "namespacePrefix" : null,
+            "namespace" : null
+          } ]
+        },
+        "name" : "test",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn",
+        "elementText" : null,
+        "childElements" : { }
+      } ]
+    },
+    "attributes" : {
+      "version" : [ {
+        "name" : "version",
+        "value" : "9",
+        "namespacePrefix" : "custom",
+        "namespace" : "http://custom.org/bpmn"
+      } ]
+    },
+    "name" : "process1",
+    "executable" : true,
+    "documentation" : null,
+    "ioSpecification" : null,
+    "executionListeners" : [ {
+      "id" : "3b14031f-dbad-46a2-9d39-7583f43059c5",
+      "xmlRowNumber" : 9,
+      "xmlColumnNumber" : 165,
+      "extensionElements" : { },
+      "attributes" : { },
+      "event" : "start",
+      "implementationType" : "class",
+      "implementation" : "org.test.TestClass",
+      "fieldExtensions" : [ ],
+      "onTransaction" : "before-commit",
+      "customPropertiesResolverImplementationType" : "class",
+      "customPropertiesResolverImplementation" : "org.test.TestResolverClass",
+      "scriptInfo" : null
+    }, {
+      "id" : "a488f561-7c4e-4f54-9372-8dfd3f9a6768",
+      "xmlRowNumber" : 10,
+      "xmlColumnNumber" : 167,
+      "extensionElements" : { },
+      "attributes" : { },
+      "event" : "end",
+      "implementationType" : "expression",
+      "implementation" : "${testExpression}",
+      "fieldExtensions" : [ ],
+      "onTransaction" : "committed",
+      "customPropertiesResolverImplementationType" : "expression",
+      "customPropertiesResolverImplementation" : "${testResolverExpression}",
+      "scriptInfo" : null
+    }, {
+      "id" : "fe2491b0-1762-4238-af55-091edea3b21a",
+      "xmlRowNumber" : 11,
+      "xmlColumnNumber" : 195,
+      "extensionElements" : { },
+      "attributes" : { },
+      "event" : "start",
+      "implementationType" : "delegateExpression",
+      "implementation" : "${delegateExpression}",
+      "fieldExtensions" : [ ],
+      "onTransaction" : "rolled-back",
+      "customPropertiesResolverImplementationType" : "delegateExpression",
+      "customPropertiesResolverImplementation" : "${delegateResolverExpression}",
+      "scriptInfo" : null
+    } ],
+    "lanes" : [ ],
+    "dataObjects" : [ ],
+    "candidateStarterUsers" : [ ],
+    "candidateStarterGroups" : [ ],
+    "eventListeners" : [ ],
+    "flowElementMap" : {
+      "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5" : {
+        "id" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "xmlRowNumber" : 22,
+        "xmlColumnNumber" : 61,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+          "xmlRowNumber" : 57,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "servicetask",
+          "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82" : {
+        "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+        "xmlRowNumber" : 23,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "targetRef" : "servicetask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      },
+      "servicetask" : {
+        "id" : "servicetask",
+        "xmlRowNumber" : 24,
+        "xmlColumnNumber" : 140,
+        "extensionElements" : {
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 31,
+            "xmlColumnNumber" : 44,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "name" : [ {
+                "id" : null,
+                "xmlRowNumber" : 32,
+                "xmlColumnNumber" : 23,
+                "extensionElements" : { },
+                "attributes" : { },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : {
+                  "test" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 33,
+                    "xmlColumnNumber" : 24,
+                    "extensionElements" : { },
+                    "attributes" : { },
+                    "name" : "test",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : "test",
+                    "childElements" : { }
+                  } ]
+                }
+              }, {
+                "id" : null,
+                "xmlRowNumber" : 35,
+                "xmlColumnNumber" : 42,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "customName",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ],
+              "description" : [ {
+                "id" : null,
+                "xmlRowNumber" : 36,
+                "xmlColumnNumber" : 90,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test",
+                    "namespacePrefix" : "custom2",
+                    "namespace" : "http://custom2.org/bpmn"
+                  } ]
+                },
+                "name" : "description",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 38,
+            "xmlColumnNumber" : 86,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "name" : "Service task",
+        "documentation" : null,
+        "executionListeners" : [ {
+          "id" : "ab0549cd-f943-4d98-8049-a1dfa26571cc",
+          "xmlRowNumber" : 28,
+          "xmlColumnNumber" : 167,
+          "extensionElements" : { },
+          "attributes" : { },
+          "event" : "start",
+          "implementationType" : "class",
+          "implementation" : "org.test.TestClass",
+          "fieldExtensions" : [ ],
+          "onTransaction" : "before-commit",
+          "customPropertiesResolverImplementationType" : "class",
+          "customPropertiesResolverImplementation" : "org.test.TestResolverClass",
+          "scriptInfo" : null
+        }, {
+          "id" : "04953ea6-7e96-4c53-b04b-532159e065a7",
+          "xmlRowNumber" : 29,
+          "xmlColumnNumber" : 169,
+          "extensionElements" : { },
+          "attributes" : { },
+          "event" : "end",
+          "implementationType" : "expression",
+          "implementation" : "${testExpression}",
+          "fieldExtensions" : [ ],
+          "onTransaction" : "committed",
+          "customPropertiesResolverImplementationType" : "expression",
+          "customPropertiesResolverImplementation" : "${testResolverExpression}",
+          "scriptInfo" : null
+        }, {
+          "id" : "53a8839e-d25d-4fc9-9622-4e075790c1f8",
+          "xmlRowNumber" : 30,
+          "xmlColumnNumber" : 197,
+          "extensionElements" : { },
+          "attributes" : { },
+          "event" : "start",
+          "implementationType" : "delegateExpression",
+          "implementation" : "${delegateExpression}",
+          "fieldExtensions" : [ ],
+          "onTransaction" : "rolled-back",
+          "customPropertiesResolverImplementationType" : "delegateExpression",
+          "customPropertiesResolverImplementation" : "${delegateResolverExpression}",
+          "scriptInfo" : null
+        } ],
+        "asynchronous" : true,
+        "asynchronousLeave" : false,
+        "notExclusive" : true,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ {
+          "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+          "xmlRowNumber" : 23,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+          "targetRef" : "servicetask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "outgoingFlows" : [ {
+          "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+          "xmlRowNumber" : 57,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "servicetask",
+          "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "defaultFlow" : null,
+        "forCompensation" : false,
+        "loopCharacteristics" : null,
+        "ioSpecification" : null,
+        "dataInputAssociations" : [ ],
+        "dataOutputAssociations" : [ ],
+        "boundaryEvents" : [ {
+          "id" : "timerEvent",
+          "xmlRowNumber" : 41,
+          "xmlColumnNumber" : 64,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "asynchronous" : false,
+          "asynchronousLeave" : false,
+          "notExclusive" : false,
+          "asynchronousLeaveNotExclusive" : false,
+          "incomingFlows" : [ ],
+          "outgoingFlows" : [ ],
+          "eventDefinitions" : [ {
+            "id" : null,
+            "xmlRowNumber" : 42,
+            "xmlColumnNumber" : 29,
+            "extensionElements" : {
+              "test" : [ {
+                "id" : null,
+                "xmlRowNumber" : 44,
+                "xmlColumnNumber" : 84,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ],
+                  "name" : [ {
+                    "name" : "name",
+                    "value" : "test",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "test",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : {
+                  "name" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 45,
+                    "xmlColumnNumber" : 26,
+                    "extensionElements" : { },
+                    "attributes" : { },
+                    "name" : "name",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : null,
+                    "childElements" : {
+                      "test" : [ {
+                        "id" : null,
+                        "xmlRowNumber" : 46,
+                        "xmlColumnNumber" : 28,
+                        "extensionElements" : { },
+                        "attributes" : { },
+                        "name" : "test",
+                        "namespacePrefix" : "custom",
+                        "namespace" : "http://custom.org/bpmn",
+                        "elementText" : "test",
+                        "childElements" : { }
+                      } ]
+                    }
+                  }, {
+                    "id" : null,
+                    "xmlRowNumber" : 48,
+                    "xmlColumnNumber" : 44,
+                    "extensionElements" : { },
+                    "attributes" : {
+                      "id" : [ {
+                        "name" : "id",
+                        "value" : "customName",
+                        "namespacePrefix" : null,
+                        "namespace" : null
+                      } ]
+                    },
+                    "name" : "name",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : null,
+                    "childElements" : { }
+                  } ],
+                  "description" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 49,
+                    "xmlColumnNumber" : 93,
+                    "extensionElements" : { },
+                    "attributes" : {
+                      "id" : [ {
+                        "name" : "id",
+                        "value" : "test",
+                        "namespacePrefix" : "custom2",
+                        "namespace" : "http://custom2.org/bpmn"
+                      } ]
+                    },
+                    "name" : "description",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : null,
+                    "childElements" : { }
+                  } ]
+                }
+              }, {
+                "id" : null,
+                "xmlRowNumber" : 51,
+                "xmlColumnNumber" : 88,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test2",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ],
+                  "name" : [ {
+                    "name" : "name",
+                    "value" : "test2",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "test",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            },
+            "attributes" : { },
+            "timeDate" : null,
+            "timeDuration" : null,
+            "timeCycle" : "${cronExpression}",
+            "endDate" : null,
+            "calendarName" : null
+          } ],
+          "inParameters" : [ ],
+          "outParameters" : [ ],
+          "attachedToRefId" : "servicetask",
+          "cancelActivity" : true,
+          "exclusive" : true,
+          "asynchronousLeaveExclusive" : true
+        } ],
+        "failedJobRetryTimeCycleValue" : null,
+        "mapExceptions" : [ ],
+        "fieldExtensions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 26,
+          "xmlColumnNumber" : 61,
+          "extensionElements" : { },
+          "attributes" : { },
+          "fieldName" : "testField",
+          "stringValue" : "test",
+          "expression" : null
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 27,
+          "xmlColumnNumber" : 64,
+          "extensionElements" : { },
+          "attributes" : { },
+          "fieldName" : "testField2",
+          "stringValue" : null,
+          "expression" : "${test}"
+        } ],
+        "implementation" : "org.test.TestClass",
+        "implementationType" : "class",
+        "resultVariableName" : null,
+        "type" : null,
+        "operationRef" : null,
+        "extensionId" : null,
+        "customProperties" : [ ],
+        "skipExpression" : null,
+        "useLocalScopeForResultVariable" : false,
+        "triggerable" : false,
+        "storeResultVariableAsTransient" : false,
+        "extended" : false,
+        "exclusive" : false,
+        "asynchronousLeaveExclusive" : true
+      },
+      "timerEvent" : {
+        "id" : "timerEvent",
+        "xmlRowNumber" : 41,
+        "xmlColumnNumber" : 64,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 42,
+          "xmlColumnNumber" : 29,
+          "extensionElements" : {
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 44,
+              "xmlColumnNumber" : 84,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "name" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 45,
+                  "xmlColumnNumber" : 26,
+                  "extensionElements" : { },
+                  "attributes" : { },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : {
+                    "test" : [ {
+                      "id" : null,
+                      "xmlRowNumber" : 46,
+                      "xmlColumnNumber" : 28,
+                      "extensionElements" : { },
+                      "attributes" : { },
+                      "name" : "test",
+                      "namespacePrefix" : "custom",
+                      "namespace" : "http://custom.org/bpmn",
+                      "elementText" : "test",
+                      "childElements" : { }
+                    } ]
+                  }
+                }, {
+                  "id" : null,
+                  "xmlRowNumber" : 48,
+                  "xmlColumnNumber" : 44,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "customName",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ],
+                "description" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 49,
+                  "xmlColumnNumber" : 93,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "test",
+                      "namespacePrefix" : "custom2",
+                      "namespace" : "http://custom2.org/bpmn"
+                    } ]
+                  },
+                  "name" : "description",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            }, {
+              "id" : null,
+              "xmlRowNumber" : 51,
+              "xmlColumnNumber" : 88,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "timeDate" : null,
+          "timeDuration" : null,
+          "timeCycle" : "${cronExpression}",
+          "endDate" : null,
+          "calendarName" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "attachedToRefId" : "servicetask",
+        "cancelActivity" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A" : {
+        "id" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "xmlRowNumber" : 56,
+        "xmlColumnNumber" : 63,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ {
+          "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+          "xmlRowNumber" : 23,
+          "xmlColumnNumber" : 142,
+          "extensionElements" : { },
+          "attributes" : { },
+          "name" : null,
+          "documentation" : null,
+          "executionListeners" : [ ],
+          "conditionExpression" : null,
+          "conditionLanguage" : null,
+          "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+          "targetRef" : "servicetask",
+          "skipExpression" : null,
+          "waypoints" : [ ]
+        } ],
+        "eventDefinitions" : [ ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "initiator" : null,
+        "formKey" : null,
+        "sameDeployment" : true,
+        "validateFormFields" : null,
+        "formProperties" : [ ],
+        "interrupting" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      },
+      "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E" : {
+        "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+        "xmlRowNumber" : 57,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "servicetask",
+        "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      }
+    },
+    "artifactMap" : { },
+    "initialFlowElement" : null,
+    "enableEagerExecutionTreeFetching" : false,
+    "flowElements" : [ {
+      "id" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+      "xmlRowNumber" : 22,
+      "xmlColumnNumber" : 61,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+        "xmlRowNumber" : 57,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "servicetask",
+        "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+      "xmlRowNumber" : 23,
+      "xmlColumnNumber" : 142,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+      "targetRef" : "servicetask",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    }, {
+      "id" : "servicetask",
+      "xmlRowNumber" : 24,
+      "xmlColumnNumber" : 140,
+      "extensionElements" : {
+        "test" : [ {
+          "id" : null,
+          "xmlRowNumber" : 31,
+          "xmlColumnNumber" : 44,
+          "extensionElements" : { },
+          "attributes" : {
+            "id" : [ {
+              "name" : "id",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "name" : [ {
+              "name" : "name",
+              "value" : "test",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : null,
+          "childElements" : {
+            "name" : [ {
+              "id" : null,
+              "xmlRowNumber" : 32,
+              "xmlColumnNumber" : 23,
+              "extensionElements" : { },
+              "attributes" : { },
+              "name" : "name",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "test" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 33,
+                  "xmlColumnNumber" : 24,
+                  "extensionElements" : { },
+                  "attributes" : { },
+                  "name" : "test",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : "test",
+                  "childElements" : { }
+                } ]
+              }
+            }, {
+              "id" : null,
+              "xmlRowNumber" : 35,
+              "xmlColumnNumber" : 42,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "customName",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "name",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ],
+            "description" : [ {
+              "id" : null,
+              "xmlRowNumber" : 36,
+              "xmlColumnNumber" : 90,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test",
+                  "namespacePrefix" : "custom2",
+                  "namespace" : "http://custom2.org/bpmn"
+                } ]
+              },
+              "name" : "description",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          }
+        }, {
+          "id" : null,
+          "xmlRowNumber" : 38,
+          "xmlColumnNumber" : 86,
+          "extensionElements" : { },
+          "attributes" : {
+            "id" : [ {
+              "name" : "id",
+              "value" : "test2",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ],
+            "name" : [ {
+              "name" : "name",
+              "value" : "test2",
+              "namespacePrefix" : null,
+              "namespace" : null
+            } ]
+          },
+          "name" : "test",
+          "namespacePrefix" : "custom",
+          "namespace" : "http://custom.org/bpmn",
+          "elementText" : null,
+          "childElements" : { }
+        } ]
+      },
+      "attributes" : { },
+      "name" : "Service task",
+      "documentation" : null,
+      "executionListeners" : [ {
+        "id" : "ab0549cd-f943-4d98-8049-a1dfa26571cc",
+        "xmlRowNumber" : 28,
+        "xmlColumnNumber" : 167,
+        "extensionElements" : { },
+        "attributes" : { },
+        "event" : "start",
+        "implementationType" : "class",
+        "implementation" : "org.test.TestClass",
+        "fieldExtensions" : [ ],
+        "onTransaction" : "before-commit",
+        "customPropertiesResolverImplementationType" : "class",
+        "customPropertiesResolverImplementation" : "org.test.TestResolverClass",
+        "scriptInfo" : null
+      }, {
+        "id" : "04953ea6-7e96-4c53-b04b-532159e065a7",
+        "xmlRowNumber" : 29,
+        "xmlColumnNumber" : 169,
+        "extensionElements" : { },
+        "attributes" : { },
+        "event" : "end",
+        "implementationType" : "expression",
+        "implementation" : "${testExpression}",
+        "fieldExtensions" : [ ],
+        "onTransaction" : "committed",
+        "customPropertiesResolverImplementationType" : "expression",
+        "customPropertiesResolverImplementation" : "${testResolverExpression}",
+        "scriptInfo" : null
+      }, {
+        "id" : "53a8839e-d25d-4fc9-9622-4e075790c1f8",
+        "xmlRowNumber" : 30,
+        "xmlColumnNumber" : 197,
+        "extensionElements" : { },
+        "attributes" : { },
+        "event" : "start",
+        "implementationType" : "delegateExpression",
+        "implementation" : "${delegateExpression}",
+        "fieldExtensions" : [ ],
+        "onTransaction" : "rolled-back",
+        "customPropertiesResolverImplementationType" : "delegateExpression",
+        "customPropertiesResolverImplementation" : "${delegateResolverExpression}",
+        "scriptInfo" : null
+      } ],
+      "asynchronous" : true,
+      "asynchronousLeave" : false,
+      "notExclusive" : true,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ {
+        "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+        "xmlRowNumber" : 23,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "targetRef" : "servicetask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "outgoingFlows" : [ {
+        "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+        "xmlRowNumber" : 57,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "servicetask",
+        "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "defaultFlow" : null,
+      "forCompensation" : false,
+      "loopCharacteristics" : null,
+      "ioSpecification" : null,
+      "dataInputAssociations" : [ ],
+      "dataOutputAssociations" : [ ],
+      "boundaryEvents" : [ {
+        "id" : "timerEvent",
+        "xmlRowNumber" : 41,
+        "xmlColumnNumber" : 64,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "asynchronous" : false,
+        "asynchronousLeave" : false,
+        "notExclusive" : false,
+        "asynchronousLeaveNotExclusive" : false,
+        "incomingFlows" : [ ],
+        "outgoingFlows" : [ ],
+        "eventDefinitions" : [ {
+          "id" : null,
+          "xmlRowNumber" : 42,
+          "xmlColumnNumber" : 29,
+          "extensionElements" : {
+            "test" : [ {
+              "id" : null,
+              "xmlRowNumber" : 44,
+              "xmlColumnNumber" : 84,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : {
+                "name" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 45,
+                  "xmlColumnNumber" : 26,
+                  "extensionElements" : { },
+                  "attributes" : { },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : {
+                    "test" : [ {
+                      "id" : null,
+                      "xmlRowNumber" : 46,
+                      "xmlColumnNumber" : 28,
+                      "extensionElements" : { },
+                      "attributes" : { },
+                      "name" : "test",
+                      "namespacePrefix" : "custom",
+                      "namespace" : "http://custom.org/bpmn",
+                      "elementText" : "test",
+                      "childElements" : { }
+                    } ]
+                  }
+                }, {
+                  "id" : null,
+                  "xmlRowNumber" : 48,
+                  "xmlColumnNumber" : 44,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "customName",
+                      "namespacePrefix" : null,
+                      "namespace" : null
+                    } ]
+                  },
+                  "name" : "name",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ],
+                "description" : [ {
+                  "id" : null,
+                  "xmlRowNumber" : 49,
+                  "xmlColumnNumber" : 93,
+                  "extensionElements" : { },
+                  "attributes" : {
+                    "id" : [ {
+                      "name" : "id",
+                      "value" : "test",
+                      "namespacePrefix" : "custom2",
+                      "namespace" : "http://custom2.org/bpmn"
+                    } ]
+                  },
+                  "name" : "description",
+                  "namespacePrefix" : "custom",
+                  "namespace" : "http://custom.org/bpmn",
+                  "elementText" : null,
+                  "childElements" : { }
+                } ]
+              }
+            }, {
+              "id" : null,
+              "xmlRowNumber" : 51,
+              "xmlColumnNumber" : 88,
+              "extensionElements" : { },
+              "attributes" : {
+                "id" : [ {
+                  "name" : "id",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ],
+                "name" : [ {
+                  "name" : "name",
+                  "value" : "test2",
+                  "namespacePrefix" : null,
+                  "namespace" : null
+                } ]
+              },
+              "name" : "test",
+              "namespacePrefix" : "custom",
+              "namespace" : "http://custom.org/bpmn",
+              "elementText" : null,
+              "childElements" : { }
+            } ]
+          },
+          "attributes" : { },
+          "timeDate" : null,
+          "timeDuration" : null,
+          "timeCycle" : "${cronExpression}",
+          "endDate" : null,
+          "calendarName" : null
+        } ],
+        "inParameters" : [ ],
+        "outParameters" : [ ],
+        "attachedToRefId" : "servicetask",
+        "cancelActivity" : true,
+        "exclusive" : true,
+        "asynchronousLeaveExclusive" : true
+      } ],
+      "failedJobRetryTimeCycleValue" : null,
+      "mapExceptions" : [ ],
+      "fieldExtensions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 26,
+        "xmlColumnNumber" : 61,
+        "extensionElements" : { },
+        "attributes" : { },
+        "fieldName" : "testField",
+        "stringValue" : "test",
+        "expression" : null
+      }, {
+        "id" : null,
+        "xmlRowNumber" : 27,
+        "xmlColumnNumber" : 64,
+        "extensionElements" : { },
+        "attributes" : { },
+        "fieldName" : "testField2",
+        "stringValue" : null,
+        "expression" : "${test}"
+      } ],
+      "implementation" : "org.test.TestClass",
+      "implementationType" : "class",
+      "resultVariableName" : null,
+      "type" : null,
+      "operationRef" : null,
+      "extensionId" : null,
+      "customProperties" : [ ],
+      "skipExpression" : null,
+      "useLocalScopeForResultVariable" : false,
+      "triggerable" : false,
+      "storeResultVariableAsTransient" : false,
+      "extended" : false,
+      "exclusive" : false,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "timerEvent",
+      "xmlRowNumber" : 41,
+      "xmlColumnNumber" : 64,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ ],
+      "eventDefinitions" : [ {
+        "id" : null,
+        "xmlRowNumber" : 42,
+        "xmlColumnNumber" : 29,
+        "extensionElements" : {
+          "test" : [ {
+            "id" : null,
+            "xmlRowNumber" : 44,
+            "xmlColumnNumber" : 84,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : {
+              "name" : [ {
+                "id" : null,
+                "xmlRowNumber" : 45,
+                "xmlColumnNumber" : 26,
+                "extensionElements" : { },
+                "attributes" : { },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : {
+                  "test" : [ {
+                    "id" : null,
+                    "xmlRowNumber" : 46,
+                    "xmlColumnNumber" : 28,
+                    "extensionElements" : { },
+                    "attributes" : { },
+                    "name" : "test",
+                    "namespacePrefix" : "custom",
+                    "namespace" : "http://custom.org/bpmn",
+                    "elementText" : "test",
+                    "childElements" : { }
+                  } ]
+                }
+              }, {
+                "id" : null,
+                "xmlRowNumber" : 48,
+                "xmlColumnNumber" : 44,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "customName",
+                    "namespacePrefix" : null,
+                    "namespace" : null
+                  } ]
+                },
+                "name" : "name",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ],
+              "description" : [ {
+                "id" : null,
+                "xmlRowNumber" : 49,
+                "xmlColumnNumber" : 93,
+                "extensionElements" : { },
+                "attributes" : {
+                  "id" : [ {
+                    "name" : "id",
+                    "value" : "test",
+                    "namespacePrefix" : "custom2",
+                    "namespace" : "http://custom2.org/bpmn"
+                  } ]
+                },
+                "name" : "description",
+                "namespacePrefix" : "custom",
+                "namespace" : "http://custom.org/bpmn",
+                "elementText" : null,
+                "childElements" : { }
+              } ]
+            }
+          }, {
+            "id" : null,
+            "xmlRowNumber" : 51,
+            "xmlColumnNumber" : 88,
+            "extensionElements" : { },
+            "attributes" : {
+              "id" : [ {
+                "name" : "id",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ],
+              "name" : [ {
+                "name" : "name",
+                "value" : "test2",
+                "namespacePrefix" : null,
+                "namespace" : null
+              } ]
+            },
+            "name" : "test",
+            "namespacePrefix" : "custom",
+            "namespace" : "http://custom.org/bpmn",
+            "elementText" : null,
+            "childElements" : { }
+          } ]
+        },
+        "attributes" : { },
+        "timeDate" : null,
+        "timeDuration" : null,
+        "timeCycle" : "${cronExpression}",
+        "endDate" : null,
+        "calendarName" : null
+      } ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "attachedToRefId" : "servicetask",
+      "cancelActivity" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+      "xmlRowNumber" : 56,
+      "xmlColumnNumber" : 63,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "asynchronous" : false,
+      "asynchronousLeave" : false,
+      "notExclusive" : false,
+      "asynchronousLeaveNotExclusive" : false,
+      "incomingFlows" : [ ],
+      "outgoingFlows" : [ {
+        "id" : "sid-C6C56AC3-9561-49E0-A58A-624F6CB8BB82",
+        "xmlRowNumber" : 23,
+        "xmlColumnNumber" : 142,
+        "extensionElements" : { },
+        "attributes" : { },
+        "name" : null,
+        "documentation" : null,
+        "executionListeners" : [ ],
+        "conditionExpression" : null,
+        "conditionLanguage" : null,
+        "sourceRef" : "sid-F62B554B-FF4F-475E-94FF-A3F44EDA6A6A",
+        "targetRef" : "servicetask",
+        "skipExpression" : null,
+        "waypoints" : [ ]
+      } ],
+      "eventDefinitions" : [ ],
+      "inParameters" : [ ],
+      "outParameters" : [ ],
+      "initiator" : null,
+      "formKey" : null,
+      "sameDeployment" : true,
+      "validateFormFields" : null,
+      "formProperties" : [ ],
+      "interrupting" : true,
+      "exclusive" : true,
+      "asynchronousLeaveExclusive" : true
+    }, {
+      "id" : "sid-91C0F3A0-649F-462E-A1C1-1CE499FEDE3E",
+      "xmlRowNumber" : 57,
+      "xmlColumnNumber" : 142,
+      "extensionElements" : { },
+      "attributes" : { },
+      "name" : null,
+      "documentation" : null,
+      "executionListeners" : [ ],
+      "conditionExpression" : null,
+      "conditionLanguage" : null,
+      "sourceRef" : "servicetask",
+      "targetRef" : "sid-F7795B38-72CD-41A4-9549-6CFB7D3E5FB5",
+      "skipExpression" : null,
+      "waypoints" : [ ]
+    } ],
+    "artifacts" : [ ]
+  },
+  "dataStores" : { },
+  "itemDefinitions" : { },
+  "escalations" : [ ],
+  "errors" : { }
+}

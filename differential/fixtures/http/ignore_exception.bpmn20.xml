@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <process id="ignore_exception" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="flow1" sourceRef="start" targetRef="httpTask" />
+    <serviceTask id="httpTask" flowable:type="http">
+      <extensionElements>
+        <flowable:field name="requestMethod">
+          <flowable:string>GET</flowable:string>
+        </flowable:field>
+        <flowable:field name="requestUrl">
+          <flowable:expression>${endpoint}</flowable:expression>
+        </flowable:field>
+        <flowable:field name="failStatusCodes">
+          <flowable:string>5XX</flowable:string>
+        </flowable:field>
+        <flowable:field name="ignoreException">
+          <flowable:string>true</flowable:string>
+        </flowable:field>
+        <flowable:field name="saveResponseParameters">
+          <flowable:string>true</flowable:string>
+        </flowable:field>
+        <flowable:field name="saveResponseVariableAsJson">
+          <flowable:string>true</flowable:string>
+        </flowable:field>
+        <flowable:field name="responseVariableName">
+          <flowable:string>responseBody</flowable:string>
+        </flowable:field>
+        <flowable:field name="resultVariablePrefix">
+          <flowable:string>contract</flowable:string>
+        </flowable:field>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="flow2" sourceRef="httpTask" targetRef="review" />
+    <userTask id="review" name="Review" />
+  </process>
+</definitions>

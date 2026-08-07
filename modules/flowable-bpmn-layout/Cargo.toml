@@ -1,0 +1,11 @@
+[package]
+name = "flowable-bpmn-layout"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-bpmn-model = { path = "../flowable-bpmn-model" }
+indexmap = "2.14.0"
+
+[dev-dependencies]
+flowable-bpmn-converter = { path = "../flowable-bpmn-converter" }

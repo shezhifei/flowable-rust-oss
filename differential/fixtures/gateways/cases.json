@@ -1,0 +1,59 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "observeVariables": [],
+  "cases": [
+    {
+      "id": "parallel_join_waits_for_both",
+      "operations": [
+        { "op": "deploy", "bpmn": "parallel_join.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "completeTask", "taskDefinitionKey": "userTask1" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "parallel_join_releases",
+      "operations": [
+        { "op": "deploy", "bpmn": "parallel_join.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "completeTask", "taskDefinitionKey": "userTask1" },
+        { "op": "completeTask", "taskDefinitionKey": "userTask2" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "inclusive_join_after_boundary_destroy",
+      "operations": [
+        { "op": "deploy", "bpmn": "inclusive_join_boundary.bpmn20.xml" },
+        {
+          "op": "start",
+          "variables": { "takeA": true, "takeB": true }
+        },
+        { "op": "signalEvent", "signalName": "cancelSignal" },
+        { "op": "completeTask", "taskDefinitionKey": "taskB" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "inclusive_join_after_terminate_destroy",
+      "operations": [
+        { "op": "deploy", "bpmn": "inclusive_join_terminate.bpmn20.xml" },
+        {
+          "op": "start",
+          "variables": { "takeSub": true, "takeB": true }
+        },
+        { "op": "completeTask", "taskDefinitionKey": "preTerminate" },
+        { "op": "completeTask", "taskDefinitionKey": "taskB" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "exclusive_no_outgoing_throws",
+      "operations": [
+        { "op": "deploy", "bpmn": "exclusive_no_outgoing.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "snapshot" }
+      ]
+    }
+  ]
+}

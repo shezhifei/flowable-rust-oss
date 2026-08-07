@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <process id="candidateOrAssignedDemo" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="fork" />
+    <parallelGateway id="fork" />
+    <sequenceFlow id="f2" sourceRef="fork" targetRef="assignedTask" />
+    <sequenceFlow id="f3" sourceRef="fork" targetRef="openTask" />
+    <userTask id="assignedTask" name="Will Be Assigned" />
+    <userTask id="openTask" name="Open Candidate" flowable:candidateUsers="candOrUser" />
+    <sequenceFlow id="f4" sourceRef="assignedTask" targetRef="join" />
+    <sequenceFlow id="f5" sourceRef="openTask" targetRef="join" />
+    <parallelGateway id="join" />
+    <sequenceFlow id="f6" sourceRef="join" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <message id="goMsg" name="goMsg" />
+  <process id="interruptKeepsEventSubTimer" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="hostTask" />
+    <userTask id="hostTask" name="Host" />
+    <boundaryEvent id="cancelHost" attachedToRef="hostTask" cancelActivity="true">
+      <messageEventDefinition messageRef="goMsg" />
+    </boundaryEvent>
+    <sequenceFlow id="f2" sourceRef="hostTask" targetRef="hostEnd" />
+    <sequenceFlow id="f3" sourceRef="cancelHost" targetRef="afterBoundary" />
+    <userTask id="afterBoundary" name="After Boundary" />
+    <sequenceFlow id="f4" sourceRef="afterBoundary" targetRef="end" />
+    <endEvent id="hostEnd" />
+    <endEvent id="end" />
+
+    <!-- Event subprocess with timer start; interrupting boundary on host must not delete this subscription (P30). -->
+    <subProcess id="eventSub" triggeredByEvent="true">
+      <startEvent id="timerStart" isInterrupting="false">
+        <timerEventDefinition>
+          <timeDuration>PT1H</timeDuration>
+        </timerEventDefinition>
+      </startEvent>
+      <sequenceFlow id="esf1" sourceRef="timerStart" targetRef="eventTask" />
+      <userTask id="eventTask" name="Event Task" />
+      <sequenceFlow id="esf2" sourceRef="eventTask" targetRef="eventEnd" />
+      <endEvent id="eventEnd" />
+    </subProcess>
+  </process>
+</definitions>

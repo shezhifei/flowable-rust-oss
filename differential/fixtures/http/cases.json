@@ -1,0 +1,191 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "fixedClockMillis": 1700000000000,
+  "asyncRetryAdvanceMillis": 10001,
+  "automaticLockOwner": "java-http-differential",
+  "unlockOwnedJobsLockOwner": "unlock-owned-jobs-differential",
+  "sharedUnlockOtherOwner": "shared-unlock-other-owner",
+  "sharedTenantA": "tenant-a",
+  "sharedTenantB": "tenant-b",
+  "sharedTenantC": "tenant-c",
+  "observeVariables": [
+    "contractRequestMethod",
+    "contractRequestBody",
+    "contractDisallowRedirects",
+    "contractResponseStatusCode",
+    "contractErrorMessage",
+    "responseBody"
+  ],
+  "cases": [
+    {
+      "id": "request_response",
+      "bpmn": "request_response.bpmn20.xml",
+      "path": "/orders",
+      "responseStatus": 201,
+      "responseBody": {
+        "accepted": true,
+        "source": "shared-contract"
+      }
+    },
+    {
+      "id": "handled_status",
+      "bpmn": "handled_status.bpmn20.xml",
+      "path": "/missing",
+      "responseStatus": 404,
+      "responseBody": {
+        "error": "missing"
+      }
+    },
+    {
+      "id": "fail_status",
+      "execution": "syncObserved",
+      "bpmn": "fail_status.bpmn20.xml",
+      "path": "/failure",
+      "responseStatus": 500,
+      "responseBody": {
+        "accepted": false,
+        "reason": "contract failure"
+      }
+    },
+    {
+      "id": "ignore_exception",
+      "execution": "syncObserved",
+      "bpmn": "ignore_exception.bpmn20.xml",
+      "path": "/ignored-failure",
+      "responseStatus": 500,
+      "responseBody": {
+        "accepted": false,
+        "reason": "ignored contract failure"
+      }
+    },
+    {
+      "id": "uncaught_handled_status",
+      "execution": "syncObserved",
+      "bpmn": "uncaught_handled_status.bpmn20.xml",
+      "path": "/uncaught",
+      "responseStatus": 404,
+      "responseBody": {
+        "error": "uncaught"
+      }
+    },
+    {
+      "id": "async_retry",
+      "execution": "asyncRetry",
+      "bpmn": "async_retry.bpmn20.xml",
+      "path": "/retry",
+      "responseStatus": 500,
+      "responseBody": {
+        "attempt": 1,
+        "accepted": false
+      },
+      "subsequentResponses": [
+        {
+          "status": 200,
+          "body": {
+            "attempt": 2,
+            "accepted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "automatic_async_retry",
+      "execution": "automaticAsyncRetry",
+      "bpmn": "automatic_async_retry.bpmn20.xml",
+      "path": "/automatic-retry",
+      "responseStatus": 500,
+      "responseBody": {
+        "attempt": 1,
+        "accepted": false
+      },
+      "subsequentResponses": [
+        {
+          "status": 200,
+          "body": {
+            "attempt": 2,
+            "accepted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "unrecoverable",
+      "execution": "unrecoverable",
+      "bpmn": "unrecoverable.bpmn20.xml",
+      "path": "/unrecoverable",
+      "responseStatus": 200,
+      "responseBody": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "nested_unrecoverable",
+      "execution": "nestedUnrecoverable",
+      "bpmn": "nested_unrecoverable.bpmn20.xml",
+      "path": "/nested-unrecoverable",
+      "responseStatus": 200,
+      "responseBody": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "job_cancel",
+      "execution": "jobCancel",
+      "bpmn": "cancel_job.bpmn20.xml",
+      "path": "/unused",
+      "responseStatus": 200,
+      "responseBody": {}
+    },
+    {
+      "id": "fatal_committing_cancel",
+      "execution": "fatalCommittingCancel",
+      "bpmn": "cancel_job.bpmn20.xml",
+      "path": "/unused",
+      "responseStatus": 200,
+      "responseBody": {}
+    },
+    {
+      "id": "fatal_committed_cancel",
+      "execution": "fatalCommittedCancel",
+      "bpmn": "cancel_job.bpmn20.xml",
+      "path": "/unused",
+      "responseStatus": 200,
+      "responseBody": {}
+    },
+    {
+      "id": "unlock_owned_jobs",
+      "execution": "unlockOwnedJobs",
+      "bpmn": "unlock_owned_jobs.bpmn20.xml",
+      "path": "/unused",
+      "responseStatus": 200,
+      "responseBody": {}
+    },
+    {
+      "id": "shared_multi_tenant_unlock_owned_jobs",
+      "execution": "sharedMultiTenantUnlockOwnedJobs",
+      "bpmn": "unlock_owned_jobs.bpmn20.xml",
+      "path": "/unused",
+      "responseStatus": 200,
+      "responseBody": {}
+    },
+    {
+      "id": "smoke_user_task",
+      "observeVariables": ["orderId"],
+      "operations": [
+        {
+          "op": "deploy",
+          "bpmn": "smoke_user_task.bpmn20.xml"
+        },
+        {
+          "op": "start",
+          "variables": {
+            "orderId": "O-1"
+          }
+        },
+        {
+          "op": "snapshot"
+        }
+      ]
+    }
+  ]
+}

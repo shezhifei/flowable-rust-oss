@@ -1,0 +1,380 @@
+{
+  "version": 1,
+  "java_interface": "org.flowable.cmmn.api.CmmnRepositoryService",
+  "rust_module": "flowable_cmmn_engine::repository",
+  "capabilities": [
+    {
+      "java_api": "createDeployment()",
+      "rust_api": "CmmnRepositoryService::new_deployment() -> CmmnDeploymentBuilder",
+      "category": "deployment",
+      "status": "aligned",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments", "deployment_builder_extracts_zip_resources"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.addInputStream(String, InputStream)",
+      "rust_api": "CmmnDeploymentBuilder::add_bytes(name, bytes)",
+      "category": "deployment_builder",
+      "status": "intentionally_different",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments"],
+      "rationale": "Rust uses bytes slices instead of Java InputStream; add_bytes covers the same functional capability. InputStream is a Java I/O abstraction not idiomatic in Rust."
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.addClasspathResource(String)",
+      "rust_api": null,
+      "category": "deployment_builder",
+      "status": "unsupported",
+      "tests": [],
+      "rationale": "Classpath resource loading is a JVM-specific concept. Rust uses filesystem or bytes APIs; add_bytes/add_string serve the same purpose."
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.addString(String, String)",
+      "rust_api": "CmmnDeploymentBuilder::add_string(name, text)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.addBytes(String, byte[])",
+      "rust_api": "CmmnDeploymentBuilder::add_bytes(name, bytes)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.addZipInputStream(ZipInputStream)",
+      "rust_api": "CmmnDeploymentBuilder::add_zip(bytes)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["deployment_builder_extracts_zip_resources"],
+      "rationale": "Rust accepts raw bytes for ZIP; path traversal and bomb protection implemented equivalently."
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.disableSchemaValidation()",
+      "rust_api": "CmmnDeploymentBuilder::disable_schema_validation()",
+      "category": "deployment_builder",
+      "status": "intentionally_different",
+      "tests": [],
+      "rationale": "Flag is accepted and persisted on the deployment request. The flowable-cmmn-converter currently has a single strict parse/semantic validation path with no separable XSD stage, so the flag does not yet change converter behavior. A future converter parse-options change is required."
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.name(String)",
+      "rust_api": "CmmnDeploymentBuilder::name(value)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["metadata_round_trips_through_deployment_and_definition_models"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.category(String)",
+      "rust_api": "CmmnDeploymentBuilder::category(value)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["metadata_round_trips_through_deployment_and_definition_models"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.key(String)",
+      "rust_api": "CmmnDeploymentBuilder::key(value)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["metadata_round_trips_through_deployment_and_definition_models"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.tenantId(String)",
+      "rust_api": "CmmnDeploymentBuilder::tenant_id(value)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["metadata_round_trips_through_deployment_and_definition_models"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.parentDeploymentId(String)",
+      "rust_api": "CmmnDeploymentBuilder::parent_deployment_id(value)",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["metadata_round_trips_through_deployment_and_definition_models"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.enableDuplicateFiltering()",
+      "rust_api": "CmmnDeploymentBuilder::enable_duplicate_filtering()",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["duplicate_filtering_is_resource_and_tenant_aware"],
+      "rationale": null
+    },
+    {
+      "java_api": "CmmnDeploymentBuilder.deploy()",
+      "rust_api": "CmmnDeploymentBuilder::deploy() -> Result<CmmnDeployment, CmmnError>",
+      "category": "deployment_builder",
+      "status": "aligned",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments", "deployment_builder_extracts_zip_resources"],
+      "rationale": null
+    },
+    {
+      "java_api": "getDeploymentResourceNames(String deploymentId)",
+      "rust_api": "CmmnRepositoryService::get_deployment_resources(deployment_id) -> Result<Vec<String>, CmmnError>",
+      "category": "resource",
+      "status": "aligned",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments"],
+      "rationale": "Returns alphabetically sorted resource names."
+    },
+    {
+      "java_api": "getResourceAsStream(String deploymentId, String resourceName)",
+      "rust_api": "CmmnRepositoryService::get_deployment_resource_bytes(deployment_id, resource_name) -> Result<Vec<u8>, CmmnError>",
+      "category": "resource",
+      "status": "intentionally_different",
+      "tests": ["deployment_builder_accepts_raw_cmmn_and_attachments"],
+      "rationale": "Rust returns Vec<u8> bytes instead of InputStream; byte-oriented access covers the same functional need without Java stream abstraction."
+    },
+    {
+      "java_api": "getCaseDefinition(String caseDefinitionId)",
+      "rust_api": "CmmnRepositoryService::get_case_definition(case_definition_id) -> Result<CmmnCaseDefinition, CmmnError>",
+      "category": "definition",
+      "status": "aligned",
+      "tests": ["metadata_round_trips_through_deployment_and_definition_models"],
+      "rationale": null
+    },
+    {
+      "java_api": "getCmmnModel(String caseDefinitionId)",
+      "rust_api": "CmmnRepositoryService::get_case_definition_resource_bytes(case_definition_id) -> Result<Vec<u8>, CmmnError>",
+      "category": "definition",
+      "status": "intentionally_different",
+      "tests": [],
+      "rationale": "Rust returns raw bytes for model resources; CmmnModel can be parsed from bytes by the converter if needed. Java's getCmmnModel returns a parsed CmmnModel object."
+    },
+    {
+      "java_api": "getCaseDiagram(String caseDefinitionId)",
+      "rust_api": "CmmnRepositoryService::get_case_diagram(case_definition_id) -> Result<Option<CmmnDeploymentResourceData>, CmmnError>",
+      "category": "definition",
+      "status": "aligned",
+      "tests": ["diagram_lookup_uses_java_resource_name_convention"],
+      "rationale": "Returns Ok(None) when diagram resource name is null; returns NotFound when diagram resource is missing."
+    },
+    {
+      "java_api": "deleteDeployment(String deploymentId, boolean cascade)",
+      "rust_api": "CmmnRepositoryService::delete_deployment(deployment_id, cascade) -> Result<(), CmmnError>",
+      "category": "deployment",
+      "status": "aligned",
+      "tests": ["deployment_cascade_delete_removes_all_owned_rows_without_touching_other_deployments", "deployment_non_cascade_rejects_active_case_instances"],
+      "rationale": null
+    },
+    {
+      "java_api": "createDeploymentQuery()",
+      "rust_api": "CmmnRepositoryService::create_deployment_query() -> CmmnDeploymentQuery",
+      "category": "query",
+      "status": "aligned",
+      "tests": [
+        "deployment_query_by_name",
+        "deployment_query_by_name_like",
+        "deployment_query_by_category_and_category_not_equals",
+        "deployment_query_by_key",
+        "deployment_query_by_tenant_id_and_like",
+        "deployment_query_by_parent_deployment_id",
+        "deployment_query_latest_requires_key",
+        "deployment_query_latest_returns_most_recent_for_key",
+        "deployment_query_count",
+        "deployment_query_order_by_and_page",
+        "single_result_deployment_zero_matches_returns_none",
+        "single_result_deployment_one_match_returns_value",
+        "single_result_deployment_multiple_matches_errors"
+      ],
+      "rationale": null
+    },
+    {
+      "java_api": "createCaseDefinitionQuery()",
+      "rust_api": "CmmnRepositoryService::create_case_definition_query() -> CmmnCaseDefinitionQuery",
+      "category": "query",
+      "status": "aligned",
+      "tests": [
+        "definition_query_by_id_and_ids",
+        "definition_query_by_key",
+        "definition_query_by_key_like",
+        "definition_query_by_category_and_like",
+        "definition_query_by_name_and_name_like",
+        "definition_query_by_deployment_id_and_ids",
+        "definition_query_by_parent_deployment_id",
+        "definition_query_by_tenant_id_and_without",
+        "definition_query_by_resource_name_and_like",
+        "definition_query_version_filters",
+        "definition_query_latest_version",
+        "definition_query_count",
+        "definition_query_order_by_and_page",
+        "single_result_definition_zero_matches_returns_none",
+        "single_result_definition_one_match_returns_value",
+        "single_result_definition_multiple_matches_errors"
+      ],
+      "rationale": null
+    },
+    {
+      "java_api": "addCandidateStarterUser(String caseDefinitionId, String userId)",
+      "rust_api": "CmmnRepositoryService::add_candidate_starter_user(case_definition_id, user_id) -> Result<(), CmmnError>",
+      "category": "authorization",
+      "status": "aligned",
+      "tests": ["starter_add_and_list_user_and_group"],
+      "rationale": null
+    },
+    {
+      "java_api": "addCandidateStarterGroup(String caseDefinitionId, String groupId)",
+      "rust_api": "CmmnRepositoryService::add_candidate_starter_group(case_definition_id, group_id) -> Result<(), CmmnError>",
+      "category": "authorization",
+      "status": "aligned",
+      "tests": ["starter_add_and_list_user_and_group"],
+      "rationale": null
+    },
+    {
+      "java_api": "deleteCandidateStarterUser(String caseDefinitionId, String userId)",
+      "rust_api": "CmmnRepositoryService::delete_candidate_starter_user(case_definition_id, user_id) -> Result<(), CmmnError>",
+      "category": "authorization",
+      "status": "aligned",
+      "tests": ["starter_delete_user_and_group"],
+      "rationale": null
+    },
+    {
+      "java_api": "deleteCandidateStarterGroup(String caseDefinitionId, String groupId)",
+      "rust_api": "CmmnRepositoryService::delete_candidate_starter_group(case_definition_id, group_id) -> Result<(), CmmnError>",
+      "category": "authorization",
+      "status": "aligned",
+      "tests": ["starter_delete_user_and_group"],
+      "rationale": null
+    },
+    {
+      "java_api": "getIdentityLinksForCaseDefinition(String caseDefinitionId)",
+      "rust_api": "CmmnRepositoryService::get_identity_links_for_case_definition(case_definition_id) -> Result<Vec<CmmnIdentityLink>, CmmnError>",
+      "category": "authorization",
+      "status": "aligned",
+      "tests": ["starter_add_and_list_user_and_group"],
+      "rationale": null
+    },
+    {
+      "java_api": "CaseDefinitionQuery.startableByUser(String userId)",
+      "rust_api": "CmmnCaseDefinitionQuery::startable_by_user(user_id)",
+      "category": "query_filter",
+      "status": "aligned",
+      "tests": ["starter_query_startable_by_user"],
+      "rationale": null
+    },
+    {
+      "java_api": "CaseDefinitionQuery.startableByUserOrGroups(String userId, List<String> groups)",
+      "rust_api": "CmmnCaseDefinitionQuery::startable_by_user_or_groups(user_id, groups)",
+      "category": "query_filter",
+      "status": "aligned",
+      "tests": ["starter_query_startable_by_user_or_groups", "starter_query_does_not_duplicate_when_user_and_group_both_match"],
+      "rationale": null
+    },
+    {
+      "java_api": "setCaseDefinitionCategory(String caseDefinitionId, String category)",
+      "rust_api": "CmmnRepositoryService::set_case_definition_category(case_definition_id, category) -> Result<(), CmmnError>",
+      "category": "mutation",
+      "status": "aligned",
+      "tests": ["category_update_persists_and_is_queryable", "category_clear_to_none_persists", "category_update_unknown_definition_returns_not_found", "category_update_is_tenant_isolated"],
+      "rationale": null
+    },
+    {
+      "java_api": "changeDeploymentParentDeploymentId(String deploymentId, String newParentDeploymentId)",
+      "rust_api": "CmmnRepositoryService::set_deployment_parent_id(deployment_id, parent_deployment_id) -> Result<(), CmmnError>",
+      "category": "mutation",
+      "status": "aligned",
+      "tests": ["parent_deployment_set_replace_and_clear", "parent_deployment_update_unknown_deployment_returns_not_found", "parent_deployment_query_reflects_update"],
+      "rationale": null
+    },
+    {
+      "java_api": "getDecisionsForCaseDefinition(String caseDefinitionId)",
+      "rust_api": "CmmnRepositoryService::list_referenced_decisions(case_definition_id) -> Result<Vec<DmnDecision>, CmmnError>",
+      "category": "external_resolution",
+      "status": "aligned",
+      "tests": [
+        "referenced_decisions_resolves_all_deployed_decision_keys",
+        "referenced_decisions_silently_omits_missing_references",
+        "referenced_decisions_unknown_definition_returns_not_found",
+        "referenced_decisions_passes_parent_deployment_id_to_resolver",
+        "referenced_decisions_passes_tenant_id_to_resolver",
+        "referenced_decisions_sorted_by_key_then_version",
+        "referenced_decisions_no_keys_returns_empty"
+      ],
+      "rationale": "Uses injected CmmnDecisionResolver trait instead of hard DMN dependency; resolved objects returned sorted by key then version."
+    },
+    {
+      "java_api": "getFormDefinitionsForCaseDefinition(String caseDefinitionId)",
+      "rust_api": "CmmnRepositoryService::list_referenced_form_definitions(case_definition_id) -> Result<Vec<FormDefinition>, CmmnError>",
+      "category": "external_resolution",
+      "status": "aligned",
+      "tests": [
+        "referenced_forms_resolves_all_deployed_form_keys",
+        "referenced_forms_silently_omits_missing_references",
+        "referenced_forms_unknown_definition_returns_not_found",
+        "referenced_forms_includes_start_form_key",
+        "referenced_forms_passes_parent_deployment_id_to_resolver",
+        "referenced_forms_no_keys_returns_empty"
+      ],
+      "rationale": "Uses injected CmmnFormResolver trait instead of hard Form dependency; includes start form key resolution."
+    }
+  ],
+  "deployment_query_filters": [
+    {"java": "deploymentId(String)", "rust": "CmmnDeploymentQuery::id()", "tests": ["single_result_deployment_one_match_returns_value"], "status": "aligned"},
+    {"java": "deploymentIds(Set<String>)", "rust": "CmmnDeploymentQuery::ids()", "tests": [], "status": "aligned"},
+    {"java": "deploymentName(String)", "rust": "CmmnDeploymentQuery::name()", "tests": ["deployment_query_by_name"], "status": "aligned"},
+    {"java": "deploymentNameLike(String)", "rust": "CmmnDeploymentQuery::name_like()", "tests": ["deployment_query_by_name_like"], "status": "aligned"},
+    {"java": "deploymentCategory(String)", "rust": "CmmnDeploymentQuery::category()", "tests": ["deployment_query_by_category_and_category_not_equals"], "status": "aligned"},
+    {"java": "deploymentCategoryNotEquals(String)", "rust": "CmmnDeploymentQuery::category_not_equals()", "tests": ["deployment_query_by_category_and_category_not_equals"], "status": "aligned"},
+    {"java": "deploymentKey(String)", "rust": "CmmnDeploymentQuery::key()", "tests": ["deployment_query_by_key"], "status": "aligned"},
+    {"java": "deploymentTenantId(String)", "rust": "CmmnDeploymentQuery::tenant_id()", "tests": ["deployment_query_by_tenant_id_and_like"], "status": "aligned"},
+    {"java": "deploymentTenantIdLike(String)", "rust": "CmmnDeploymentQuery::tenant_id_like()", "tests": ["deployment_query_by_tenant_id_and_like"], "status": "aligned"},
+    {"java": "deploymentWithoutTenantId()", "rust": "CmmnDeploymentQuery::without_tenant_id()", "tests": ["deployment_query_by_tenant_id_and_like"], "status": "aligned"},
+    {"java": "parentDeploymentId(String)", "rust": "CmmnDeploymentQuery::parent_deployment_id()", "tests": ["deployment_query_by_parent_deployment_id"], "status": "aligned"},
+    {"java": "parentDeploymentIdLike(String)", "rust": "CmmnDeploymentQuery::parent_deployment_id_like()", "tests": [], "status": "aligned"},
+    {"java": "latest()", "rust": "CmmnDeploymentQuery::latest()", "tests": ["deployment_query_latest_returns_most_recent_for_key", "deployment_query_latest_requires_key"], "status": "aligned"},
+    {"java": "orderByDeploymentId()/asc()/desc()", "rust": "CmmnDeploymentQuery::order_by(DeploymentSortField::Id, direction)", "tests": ["deployment_query_order_by_and_page"], "status": "aligned"},
+    {"java": "orderByDeploymenTime()", "rust": "CmmnDeploymentQuery::order_by(DeploymentSortField::DeployTime, direction)", "tests": ["deployment_query_order_by_and_page"], "status": "aligned"},
+    {"java": "orderByDeploymentName()", "rust": "CmmnDeploymentQuery::order_by(DeploymentSortField::Name, direction)", "tests": ["deployment_query_order_by_and_page"], "status": "aligned"},
+    {"java": "listPage(int, int)", "rust": "CmmnDeploymentQuery::list_page() / page(start, size)", "tests": ["deployment_query_order_by_and_page"], "status": "aligned"},
+    {"java": "count()", "rust": "CmmnDeploymentQuery::count()", "tests": ["deployment_query_count"], "status": "aligned"},
+    {"java": "singleResult()", "rust": "CmmnDeploymentQuery::single_result() -> Result<Option<T>, CmmnError>", "tests": ["single_result_deployment_zero_matches_returns_none", "single_result_deployment_one_match_returns_value", "single_result_deployment_multiple_matches_errors"], "status": "aligned"}
+  ],
+  "case_definition_query_filters": [
+    {"java": "caseDefinitionId(String)", "rust": "CmmnCaseDefinitionQuery::id()", "tests": ["definition_query_by_id_and_ids"], "status": "aligned"},
+    {"java": "caseDefinitionIds(Set<String>)", "rust": "CmmnCaseDefinitionQuery::ids()", "tests": ["definition_query_by_id_and_ids"], "status": "aligned"},
+    {"java": "caseDefinitionKey(String)", "rust": "CmmnCaseDefinitionQuery::key()", "tests": ["definition_query_by_key"], "status": "aligned"},
+    {"java": "caseDefinitionKeyLike(String)", "rust": "CmmnCaseDefinitionQuery::key_like()", "tests": ["definition_query_by_key_like"], "status": "aligned"},
+    {"java": "caseDefinitionCategory(String)", "rust": "CmmnCaseDefinitionQuery::category()", "tests": ["definition_query_by_category_and_like"], "status": "aligned"},
+    {"java": "caseDefinitionCategoryLike(String)", "rust": "CmmnCaseDefinitionQuery::category_like()", "tests": ["definition_query_by_category_and_like"], "status": "aligned"},
+    {"java": "caseDefinitionCategoryNotEquals(String)", "rust": "CmmnCaseDefinitionQuery::category_not_equals()", "tests": ["definition_query_by_category_and_like"], "status": "aligned"},
+    {"java": "caseDefinitionName(String)", "rust": "CmmnCaseDefinitionQuery::name()", "tests": ["definition_query_by_name_and_name_like"], "status": "aligned"},
+    {"java": "caseDefinitionNameLike(String)", "rust": "CmmnCaseDefinitionQuery::name_like()", "tests": ["definition_query_by_name_and_name_like"], "status": "aligned"},
+    {"java": "caseDefinitionNameLikeIgnoreCase(String)", "rust": "CmmnCaseDefinitionQuery::name_like_ignore_case()", "tests": ["definition_query_by_name_and_name_like"], "status": "aligned"},
+    {"java": "deploymentId(String)", "rust": "CmmnCaseDefinitionQuery::deployment_id()", "tests": ["definition_query_by_deployment_id_and_ids"], "status": "aligned"},
+    {"java": "deploymentIds(Set<String>)", "rust": "CmmnCaseDefinitionQuery::deployment_ids()", "tests": ["definition_query_by_deployment_id_and_ids"], "status": "aligned"},
+    {"java": "parentDeploymentId(String)", "rust": "CmmnCaseDefinitionQuery::parent_deployment_id()", "tests": ["definition_query_by_parent_deployment_id"], "status": "aligned"},
+    {"java": "caseDefinitionTenantId(String)", "rust": "CmmnCaseDefinitionQuery::tenant_id()", "tests": ["definition_query_by_tenant_id_and_without"], "status": "aligned"},
+    {"java": "caseDefinitionTenantIdLike(String)", "rust": "CmmnCaseDefinitionQuery::tenant_id_like()", "tests": ["definition_query_by_tenant_id_and_without"], "status": "aligned"},
+    {"java": "caseDefinitionWithoutTenantId()", "rust": "CmmnCaseDefinitionQuery::without_tenant_id()", "tests": ["definition_query_by_tenant_id_and_without"], "status": "aligned"},
+    {"java": "caseDefinitionVersion(Integer)", "rust": "CmmnCaseDefinitionQuery::version()", "tests": ["definition_query_version_filters"], "status": "aligned"},
+    {"java": "caseDefinitionVersionGt/Gte/Lt/Lte(Integer)", "rust": "version_gt/version_gte/version_lt/version_lte()", "tests": ["definition_query_version_filters"], "status": "aligned"},
+    {"java": "latestVersion()", "rust": "CmmnCaseDefinitionQuery::latest_version()", "tests": ["definition_query_latest_version"], "status": "aligned"},
+    {"java": "startableByUser(String)", "rust": "startable_by_user()", "tests": ["starter_query_startable_by_user"], "status": "aligned"},
+    {"java": "startableByUserOrGroups(String, List<String>)", "rust": "startable_by_user_or_groups()", "tests": ["starter_query_startable_by_user_or_groups"], "status": "aligned"},
+    {"java": "orderBy...()/asc()/desc()", "rust": "order_by(field, direction)", "tests": ["definition_query_order_by_and_page"], "status": "aligned"},
+    {"java": "listPage(int, int)", "rust": "list_page() / page(start, size)", "tests": ["definition_query_order_by_and_page"], "status": "aligned"},
+    {"java": "count()", "rust": "count()", "tests": ["definition_query_count"], "status": "aligned"},
+    {"java": "singleResult()", "rust": "single_result()", "tests": ["single_result_definition_zero_matches_returns_none", "single_result_definition_one_match_returns_value", "single_result_definition_multiple_matches_errors"], "status": "aligned"}
+  ],
+  "rest_endpoints": [
+    {"method": "GET", "path": "/cmmn-repository/deployments", "tests": ["rest_tenant_id_is_persisted_and_queryable"], "status": "aligned"},
+    {"method": "POST", "path": "/cmmn-repository/deployments", "tests": ["rest_deployment_uses_engine_builder_not_local_parser", "rest_empty_deployment_name_is_accepted"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/deployments/{id}", "tests": ["rest_deployment_not_found_returns_404"], "status": "aligned"},
+    {"method": "DELETE", "path": "/cmmn-repository/deployments/{id}", "tests": ["rest_cascade_delete_removes_deployment", "rest_non_cascade_delete_with_runtime_conflicts"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/deployments/{id}/resources", "tests": ["rest_resource_data_returns_original_bytes"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/deployments/{id}/resources/{name}", "tests": ["rest_resource_data_returns_original_bytes"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/case-definitions/{id}", "tests": ["rest_case_definition_not_found_returns_404"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/case-definitions/{id}/model", "tests": ["rest_case_definition_model_returns_json"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/case-definitions/{id}/decision-tables", "tests": ["rest_unknown_definition_decision_tables_returns_404"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/case-definitions/{id}/form-definitions", "tests": ["rest_unknown_definition_form_definitions_returns_404"], "status": "aligned"},
+    {"method": "GET", "path": "/cmmn-repository/case-definitions/{id}/identitylinks", "tests": ["rest_candidate_starter_crud_roundtrip"], "status": "aligned"},
+    {"method": "POST", "path": "/cmmn-repository/case-definitions/{id}/identitylinks", "tests": ["rest_candidate_starter_crud_roundtrip"], "status": "aligned"},
+    {"method": "DELETE", "path": "/cmmn-repository/case-definitions/{id}/identitylinks/{family}/{identityId}", "tests": ["rest_candidate_starter_crud_roundtrip"], "status": "aligned"}
+  ]
+}

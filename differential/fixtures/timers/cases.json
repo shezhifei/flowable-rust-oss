@@ -1,0 +1,65 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "observeVariables": [],
+  "cases": [
+    {
+      "id": "empty_timer_rejected_at_deploy",
+      "observe": ["error", "processEnded", "tasks"],
+      "operations": [
+        { "op": "deploy", "bpmn": "empty_timer.bpmn20.xml" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "duration_timer_creates_timer_job",
+      "observe": ["tasks", "jobs", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "duration_timer.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "async_user_task_creates_executable_job",
+      "observe": ["tasks", "jobs", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "async_user_task.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "repeat_timer_cycle",
+      "observe": ["tasks", "jobs", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "repeat_timer_cycle.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "advanceClock", "millis": 3600001 },
+        { "op": "executeDueTimers" },
+        { "op": "advanceClock", "millis": 3600000 },
+        { "op": "executeDueTimers" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "calendar_name_duration",
+      "observe": ["tasks", "jobs", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "calendar_name_duration.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "advanceClock", "millis": 600001 },
+        { "op": "executeDueTimers" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "complete_async_defers_parent",
+      "observe": ["tasks", "jobs", "jobHandlerTypes", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "complete_async_call.bpmn20.xml" },
+        { "op": "start", "processDefinitionKey": "parentCompleteAsync" },
+        { "op": "snapshot" }
+      ]
+    }
+  ]
+}

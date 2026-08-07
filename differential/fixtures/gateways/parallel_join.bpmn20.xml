@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://flowable.org/differential">
+  <process id="parallelJoin" name="Parallel Join" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="split" />
+
+    <parallelGateway id="split" />
+    <sequenceFlow id="f2" sourceRef="split" targetRef="userTask1" />
+    <sequenceFlow id="f3" sourceRef="split" targetRef="userTask2" />
+
+    <userTask id="userTask1" name="First Approval" />
+    <sequenceFlow id="f4" sourceRef="userTask1" targetRef="join" />
+
+    <userTask id="userTask2" name="Second Approval" />
+    <sequenceFlow id="f5" sourceRef="userTask2" targetRef="join" />
+
+    <parallelGateway id="join" />
+    <sequenceFlow id="f6" sourceRef="join" targetRef="afterJoin" />
+    <userTask id="afterJoin" name="After Join" />
+    <sequenceFlow id="f7" sourceRef="afterJoin" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

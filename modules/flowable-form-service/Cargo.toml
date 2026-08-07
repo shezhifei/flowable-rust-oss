@@ -1,0 +1,12 @@
+[package]
+name = "flowable-form-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-engine = { path = "../flowable-engine" }
+flowable-bpmn-model = { path = "../flowable-bpmn-model" }
+flowable-content-service = { path = "../flowable-content-service" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.23.1", features = ["v4"] }

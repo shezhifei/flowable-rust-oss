@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <process id="calendarNameDuration" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="wait" />
+    <intermediateCatchEvent id="wait">
+      <!-- Explicit built-in duration calendar (Java/Rust both register "duration"). -->
+      <timerEventDefinition flowable:businessCalendarName="duration">
+        <timeDuration>PT10M</timeDuration>
+      </timerEventDefinition>
+    </intermediateCatchEvent>
+    <sequenceFlow id="f2" sourceRef="wait" targetRef="after" />
+    <userTask id="after" name="After Timer" />
+    <sequenceFlow id="f3" sourceRef="after" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+</definitions>

@@ -1,0 +1,37 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "observeVariables": [],
+  "cases": [
+    {
+      "id": "non_interrupt_message_fires_twice",
+      "observe": ["tasks", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "non_interrupt_message.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "messageEvent", "messageName": "pingMsg" },
+        { "op": "messageEvent", "messageName": "pingMsg" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "error_boundary_one_shot",
+      "observe": ["tasks", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "error_one_shot.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "completeTask", "taskDefinitionKey": "subTask" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "interrupt_boundary_keeps_event_sub_timer",
+      "observe": ["tasks", "eventSubprocessTimers", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "interrupt_keeps_event_sub_timer.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "messageEvent", "messageName": "goMsg" },
+        { "op": "snapshot" }
+      ]
+    }
+  ]
+}

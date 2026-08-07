@@ -1,0 +1,10 @@
+[package]
+name = "flowable-http-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+reqwest = { version = "0.12", features = ["blocking", "json", "native-tls"] }
+tokio = { version = "1", features = ["full"] }

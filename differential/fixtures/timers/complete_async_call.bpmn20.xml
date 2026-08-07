@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <process id="parentCompleteAsync" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="f1" sourceRef="start" targetRef="call" />
+    <callActivity id="call" calledElement="childCompleteAsync"
+                  flowable:completeAsync="true" />
+    <sequenceFlow id="f2" sourceRef="call" targetRef="outer" />
+    <userTask id="outer" name="Outer" />
+    <sequenceFlow id="f3" sourceRef="outer" targetRef="end" />
+    <endEvent id="end" />
+  </process>
+
+  <process id="childCompleteAsync" isExecutable="true">
+    <startEvent id="childStart" />
+    <sequenceFlow id="cf1" sourceRef="childStart" targetRef="childEnd" />
+    <endEvent id="childEnd" />
+  </process>
+</definitions>

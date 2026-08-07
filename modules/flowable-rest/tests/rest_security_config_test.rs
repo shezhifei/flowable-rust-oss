@@ -1,0 +1,164 @@
+use flowable_engine::engine::process_engine::ProcessEngine;
+use flowable_rest::{
+    config::{RestAdminSeedConfig, RestAuthConfig, RestAuthMode, RestConfig, RestSecurityConfig},
+    run_server_with_config,
+};
+use serde_json::{Value, json};
+use std::sync::Arc;
+use tokio::net::TcpListener;
+
+async fn spawn_server(
+    test_name: &str,
+    config: RestConfig,
+) -> (Arc<ProcessEngine>, String, reqwest::Client) {
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let base_url = format!("http://{}", addr);
+
+    let engine_clone = Arc::clone(&engine);
+    tokio::spawn(async move {
+        run_server_with_config(engine_clone, listener, config)
+            .await
+            .unwrap();
+    });
+
+    (engine, base_url, reqwest::Client::new())
+}
+
+fn base_config() -> RestConfig {
+    RestConfig {
+        bind_address: "127.0.0.1:0".to_string(),
+        database_path: ":memory:".to_string(),
+        engine_name: "rest-security-config-test".to_string(),
+        security: RestSecurityConfig::default(),
+    }
+}
+
+#[tokio::test]
+async fn basic_auth_mode_keeps_unauthorized_contract_stable() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: false,
+        ..RestAdminSeedConfig::default()
+    };
+
+    let (_engine, base_url, client) = spawn_server("rest-auth-basic-contract", config).await;
+
+    let response = client
+        .post(format!("{}/runtime/process-instances", base_url))
+        .json(&json!({"processDefinitionId": "missing"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["code"], "UNAUTHORIZED");
+    assert_eq!(body["message"], "Unauthorized");
+    assert!(body["details"].is_null());
+}
+
+#[tokio::test]
+async fn disabled_auth_mode_allows_requests_without_authorization() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Disabled,
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: false,
+        ..RestAdminSeedConfig::default()
+    };
+
+    let (_engine, base_url, client) = spawn_server("rest-auth-disabled", config).await;
+
+    let response = client
+        .post(format!("{}/runtime/process-instances", base_url))
+        .json(&json!({"processDefinitionId": "missing"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["code"], "NOT_FOUND");
+}
+
+#[tokio::test]
+async fn configured_admin_seed_bootstraps_basic_auth_credentials() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "seed-admin".to_string(),
+        password: "seed-secret".to_string(),
+        first_name: Some("Seed".to_string()),
+        last_name: Some("Admin".to_string()),
+        email: Some("seed-admin@example.test".to_string()),
+    };
+
+    let (engine, base_url, client) = spawn_server("rest-admin-seed-enabled", config).await;
+
+    let response = client
+        .get(format!("{}/history/historic-process-instances", base_url))
+        .basic_auth("seed-admin", Some("seed-secret"))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["data"], json!([]));
+
+    let seeded_user = engine
+        .get_identity_service()
+        .find_user_by_id("seed-admin")
+        .expect("seed admin should be present");
+    assert_eq!(
+        seeded_user.email.as_deref(),
+        Some("seed-admin@example.test")
+    );
+    assert!(
+        engine
+            .get_identity_service()
+            .check_password("seed-admin", "seed-secret")
+    );
+}
+
+#[tokio::test]
+async fn disabled_admin_seed_does_not_create_default_admin_user() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: false,
+        ..RestAdminSeedConfig::default()
+    };
+
+    let (engine, base_url, client) = spawn_server("rest-admin-seed-disabled", config).await;
+
+    assert!(
+        engine
+            .get_identity_service()
+            .find_user_by_id("admin")
+            .is_none(),
+        "default admin should not be seeded when disabled"
+    );
+
+    let response = client
+        .get(format!("{}/history/historic-process-instances", base_url))
+        .basic_auth("admin", Some("admin"))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["code"], "UNAUTHORIZED");
+}

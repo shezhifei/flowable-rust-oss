@@ -1,0 +1,8 @@
+[package]
+name = "flowable-variable-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-engine = { path = "../flowable-engine" }
+serde_json = "1.0.149"

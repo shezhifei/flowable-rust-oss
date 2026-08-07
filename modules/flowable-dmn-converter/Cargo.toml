@@ -1,0 +1,8 @@
+[package]
+name = "flowable-dmn-converter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-dmn-model = { version = "0.1.0", path = "../flowable-dmn-model" }
+roxmltree = "0.20.0"

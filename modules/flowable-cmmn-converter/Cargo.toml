@@ -1,0 +1,9 @@
+[package]
+name = "flowable-cmmn-converter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+flowable-cmmn-model = { path = "../flowable-cmmn-model" }
+roxmltree = "0.20"
+

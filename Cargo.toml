@@ -1,0 +1,38 @@
+[workspace]
+members = [
+    "modules/flowable-engine-common",
+    "modules/flowable-app-model",
+    "modules/flowable-app-converter",
+    "modules/flowable-app-engine",
+    "modules/flowable-bpmn-layout",
+    "modules/flowable-bpmn-model",
+    "modules/flowable-bpmn-converter",
+    "modules/flowable-image-generator",
+    "modules/flowable-cmmn-model",
+    "modules/flowable-cmmn-converter",
+    "modules/flowable-cmmn-engine",
+    "modules/flowable-cmmn-image-generator",
+    "modules/flowable-dmn-model",
+    "modules/flowable-dmn-converter",
+    "modules/flowable-dmn-engine",
+    "modules/flowable-dmn-image-generator",
+    "modules/flowable-event-registry-model",
+    "modules/flowable-event-registry-converter",
+    "modules/flowable-event-registry-service",
+    "modules/flowable-form-service",
+    "modules/flowable-content-service",
+    "modules/flowable-http-service",
+    "modules/flowable-mail-service",
+    "modules/flowable-persistence",
+    "modules/flowable-engine",
+    "modules/flowable-task-service",
+    "modules/flowable-variable-service",
+    "modules/flowable-job-service",
+    "modules/flowable-eventsubscription-service",
+    "modules/flowable-identity-service",
+    "modules/flowable-history-service",
+    "modules/flowable-platform-bootstrap",
+    "modules/flowable-rest"
+    ]
+
+resolver = "2"

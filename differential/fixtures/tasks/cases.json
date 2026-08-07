@@ -1,0 +1,49 @@
+{
+  "flowableJavaVersion": "8.0.0",
+  "observeVariables": [],
+  "cases": [
+    {
+      "id": "claim_sets_assignee",
+      "observe": ["taskDetails", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "claimTask", "taskDefinitionKey": "review", "userId": "kermit" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "claim_is_idempotent_for_same_user",
+      "observe": ["taskDetails", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "claimTask", "taskDefinitionKey": "review", "userId": "kermit" },
+        { "op": "claimTask", "taskDefinitionKey": "review", "userId": "kermit" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "delegate_then_resolve",
+      "observe": ["taskDetails", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "claimTask", "taskDefinitionKey": "review", "userId": "kermit" },
+        { "op": "delegateTask", "taskDefinitionKey": "review", "userId": "fozzie" },
+        { "op": "resolveTask", "taskDefinitionKey": "review" },
+        { "op": "snapshot" }
+      ]
+    },
+    {
+      "id": "delegate_without_prior_claim",
+      "observe": ["taskDetails", "processEnded", "error"],
+      "operations": [
+        { "op": "deploy", "bpmn": "simple_task.bpmn20.xml" },
+        { "op": "start" },
+        { "op": "delegateTask", "taskDefinitionKey": "review", "userId": "gonzo" },
+        { "op": "snapshot" }
+      ]
+    }
+  ]
+}

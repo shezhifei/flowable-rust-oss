@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/differential">
+  <process id="handled_status" isExecutable="true">
+    <startEvent id="start" />
+    <sequenceFlow id="flow1" sourceRef="start" targetRef="httpTask" />
+    <serviceTask id="httpTask" flowable:type="http">
+      <extensionElements>
+        <flowable:field name="requestMethod">
+          <flowable:string>GET</flowable:string>
+        </flowable:field>
+        <flowable:field name="requestUrl">
+          <flowable:expression>${endpoint}</flowable:expression>
+        </flowable:field>
+        <flowable:field name="handleStatusCodes">
+          <flowable:string>404</flowable:string>
+        </flowable:field>
+        <flowable:field name="saveResponseParameters">
+          <flowable:string>true</flowable:string>
+        </flowable:field>
+        <flowable:field name="saveResponseVariableAsJson">
+          <flowable:string>true</flowable:string>
+        </flowable:field>
+        <flowable:field name="responseVariableName">
+          <flowable:string>responseBody</flowable:string>
+        </flowable:field>
+        <flowable:field name="resultVariablePrefix">
+          <flowable:string>contract</flowable:string>
+        </flowable:field>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="normalFlow" sourceRef="httpTask" targetRef="unexpected" />
+    <userTask id="unexpected" name="Unexpected" />
+    <boundaryEvent id="http404" attachedToRef="httpTask">
+      <errorEventDefinition errorRef="HTTP404" />
+    </boundaryEvent>
+    <sequenceFlow id="handledFlow" sourceRef="http404" targetRef="handled" />
+    <userTask id="handled" name="Handled" />
+  </process>
+</definitions>
