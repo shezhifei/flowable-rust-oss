@@ -707,8 +707,16 @@ async fn rest_inbound_channel_pipeline_transform_failure() {
 
     assert!(response.status().is_client_error() || response.status().is_server_error());
     let body: Value = response.json().await.unwrap();
-    let details = body["details"].as_str().unwrap_or_default().to_lowercase();
-    assert!(details.contains("transform"), "details={details}");
+    let details = body["details"].as_str().unwrap_or_default();
+    if body["code"] == "INTERNAL_SERVER_ERROR" {
+        // 5xx details are generic (no pipeline/transform internals).
+        assert_eq!(details, "Internal server error");
+    } else {
+        assert!(
+            details.to_lowercase().contains("transform"),
+            "details={details}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -733,11 +741,16 @@ async fn rest_inbound_channel_pipeline_key_detection_failure() {
 
     assert!(response.status().is_client_error() || response.status().is_server_error());
     let body: Value = response.json().await.unwrap();
-    let details = body["details"].as_str().unwrap_or_default().to_lowercase();
-    assert!(
-        details.contains("event key") || details.contains("key"),
-        "details={details}"
-    );
+    let details = body["details"].as_str().unwrap_or_default();
+    if body["code"] == "INTERNAL_SERVER_ERROR" {
+        // 5xx details are generic (no key-detection internals).
+        assert_eq!(details, "Internal server error");
+    } else {
+        assert!(
+            details.to_lowercase().contains("event key") || details.to_lowercase().contains("key"),
+            "details={details}"
+        );
+    }
 }
 
 #[tokio::test]

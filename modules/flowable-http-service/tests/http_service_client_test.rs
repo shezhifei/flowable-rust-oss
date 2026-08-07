@@ -253,11 +253,12 @@ fn real_http_client_timeout_on_unreachable_host() {
     })
     .expect("should build client");
 
-    // Use a non-routable IP that will cause a connection timeout
+    // TEST-NET-3 documentation address (not private under SSRF policy) — expect timeout/fail.
+    // Private 10.x would be rejected by the SSRF guard before any connect attempt.
     let error = client
         .execute(&HttpRequest {
             method: "GET".to_string(),
-            url: "http://10.255.255.1:81/".to_string(),
+            url: "http://203.0.113.1:81/".to_string(),
             headers: Default::default(),
             body: None,
             timeout_ms: Some(1_000),
@@ -269,5 +270,32 @@ fn real_http_client_timeout_on_unreachable_host() {
         .expect_err("unreachable host should timeout or fail");
 
     assert!(error.request_url.is_some());
+    let safe = error.request_url.as_deref().unwrap_or("");
+    assert!(
+        !safe.contains("/x") && safe.matches('/').count() <= 2,
+        "error request_url must not echo path beyond scheme://host:port: {safe:?}"
+    );
     assert!(error.request_method.is_some());
+}
+
+#[test]
+fn real_http_client_rejects_private_destination_by_default() {
+    let client = RealHttpClient::new(RealHttpClientConfig::default()).expect("client");
+    let error = client
+        .execute(&HttpRequest {
+            method: "GET".to_string(),
+            url: "http://127.0.0.1:9/secret?token=x".to_string(),
+            headers: Default::default(),
+            body: None,
+            timeout_ms: None,
+            connect_timeout_ms: None,
+            follow_redirects: None,
+            basic_auth: None,
+            body_encoding: None,
+        })
+        .expect_err("loopback must be blocked by SSRF guard");
+    assert!(error.message.contains("SSRF guard") || error.message.contains("blocked"));
+    assert!(!error.message.contains("secret"));
+    assert!(!error.message.contains("token"));
+    assert_eq!(error.request_url.as_deref(), Some("http://127.0.0.1:9"));
 }

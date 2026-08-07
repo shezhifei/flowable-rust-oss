@@ -92,11 +92,10 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
     assert_eq!(evaluate_without_variables_response.status(), 500);
     let evaluate_without_variables_body: Value =
         evaluate_without_variables_response.json().await.unwrap();
-    assert!(
-        evaluate_without_variables_body["details"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("non-Boolean"),
+    // 5xx details are generic (no internal exception text echo).
+    assert_eq!(
+        evaluate_without_variables_body["details"],
+        "Internal server error",
         "unexpected null-condition error body: {evaluate_without_variables_body}"
     );
 
@@ -205,11 +204,10 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
         .unwrap();
     assert_eq!(non_boolean_response.status(), 500);
     let non_boolean_body: Value = non_boolean_response.json().await.unwrap();
-    assert!(
-        non_boolean_body["details"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("non-Boolean"),
+    // 5xx details are generic (no non-Boolean condition text echo).
+    assert_eq!(
+        non_boolean_body["details"],
+        "Internal server error",
         "unexpected non-Boolean error body: {non_boolean_body}"
     );
     assert_eq!(
@@ -245,11 +243,10 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
         .unwrap();
     assert_eq!(suspended_response.status(), 500);
     let suspended_body: Value = suspended_response.json().await.unwrap();
-    assert!(
-        suspended_body["details"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("Cannot evaluate conditions for a suspended"),
+    // 5xx details are generic (no suspended-execution message echo).
+    assert_eq!(
+        suspended_body["details"],
+        "Internal server error",
         "unexpected suspended error body: {suspended_body}"
     );
 

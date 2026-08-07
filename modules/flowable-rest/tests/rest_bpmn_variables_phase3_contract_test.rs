@@ -866,12 +866,9 @@ async fn execution_variable_write_endpoints_reject_suspended_execution_with_500(
         .unwrap();
     assert_eq!(post.status(), reqwest::StatusCode::INTERNAL_SERVER_ERROR);
     let post_body: Value = post.json().await.unwrap();
-    // Java parity: `FlowableException.getMessage()` carries no
-    // `Execution error:` Display prefix — REST details is the raw message.
-    assert_eq!(
-        post_body["details"],
-        format!("Cannot set variables to a suspended execution '{execution_id}'")
-    );
+    // 5xx: raw engine messages are logged server-side only; public details
+    // is a fixed string (no suspended-execution / path echo).
+    assert_eq!(post_body["details"], "Internal server error");
 
     // PUT /runtime/executions/{id}/variables/{name}: update-only. Java
     // `BaseExecutionVariableResource.setVariable:222-224` 404s on a missing

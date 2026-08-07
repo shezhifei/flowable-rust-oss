@@ -215,6 +215,17 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
                 }
             }
             "shell" => {
+                // Security deviation from Java: Java ShellActivityBehavior is enabled by
+                // default (known dangerous default). Require explicit shell_tasks_enabled.
+                if !command_context.config.shell_tasks_enabled {
+                    return Err(FlowableError::ExecutionError(format!(
+                        "Shell service task '{}' is disabled. Set ProcessEngineConfiguration.\
+                         shell_tasks_enabled = true to enable shell tasks \
+                         (security deviation from Java; Java ShellActivityBehavior is \
+                         enabled by default).",
+                        activity_id(&service_task)
+                    )));
+                }
                 let result = execute_shell_service_task(&service_task, execution, command_context)?;
                 apply_service_task_result_and_out_parameters(
                     &service_task,

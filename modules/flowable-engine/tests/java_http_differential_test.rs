@@ -227,6 +227,7 @@ fn run_rust_contract(
                 runtime_mode: HttpServiceRuntimeMode::Real,
                 real_client: RealHttpClientConfiguration {
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1063,6 +1064,7 @@ fn run_rust_automatic_async_retry_contract(
                 runtime_mode: HttpServiceRuntimeMode::Real,
                 real_client: RealHttpClientConfiguration {
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1384,6 +1386,7 @@ fn run_rust_cancel_contract(fixture_directory: &Path, contract_case: &ContractCa
                 runtime_mode: HttpServiceRuntimeMode::Real,
                 real_client: RealHttpClientConfiguration {
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()

@@ -38,6 +38,18 @@ const TASK_VARIABLES_PATH: &str = "/runtime/tasks/:id/variables";
 const TASK_VARIABLE_PATH: &str = "/runtime/tasks/:id/variables/:variable_name";
 const TASK_VARIABLE_DATA_PATH: &str = "/runtime/tasks/:id/variables/:variable_name/data";
 
+// --- P142c resource limits -------------------------------------------------
+// axum `DefaultBodyLimit` does not apply to Multipart; raw JSON used
+// `to_bytes(..., usize::MAX)`. Fixed consts (not config) — P142a owns config.
+
+/// Single file part / JSON body cap (64 MiB).
+const MAX_REQUEST_BODY_BYTES: usize = 64 * 1024 * 1024;
+const MAX_MULTIPART_FILE_BYTES: usize = MAX_REQUEST_BODY_BYTES;
+/// Cumulative bytes across all parts of one multipart request (256 MiB).
+const MAX_MULTIPART_REQUEST_BYTES: usize = 256 * 1024 * 1024;
+/// Text form fields (name/type/scope) stay small; still stream-counted.
+const MAX_MULTIPART_TEXT_FIELD_BYTES: usize = 1024 * 1024;
+
 pub fn router() -> Router {
     router_with_prefix("")
 }
@@ -482,14 +494,49 @@ fn is_multipart(request: &Request) -> bool {
 }
 
 async fn request_body_string(request: Request) -> Result<String, ApiError> {
-    let bytes = axum::body::to_bytes(request.into_body(), usize::MAX)
+    let bytes = axum::body::to_bytes(request.into_body(), MAX_REQUEST_BODY_BYTES)
         .await
-        .map_err(|err| ApiError::bad_request(err.to_string()))?;
+        .map_err(|err| {
+            let message = err.to_string();
+            if message.contains("length limit exceeded") {
+                ApiError::payload_too_large(format!(
+                    "request body exceeds limit of {MAX_REQUEST_BODY_BYTES} bytes"
+                ))
+            } else {
+                ApiError::bad_request(message)
+            }
+        })?;
     String::from_utf8(bytes.to_vec()).map_err(|err| ApiError::bad_request(err.to_string()))
 }
 
 fn multipart_error(err: impl std::fmt::Display) -> ApiError {
     ApiError::bad_request(err.to_string())
+}
+
+/// Stream a multipart field with per-field and request-total caps.
+async fn read_multipart_field_limited(
+    mut field: axum::extract::multipart::Field<'_>,
+    per_field_limit: usize,
+    request_total: &mut usize,
+    request_limit: usize,
+) -> Result<Vec<u8>, ApiError> {
+    let mut buf = Vec::new();
+    while let Some(chunk) = field.chunk().await.map_err(multipart_error)? {
+        let n = chunk.len();
+        if buf.len().saturating_add(n) > per_field_limit {
+            return Err(ApiError::payload_too_large(format!(
+                "multipart field exceeds limit of {per_field_limit} bytes"
+            )));
+        }
+        if request_total.saturating_add(n) > request_limit {
+            return Err(ApiError::payload_too_large(format!(
+                "multipart request exceeds limit of {request_limit} bytes"
+            )));
+        }
+        *request_total += n;
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
 }
 
 /// Multipart form fields for Java `setBinaryVariable`: regular form fields
@@ -507,16 +554,41 @@ async fn parse_binary_variable_form(
     mut multipart: Multipart,
 ) -> Result<BinaryVariableForm, ApiError> {
     let mut form = BinaryVariableForm::default();
+    let mut request_total = 0usize;
     while let Some(field) = multipart.next_field().await.map_err(multipart_error)? {
         if field.file_name().is_some() {
             // Java: use the first file in the request, ignore possible others.
             if form.file_bytes.is_none() {
-                form.file_bytes = Some(field.bytes().await.map_err(multipart_error)?.to_vec());
+                form.file_bytes = Some(
+                    read_multipart_field_limited(
+                        field,
+                        MAX_MULTIPART_FILE_BYTES,
+                        &mut request_total,
+                        MAX_MULTIPART_REQUEST_BYTES,
+                    )
+                    .await?,
+                );
+            } else {
+                let _ = read_multipart_field_limited(
+                    field,
+                    MAX_MULTIPART_FILE_BYTES,
+                    &mut request_total,
+                    MAX_MULTIPART_REQUEST_BYTES,
+                )
+                .await?;
             }
             continue;
         }
         let field_name = field.name().unwrap_or_default().to_string();
-        let text = field.text().await.map_err(multipart_error)?;
+        let text_bytes = read_multipart_field_limited(
+            field,
+            MAX_MULTIPART_TEXT_FIELD_BYTES,
+            &mut request_total,
+            MAX_MULTIPART_REQUEST_BYTES,
+        )
+        .await?;
+        let text = String::from_utf8(text_bytes)
+            .map_err(|err| ApiError::bad_request(err.to_string()))?;
         if field_name.eq_ignore_ascii_case("scope") {
             form.scope = Some(text);
         } else if field_name.eq_ignore_ascii_case("name") {

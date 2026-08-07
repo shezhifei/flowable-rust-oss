@@ -61,6 +61,13 @@ impl AuthProviderKind {
 pub struct ProcessEngineConfiguration {
     #[serde(default)]
     pub enable_secure_scripting: bool,
+    /// When false (default), shell service tasks refuse to execute OS commands.
+    ///
+    /// Security deviation from Java: Java `ShellActivityBehavior` is enabled by
+    /// default — a known dangerous default that turns process deployment into RCE.
+    /// Set `shell_tasks_enabled = true` explicitly to opt in.
+    #[serde(default)]
+    pub shell_tasks_enabled: bool,
     /// Java `ProcessEngineConfigurationImpl.enableEntityLinks` (default false).
     /// When true, call activities create parent→child entity links.
     #[serde(default)]
@@ -1023,6 +1030,8 @@ impl Default for ProcessEngineConfiguration {
     fn default() -> Self {
         Self {
             enable_secure_scripting: false,
+            // Security deviation from Java: shell tasks off by default.
+            shell_tasks_enabled: false,
             enable_entity_links: false,
             fallback_to_default_tenant: false,
             expression_method_registry:
@@ -1195,6 +1204,8 @@ impl HttpServiceTaskConfiguration {
             oauth2_token_url: self.real_client.oauth2_token_url.clone(),
             client_cert_pem: self.real_client.client_cert_pem.clone(),
             client_key_pem: self.real_client.client_key_pem.clone(),
+            allow_private_networks: self.real_client.allow_private_networks,
+            allowed_private_hosts: self.real_client.allowed_private_hosts.clone(),
         }
     }
 
@@ -1265,6 +1276,12 @@ pub struct RealHttpClientConfiguration {
     pub client_cert_pem: Option<String>,
     #[serde(default)]
     pub client_key_pem: Option<String>,
+    /// SSRF guard escape hatch (default false). Security deviation from Java.
+    #[serde(default = "default_false")]
+    pub allow_private_networks: bool,
+    /// Explicit private hosts/IPs allowed even when `allow_private_networks` is false.
+    #[serde(default)]
+    pub allowed_private_hosts: Vec<String>,
 }
 
 impl Default for RealHttpClientConfiguration {
@@ -1284,6 +1301,8 @@ impl Default for RealHttpClientConfiguration {
             oauth2_token_url: None,
             client_cert_pem: None,
             client_key_pem: None,
+            allow_private_networks: false,
+            allowed_private_hosts: Vec::new(),
         }
     }
 }

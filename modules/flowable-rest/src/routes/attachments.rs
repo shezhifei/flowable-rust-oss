@@ -15,6 +15,17 @@ use serde::{Deserialize, Serialize};
 
 use super::content::TaskAttachmentRecord;
 
+// --- P142c resource limits -------------------------------------------------
+// axum `DefaultBodyLimit` does not apply to Multipart extractors. Fixed consts
+// (not config) so P142a can own config.rs without coupling.
+
+/// Single file part cap (64 MiB).
+const MAX_MULTIPART_FILE_BYTES: usize = 64 * 1024 * 1024;
+/// Cumulative bytes across all parts of one multipart request (256 MiB).
+const MAX_MULTIPART_REQUEST_BYTES: usize = 256 * 1024 * 1024;
+/// Text form fields (name/description/type) stay small; still stream-counted.
+const MAX_MULTIPART_TEXT_FIELD_BYTES: usize = 1024 * 1024;
+
 /// Java `AttachmentRequest` (+ optional Rust `content` extension for JSON binary).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -93,6 +104,34 @@ pub(crate) async fn parse_json_attachment(
     })
 }
 
+/// Stream a multipart field with per-field and request-total caps.
+async fn read_multipart_field_limited(
+    mut field: axum::extract::multipart::Field<'_>,
+    per_field_limit: usize,
+    request_total: &mut usize,
+    request_limit: usize,
+) -> Result<Vec<u8>, ApiError> {
+    let mut buf = Vec::new();
+    while let Some(chunk) = field.chunk().await.map_err(|err| {
+        ApiError::bad_request(format!("Failed to read multipart field: {err}"))
+    })? {
+        let n = chunk.len();
+        if buf.len().saturating_add(n) > per_field_limit {
+            return Err(ApiError::payload_too_large(format!(
+                "multipart field exceeds limit of {per_field_limit} bytes"
+            )));
+        }
+        if request_total.saturating_add(n) > request_limit {
+            return Err(ApiError::payload_too_large(format!(
+                "multipart request exceeds limit of {request_limit} bytes"
+            )));
+        }
+        *request_total += n;
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
 pub(crate) async fn parse_multipart_attachment(
     request: Request,
 ) -> Result<ParsedAttachmentCreate, ApiError> {
@@ -105,6 +144,7 @@ pub(crate) async fn parse_multipart_attachment(
     let mut description: Option<String> = None;
     let mut attachment_type: Option<String> = None;
     let mut file_bytes: Option<Vec<u8>> = None;
+    let mut request_total = 0usize;
 
     while let Some(field) = multipart
         .next_field()
@@ -113,33 +153,42 @@ pub(crate) async fn parse_multipart_attachment(
     {
         let field_name = field.name().unwrap_or("").to_ascii_lowercase();
         let file_name = field.file_name().map(|s| s.to_string());
-        let data = field.bytes().await.map_err(|err| {
-            ApiError::bad_request(format!("Failed to read multipart field: {err}"))
-        })?;
+        let is_file_part = field_name == "file" || file_name.is_some();
+        let per_field_limit = if is_file_part {
+            MAX_MULTIPART_FILE_BYTES
+        } else {
+            MAX_MULTIPART_TEXT_FIELD_BYTES
+        };
+        let data = read_multipart_field_limited(
+            field,
+            per_field_limit,
+            &mut request_total,
+            MAX_MULTIPART_REQUEST_BYTES,
+        )
+        .await?;
 
         match field_name.as_str() {
             "name" => {
                 name = Some(
-                    String::from_utf8(data.to_vec())
+                    String::from_utf8(data)
                         .map_err(|_| ApiError::bad_request("Attachment name must be UTF-8"))?,
                 );
             }
             "description" => {
-                description =
-                    Some(String::from_utf8(data.to_vec()).map_err(|_| {
-                        ApiError::bad_request("Attachment description must be UTF-8")
-                    })?);
+                description = Some(String::from_utf8(data).map_err(|_| {
+                    ApiError::bad_request("Attachment description must be UTF-8")
+                })?);
             }
             "type" => {
                 attachment_type = Some(
-                    String::from_utf8(data.to_vec())
+                    String::from_utf8(data)
                         .map_err(|_| ApiError::bad_request("Attachment type must be UTF-8"))?,
                 );
             }
             _ => {
                 // File part: named "file" or any part that includes a filename.
-                if file_bytes.is_none() && (field_name == "file" || file_name.is_some()) {
-                    file_bytes = Some(data.to_vec());
+                if file_bytes.is_none() && is_file_part {
+                    file_bytes = Some(data);
                 }
             }
         }

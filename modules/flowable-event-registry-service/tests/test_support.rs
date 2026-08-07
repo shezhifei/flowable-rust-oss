@@ -1,14 +1,25 @@
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_event_registry_service::{
     EventRegistryConfiguration, EventRegistryDeployment, EventRegistryDeploymentRequest,
-    EventRegistryDeploymentResource, FlowableEventRegistryService,
+    EventRegistryDeploymentResource, FlowableEventRegistryService, OutboundUrlGuardConfig,
 };
 use serde_json::json;
 use std::sync::Arc;
 
 #[allow(dead_code)]
 pub fn service(name: &str) -> FlowableEventRegistryService {
-    FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(name.to_string())))
+    // Local integration tests bind mock REST receivers on 127.0.0.1; opt into private
+    // destinations (production default remains deny).
+    let configuration = EventRegistryConfiguration::builder()
+        .outbound_ssrf_guard(OutboundUrlGuardConfig {
+            allow_private_networks: true,
+            ..Default::default()
+        })
+        .build();
+    FlowableEventRegistryService::with_configuration(
+        Arc::new(ProcessEngine::new(name.to_string())),
+        configuration,
+    )
 }
 
 /// Service with Java multi-tenant fallback enabled

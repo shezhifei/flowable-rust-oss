@@ -6212,16 +6212,23 @@ pub async fn run_server(
     engine: Arc<ProcessEngine>,
     listener: TcpListener,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = config::RestConfig::default().without_identity_seed();
+    // Test/library helper: without_identity_seed + treat user id "admin" as REST admin
+    // so existing integration tests that save_user(admin) keep write access to
+    // privileged paths. Production entrypoints use run_platform_server / from_env.
+    let config = config::RestConfig::default()
+        .without_identity_seed()
+        .with_test_admin_user();
     run_server_with_config(engine, listener, config).await
 }
 
 pub async fn run_server_with_config(
     engine: Arc<ProcessEngine>,
     listener: TcpListener,
-    config: config::RestConfig,
+    mut config: config::RestConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    config.apply_identity_seed(engine.as_ref());
+    ensure_seed_user_is_admin(&mut config);
+    config.validate_for_startup()?;
+    config.apply_identity_seed(engine.as_ref())?;
 
     let dmn_engine = match engine.get_config().dmn_engine.clone() {
         Some(engine) => engine,
@@ -6274,8 +6281,9 @@ pub async fn run_platform_server(
 pub async fn run_platform_server_with_config(
     platform: FlowablePlatform,
     listener: TcpListener,
-    config: config::RestConfig,
+    mut config: config::RestConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_seed_user_is_admin(&mut config);
     let directory_read_state = DirectoryReadState::from_platform(&platform);
     let management_state = Arc::new(routes::management::ManagementApiState {
         runtime_embedding_contract: platform.runtime_embedding_contract().clone(),
@@ -6300,6 +6308,23 @@ pub async fn run_platform_server_with_config(
     .await
 }
 
+fn ensure_seed_user_is_admin(config: &mut config::RestConfig) {
+    if config.security.admin_seed.enabled
+        && !config
+            .security
+            .auth
+            .admin_users
+            .iter()
+            .any(|u| u == &config.security.admin_seed.user_id)
+    {
+        config
+            .security
+            .auth
+            .admin_users
+            .push(config.security.admin_seed.user_id.clone());
+    }
+}
+
 struct ServerComponents {
     engine: Arc<ProcessEngine>,
     dmn_engine: Arc<DmnEngine>,
@@ -6314,6 +6339,8 @@ async fn run_server_with_components(
     listener: TcpListener,
     config: config::RestConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    config.validate_for_startup()?;
+
     let ServerComponents {
         engine,
         dmn_engine,
@@ -6490,7 +6517,9 @@ async fn run_server_with_components(
         .merge(routes::entity_links::router())
         .merge(routes::event_subscriptions::router())
         .merge(routes::batches::router())
-        .merge(routes::idm::router());
+        .merge(routes::idm::router())
+        // /metrics previously sat outside auth; move under the authenticated API surface.
+        .route("/metrics", get(routes::metrics::metrics));
 
     let api_routes = if config.security.auth.mode.is_enforced() {
         api_routes.layer(middleware::from_fn_with_state(
@@ -6507,7 +6536,6 @@ async fn run_server_with_components(
     let app = Router::new()
         .route("/health", get(routes::health::health))
         .route("/ready", get(routes::health::ready))
-        .route("/metrics", get(routes::metrics::metrics))
         .merge(api_routes)
         .layer(Extension(directory_read_state))
         .layer(Extension(dmn_engine))
@@ -6616,7 +6644,9 @@ mod tests {
                     management_state: None,
                 },
                 listener,
-                config::RestConfig::default(),
+                config::RestConfig::default()
+                    .without_identity_seed()
+                    .with_test_admin_user(),
             )
             .await
             .unwrap();

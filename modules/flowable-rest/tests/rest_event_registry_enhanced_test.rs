@@ -5,7 +5,18 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    // The mock outbound HTTP servers in this file bind 127.0.0.1, which the P142b
+    // SSRF guard denies by default. These tests predate the guard and intentionally
+    // exercise loopback delivery, so opt in via the documented engine-level escape
+    // hatch (mirrored into the event-registry outbound guard by
+    // `FlowableEventRegistryService::new`).
+    let mut engine_config =
+        flowable_engine::service::config::ProcessEngineConfiguration::default();
+    engine_config.http_service.real_client.allow_private_networks = true;
+    let engine = Arc::new(
+        ProcessEngine::try_new_with_config(test_name.to_string(), engine_config)
+            .expect("process engine"),
+    );
 
     let user = flowable_engine::identity::entities::User {
         id: "admin".to_string(),

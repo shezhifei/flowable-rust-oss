@@ -18,6 +18,11 @@ pub enum ApiError {
     Forbidden(String),
     NotFound(String),
     BadRequest(String),
+    /// Request body / multipart / zip payload exceeds configured resource limits.
+    /// P142c: multipart and raw body reads have hard caps; axum DefaultBodyLimit
+    /// does not cover Multipart extractors, so handlers enforce limits and map
+    /// oversize to HTTP 413 with the standard ErrorResponse shape.
+    PayloadTooLarge(String),
     Conflict(String),
     InternalServerError(String),
 }
@@ -25,6 +30,10 @@ pub enum ApiError {
 impl ApiError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::BadRequest(message.into())
+    }
+
+    pub fn payload_too_large(message: impl Into<String>) -> Self {
+        Self::PayloadTooLarge(message.into())
     }
 }
 
@@ -47,13 +56,26 @@ impl IntoResponse for ApiError {
                 "Bad Request",
                 Some(msg),
             ),
-            ApiError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", "Conflict", Some(msg)),
-            ApiError::InternalServerError(msg) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INTERNAL_SERVER_ERROR",
-                "Internal Server Error",
+            ApiError::PayloadTooLarge(msg) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "PAYLOAD_TOO_LARGE",
+                "Payload Too Large",
                 Some(msg),
             ),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", "Conflict", Some(msg)),
+            // 5xx: never echo internal error text (paths, storage shards, etc.)
+            // to clients. Log the original message; keep a fixed public details
+            // string. 4xx variants above still return caller-facing validation
+            // text in `details` unchanged.
+            ApiError::InternalServerError(msg) => {
+                tracing::error!(error = %msg, "Internal server error");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_SERVER_ERROR",
+                    "Internal Server Error",
+                    Some("Internal server error".to_string()),
+                )
+            }
         };
 
         let body = Json(ErrorResponse {
@@ -183,5 +205,58 @@ impl From<flowable_image_generator::ProcessDiagramSvgError> for ApiError {
 impl From<flowable_image_generator::SvgRasterizationError> for ApiError {
     fn from(err: flowable_image_generator::SvgRasterizationError) -> Self {
         ApiError::InternalServerError(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use serde_json::Value;
+
+    async fn response_json(error: ApiError) -> (StatusCode, Value) {
+        let response = error.into_response();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        let body: Value = serde_json::from_slice(&bytes).expect("json body");
+        (status, body)
+    }
+
+    #[tokio::test]
+    async fn internal_server_error_details_are_generic_not_raw_path() {
+        let leak = r#"failed to create content shard dir: C:\Users\secret\data\content\shard_a"#;
+        let (status, body) = response_json(ApiError::InternalServerError(leak.to_string())).await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body["code"], "INTERNAL_SERVER_ERROR");
+        assert_eq!(body["message"], "Internal Server Error");
+        assert_eq!(body["details"], "Internal server error");
+        let details = body["details"].as_str().unwrap_or_default();
+        assert!(!details.contains("C:\\Users"));
+        assert!(!details.contains("shard"));
+        assert!(!details.contains(leak));
+    }
+
+    #[tokio::test]
+    async fn bad_request_details_still_echo_validation_text() {
+        let msg = "canonical 'action: \"complete\"' shape required";
+        let (status, body) = response_json(ApiError::BadRequest(msg.to_string())).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], "BAD_REQUEST");
+        assert_eq!(body["details"], msg);
+    }
+
+    #[tokio::test]
+    async fn not_found_and_conflict_details_still_echo() {
+        let (status, body) =
+            response_json(ApiError::NotFound("Task not found".to_string())).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body["details"], "Task not found");
+
+        let (status, body) =
+            response_json(ApiError::Conflict("non-unique result".to_string())).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["details"], "non-unique result");
     }
 }

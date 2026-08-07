@@ -740,12 +740,8 @@ async fn process_instance_change_state_missing_activity_returns_500() {
     assert_eq!(change_response.status(), 500);
     let body: serde_json::Value = change_response.json().await.unwrap();
     assert_eq!(body["code"], "INTERNAL_SERVER_ERROR");
-    assert!(
-        body["details"]
-            .as_str()
-            .unwrap()
-            .contains("Active execution could not be found")
-    );
+    // 5xx details are generic (no internal exception text echo).
+    assert_eq!(body["details"], "Internal server error");
 }
 
 #[tokio::test]

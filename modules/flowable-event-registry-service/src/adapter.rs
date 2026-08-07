@@ -1,4 +1,7 @@
 use crate::models::{EventPayload, EventRegistryError};
+use crate::ssrf_guard::{
+    safe_url_display, validate_outbound_url, OutboundUrlGuardConfig, OutboundUrlGuardError,
+};
 use flowable_engine::error::FlowableError;
 use reqwest::{Certificate, Client};
 use serde_json::Value;
@@ -47,8 +50,12 @@ pub struct RestOutboundAdapter {
 
 impl RestOutboundAdapter {
     pub fn new() -> Self {
+        Self::with_ssrf_guard(OutboundUrlGuardConfig::default())
+    }
+
+    pub fn with_ssrf_guard(ssrf_guard: OutboundUrlGuardConfig) -> Self {
         Self {
-            adapter: RestChannelAdapter::new(),
+            adapter: RestChannelAdapter::with_ssrf_guard(ssrf_guard),
         }
     }
 }
@@ -81,12 +88,18 @@ impl OutboundChannelAdapter for RestOutboundAdapter {
 
 pub struct RestChannelAdapter {
     pub client: Client,
+    ssrf_guard: OutboundUrlGuardConfig,
 }
 
 impl RestChannelAdapter {
     pub fn new() -> Self {
+        Self::with_ssrf_guard(OutboundUrlGuardConfig::default())
+    }
+
+    pub fn with_ssrf_guard(ssrf_guard: OutboundUrlGuardConfig) -> Self {
         Self {
             client: Client::new(),
+            ssrf_guard,
         }
     }
 
@@ -101,6 +114,8 @@ impl RestChannelAdapter {
         url: &str,
         event: EventPayload,
     ) -> Result<(), EventRegistryError> {
+        validate_outbound_url(url, &self.ssrf_guard).map_err(ssrf_to_outbound_error)?;
+        let safe_url = safe_url_display(url);
         let dispatch_token = event.dispatch_token.clone();
         let mut request = self.client.post(url);
         if let Some(token) = dispatch_token.as_deref() {
@@ -110,12 +125,14 @@ impl RestChannelAdapter {
             .json(&event)
             .send()
             .await
-            .map_err(|e| EventRegistryError::OutboundError(e.to_string()))?;
+            .map_err(|e| EventRegistryError::OutboundError(format!(
+                "REST outbound dispatch to '{safe_url}' failed: {e}"
+            )))?;
         let status = response.status();
         if !status.is_success() {
             return Err(EventRegistryError::OutboundError(format!(
                 "REST outbound dispatch to '{}' failed with status {}",
-                url, status
+                safe_url, status
             )));
         }
         Ok(())
@@ -135,8 +152,10 @@ impl RestChannelAdapter {
         event: EventPayload,
         configuration: &Value,
     ) -> Result<(), EventRegistryError> {
+        validate_outbound_url(url, &self.ssrf_guard).map_err(ssrf_to_outbound_error)?;
         let url = url.to_string();
         let configuration = configuration.clone();
+        let ssrf_guard = self.ssrf_guard.clone();
         std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -146,6 +165,7 @@ impl RestChannelAdapter {
                 &url,
                 event,
                 &configuration,
+                &ssrf_guard,
             ))
         })
         .join()
@@ -159,7 +179,11 @@ async fn send_outbound_with_configuration(
     url: &str,
     event: EventPayload,
     configuration: &Value,
+    ssrf_guard: &OutboundUrlGuardConfig,
 ) -> Result<(), EventRegistryError> {
+    // Re-check inside the worker thread (config is already checked by callers).
+    validate_outbound_url(url, ssrf_guard).map_err(ssrf_to_outbound_error)?;
+    let safe_url = safe_url_display(url);
     let client = rest_client(configuration)?;
     let dispatch_token = event.dispatch_token.clone();
     let mut request = client.post(url);
@@ -170,15 +194,23 @@ async fn send_outbound_with_configuration(
         .json(&event)
         .send()
         .await
-        .map_err(|e| EventRegistryError::OutboundError(e.to_string()))?;
+        .map_err(|e| {
+            EventRegistryError::OutboundError(format!(
+                "REST outbound dispatch to '{safe_url}' failed: {e}"
+            ))
+        })?;
     let status = response.status();
     if !status.is_success() {
         return Err(EventRegistryError::OutboundError(format!(
             "REST outbound dispatch to '{}' failed with status {}",
-            url, status
+            safe_url, status
         )));
     }
     Ok(())
+}
+
+fn ssrf_to_outbound_error(error: OutboundUrlGuardError) -> EventRegistryError {
+    EventRegistryError::OutboundError(error.to_string())
 }
 
 fn rest_client(configuration: &Value) -> Result<Client, EventRegistryError> {

@@ -37,6 +37,7 @@ fn test_http_retry_mechanism() {
         default_connect_timeout_ms: 500,
         retry_count: 3,
         retry_backoff_ms: 10,
+        allow_private_networks: true,
         ..RealHttpClientConfig::default()
     };
     let client = RealHttpClient::new(config).unwrap();
@@ -80,6 +81,7 @@ fn test_http_get_caching() {
     let config = RealHttpClientConfig {
         cache_enabled: true,
         cache_ttl_ms: 5000,
+        allow_private_networks: true,
         ..RealHttpClientConfig::default()
     };
     let client = RealHttpClient::new(config).unwrap();
@@ -124,6 +126,7 @@ fn test_http_circuit_breaker() {
         circuit_breaker_threshold: 2,
         circuit_breaker_cooldown_ms: 1000,
         retry_count: 0,
+        allow_private_networks: true,
         ..RealHttpClientConfig::default()
     };
     let client = RealHttpClient::new(config).unwrap();

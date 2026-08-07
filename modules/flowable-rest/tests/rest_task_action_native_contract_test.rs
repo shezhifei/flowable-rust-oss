@@ -2372,10 +2372,6 @@ async fn task_delete_rejects_suspended_task_with_500() {
     );
     let body = response.json::<Value>().await.unwrap();
     assert_eq!(body["code"], "INTERNAL_SERVER_ERROR");
-    assert!(
-        body["details"]
-            .as_str()
-            .unwrap()
-            .contains("Cannot delete a suspended task")
-    );
+    // 5xx details are generic (no suspended-task message echo).
+    assert_eq!(body["details"], "Internal server error");
 }

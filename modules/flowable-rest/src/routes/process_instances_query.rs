@@ -733,26 +733,11 @@ fn sql_like_matches_ignore_case(pattern: &str, value: &str) -> bool {
     sql_like_matches(&pattern.to_lowercase(), &value.to_lowercase())
 }
 
+/// Delegates to the shared O(pattern × value) matcher with the 512-char cap
+/// (`routes::tasks::sql_like_matches`); the former recursive matcher here had
+/// exponential worst cases on `%`-heavy patterns.
 fn sql_like_matches(pattern: &str, value: &str) -> bool {
-    fn matches_parts(pattern: &[char], value: &[char]) -> bool {
-        match pattern {
-            [] => value.is_empty(),
-            ['%', rest @ ..] => {
-                matches_parts(rest, value)
-                    || (!value.is_empty() && matches_parts(pattern, &value[1..]))
-            }
-            ['_', rest @ ..] => !value.is_empty() && matches_parts(rest, &value[1..]),
-            [expected, rest @ ..] => {
-                matches!(value.first(), Some(actual) if actual == expected)
-                    && matches_parts(rest, &value[1..])
-            }
-        }
-    }
-
-    matches_parts(
-        &pattern.chars().collect::<Vec<_>>(),
-        &value.chars().collect::<Vec<_>>(),
-    )
+    crate::routes::tasks::sql_like_matches(pattern, value)
 }
 
 fn parse_query_datetime(value: &str, field: &str) -> Result<DateTime<Utc>, ApiError> {

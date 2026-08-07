@@ -15,11 +15,16 @@ mod pipeline;
 mod query;
 mod resolver;
 mod runtime;
+mod ssrf_guard;
 mod tenant_fallback;
 
 pub use adapter::{
     boxed_outbound_adapter, InMemoryInboundAdapter, InMemoryOutboundAdapter, InboundChannelAdapter,
     OutboundChannelAdapter, RestChannelAdapter, RestOutboundAdapter,
+};
+pub use ssrf_guard::{
+    safe_url_display, safe_url_for_error, validate_outbound_url, OutboundUrlGuardConfig,
+    OutboundUrlGuardError,
 };
 pub use bpmn_consumer::{BpmnEventRegistryConsumer, BPMN_EVENT_CONSUMER_KEY};
 pub use cmmn_consumer::{CmmnEventRegistryConsumer, CMMN_EVENT_CONSUMER_KEY};
@@ -64,17 +69,40 @@ pub struct FlowableEventRegistryService {
 }
 
 impl FlowableEventRegistryService {
+    /// Default configuration bound to a specific engine: mirrors the engine-level
+    /// outbound HTTP SSRF escape hatches (`http_service.real_client.allow_private_networks`
+    /// / `allowed_private_hosts`, P142b) into the event-registry REST outbound guard,
+    /// so a deployment that explicitly opts into private endpoints for HTTP service
+    /// tasks gets the same single outbound policy for event-registry REST channels.
+    /// Both guards default to deny; explicit `with_configuration` callers are untouched.
+    fn default_configuration_for_engine(engine: &ProcessEngine) -> EventRegistryConfiguration {
+        let http_client = &engine.get_config().http_service.real_client;
+        let mut builder = EventRegistryConfiguration::builder();
+        if http_client.allow_private_networks || !http_client.allowed_private_hosts.is_empty() {
+            // Goes through the builder so the built-in `rest` outbound adapter is
+            // constructed with the mirrored guard (mutating the pub field after
+            // `Default` would leave the already-built adapter at deny).
+            builder = builder.outbound_ssrf_guard(OutboundUrlGuardConfig {
+                allow_private_networks: http_client.allow_private_networks,
+                allowed_private_hosts: http_client.allowed_private_hosts.clone(),
+            });
+        }
+        builder.build()
+    }
+
     /// Default construction keeps `NoOpInboundConsumer` as the `"default"` consumer
     /// so unit tests that only exercise the pipeline stay isolated from BPMN.
     /// Platform bootstrap should use [`Self::with_bpmn_consumer`].
     pub fn new(engine: Arc<ProcessEngine>) -> Self {
-        Self::with_configuration(engine, EventRegistryConfiguration::default())
+        let configuration = Self::default_configuration_for_engine(&engine);
+        Self::with_configuration(engine, configuration)
     }
 
     /// Builds a service whose default + `bpmnEventConsumer` consumers are the
     /// BPMN bridge (`BpmnEventRegistryEventConsumer.java:62-64`).
     pub fn with_bpmn_consumer(engine: Arc<ProcessEngine>) -> Self {
-        Self::with_bpmn_consumer_config(engine, EventRegistryConfiguration::default())
+        let configuration = Self::default_configuration_for_engine(&engine);
+        Self::with_bpmn_consumer_config(engine, configuration)
     }
 
     /// Like [`Self::with_bpmn_consumer`] but applies the given configuration
@@ -97,7 +125,8 @@ impl FlowableEventRegistryService {
     /// CMMN bridge (`CmmnEventRegistryEventConsumer.java:63-66`, registration
     /// `CmmnEngineConfiguration.java:1358-1365`).
     pub fn with_cmmn_consumer(engine: Arc<ProcessEngine>, cmmn_engine: Arc<CmmnEngine>) -> Self {
-        Self::with_cmmn_consumer_config(engine, cmmn_engine, EventRegistryConfiguration::default())
+        let configuration = Self::default_configuration_for_engine(&engine);
+        Self::with_cmmn_consumer_config(engine, cmmn_engine, configuration)
     }
 
     /// Like [`Self::with_cmmn_consumer`] but applies the given configuration

@@ -1,3 +1,6 @@
+use crate::ssrf_guard::{
+    safe_url_display, validate_outbound_url, OutboundUrlGuardConfig, OutboundUrlGuardError,
+};
 use crate::{
     HttpExchange, HttpRequest, HttpResponse, HttpRuntime, HttpRuntimeMode, HttpServiceError,
 };
@@ -48,6 +51,12 @@ pub struct RealHttpClientConfig {
     // mTLS configuration
     pub client_cert_pem: Option<String>,
     pub client_key_pem: Option<String>,
+
+    /// SSRF guard: when `true`, allow private/loopback/link-local destinations.
+    /// Default `false` (security deviation from Java — Java has no outbound guard).
+    pub allow_private_networks: bool,
+    /// Explicit hosts/IPs permitted even when private networks are otherwise denied.
+    pub allowed_private_hosts: Vec<String>,
 }
 
 impl Default for RealHttpClientConfig {
@@ -67,6 +76,17 @@ impl Default for RealHttpClientConfig {
             oauth2_token_url: None,
             client_cert_pem: None,
             client_key_pem: None,
+            allow_private_networks: false,
+            allowed_private_hosts: Vec::new(),
+        }
+    }
+}
+
+impl RealHttpClientConfig {
+    fn ssrf_guard(&self) -> OutboundUrlGuardConfig {
+        OutboundUrlGuardConfig {
+            allow_private_networks: self.allow_private_networks,
+            allowed_private_hosts: self.allowed_private_hosts.clone(),
         }
     }
 }
@@ -253,6 +273,10 @@ impl RealHttpClient {
             .map_err(|e| HttpServiceError::new(format!("Failed to build HTTP client: {e}")))
     }
 
+    fn guard_url(&self, url: &str) -> Result<(), HttpServiceError> {
+        validate_outbound_url(url, &self.config.ssrf_guard()).map_err(ssrf_to_http_error)
+    }
+
     /// Build a `reqwest::RequestBuilder` from an [`HttpRequest`].
     fn build_request(
         &self,
@@ -265,6 +289,8 @@ impl RealHttpClient {
         if url.is_empty() {
             return Err(HttpServiceError::new("HTTP request URL is required"));
         }
+        self.guard_url(url)?;
+        let safe_url = safe_url_display(url);
 
         let mut req_builder = match method.as_str() {
             "GET" => client.get(url),
@@ -277,7 +303,7 @@ impl RealHttpClient {
                     message: format!("Unsupported HTTP method: {other}"),
                     status_code: None,
                     response_body_excerpt: None,
-                    request_url: Some(url.to_string()),
+                    request_url: Some(safe_url),
                     request_method: Some(other.to_string()),
                 });
             }
@@ -464,6 +490,7 @@ impl RealHttpClient {
         client: &BlockingClient,
     ) -> Result<HttpExchange, HttpServiceError> {
         let url = request.url.trim().to_string();
+        let safe_url = safe_url_display(&url);
         let method = request.method.trim().to_uppercase();
 
         let mut last_error = None;
@@ -478,6 +505,10 @@ impl RealHttpClient {
             let req_builder = match self.build_request(client, request) {
                 Ok(b) => b,
                 Err(e) => {
+                    // SSRF / validation failures are permanent — do not retry.
+                    if e.message.contains("SSRF guard") || e.message.contains("Outbound URL") {
+                        return Err(e);
+                    }
                     last_error = Some(e);
                     continue;
                 }
@@ -486,18 +517,18 @@ impl RealHttpClient {
             let res_result = req_builder.send().map_err(|e| {
                 if e.is_timeout() {
                     HttpServiceError {
-                        message: format!("HTTP request timed out: {e}"),
+                        message: format!("HTTP request timed out for {safe_url}: {e}"),
                         status_code: None,
                         response_body_excerpt: None,
-                        request_url: Some(url.clone()),
+                        request_url: Some(safe_url.clone()),
                         request_method: Some(method.clone()),
                     }
                 } else {
                     HttpServiceError {
-                        message: format!("HTTP request failed: {e}"),
+                        message: format!("HTTP request failed for {safe_url}: {e}"),
                         status_code: None,
                         response_body_excerpt: None,
-                        request_url: Some(url.clone()),
+                        request_url: Some(safe_url.clone()),
                         request_method: Some(method.clone()),
                     }
                 }
@@ -519,10 +550,10 @@ impl RealHttpClient {
                 .collect();
 
             let response_body_text = match response.text().map_err(|e| HttpServiceError {
-                message: format!("Failed to read response body: {e}"),
+                message: format!("Failed to read response body from {safe_url}: {e}"),
                 status_code: Some(status_code),
                 response_body_excerpt: None,
-                request_url: Some(url.clone()),
+                request_url: Some(safe_url.clone()),
                 request_method: Some(method.clone()),
             }) {
                 Ok(t) => t,
@@ -538,28 +569,28 @@ impl RealHttpClient {
             if status_code >= 500 {
                 // 5xx is transient; retry
                 last_error = Some(HttpServiceError {
-                    message: format!("HTTP {status_code} for {url}"),
+                    message: format!("HTTP {status_code} for {safe_url}"),
                     status_code: Some(status_code),
                     response_body_excerpt: Some(if response_body_text.len() > 500 {
                         format!("{}...", &response_body_text[..500])
                     } else {
                         response_body_text
                     }),
-                    request_url: Some(url.clone()),
+                    request_url: Some(safe_url.clone()),
                     request_method: Some(method.clone()),
                 });
                 continue;
             } else if status_code >= 400 {
                 // 4xx is client error; do not retry, return immediately
                 return Err(HttpServiceError {
-                    message: format!("HTTP {status_code} for {url}"),
+                    message: format!("HTTP {status_code} for {safe_url}"),
                     status_code: Some(status_code),
                     response_body_excerpt: Some(if response_body_text.len() > 500 {
                         format!("{}...", &response_body_text[..500])
                     } else {
                         response_body_text
                     }),
-                    request_url: Some(url),
+                    request_url: Some(safe_url),
                     request_method: Some(method),
                 });
             }
@@ -579,10 +610,25 @@ impl RealHttpClient {
     }
 }
 
+fn ssrf_to_http_error(error: OutboundUrlGuardError) -> HttpServiceError {
+    HttpServiceError {
+        message: error.message,
+        status_code: None,
+        response_body_excerpt: None,
+        request_url: error.safe_target,
+        request_method: None,
+    }
+}
+
 impl HttpRuntime for RealHttpClient {
     fn execute(&self, request: &HttpRequest) -> Result<HttpExchange, HttpServiceError> {
         let method = request.method.trim().to_uppercase();
         let url = request.url.trim().to_string();
+        if url.is_empty() {
+            return Err(HttpServiceError::new("HTTP request URL is required"));
+        }
+        // SSRF guard before any network I/O (including async fire-and-forget).
+        self.guard_url(&url)?;
 
         // M42: Async request handling (returns 202 Accepted immediately)
         if request.headers.get("X-Flowable-Async").map(|v| v.as_str()) == Some("true") {
@@ -714,6 +760,8 @@ impl HttpRuntime for RealHttpClient {
             if url.is_empty() {
                 return Err(HttpServiceError::new("HTTP request URL is required"));
             }
+            self.guard_url(&url)?;
+            let safe_url = safe_url_display(&url);
             let dynamic_client = if let Some(connect_timeout_ms) = request.connect_timeout_ms {
                 let mut builder = AsyncClient::builder()
                     .timeout(Duration::from_millis(
@@ -762,7 +810,7 @@ impl HttpRuntime for RealHttpClient {
                             message: format!("Unsupported HTTP method: {other}"),
                             status_code: None,
                             response_body_excerpt: None,
-                            request_url: Some(url.clone()),
+                            request_url: Some(safe_url.clone()),
                             request_method: Some(other.to_string()),
                         });
                     }
@@ -822,30 +870,30 @@ impl HttpRuntime for RealHttpClient {
                             })
                             .collect();
                         let text = response.text().await.map_err(|error| HttpServiceError {
-                            message: format!("Failed to read response body: {error}"),
+                            message: format!("Failed to read response body from {safe_url}: {error}"),
                             status_code: Some(status),
                             response_body_excerpt: None,
-                            request_url: Some(url.clone()),
+                            request_url: Some(safe_url.clone()),
                             request_method: Some(method.clone()),
                         })?;
                         let body =
                             serde_json::from_str(&text).unwrap_or(Value::String(text.clone()));
                         if status >= 500 {
                             last_error = Some(HttpServiceError {
-                                message: format!("HTTP {status} for {url}"),
+                                message: format!("HTTP {status} for {safe_url}"),
                                 status_code: Some(status),
                                 response_body_excerpt: Some(text.chars().take(500).collect()),
-                                request_url: Some(url.clone()),
+                                request_url: Some(safe_url.clone()),
                                 request_method: Some(method.clone()),
                             });
                             continue;
                         }
                         if status >= 400 {
                             return Err(HttpServiceError {
-                                message: format!("HTTP {status} for {url}"),
+                                message: format!("HTTP {status} for {safe_url}"),
                                 status_code: Some(status),
                                 response_body_excerpt: Some(text.chars().take(500).collect()),
-                                request_url: Some(url.clone()),
+                                request_url: Some(safe_url.clone()),
                                 request_method: Some(method.clone()),
                             });
                         }
@@ -860,10 +908,10 @@ impl HttpRuntime for RealHttpClient {
                     }
                     Err(error) => {
                         last_error = Some(HttpServiceError {
-                            message: format!("HTTP request failed: {error}"),
+                            message: format!("HTTP request failed for {safe_url}: {error}"),
                             status_code: None,
                             response_body_excerpt: None,
-                            request_url: Some(url.clone()),
+                            request_url: Some(safe_url.clone()),
                             request_method: Some(method.clone()),
                         });
                     }

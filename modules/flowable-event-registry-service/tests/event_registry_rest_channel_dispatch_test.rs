@@ -1,9 +1,12 @@
 mod test_support;
 
+use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_event_registry_service::{
     ChannelDefinitionUpdateRequest, EventDirection, EventInstanceStatus,
-    EventRegistryDeploymentRequest, EventRegistryDeploymentResource, OutboundEventRequest,
+    EventRegistryDeploymentRequest, EventRegistryDeploymentResource, FlowableEventRegistryService,
+    OutboundEventRequest,
 };
+use std::sync::Arc;
 use native_tls::{Identity, TlsAcceptor};
 use serde_json::{Value, json};
 use std::io::{Read, Write};
@@ -393,6 +396,73 @@ fn rest_outbound_channel_posts_event_payload_to_configured_endpoint() {
             "event_type": "order.published",
             "payload": { "orderId": "REST-100" }
         })
+    );
+}
+
+#[test]
+fn rest_outbound_ssrf_guard_rejects_private_destination_without_path_echo() {
+    // Production-default service (strict SSRF) — not the test_support helper which
+    // opts into private networks for local mock servers.
+    let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
+        "event-registry-rest-ssrf-guard".to_string(),
+    )));
+    service
+        .deploy(EventRegistryDeploymentRequest {
+            name: "REST SSRF guard deployment".to_string(),
+            category: None,
+            parent_deployment_id: None,
+            tenant_id: None,
+            resources: vec![
+                EventRegistryDeploymentResource {
+                    resource_name: "order-published-ssrf.event".to_string(),
+                    resource: json!({
+                        "key": "orderPublishedSsrf",
+                        "name": "Order published SSRF",
+                        "eventType": "order.published.ssrf",
+                        "channelKey": "ordersSsrfOutbound",
+                        "resourceName": "order-published-ssrf.event",
+                        "payload": [
+                            { "name": "orderId", "type": "string" }
+                        ]
+                    })
+                    .to_string(),
+                },
+                EventRegistryDeploymentResource {
+                    resource_name: "orders-ssrf-outbound.channel".to_string(),
+                    resource: json!({
+                        "key": "ordersSsrfOutbound",
+                        "name": "Orders SSRF outbound",
+                        "channelType": "outbound",
+                        "type": "rest",
+                        "destination": "http://127.0.0.1:9/secret/path?token=abc",
+                        "serializerType": "json",
+                        "resourceName": "orders-ssrf-outbound.channel"
+                    })
+                    .to_string(),
+                },
+            ],
+        })
+        .unwrap();
+
+    let result = service.publish_outbound_event(OutboundEventRequest {
+        event_definition_key: "orderPublishedSsrf".to_string(),
+        event_payload: json!({ "orderId": "SSRF-1" }),
+        tenant_id: None,
+    });
+
+    let err = result.expect_err("private destination must be rejected by SSRF guard");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("SSRF guard") || msg.contains("blocked"),
+        "expected SSRF denial message, got: {msg}"
+    );
+    assert!(
+        msg.contains("allow_private_networks") || msg.contains("allowed_private_hosts"),
+        "error should mention configuration escape hatches: {msg}"
+    );
+    assert!(
+        !msg.contains("/secret") && !msg.contains("token=abc"),
+        "error must not echo path/query for blind probing: {msg}"
     );
 }
 

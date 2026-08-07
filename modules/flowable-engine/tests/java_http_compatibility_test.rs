@@ -7,6 +7,7 @@ use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use flowable_engine::service::config::{
     HttpServiceRuntimeMode, HttpServiceTaskConfiguration, ProcessEngineConfiguration,
+    RealHttpClientConfiguration,
 };
 use serde_json::json;
 use std::io::{Read, Write};
@@ -199,6 +200,10 @@ fn java_ignore_exception_continues_and_preserves_rust_error_result() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Real,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
@@ -253,6 +258,10 @@ fn java_response_variables_are_applied_before_async_continuation() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Async,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
@@ -320,6 +329,10 @@ fn java_fail_status_codes_raise_stable_http_execution_error() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Real,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
@@ -441,6 +454,10 @@ fn assert_java_handle_status_codes_triggers_error_boundary_event(
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
@@ -535,6 +552,10 @@ fn java_handle_status_codes_triggers_error_event_subprocess() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Real,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
@@ -587,6 +608,10 @@ fn java_uncaught_handled_status_is_reported_as_bpmn_error_code() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Real,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
@@ -703,6 +728,10 @@ fn java_http_handlers_preserve_mutations_after_async_completion() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Async,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         http_handler_registry: Some(handlers),
@@ -781,6 +810,10 @@ fn assert_response_handler_runs_on_command_thread(
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         http_handler_registry: Some(handlers),
@@ -878,6 +911,10 @@ fn java_http_handler_failure_rolls_back_request_mutations_and_runtime_state() {
     let config = ProcessEngineConfiguration {
         http_service: HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Async,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         http_handler_registry: Some(handlers),

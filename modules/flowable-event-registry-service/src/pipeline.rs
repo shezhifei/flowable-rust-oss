@@ -3,6 +3,7 @@ use crate::adapter::{
     RestOutboundAdapter,
 };
 use crate::models::{EventDefinition, EventInstanceDelivery, EventPayload, ValidationError};
+use crate::ssrf_guard::OutboundUrlGuardConfig;
 use crate::tenant_fallback::{TenantFallbackPolicy, NO_TENANT_ID};
 use flowable_engine::error::FlowableError;
 use serde_json::Value;
@@ -299,6 +300,8 @@ pub struct EventRegistryConfiguration {
     /// Fixed default-tenant value used when fallback is enabled.
     /// Empty string = Java `NO_TENANT_ID` (`AbstractEngineConfiguration.java:329`).
     pub default_tenant: String,
+    /// SSRF guard applied to the built-in `rest` outbound adapter.
+    pub outbound_ssrf_guard: OutboundUrlGuardConfig,
 }
 
 impl Default for EventRegistryConfiguration {
@@ -700,6 +703,7 @@ pub struct EventRegistryConfigurationBuilder {
     outbound_adapters: BTreeMap<String, Arc<dyn OutboundChannelAdapter>>,
     fallback_to_default_tenant: bool,
     default_tenant: String,
+    outbound_ssrf_guard: OutboundUrlGuardConfig,
 }
 
 impl EventRegistryConfigurationBuilder {
@@ -722,11 +726,11 @@ impl EventRegistryConfigurationBuilder {
             .insert("in-memory".to_string(), Arc::new(InMemoryInboundAdapter));
         self.outbound_adapters
             .insert("in-memory".to_string(), Arc::new(InMemoryOutboundAdapter));
-        self.outbound_adapters
-            .insert("rest".to_string(), Arc::new(RestOutboundAdapter::new()));
+        // `rest` adapter is installed in `build()` so it picks up `outbound_ssrf_guard`.
         // AbstractEngineConfiguration.java:324/329 defaults.
         self.fallback_to_default_tenant = false;
         self.default_tenant = NO_TENANT_ID.to_string();
+        self.outbound_ssrf_guard = OutboundUrlGuardConfig::default();
         self
     }
 
@@ -739,6 +743,18 @@ impl EventRegistryConfigurationBuilder {
     /// Java `setDefaultTenantValue` — empty string is `NO_TENANT_ID`.
     pub fn default_tenant(mut self, default_tenant: impl Into<String>) -> Self {
         self.default_tenant = default_tenant.into();
+        self
+    }
+
+    /// SSRF guard for the built-in REST outbound adapter (security deviation from Java).
+    /// Default denies private/loopback/link-local destinations; set
+    /// `allow_private_networks` or `allowed_private_hosts` for internal deployments.
+    pub fn outbound_ssrf_guard(mut self, config: OutboundUrlGuardConfig) -> Self {
+        self.outbound_ssrf_guard = config.clone();
+        self.outbound_adapters.insert(
+            "rest".to_string(),
+            Arc::new(RestOutboundAdapter::with_ssrf_guard(config)),
+        );
         self
     }
 
@@ -824,6 +840,18 @@ impl EventRegistryConfigurationBuilder {
     }
 
     pub fn build(self) -> EventRegistryConfiguration {
+        let mut outbound_adapters = self.outbound_adapters;
+        // Install / refresh the built-in REST adapter with the configured SSRF policy
+        // unless a custom adapter already replaced the `rest` key after with_defaults.
+        // Callers that pass `.outbound_adapter("rest", ...)` after with_defaults keep
+        // their adapter; we only insert when the key is absent.
+        outbound_adapters
+            .entry("rest".to_string())
+            .or_insert_with(|| {
+                Arc::new(RestOutboundAdapter::with_ssrf_guard(
+                    self.outbound_ssrf_guard.clone(),
+                ))
+            });
         EventRegistryConfiguration {
             payload_extractors: self.payload_extractors,
             filters: self.filters,
@@ -833,9 +861,10 @@ impl EventRegistryConfigurationBuilder {
             consumers: self.consumers,
             outbound_transformers: self.outbound_transformers,
             inbound_adapters: self.inbound_adapters,
-            outbound_adapters: self.outbound_adapters,
+            outbound_adapters,
             fallback_to_default_tenant: self.fallback_to_default_tenant,
             default_tenant: self.default_tenant,
+            outbound_ssrf_guard: self.outbound_ssrf_guard,
         }
     }
 }

@@ -1,8 +1,20 @@
 use flowable_engine::engine::process_engine::ProcessEngine;
+use flowable_engine::service::config::ProcessEngineConfiguration;
 use serde_json::json;
 
+fn shell_enabled_engine(name: &str) -> ProcessEngine {
+    // Explicit opt-in: shell tasks are disabled by default (security deviation from Java).
+    ProcessEngine::new_with_config(
+        name.to_string(),
+        ProcessEngineConfiguration {
+            shell_tasks_enabled: true,
+            ..Default::default()
+        },
+    )
+}
+
 fn deploy_and_start(xml: &str) -> (ProcessEngine, String) {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = shell_enabled_engine("default");
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -18,6 +30,49 @@ fn deploy_and_start(xml: &str) -> (ProcessEngine, String) {
         .unwrap();
 
     (process_engine, process_instance.id)
+}
+
+#[test]
+fn test_shell_task_disabled_by_default() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                 xmlns:flowable="http://flowable.org/bpmn"
+                 targetNamespace="Examples">
+        <process id="shellDisabledProcess" isExecutable="true">
+            <startEvent id="start" />
+            <sequenceFlow id="flow1" sourceRef="start" targetRef="shellTask" />
+            <serviceTask id="shellTask" flowable:type="shell" flowable:resultVariableName="shellResult">
+                <extensionElements>
+                    <flowable:command>cmd</flowable:command>
+                    <flowable:arg>/c</flowable:arg>
+                    <flowable:arg>echo should-not-run</flowable:arg>
+                </extensionElements>
+            </serviceTask>
+            <sequenceFlow id="flow2" sourceRef="shellTask" targetRef="end" />
+            <endEvent id="end" />
+        </process>
+    </definitions>"#;
+
+    let process_engine = ProcessEngine::new("shell-disabled-default".to_string());
+    let repository_service = process_engine.get_repository_service();
+    let runtime_service = process_engine.get_runtime_service();
+    repository_service
+        .deploy(
+            repository_service
+                .create_deployment()
+                .name("shell disabled".to_string())
+                .add_string("shell.bpmn20.xml".to_string(), xml.to_string()),
+        )
+        .unwrap();
+    let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
+    let err = runtime_service
+        .start_process_instance_by_id(process_definition_id, None)
+        .expect_err("shell tasks must be disabled by default");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("disabled") && msg.contains("shell_tasks_enabled"),
+        "expected disable message with enable hint, got: {msg}"
+    );
 }
 
 #[test]

@@ -59,6 +59,8 @@ fn bootstrap_uses_isolated_memory_databases_for_memory_module_paths() {
 #[test]
 fn bootstraps_owned_engine_graph_and_default_admin() {
     let mut configuration = isolated_platform_config("bootstrap-test");
+    // Explicit opt-in: create_default_admin is false by default (security deviation from Java).
+    configuration.bootstrap.create_default_admin = true;
     configuration.bootstrap.admin_password = "bootstrap-secret".to_string();
 
     let platform = FlowablePlatform::bootstrap(configuration).expect("platform");
@@ -100,6 +102,40 @@ fn bootstraps_owned_engine_graph_and_default_admin() {
             .unwrap()
             .len(),
         0
+    );
+}
+
+#[test]
+fn default_configuration_does_not_create_admin() {
+    let configuration = isolated_platform_config("no-default-admin");
+    assert!(
+        !configuration.bootstrap.create_default_admin,
+        "create_default_admin must default to false"
+    );
+    let platform = FlowablePlatform::bootstrap(configuration).expect("platform");
+    assert!(
+        platform
+            .process_engine()
+            .get_identity_service()
+            .find_user_by_id("admin")
+            .is_none(),
+        "default config must not seed admin user"
+    );
+}
+
+#[test]
+fn create_default_admin_with_default_password_is_rejected() {
+    let mut configuration = isolated_platform_config("reject-default-password");
+    configuration.bootstrap.create_default_admin = true;
+    configuration.bootstrap.admin_password = "admin".to_string();
+    let err = match FlowablePlatform::bootstrap(configuration) {
+        Ok(_) => panic!("must refuse admin/admin"),
+        Err(e) => e,
+    };
+    let msg = err.to_string();
+    assert!(
+        msg.contains("admin") && msg.contains("password"),
+        "expected refuse-default-password message, got: {msg}"
     );
 }
 

@@ -80,6 +80,7 @@ fn concurrent_async_executes_overlap_on_worker_pool() {
         default_timeout_ms: 5_000,
         default_connect_timeout_ms: 1_000,
         retry_count: 0,
+        allow_private_networks: true,
         ..RealHttpClientConfig::default()
     })
     .expect("real client");

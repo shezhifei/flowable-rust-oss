@@ -1245,26 +1245,56 @@ fn validate_task_delegation_state(delegation_state: &str) -> Result<(), ApiError
     }
 }
 
+/// Max Unicode scalar count for in-memory SQL-LIKE filter operands.
+///
+/// Bound is on **characters** (same unit as the matcher). Oversized pattern or
+/// value is treated as **non-matching** (returns `false`), not 400: this helper
+/// is only a bool filter inside list queries; a 400 would require every call
+/// site to propagate `Result` and would turn "no rows" into hard errors.
+pub(crate) const MAX_SQL_LIKE_LEN: usize = 512;
+
+/// SQL-LIKE style match for in-memory filters (`%` any sequence, `_` one char,
+/// other chars literal). Case-sensitive; callers lower-case both sides for
+/// ignore-case variants.
+///
+/// Space is O(value length) via two rolling rows (not O(n×m) full DP matrix /
+/// deep recursion). Used by tasks, models, deployments, and other callers.
 pub(crate) fn sql_like_matches(pattern: &str, value: &str) -> bool {
-    fn matches_parts(pattern: &[char], value: &[char]) -> bool {
-        match pattern {
-            [] => value.is_empty(),
-            ['%', rest @ ..] => {
-                matches_parts(rest, value)
-                    || (!value.is_empty() && matches_parts(pattern, &value[1..]))
-            }
-            ['_', rest @ ..] => !value.is_empty() && matches_parts(rest, &value[1..]),
-            [expected, rest @ ..] => {
-                matches!(value.first(), Some(actual) if actual == expected)
-                    && matches_parts(rest, &value[1..])
-            }
-        }
+    let value: Vec<char> = value.chars().collect();
+    let pattern: Vec<char> = pattern.chars().collect();
+    if value.len() > MAX_SQL_LIKE_LEN || pattern.len() > MAX_SQL_LIKE_LEN {
+        return false;
     }
 
-    matches_parts(
-        &pattern.chars().collect::<Vec<_>>(),
-        &value.chars().collect::<Vec<_>>(),
-    )
+    let m = value.len();
+    // `prev[j]` / `curr[j]`: pattern prefix matches `value[0..j]`.
+    let mut prev = vec![false; m + 1];
+    let mut curr = vec![false; m + 1];
+    prev[0] = true;
+
+    for &p in &pattern {
+        curr[0] = p == '%' && prev[0];
+        match p {
+            '%' => {
+                for j in 1..=m {
+                    curr[j] = prev[j] || curr[j - 1];
+                }
+            }
+            '_' => {
+                for j in 1..=m {
+                    curr[j] = prev[j - 1];
+                }
+            }
+            literal => {
+                for j in 1..=m {
+                    curr[j] = prev[j - 1] && value[j - 1] == literal;
+                }
+            }
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[m]
 }
 
 fn parse_task_timestamp_millis(field_name: &str, value: &str) -> Result<i64, ApiError> {
@@ -2191,6 +2221,71 @@ mod tests {
                 ApiError::BadRequest(message) if message == format!("Booleans and null cannot be used in '{clause}' condition")
             ));
         }
+    }
+
+    /// Semantic pin tests for in-memory SQL-LIKE (`%` / `_` / literal).
+    /// Argument order in tasks.rs is `(pattern, value)`.
+    #[test]
+    fn sql_like_semantic_pins() {
+        // empty
+        assert!(sql_like_matches("", ""));
+        assert!(!sql_like_matches("", "a"));
+        assert!(!sql_like_matches("a", ""));
+        assert!(sql_like_matches("%", ""));
+        assert!(sql_like_matches("%%", ""));
+        assert!(!sql_like_matches("_", ""));
+
+        // literal
+        assert!(sql_like_matches("abc", "abc"));
+        assert!(!sql_like_matches("ab", "abc"));
+        assert!(!sql_like_matches("abc", "ab"));
+        assert!(!sql_like_matches("Abc", "abc")); // case-sensitive
+        assert!(!sql_like_matches("abd", "abc"));
+
+        // `%` any sequence
+        assert!(sql_like_matches("%", "hello"));
+        assert!(sql_like_matches("h%", "hello"));
+        assert!(sql_like_matches("%o", "hello"));
+        assert!(sql_like_matches("%ell%", "hello"));
+        assert!(sql_like_matches("h%o", "hello"));
+        assert!(sql_like_matches("%%", "hello"));
+        assert!(sql_like_matches("%h%e%l%o%", "hello"));
+        assert!(!sql_like_matches("x%", "hello"));
+        assert!(!sql_like_matches("%x", "hello"));
+
+        // `_` single character
+        assert!(sql_like_matches("_", "a"));
+        assert!(sql_like_matches("a_", "ab"));
+        assert!(sql_like_matches("_b", "ab"));
+        assert!(sql_like_matches("a_c", "abc"));
+        assert!(!sql_like_matches("_", "ab"));
+        assert!(!sql_like_matches("__", "a"));
+        assert!(!sql_like_matches("_", ""));
+
+        // mixed + pattern longer than value
+        assert!(sql_like_matches("%_%", "ab"));
+        assert!(sql_like_matches("%%_%%", "x"));
+        assert!(!sql_like_matches("a_c", "ab"));
+        assert!(!sql_like_matches("a_", "a"));
+        assert!(!sql_like_matches("abc%", "ab"));
+
+        // Unicode is one char for `_`
+        assert!(sql_like_matches("_", "你"));
+        assert!(sql_like_matches("你_", "你好"));
+        assert!(!sql_like_matches("_", "你好"));
+    }
+
+    #[test]
+    fn sql_like_rejects_oversized_without_huge_allocation() {
+        let long_value = "v".repeat(MAX_SQL_LIKE_LEN + 1);
+        let long_pattern = "%".repeat(MAX_SQL_LIKE_LEN + 1);
+        assert!(!sql_like_matches(&long_pattern, &long_value));
+        assert!(!sql_like_matches("%", &long_value));
+        assert!(!sql_like_matches(&long_pattern, "ok"));
+        let at_cap_v = "a".repeat(MAX_SQL_LIKE_LEN);
+        let at_cap_p = "%".repeat(MAX_SQL_LIKE_LEN);
+        assert!(sql_like_matches(&at_cap_p, &at_cap_v));
+        assert!(sql_like_matches("%", &at_cap_v));
     }
 
     #[test]

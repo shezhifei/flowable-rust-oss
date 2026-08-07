@@ -31,6 +31,7 @@ async fn async_runtime_uses_non_blocking_reqwest_io() {
     let runtime = AsyncHttpRuntime::from_real_client(
         RealHttpClientConfig {
             retry_count: 0,
+            allow_private_networks: true,
             ..Default::default()
         },
         AsyncHttpRuntimeConfig::default(),

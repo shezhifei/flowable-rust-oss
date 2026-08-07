@@ -1,4 +1,5 @@
 use flowable_engine::engine::process_engine::ProcessEngine;
+use flowable_engine::service::config::ProcessEngineConfiguration;
 use flowable_rest::run_server;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -6,8 +7,13 @@ use tokio::net::TcpListener;
 
 /// Helper: boot a REST server, return (base_url, engine, client).
 async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
+    // Shell timeout test needs shell_tasks_enabled (disabled by default).
+    let engine = Arc::new(ProcessEngine::new_with_config(
         "rest-engine-behavioral-fixes".to_string(),
+        ProcessEngineConfiguration {
+            shell_tasks_enabled: true,
+            ..Default::default()
+        },
     ));
 
     engine
@@ -168,7 +174,7 @@ async fn test_shell_task_timeout() {
         .unwrap();
 
     // Starting the process will execute the shell task. Since timeout is 50ms and ping runs for ~4s,
-    // it should time out and return an error containing "timed out".
+    // it should fail as a 500. Public details are generic (timeout text is not echoed).
     let start_res = start_process(&client, &base_url, &pd_id, json!([])).await;
     assert!(
         start_res.is_err(),
@@ -176,8 +182,13 @@ async fn test_shell_task_timeout() {
     );
     let err_msg = start_res.unwrap_err();
     assert!(
-        err_msg.contains("timed out") || err_msg.contains("timeout"),
-        "Expected error message to contain 'timed out', got: {}",
+        err_msg.contains("INTERNAL_SERVER_ERROR") || err_msg.contains("Internal server error"),
+        "Expected generic 500 error body, got: {}",
+        err_msg
+    );
+    assert!(
+        !err_msg.contains("timed out") && !err_msg.to_lowercase().contains("timeout"),
+        "5xx must not echo timeout internals, got: {}",
         err_msg
     );
 }

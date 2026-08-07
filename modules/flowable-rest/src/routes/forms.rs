@@ -552,38 +552,55 @@ fn descending_order(order: Option<&str>) -> Result<bool, ApiError> {
     }
 }
 
-fn sql_like_matches(value: &str, pattern: &str) -> bool {
-    let value = value.chars().collect::<Vec<_>>();
-    let pattern = pattern.chars().collect::<Vec<_>>();
-    let mut matches = vec![vec![false; value.len() + 1]; pattern.len() + 1];
-    matches[0][0] = true;
+/// Max Unicode scalar count for in-memory SQL-LIKE filter operands.
+///
+/// Bound is on **characters** (same unit as the matcher). Oversized pattern or
+/// value is treated as **non-matching** (returns `false`), not 400: this helper
+/// is only a bool filter inside list queries; a 400 would require every call
+/// site to propagate `Result` and would turn "no rows" into hard errors.
+const MAX_SQL_LIKE_LEN: usize = 512;
 
-    for pattern_index in 1..=pattern.len() {
-        match pattern[pattern_index - 1] {
+/// SQL-LIKE style match for in-memory filters (`%` any sequence, `_` one char,
+/// other chars literal). Case-sensitive; callers lower-case both sides for
+/// ignore-case variants.
+///
+/// Space is O(value length) via two rolling rows (not O(n×m) full DP matrix).
+fn sql_like_matches(value: &str, pattern: &str) -> bool {
+    let value: Vec<char> = value.chars().collect();
+    let pattern: Vec<char> = pattern.chars().collect();
+    if value.len() > MAX_SQL_LIKE_LEN || pattern.len() > MAX_SQL_LIKE_LEN {
+        return false;
+    }
+
+    let m = value.len();
+    // `prev[j]` / `curr[j]`: pattern prefix matches `value[0..j]`.
+    let mut prev = vec![false; m + 1];
+    let mut curr = vec![false; m + 1];
+    prev[0] = true;
+
+    for &p in &pattern {
+        curr[0] = p == '%' && prev[0];
+        match p {
             '%' => {
-                matches[pattern_index][0] = matches[pattern_index - 1][0];
-                for value_index in 1..=value.len() {
-                    matches[pattern_index][value_index] = matches[pattern_index - 1][value_index]
-                        || matches[pattern_index][value_index - 1];
+                for j in 1..=m {
+                    curr[j] = prev[j] || curr[j - 1];
                 }
             }
             '_' => {
-                for value_index in 1..=value.len() {
-                    matches[pattern_index][value_index] =
-                        matches[pattern_index - 1][value_index - 1];
+                for j in 1..=m {
+                    curr[j] = prev[j - 1];
                 }
             }
             literal => {
-                for value_index in 1..=value.len() {
-                    matches[pattern_index][value_index] = matches[pattern_index - 1]
-                        [value_index - 1]
-                        && value[value_index - 1] == literal;
+                for j in 1..=m {
+                    curr[j] = prev[j - 1] && value[j - 1] == literal;
                 }
             }
         }
+        std::mem::swap(&mut prev, &mut curr);
     }
 
-    matches[pattern.len()][value.len()]
+    prev[m]
 }
 
 pub fn router(repository: DynFormRepository) -> Router {
@@ -983,4 +1000,76 @@ pub async fn set_form_definition_activation(
         &form_definition_id,
         payload.active,
     )?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_SQL_LIKE_LEN, sql_like_matches};
+
+    /// Semantic pin tests for in-memory SQL-LIKE (`%` / `_` / literal).
+    /// Argument order in forms.rs is `(value, pattern)`.
+    #[test]
+    fn sql_like_semantic_pins() {
+        // empty
+        assert!(sql_like_matches("", ""));
+        assert!(!sql_like_matches("a", ""));
+        assert!(!sql_like_matches("", "a"));
+        assert!(sql_like_matches("", "%"));
+        assert!(sql_like_matches("", "%%"));
+        assert!(!sql_like_matches("", "_"));
+
+        // literal
+        assert!(sql_like_matches("abc", "abc"));
+        assert!(!sql_like_matches("abc", "ab"));
+        assert!(!sql_like_matches("ab", "abc"));
+        assert!(!sql_like_matches("abc", "Abc")); // case-sensitive
+        assert!(!sql_like_matches("abc", "abd"));
+
+        // `%` any sequence
+        assert!(sql_like_matches("hello", "%"));
+        assert!(sql_like_matches("hello", "h%"));
+        assert!(sql_like_matches("hello", "%o"));
+        assert!(sql_like_matches("hello", "%ell%"));
+        assert!(sql_like_matches("hello", "h%o"));
+        assert!(sql_like_matches("hello", "%%"));
+        assert!(sql_like_matches("hello", "%h%e%l%o%"));
+        assert!(!sql_like_matches("hello", "x%"));
+        assert!(!sql_like_matches("hello", "%x"));
+
+        // `_` single character
+        assert!(sql_like_matches("a", "_"));
+        assert!(sql_like_matches("ab", "a_"));
+        assert!(sql_like_matches("ab", "_b"));
+        assert!(sql_like_matches("abc", "a_c"));
+        assert!(!sql_like_matches("ab", "_"));
+        assert!(!sql_like_matches("a", "__"));
+        assert!(!sql_like_matches("", "_"));
+
+        // mixed + pattern longer than value
+        assert!(sql_like_matches("ab", "%_%"));
+        assert!(sql_like_matches("x", "%%_%%"));
+        assert!(!sql_like_matches("ab", "a_c"));
+        assert!(!sql_like_matches("a", "a_"));
+        assert!(!sql_like_matches("ab", "abc%"));
+
+        // Unicode is one char for `_`
+        assert!(sql_like_matches("你", "_"));
+        assert!(sql_like_matches("你好", "你_"));
+        assert!(!sql_like_matches("你好", "_"));
+    }
+
+    #[test]
+    fn sql_like_rejects_oversized_without_huge_allocation() {
+        let long_value = "v".repeat(MAX_SQL_LIKE_LEN + 1);
+        let long_pattern = "%".repeat(MAX_SQL_LIKE_LEN + 1);
+        // Must not allocate O(n×m) matrix (~huge); oversize is non-matching.
+        assert!(!sql_like_matches(&long_value, &long_pattern));
+        assert!(!sql_like_matches(&long_value, "%"));
+        assert!(!sql_like_matches("ok", &long_pattern));
+        // Boundary at the cap still works.
+        let at_cap_v = "a".repeat(MAX_SQL_LIKE_LEN);
+        let at_cap_p = "%".repeat(MAX_SQL_LIKE_LEN);
+        assert!(sql_like_matches(&at_cap_v, &at_cap_p));
+        assert!(sql_like_matches(&at_cap_v, "%"));
+    }
 }

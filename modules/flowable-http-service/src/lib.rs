@@ -6,7 +6,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 mod client;
+mod ssrf_guard;
+
 pub use client::{RealHttpClient, RealHttpClientConfig};
+pub use ssrf_guard::{
+    safe_url_display, safe_url_for_error, validate_outbound_url, OutboundUrlGuardConfig,
+    OutboundUrlGuardError,
+};
 
 // ── HttpRuntime trait ──────────────────────────────────────────────
 

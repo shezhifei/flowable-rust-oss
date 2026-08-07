@@ -1,6 +1,7 @@
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::service::config::{
     EngineDatabaseKind, HttpServiceRuntimeMode, ProcessEngineConfiguration,
+    RealHttpClientConfiguration,
 };
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -135,6 +136,10 @@ fn http_service_task_can_use_real_http_runtime_against_local_echo_server() {
     let config = ProcessEngineConfiguration {
         http_service: flowable_engine::service::config::HttpServiceTaskConfiguration {
             runtime_mode: HttpServiceRuntimeMode::Real,
+            real_client: RealHttpClientConfiguration {
+                allow_private_networks: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()

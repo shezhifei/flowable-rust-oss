@@ -17,6 +17,7 @@ use flowable_engine::persistence::runtime_store::{
 use flowable_engine::runtime::execution::Execution;
 use flowable_engine::service::config::{
     HttpServiceRuntimeMode, HttpServiceTaskConfiguration, ProcessEngineConfiguration,
+    RealHttpClientConfiguration,
 };
 use flowable_engine::validation::unsupported_model_validator::UnsupportedModelValidator;
 use flowable_engine::{
@@ -2116,6 +2117,10 @@ fn failed_timer_job_with_no_retries_is_visible_as_deadletter() {
         ProcessEngineConfiguration {
             http_service: flowable_engine::service::config::HttpServiceTaskConfiguration {
                 runtime_mode: HttpServiceRuntimeMode::Real,
+                real_client: RealHttpClientConfiguration {
+                    allow_private_networks: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             ..Default::default()

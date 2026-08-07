@@ -4,6 +4,10 @@ use flowable_platform_bootstrap::PlatformConfiguration;
 use serde::{Deserialize, Serialize};
 use std::env;
 
+/// Well-known default password rejected when admin seeding is enabled.
+/// Security deviation from Java weak default admin/admin.
+pub const DEFAULT_ADMIN_PASSWORD: &str = "admin";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RestAuthMode {
@@ -29,6 +33,17 @@ impl RestAuthMode {
 pub struct RestAuthConfig {
     #[serde(default)]
     pub mode: RestAuthMode,
+    /// User ids treated as admin for privileged write paths (deployments, IDM writes,
+    /// management writes). Least-invasive admin concept: config list rather than an
+    /// identity-service schema change (User has no admin flag).
+    #[serde(default)]
+    pub admin_users: Vec<String>,
+}
+
+impl RestAuthConfig {
+    pub fn is_admin_user(&self, user_id: &str) -> bool {
+        self.admin_users.iter().any(|u| u == user_id)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,10 +61,12 @@ pub struct RestAdminSeedConfig {
 
 impl Default for RestAdminSeedConfig {
     fn default() -> Self {
+        // enabled: false — no default admin. password field retains "admin" only as a
+        // placeholder that is rejected when seeding is enabled (security deviation from Java).
         Self {
             enabled: false,
             user_id: "admin".to_string(),
-            password: "admin".to_string(),
+            password: DEFAULT_ADMIN_PASSWORD.to_string(),
             first_name: None,
             last_name: None,
             email: None,
@@ -87,6 +104,11 @@ impl Default for RestConfig {
 
 impl RestConfig {
     pub fn from_platform_configuration(config: &PlatformConfiguration) -> Self {
+        // When platform bootstrap creates the admin user, mark that user as REST admin.
+        let mut admin_users = Vec::new();
+        if config.bootstrap.create_default_admin {
+            admin_users.push(config.bootstrap.admin_user_id.clone());
+        }
         Self {
             bind_address: config.server.bind_address.clone(),
             database_path: config.process.database_path.clone(),
@@ -94,6 +116,7 @@ impl RestConfig {
             security: RestSecurityConfig {
                 auth: RestAuthConfig {
                     mode: RestAuthMode::from_platform_auth_mode(&config.security.auth_mode),
+                    admin_users,
                 },
                 admin_seed: RestAdminSeedConfig {
                     enabled: false,
@@ -120,6 +143,9 @@ impl RestConfig {
         if let Ok(value) = env::var("FLOWABLE_REST_AUTH_MODE") {
             config.security.auth.mode = RestAuthMode::from_platform_auth_mode(&value);
         }
+        if let Ok(value) = env::var("FLOWABLE_REST_ADMIN_USERS") {
+            config.security.auth.admin_users = parse_admin_users(&value);
+        }
         if let Ok(value) = env::var("FLOWABLE_REST_ADMIN_SEED_ENABLED") {
             config.security.admin_seed.enabled = parse_bool(&value);
         }
@@ -139,6 +165,22 @@ impl RestConfig {
             config.security.admin_seed.email = Some(value);
         }
 
+        // When seed is enabled, ensure the seed user is an admin unless an explicit list was set.
+        if config.security.admin_seed.enabled
+            && !config
+                .security
+                .auth
+                .admin_users
+                .iter()
+                .any(|u| u == &config.security.admin_seed.user_id)
+        {
+            config
+                .security
+                .auth
+                .admin_users
+                .push(config.security.admin_seed.user_id.clone());
+        }
+
         config
     }
 
@@ -147,9 +189,61 @@ impl RestConfig {
         self
     }
 
-    pub fn apply_identity_seed(&self, engine: &ProcessEngine) {
+    /// Convenience used by the test-oriented `run_server` helper: treat user id `admin`
+    /// as a privileged admin for write paths without seeding credentials.
+    pub fn with_test_admin_user(mut self) -> Self {
+        if !self.security.auth.admin_users.iter().any(|u| u == "admin") {
+            self.security.auth.admin_users.push("admin".to_string());
+        }
+        self
+    }
+
+    /// Validate security settings before serving. Returns an error when startup must fail.
+    pub fn validate_for_startup(&self) -> Result<(), String> {
+        if self.security.admin_seed.enabled
+            && self.security.admin_seed.password == DEFAULT_ADMIN_PASSWORD
+        {
+            return Err(
+                "Refusing to seed REST admin with password \"admin\". \
+                 Set security.admin_seed.password (or FLOWABLE_REST_ADMIN_PASSWORD) \
+                 to a non-default value when admin_seed.enabled is true \
+                 (security deviation from Java weak default admin/admin)."
+                    .to_string(),
+            );
+        }
+
+        if !self.security.auth.mode.is_enforced() {
+            tracing::warn!(
+                "FLOWABLE_REST_AUTH_MODE=disabled (or auth.mode=disabled): REST authentication \
+                 is OFF. All API endpoints are unauthenticated. Do not expose this bind address \
+                 beyond loopback."
+            );
+            if !is_loopback_bind_address(&self.bind_address) {
+                return Err(format!(
+                    "Refusing to start with auth disabled on non-loopback bind address '{}'. \
+                     Use a loopback address (127.0.0.1 / ::1 / localhost) or enable \
+                     FLOWABLE_REST_AUTH_MODE=basic.",
+                    self.bind_address
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn apply_identity_seed(&self, engine: &ProcessEngine) -> Result<(), String> {
         if !self.security.admin_seed.enabled {
-            return;
+            return Ok(());
+        }
+
+        if self.security.admin_seed.password == DEFAULT_ADMIN_PASSWORD {
+            return Err(
+                "Refusing to seed REST admin with password \"admin\". \
+                 Set security.admin_seed.password (or FLOWABLE_REST_ADMIN_PASSWORD) \
+                 to a non-default value when admin_seed.enabled is true \
+                 (security deviation from Java weak default admin/admin)."
+                    .to_string(),
+            );
         }
 
         engine.get_identity_service().save_user(User {
@@ -160,6 +254,7 @@ impl RestConfig {
             password: Some(self.security.admin_seed.password.clone()),
             tenant_id: None,
         });
+        Ok(())
     }
 }
 
@@ -168,4 +263,24 @@ fn parse_bool(value: &str) -> bool {
         value.trim().to_ascii_lowercase().as_str(),
         "true" | "1" | "yes" | "on"
     )
+}
+
+fn parse_admin_users(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// True when the bind host is loopback (127.0.0.1, ::1, localhost) or unspecified port-only.
+pub fn is_loopback_bind_address(bind_address: &str) -> bool {
+    let host = bind_address
+        .rsplit_once(':')
+        .map(|(h, _)| h)
+        .unwrap_or(bind_address)
+        .trim_matches(|c| c == '[' || c == ']');
+    matches!(host, "127.0.0.1" | "::1" | "localhost" | "0:0:0:0:0:0:0:1")
+        || host.eq_ignore_ascii_case("localhost")
 }

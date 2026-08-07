@@ -508,7 +508,8 @@ fn configured_owner_and_lock_ttls_apply_to_async_and_timer_acquisition() {
         runtime_mode: HttpServiceRuntimeMode::Real,
         real_client: RealHttpClientConfiguration {
             retry_count: 0,
-            ..Default::default()
+            allow_private_networks: true,
+                    ..Default::default()
         },
         ..Default::default()
     };

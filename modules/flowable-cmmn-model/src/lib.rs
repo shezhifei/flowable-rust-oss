@@ -621,18 +621,38 @@ enum IfPartToken {
     Dot,
 }
 
+/// Maximum recursive nesting depth for CMMN ifPart / value expression parsing.
+/// P142c: deployer-controlled expressions must not stack-overflow the parser.
+/// Each nested `(...)` / ternary re-enters the full precedence chain, so 128
+/// overflows Windows debug stacks; 64 is the practical abuse ceiling.
+const MAX_IF_PART_NESTING_DEPTH: usize = 64;
+
 struct IfPartParser {
     tokens: Vec<IfPartToken>,
     index: usize,
+    /// Current recursive nesting depth of `parse_expression`.
+    depth: usize,
 }
 
 impl IfPartParser {
     fn new(tokens: Vec<IfPartToken>) -> Self {
-        Self { tokens, index: 0 }
+        Self {
+            tokens,
+            index: 0,
+            depth: 0,
+        }
     }
 
     fn parse_expression(&mut self) -> Result<SentryIfPartExpression, String> {
-        self.parse_ternary()
+        if self.depth >= MAX_IF_PART_NESTING_DEPTH {
+            return Err(format!(
+                "expression nesting exceeds maximum depth of {MAX_IF_PART_NESTING_DEPTH}"
+            ));
+        }
+        self.depth += 1;
+        let result = self.parse_ternary();
+        self.depth -= 1;
+        result
     }
 
     fn parse_ternary(&mut self) -> Result<SentryIfPartExpression, String> {
@@ -1247,7 +1267,13 @@ impl IfPartParser {
             return Err("function argument must not be empty".to_string());
         }
 
-        let mut argument_parser = IfPartParser::new(self.tokens[start..index].to_vec());
+        // Inherit parent depth so nested function arguments cannot reset the
+        // stack-depth budget (P142c resource limit).
+        let mut argument_parser = IfPartParser {
+            tokens: self.tokens[start..index].to_vec(),
+            index: 0,
+            depth: self.depth,
+        };
         let expression = argument_parser.parse_expression()?;
         if !argument_parser.is_at_end() {
             return Err("unexpected trailing tokens in function argument".to_string());
@@ -2746,5 +2772,26 @@ mod tests {
                 )),
             }
         );
+    }
+
+    /// P142c: deeply nested parenthesized ifPart expressions must return a
+    /// parse error (not panic / stack overflow).
+    #[test]
+    fn p142c_if_part_nesting_depth_limit() {
+        let deep = format!(
+            "${{{}}}",
+            format!("{}true{}", "(".repeat(200), ")".repeat(200))
+        );
+        let err = parse_sentry_if_part_expression(&deep).expect_err("200 nested parens");
+        assert!(
+            err.contains("maximum depth") || err.contains("nesting"),
+            "unexpected error: {err}"
+        );
+
+        let ok = format!(
+            "${{{}}}",
+            format!("{}true{}", "(".repeat(10), ")".repeat(10))
+        );
+        parse_sentry_if_part_expression(&ok).expect("shallow nesting must still parse");
     }
 }

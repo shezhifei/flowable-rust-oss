@@ -1173,14 +1173,27 @@ impl Compiler {
     }
 }
 
+/// Maximum recursive nesting depth for UEL expression parsing.
+/// P142c: deployer-controlled expressions must not stack-overflow the parser.
+/// Each nested `(...)` / ternary re-enters the full precedence chain (~10
+/// frames), so 128 is too deep for Windows debug stacks; 64 rejects abuse
+/// while leaving headroom for real process expressions.
+const MAX_EXPRESSION_NESTING_DEPTH: usize = 64;
+
 struct ExpressionParser<'a> {
     input: &'a str,
     pos: usize,
+    /// Current recursive nesting depth of `parse_expression` (parens / ternary / ...).
+    depth: usize,
 }
 
 impl<'a> ExpressionParser<'a> {
     fn new(input: &'a str) -> Self {
-        Self { input, pos: 0 }
+        Self {
+            input,
+            pos: 0,
+            depth: 0,
+        }
     }
 
     fn skip_whitespace(&mut self) {
@@ -1248,7 +1261,14 @@ impl<'a> ExpressionParser<'a> {
     }
 
     fn parse_expression(&mut self) -> Option<ExpressionAst> {
-        self.parse_conditional()
+        if self.depth >= MAX_EXPRESSION_NESTING_DEPTH {
+            // Over-deep nesting → parse failure (None), never panic / stack overflow.
+            return None;
+        }
+        self.depth += 1;
+        let result = self.parse_conditional();
+        self.depth -= 1;
+        result
     }
 
     fn parse_conditional(&mut self) -> Option<ExpressionAst> {
@@ -2530,5 +2550,27 @@ mod tests {
         let mut scalar = HashMap::new();
         scalar.insert("n".to_string(), Value::Number(5.into()));
         assert_eq!(eval("${n[0]}", scalar), Some(Value::Null));
+    }
+
+    /// P142c: deeply nested parenthesized UEL must fail the parse (return None)
+    /// rather than stack-overflow.
+    #[test]
+    fn p142c_expression_nesting_depth_limit() {
+        let deep = format!(
+            "${{{}}}",
+            format!("{}true{}", "(".repeat(200), ")".repeat(200))
+        );
+        assert_eq!(
+            eval(&deep, HashMap::new()),
+            None,
+            "200 nested parens must be rejected"
+        );
+
+        // Normal nesting still evaluates.
+        let ok = format!(
+            "${{{}}}",
+            format!("{}true{}", "(".repeat(10), ")".repeat(10))
+        );
+        assert_eq!(eval(&ok, HashMap::new()), Some(Value::Bool(true)));
     }
 }

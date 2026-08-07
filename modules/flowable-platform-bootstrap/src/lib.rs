@@ -528,8 +528,10 @@ impl Default for SecurityConfiguration {
 
 impl Default for BootstrapConfiguration {
     fn default() -> Self {
+        // Security deviation from Java: Java Flowable seeds admin/admin by default.
+        // That is a known weak-default security bug; we default to no admin seed.
         Self {
-            create_default_admin: true,
+            create_default_admin: false,
             admin_user_id: "admin".to_string(),
             admin_password: "admin".to_string(),
         }
@@ -804,6 +806,17 @@ impl FlowablePlatform {
         )?);
 
         if config.bootstrap.create_default_admin {
+            // Security deviation from Java: refuse the well-known default password.
+            // Set bootstrap.admin_password (or FLOWABLE_BOOTSTRAP_ADMIN_PASSWORD) to a
+            // non-default value when create_default_admin is true.
+            if config.bootstrap.admin_password == "admin" {
+                return Err(PlatformBootstrapError::new(
+                    "Refusing to create default admin with password \"admin\". \
+                     Set bootstrap.admin_password (or FLOWABLE_BOOTSTRAP_ADMIN_PASSWORD) \
+                     to a non-default value when create_default_admin is true \
+                     (security deviation from Java weak default admin/admin).",
+                ));
+            }
             let identity_service = process_engine.get_identity_service();
             identity_service.save_user(User {
                 id: config.bootstrap.admin_user_id.clone(),

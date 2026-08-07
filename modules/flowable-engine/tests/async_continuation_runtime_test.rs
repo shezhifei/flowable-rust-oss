@@ -1106,6 +1106,7 @@ fn unrecoverable_async_http_handler_failure_moves_directly_to_deadletter() {
                 runtime_mode: HttpServiceRuntimeMode::Real,
                 real_client: RealHttpClientConfiguration {
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1269,6 +1270,7 @@ fn nested_unrecoverable_async_http_handler_failure_preserves_typed_cause_and_dea
                 runtime_mode: HttpServiceRuntimeMode::Real,
                 real_client: RealHttpClientConfiguration {
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1455,6 +1457,7 @@ fn fatal_retry_event_listener_rolls_back_job_update_and_fires_rollback_lifecycle
                 runtime_mode: HttpServiceRuntimeMode::Real,
                 real_client: RealHttpClientConfiguration {
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1815,6 +1818,10 @@ fn http_enabled_engine(name: &str, time_source: Arc<TestTimeSource>) -> ProcessE
             http_service: HttpServiceTaskConfiguration {
                 enabled: true,
                 runtime_mode: HttpServiceRuntimeMode::Real,
+                real_client: RealHttpClientConfiguration {
+                    allow_private_networks: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             ..Default::default()
@@ -1835,6 +1842,7 @@ fn http_job_retry_engine(name: &str, time_source: Arc<TestTimeSource>) -> Proces
                     // Isolate engine job retry from the additive transport retry
                     // extension. Java's equivalent fixture sets requestRetryLimit=0.
                     retry_count: 0,
+                    allow_private_networks: true,
                     ..Default::default()
                 },
                 ..Default::default()

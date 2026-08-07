@@ -689,15 +689,11 @@ async fn p82d_single_result_collect_multi_row_returns_500() {
         );
         let body: Value = response.json().await.unwrap();
         assert_eq!(body["code"], "INTERNAL_SERVER_ERROR");
-        let details = body["details"].as_str().unwrap_or("");
-        assert!(
-            details.contains("more than one result"),
-            "path {path} unexpected details: {details}"
-        );
-        // decision endpoints must NOT use the service-keyed message
-        assert!(
-            !details.contains("in decision:"),
-            "path {path} should not include decision key form: {details}"
+        // 5xx details are generic (no multi-row / decision-key text echo).
+        assert_eq!(
+            body["details"],
+            "Internal server error",
+            "path {path} unexpected details"
         );
     }
 }
@@ -722,11 +718,8 @@ async fn p82d_decision_service_single_result_multi_row_includes_key() {
 
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let body: Value = response.json().await.unwrap();
-    let details = body["details"].as_str().unwrap_or("");
-    assert!(
-        details.contains("more than one result in decision: collectRouting"),
-        "unexpected details: {details}"
-    );
+    // 5xx details are generic (decision key not echoed to clients).
+    assert_eq!(body["details"], "Internal server error");
 }
 
 /// Zero hits on single-result → 201 with an empty resultVariables list

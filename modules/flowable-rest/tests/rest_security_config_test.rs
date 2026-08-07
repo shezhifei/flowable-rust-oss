@@ -40,6 +40,7 @@ async fn basic_auth_mode_keeps_unauthorized_contract_stable() {
     let mut config = base_config();
     config.security.auth = RestAuthConfig {
         mode: RestAuthMode::Basic,
+        ..Default::default()
     };
     config.security.admin_seed = RestAdminSeedConfig {
         enabled: false,
@@ -67,6 +68,7 @@ async fn disabled_auth_mode_allows_requests_without_authorization() {
     let mut config = base_config();
     config.security.auth = RestAuthConfig {
         mode: RestAuthMode::Disabled,
+        ..Default::default()
     };
     config.security.admin_seed = RestAdminSeedConfig {
         enabled: false,
@@ -92,6 +94,7 @@ async fn configured_admin_seed_bootstraps_basic_auth_credentials() {
     let mut config = base_config();
     config.security.auth = RestAuthConfig {
         mode: RestAuthMode::Basic,
+        ..Default::default()
     };
     config.security.admin_seed = RestAdminSeedConfig {
         enabled: true,
@@ -135,6 +138,7 @@ async fn disabled_admin_seed_does_not_create_default_admin_user() {
     let mut config = base_config();
     config.security.auth = RestAuthConfig {
         mode: RestAuthMode::Basic,
+        ..Default::default()
     };
     config.security.admin_seed = RestAdminSeedConfig {
         enabled: false,
@@ -161,4 +165,212 @@ async fn disabled_admin_seed_does_not_create_default_admin_user() {
     assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
     let body: Value = response.json().await.unwrap();
     assert_eq!(body["code"], "UNAUTHORIZED");
+}
+
+#[tokio::test]
+async fn admin_seed_with_default_password_fails_startup() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+        ..Default::default()
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "admin".to_string(),
+        password: "admin".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+    };
+
+    let engine = Arc::new(ProcessEngine::new(
+        "rest-admin-seed-default-password".to_string(),
+    ));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let err = run_server_with_config(engine, listener, config)
+        .await
+        .expect_err("default password seed must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("admin") && (msg.contains("password") || msg.contains("Refusing")),
+        "expected refuse-default-password message, got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn non_admin_deployment_returns_forbidden() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+        admin_users: vec!["real-admin".to_string()],
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "real-admin".to_string(),
+        password: "real-secret".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+    };
+
+    let (engine, base_url, client) = spawn_server("rest-non-admin-deploy", config).await;
+    engine.get_identity_service().save_user(flowable_engine::identity::entities::User {
+        id: "regular".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+        password: Some("user-secret".to_string()),
+        tenant_id: None,
+    });
+
+    let response = client
+        .post(format!("{}/repository/deployments", base_url))
+        .basic_auth("regular", Some("user-secret"))
+        .json(&json!({
+            "name": "should-fail",
+            "resourceName": "p.bpmn20.xml",
+            "resource": "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" targetNamespace=\"t\"><process id=\"p\" isExecutable=\"true\"><startEvent id=\"s\"/><endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"s\" targetRef=\"e\"/></process></definitions>"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["code"], "FORBIDDEN");
+}
+
+#[tokio::test]
+async fn admin_deployment_succeeds() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+        admin_users: vec!["real-admin".to_string()],
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "real-admin".to_string(),
+        password: "real-secret".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+    };
+
+    let (_engine, base_url, client) = spawn_server("rest-admin-deploy", config).await;
+
+    let response = client
+        .post(format!("{}/repository/deployments", base_url))
+        .basic_auth("real-admin", Some("real-secret"))
+        .json(&json!({
+            "name": "ok-deploy",
+            "resourceName": "p.bpmn20.xml",
+            "resource": "<?xml version=\"1.0\"?><definitions xmlns=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" targetNamespace=\"t\"><process id=\"p\" isExecutable=\"true\"><startEvent id=\"s\"/><endEvent id=\"e\"/><sequenceFlow id=\"f\" sourceRef=\"s\" targetRef=\"e\"/></process></definitions>"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_success(),
+        "admin deploy should succeed, got {}",
+        response.status()
+    );
+}
+
+#[tokio::test]
+async fn get_paths_do_not_require_admin_role() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+        admin_users: vec!["real-admin".to_string()],
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "real-admin".to_string(),
+        password: "real-secret".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+    };
+
+    let (engine, base_url, client) = spawn_server("rest-get-no-admin", config).await;
+    engine.get_identity_service().save_user(flowable_engine::identity::entities::User {
+        id: "regular".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+        password: Some("user-secret".to_string()),
+        tenant_id: None,
+    });
+
+    let response = client
+        .get(format!("{}/history/historic-process-instances", base_url))
+        .basic_auth("regular", Some("user-secret"))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_success(),
+        "GET must not require admin, got {}",
+        response.status()
+    );
+}
+
+#[tokio::test]
+async fn auth_disabled_on_non_loopback_fails_startup() {
+    let mut config = base_config();
+    config.bind_address = "0.0.0.0:8080".to_string();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Disabled,
+        ..Default::default()
+    };
+
+    let engine = Arc::new(ProcessEngine::new(
+        "rest-auth-disabled-non-loopback".to_string(),
+    ));
+    // Listener is loopback; validation uses config.bind_address.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let err = run_server_with_config(engine, listener, config)
+        .await
+        .expect_err("auth disabled on non-loopback must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("non-loopback") || msg.contains("loopback") || msg.contains("disabled"),
+        "expected non-loopback refusal, got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn metrics_requires_authentication_when_auth_enforced() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+        ..Default::default()
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "metrics-admin".to_string(),
+        password: "metrics-secret".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+    };
+
+    let (_engine, base_url, client) = spawn_server("rest-metrics-auth", config).await;
+
+    let unauth = client
+        .get(format!("{}/metrics", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauth.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let auth = client
+        .get(format!("{}/metrics", base_url))
+        .basic_auth("metrics-admin", Some("metrics-secret"))
+        .send()
+        .await
+        .unwrap();
+    assert!(auth.status().is_success());
 }

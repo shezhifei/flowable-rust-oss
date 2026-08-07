@@ -5004,11 +5004,33 @@ fn resolve_candidate_list(entries: &[String], case_instance: &CmmnCaseInstance) 
     resolved
 }
 
+/// Maximum AST evaluation depth for CMMN ifPart expressions.
+/// P142c: aligns with parser nesting caps so a deep AST cannot stack-overflow
+/// the evaluator even if constructed by other means.
+const MAX_IF_PART_EVAL_DEPTH: usize = 64;
+
 fn evaluate_to_bool(
     expression: &CmmnSentryIfPartExpression,
     variables: &serde_json::Map<String, Value>,
     case_instance: &CmmnCaseInstance,
 ) -> Result<bool, CmmnError> {
+    evaluate_to_bool_depth(expression, variables, case_instance, 0)
+}
+
+fn evaluate_to_bool_depth(
+    expression: &CmmnSentryIfPartExpression,
+    variables: &serde_json::Map<String, Value>,
+    case_instance: &CmmnCaseInstance,
+    depth: usize,
+) -> Result<bool, CmmnError> {
+    if depth >= MAX_IF_PART_EVAL_DEPTH {
+        return Err(CmmnError::Execution {
+            message: format!(
+                "ifPart expression evaluation exceeds maximum depth of {MAX_IF_PART_EVAL_DEPTH}"
+            ),
+        });
+    }
+    let next = depth + 1;
     match expression {
         CmmnSentryIfPartExpression::Comparison(condition) => {
             evaluate_if_part_comparison(condition, case_instance)
@@ -5016,7 +5038,7 @@ fn evaluate_to_bool(
         CmmnSentryIfPartExpression::Logical { operator, operands } => match operator {
             CmmnSentryIfPartLogicalOperator::And => {
                 for operand in operands {
-                    if !evaluate_to_bool(operand, variables, case_instance)? {
+                    if !evaluate_to_bool_depth(operand, variables, case_instance, next)? {
                         return Ok(false);
                     }
                 }
@@ -5024,16 +5046,19 @@ fn evaluate_to_bool(
             }
             CmmnSentryIfPartLogicalOperator::Or => {
                 for operand in operands {
-                    if evaluate_to_bool(operand, variables, case_instance)? {
+                    if evaluate_to_bool_depth(operand, variables, case_instance, next)? {
                         return Ok(true);
                     }
                 }
                 Ok(false)
             }
         },
-        CmmnSentryIfPartExpression::Not { operand } => {
-            Ok(!evaluate_to_bool(operand, variables, case_instance)?)
-        }
+        CmmnSentryIfPartExpression::Not { operand } => Ok(!evaluate_to_bool_depth(
+            operand,
+            variables,
+            case_instance,
+            next,
+        )?),
         CmmnSentryIfPartExpression::Empty { variable_name } => Ok(if_part_variable_is_empty(
             resolve_if_part_variable_path(variables, variable_name),
         )),
@@ -5110,7 +5135,7 @@ fn evaluate_to_bool(
             Ok(compare_numbers(length, *operator, expected))
         }
         other => {
-            let val = evaluate_to_json_value(other, variables, case_instance)?;
+            let val = evaluate_to_json_value_depth(other, variables, case_instance, next)?;
             Ok(is_truthy(&val))
         }
     }
@@ -5121,6 +5146,23 @@ fn evaluate_to_json_value(
     variables: &serde_json::Map<String, Value>,
     case_instance: &CmmnCaseInstance,
 ) -> Result<Value, CmmnError> {
+    evaluate_to_json_value_depth(expression, variables, case_instance, 0)
+}
+
+fn evaluate_to_json_value_depth(
+    expression: &CmmnSentryIfPartExpression,
+    variables: &serde_json::Map<String, Value>,
+    case_instance: &CmmnCaseInstance,
+    depth: usize,
+) -> Result<Value, CmmnError> {
+    if depth >= MAX_IF_PART_EVAL_DEPTH {
+        return Err(CmmnError::Execution {
+            message: format!(
+                "ifPart expression evaluation exceeds maximum depth of {MAX_IF_PART_EVAL_DEPTH}"
+            ),
+        });
+    }
+    let next = depth + 1;
     match expression {
         CmmnSentryIfPartExpression::Comparison(_)
         | CmmnSentryIfPartExpression::Logical { .. }
@@ -5132,7 +5174,7 @@ fn evaluate_to_json_value(
         | CmmnSentryIfPartExpression::Matches { .. }
         | CmmnSentryIfPartExpression::Size { .. }
         | CmmnSentryIfPartExpression::Length { .. } => {
-            let res = evaluate_to_bool(expression, variables, case_instance)?;
+            let res = evaluate_to_bool_depth(expression, variables, case_instance, next)?;
             Ok(Value::Bool(res))
         }
         CmmnSentryIfPartExpression::Literal(lit) => {
@@ -5177,8 +5219,8 @@ fn evaluate_to_json_value(
             operator,
             right,
         } => {
-            let l = evaluate_to_json_value(left, variables, case_instance)?;
-            let r = evaluate_to_json_value(right, variables, case_instance)?;
+            let l = evaluate_to_json_value_depth(left, variables, case_instance, next)?;
+            let r = evaluate_to_json_value_depth(right, variables, case_instance, next)?;
             if operator == "+" && (matches!(l, Value::String(_)) || matches!(r, Value::String(_))) {
                 return Ok(Value::String(format!(
                     "{}{}",
@@ -5211,21 +5253,21 @@ fn evaluate_to_json_value(
             true_expr,
             false_expr,
         } => {
-            let cond = evaluate_to_bool(condition, variables, case_instance)?;
+            let cond = evaluate_to_bool_depth(condition, variables, case_instance, next)?;
             if cond {
-                evaluate_to_json_value(true_expr, variables, case_instance)
+                evaluate_to_json_value_depth(true_expr, variables, case_instance, next)
             } else {
-                evaluate_to_json_value(false_expr, variables, case_instance)
+                evaluate_to_json_value_depth(false_expr, variables, case_instance, next)
             }
         }
         CmmnSentryIfPartExpression::PropertyAccess { object, property } => {
-            let obj_val = evaluate_to_json_value(object, variables, case_instance)?;
+            let obj_val = evaluate_to_json_value_depth(object, variables, case_instance, next)?;
             let val = obj_val.get(property).cloned().unwrap_or(Value::Null);
             Ok(val)
         }
         CmmnSentryIfPartExpression::IndexAccess { object, index } => {
-            let obj_val = evaluate_to_json_value(object, variables, case_instance)?;
-            let idx_val = evaluate_to_json_value(index, variables, case_instance)?;
+            let obj_val = evaluate_to_json_value_depth(object, variables, case_instance, next)?;
+            let idx_val = evaluate_to_json_value_depth(index, variables, case_instance, next)?;
             let val = if let Some(idx) = idx_val.as_u64() {
                 obj_val.get(idx as usize).cloned().unwrap_or(Value::Null)
             } else if let Some(idx) = idx_val.as_i64() {

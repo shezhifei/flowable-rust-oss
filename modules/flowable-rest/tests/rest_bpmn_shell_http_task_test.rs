@@ -1,4 +1,5 @@
 use flowable_engine::engine::process_engine::ProcessEngine;
+use flowable_engine::service::config::ProcessEngineConfiguration;
 use flowable_rest::run_server;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -6,8 +7,13 @@ use tokio::net::TcpListener;
 
 /// Helper: boot a REST server, return (base_url, engine, client).
 async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
+    // Explicit opt-in: shell tasks disabled by default (security deviation from Java).
+    let engine = Arc::new(ProcessEngine::new_with_config(
         "rest-bpmn-shell-http-contract".to_string(),
+        ProcessEngineConfiguration {
+            shell_tasks_enabled: true,
+            ..Default::default()
+        },
     ));
 
     engine

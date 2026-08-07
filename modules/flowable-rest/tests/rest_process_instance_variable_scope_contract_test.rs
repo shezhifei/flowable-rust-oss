@@ -926,12 +926,9 @@ async fn suspended_process_instance_mode_checks_precede_the_suspend_guard() {
         .unwrap();
     assert_eq!(post.status(), reqwest::StatusCode::INTERNAL_SERVER_ERROR);
     let body: Value = post.json().await.unwrap();
-    // Java parity: `FlowableException.getMessage()` carries no
-    // `Execution error:` Display prefix — REST details is the raw message.
-    assert_eq!(
-        body["details"],
-        format!("Cannot set variables to a suspended execution '{process_instance_id}'")
-    );
+    // 5xx: raw engine messages are logged server-side only; public details
+    // is a fixed string (no suspended-execution id echo).
+    assert_eq!(body["details"], "Internal server error");
 
     let put = client
         .put(format!(
