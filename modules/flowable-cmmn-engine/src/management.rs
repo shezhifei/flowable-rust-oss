@@ -552,28 +552,10 @@ fn is_timer_job(job: &CmmnJob) -> bool {
 /// Minimal SQL `LIKE` for the `tenantIdLike` filter (Job.xml:239-241): `%` matches any
 /// run of characters, `_` matches exactly one. No escape clause is supported because the
 /// CMMN REST layer never passes one.
+/// Local signature is `(value, pattern)`; shared impl is `(pattern, value)`.
 fn sql_like_matches(value: &str, pattern: &str) -> bool {
-    let value: Vec<char> = value.chars().collect();
-    let pattern: Vec<char> = pattern.chars().collect();
-    let (mut v, mut p) = (0usize, 0usize);
-    let (mut star_p, mut star_v) = (None, 0usize);
-    while v < value.len() {
-        if p < pattern.len() && (pattern[p] == '_' || pattern[p] == value[v]) {
-            v += 1;
-            p += 1;
-        } else if p < pattern.len() && pattern[p] == '%' {
-            star_p = Some(p);
-            star_v = v;
-            p += 1;
-        } else if let Some(star) = star_p {
-            p = star + 1;
-            star_v += 1;
-            v = star_v;
-        } else {
-            return false;
-        }
-    }
-    pattern[p..].iter().all(|ch| *ch == '%')
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, value)
 }
 
 fn load_job(session: &mut DbSession, job_id: &str) -> Result<CmmnJob, CmmnError> {

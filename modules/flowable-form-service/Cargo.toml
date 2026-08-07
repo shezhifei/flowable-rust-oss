@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 flowable-engine = { path = "../flowable-engine" }
+flowable-engine-common = { path = "../flowable-engine-common" }
 flowable-bpmn-model = { path = "../flowable-bpmn-model" }
 flowable-content-service = { path = "../flowable-content-service" }
 serde = { version = "1.0", features = ["derive"] }

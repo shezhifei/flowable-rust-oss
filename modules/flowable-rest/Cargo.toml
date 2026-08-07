@@ -21,6 +21,7 @@ flowable-cmmn-model = { path = "../flowable-cmmn-model" }
 flowable-dmn-converter = { path = "../flowable-dmn-converter" }
 flowable-dmn-engine = { path = "../flowable-dmn-engine" }
 flowable-dmn-image-generator = { path = "../flowable-dmn-image-generator" }
+flowable-engine-common = { path = "../flowable-engine-common" }
 flowable-form-service = { path = "../flowable-form-service" }
 flowable-content-service = { path = "../flowable-content-service" }
 flowable-event-registry-service = { path = "../flowable-event-registry-service" }

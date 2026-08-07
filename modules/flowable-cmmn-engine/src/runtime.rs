@@ -11928,24 +11928,8 @@ fn like_optional_option_ignore_case(pattern: &Option<String>, actual: Option<&st
 }
 
 fn like_match(pattern: &str, haystack: &str) -> bool {
-    fn matches_parts(pattern: &[char], value: &[char]) -> bool {
-        match pattern {
-            [] => value.is_empty(),
-            ['%', rest @ ..] => {
-                matches_parts(rest, value)
-                    || (!value.is_empty() && matches_parts(pattern, &value[1..]))
-            }
-            ['_', rest @ ..] => !value.is_empty() && matches_parts(rest, &value[1..]),
-            [expected, rest @ ..] => {
-                matches!(value.first(), Some(actual) if actual == expected)
-                    && matches_parts(rest, &value[1..])
-            }
-        }
-    }
-    matches_parts(
-        &pattern.chars().collect::<Vec<_>>(),
-        &haystack.chars().collect::<Vec<_>>(),
-    )
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, haystack)
 }
 
 /// Java `TaskEntity.priority` is an int (HumanTaskActivityBehavior.java:278-288);

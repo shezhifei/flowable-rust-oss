@@ -608,17 +608,8 @@ impl Command<Vec<Task>> for TaskQueryCmd {
 /// of characters, `_` matches exactly one (same semantics the DB backend
 /// applies to `FilterOp::Like` for the main criteria).
 fn like_matches(pattern: &str, value: &str) -> bool {
-    fn rec(p: &[char], v: &[char]) -> bool {
-        match p.split_first() {
-            None => v.is_empty(),
-            Some((&'%', rest)) => (0..=v.len()).any(|i| rec(rest, &v[i..])),
-            Some((&'_', rest)) => !v.is_empty() && rec(rest, &v[1..]),
-            Some((c, rest)) => v.first() == Some(c) && rec(rest, &v[1..]),
-        }
-    }
-    let p: Vec<char> = pattern.chars().collect();
-    let v: Vec<char> = value.chars().collect();
-    rec(&p, &v)
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, value)
 }
 
 /// Evaluate one `or()` block against a task: every condition set inside the

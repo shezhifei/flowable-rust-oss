@@ -1525,38 +1525,10 @@ fn matches_like_ignore_case_optional_option(
 
 /// SQL `LIKE` with `%` (any run) and `_` (single char) wildcards, matching the
 /// `like` predicates the Java mappers render for the `*Like` query parameters.
+/// Local signature is `(value, pattern)`; shared impl is `(pattern, value)`.
 fn sql_like_matches(value: &str, pattern: &str) -> bool {
-    let value = value.chars().collect::<Vec<_>>();
-    let pattern = pattern.chars().collect::<Vec<_>>();
-    let mut matches = vec![vec![false; value.len() + 1]; pattern.len() + 1];
-    matches[0][0] = true;
-
-    for pattern_index in 1..=pattern.len() {
-        match pattern[pattern_index - 1] {
-            '%' => {
-                matches[pattern_index][0] = matches[pattern_index - 1][0];
-                for value_index in 1..=value.len() {
-                    matches[pattern_index][value_index] = matches[pattern_index - 1][value_index]
-                        || matches[pattern_index][value_index - 1];
-                }
-            }
-            '_' => {
-                for value_index in 1..=value.len() {
-                    matches[pattern_index][value_index] =
-                        matches[pattern_index - 1][value_index - 1];
-                }
-            }
-            literal => {
-                for value_index in 1..=value.len() {
-                    matches[pattern_index][value_index] =
-                        matches[pattern_index - 1][value_index - 1]
-                            && value[value_index - 1] == literal;
-                }
-            }
-        }
-    }
-
-    matches[pattern.len()][value.len()]
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, value)
 }
 
 fn page_items<T>(items: Vec<T>, start: usize, size: Option<usize>) -> PagedResult<T> {

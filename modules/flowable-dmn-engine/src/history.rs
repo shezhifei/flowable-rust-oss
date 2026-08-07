@@ -300,33 +300,8 @@ fn page_items<T>(items: Vec<T>, start: usize, size: Option<usize>) -> PagedResul
     }
 }
 
+/// Local signature is `(candidate, pattern)`; shared impl is `(pattern, value)`.
 fn sql_like_matches(candidate: &str, pattern: &str) -> bool {
-    sql_like_matches_inner(candidate.as_bytes(), pattern.as_bytes())
-}
-
-fn sql_like_matches_inner(candidate: &[u8], pattern: &[u8]) -> bool {
-    let mut ci = 0;
-    let mut pi = 0;
-    let mut star_pi = usize::MAX;
-    let mut star_ci = 0;
-    while ci < candidate.len() {
-        if pi < pattern.len() && (pattern[pi] == b'_' || pattern[pi] == candidate[ci]) {
-            ci += 1;
-            pi += 1;
-        } else if pi < pattern.len() && pattern[pi] == b'%' {
-            star_pi = pi;
-            star_ci = ci;
-            pi += 1;
-        } else if star_pi != usize::MAX {
-            pi = star_pi + 1;
-            star_ci += 1;
-            ci = star_ci;
-        } else {
-            return false;
-        }
-    }
-    while pi < pattern.len() && pattern[pi] == b'%' {
-        pi += 1;
-    }
-    pi == pattern.len()
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, candidate)
 }

@@ -10,8 +10,8 @@ Flowable REST API.
 
 ## Status
 
-Work in progress. The codebase passes **3062 tests (0 failures)** across the
-eight main crates and is behavior-aligned with the Flowable Java engines on the
+Work in progress. The codebase passes **3255 tests (0 failures)** across the
+ten main crates and is behavior-aligned with the Flowable Java engines on the
 covered surface. Alignment was driven file-by-file against the Java sources
 (every behavioral rule cites the corresponding Java file and line number in
 code comments).
@@ -31,9 +31,10 @@ site:
   via `allow_private_networks` / `allowed_private_hosts`.
 - Multipart uploads, request bodies and ZIP extraction have cumulative size /
   entry-count limits; expression evaluation has a recursion-depth cap.
-- SQL `LIKE` in-memory matching uses an O(pattern × value) algorithm with a
-  512-character input cap; HTTP 500 responses no longer echo internal error
-  details.
+- SQL `LIKE` in-memory matching uses a single shared O(pattern × value)
+  implementation with a 512-character input cap (`flowable-engine-common`,
+  every crate delegates to it); HTTP 500 responses no longer echo internal
+  error details.
 - `/metrics` requires authentication; `FLOWABLE_REST_AUTH_MODE=disabled`
   refuses to bind non-loopback addresses.
 

@@ -36,8 +36,9 @@ const MAX_ZIP_ENTRIES: usize = 1024;
 const MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES: usize = 64 * 1024 * 1024;
 /// Zip bomb: max total uncompressed bytes across all entries.
 const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES: usize = 256 * 1024 * 1024;
-/// LIKE pattern/value length cap (chars) to avoid pathological matching cost.
-const MAX_SQL_LIKE_LEN: usize = 512;
+/// LIKE pattern/value length cap (chars); tests pin the shared 512 bound.
+#[cfg(test)]
+const MAX_SQL_LIKE_LEN: usize = flowable_engine_common::like::MAX_SQL_LIKE_LEN;
 
 #[derive(Deserialize)]
 pub struct DeployRequest {
@@ -548,46 +549,12 @@ fn add_zip_entries(
 
 /// SQL LIKE matcher used by deployment list filters.
 ///
-/// P142c: O(m) rolling DP (not O(n×m) full matrix) and length caps so a crafted
-/// `nameLike` / `tenantIdLike` cannot allocate multi-GB match tables. Local
-/// copy (not `tasks::sql_like_matches`) so this file stays independent of the
-/// P142d LIKE rewrite in forms/tasks/history.
+/// P142c/P143: O(m) rolling DP and length caps so a crafted `nameLike` /
+/// `tenantIdLike` cannot allocate multi-GB match tables. Delegates to the
+/// unified implementation in `flowable_engine_common`.
 fn sql_like_matches(pattern: &str, value: &str) -> bool {
-    if pattern.chars().count() > MAX_SQL_LIKE_LEN || value.chars().count() > MAX_SQL_LIKE_LEN {
-        return false;
-    }
-    let pattern: Vec<char> = pattern.chars().collect();
-    let value: Vec<char> = value.chars().collect();
-    let n = value.len();
-    // prev[j] = matches for pattern prefix i-1 against value prefix j
-    // curr[j] = matches for pattern prefix i against value prefix j
-    let mut prev = vec![false; n + 1];
-    let mut curr = vec![false; n + 1];
-    prev[0] = true;
-
-    for i in 1..=pattern.len() {
-        curr[0] = matches!(pattern[i - 1], '%') && prev[0];
-        match pattern[i - 1] {
-            '%' => {
-                for j in 1..=n {
-                    curr[j] = prev[j] || curr[j - 1];
-                }
-            }
-            '_' => {
-                for j in 1..=n {
-                    curr[j] = prev[j - 1];
-                }
-            }
-            literal => {
-                for j in 1..=n {
-                    curr[j] = prev[j - 1] && value[j - 1] == literal;
-                }
-            }
-        }
-        std::mem::swap(&mut prev, &mut curr);
-        curr.fill(false);
-    }
-    prev[n]
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, value)
 }
 
 #[cfg(test)]

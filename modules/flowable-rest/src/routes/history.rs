@@ -2737,56 +2737,20 @@ fn historic_task_instances_for_query(
     Ok(query.paging().paginate(result))
 }
 
-/// Max Unicode scalar count for in-memory SQL-LIKE filter operands.
-///
-/// Bound is on **characters** (same unit as the matcher). Oversized pattern or
-/// value is treated as **non-matching** (returns `false`), not 400: this helper
-/// is only a bool filter inside list queries; a 400 would require every call
-/// site to propagate `Result` and would turn "no rows" into hard errors.
-const MAX_SQL_LIKE_LEN: usize = 512;
+/// Max Unicode scalar count for in-memory SQL-LIKE filter operands (tests pin
+/// the shared 512 bound from `flowable_engine_common::like`).
+#[cfg(test)]
+const MAX_SQL_LIKE_LEN: usize = flowable_engine_common::like::MAX_SQL_LIKE_LEN;
 
 /// SQL-LIKE style match for in-memory filters (`%` any sequence, `_` one char,
 /// other chars literal). Case-sensitive; callers lower-case both sides for
 /// ignore-case variants.
 ///
 /// Space is O(value length) via two rolling rows (not O(n×m) full DP matrix /
-/// deep recursion).
+/// deep recursion). Thin wrapper over the P143 unified implementation.
 fn sql_like_matches(pattern: &str, value: &str) -> bool {
-    let value: Vec<char> = value.chars().collect();
-    let pattern: Vec<char> = pattern.chars().collect();
-    if value.len() > MAX_SQL_LIKE_LEN || pattern.len() > MAX_SQL_LIKE_LEN {
-        return false;
-    }
-
-    let m = value.len();
-    // `prev[j]` / `curr[j]`: pattern prefix matches `value[0..j]`.
-    let mut prev = vec![false; m + 1];
-    let mut curr = vec![false; m + 1];
-    prev[0] = true;
-
-    for &p in &pattern {
-        curr[0] = p == '%' && prev[0];
-        match p {
-            '%' => {
-                for j in 1..=m {
-                    curr[j] = prev[j] || curr[j - 1];
-                }
-            }
-            '_' => {
-                for j in 1..=m {
-                    curr[j] = prev[j - 1];
-                }
-            }
-            literal => {
-                for j in 1..=m {
-                    curr[j] = prev[j - 1] && value[j - 1] == literal;
-                }
-            }
-        }
-        std::mem::swap(&mut prev, &mut curr);
-    }
-
-    prev[m]
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, value)
 }
 
 fn sort_historic_task_instances(

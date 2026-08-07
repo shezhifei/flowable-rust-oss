@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
 flowable-engine = { path = "../flowable-engine" }
+flowable-engine-common = { path = "../flowable-engine-common" }
 flowable-event-registry-converter = { path = "../flowable-event-registry-converter" }
 flowable-event-registry-model = { path = "../flowable-event-registry-model" }
 serde = { version = "1.0", features = ["derive"] }

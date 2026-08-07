@@ -1882,30 +1882,10 @@ impl CmmnCaseDefinitionQuery {
 
 /// SQL `LIKE` pattern matching supporting `%` (any sequence) and `_` (single
 /// char) wildcards. Case-sensitive, matching Java's `LIKE` semantics.
+/// Local signature is `(haystack, pattern)`; shared impl is `(pattern, value)`.
 fn like_match(haystack: &str, pattern: &str) -> bool {
-    like_match_helper(haystack.as_bytes(), pattern.as_bytes())
-}
-
-fn like_match_helper(haystack: &[u8], pattern: &[u8]) -> bool {
-    match (haystack.split_first(), pattern.split_first()) {
-        (_, None) => haystack.is_empty(),
-        (None, Some((&p, pt))) => {
-            if p == b'%' {
-                like_match_helper(haystack, pt)
-            } else {
-                false
-            }
-        }
-        (Some((&h, ht)), Some((&p, pt))) => {
-            if p == b'%' {
-                like_match_helper(haystack, pt) || like_match_helper(ht, pattern)
-            } else if p == b'_' || p == h {
-                like_match_helper(ht, pt)
-            } else {
-                false
-            }
-        }
-    }
+    // Delegates to flowable_engine_common::like::sql_like_matches (P143 unified LIKE, O(m)+512 cap).
+    flowable_engine_common::like::sql_like_matches(pattern, haystack)
 }
 
 /// Keeps only the highest-version definition per `(key, tenant_id)` pair,

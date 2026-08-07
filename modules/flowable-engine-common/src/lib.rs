@@ -1,4 +1,5 @@
 pub mod el;
+pub mod like;
 
 pub use el::{
     Expression, ExpressionMethodRegistry, MapVariableContainer, SimpleExpression,
