@@ -5,6 +5,8 @@ use flowable_cmmn_model::{
     PlanItemOnPart, PlanningTable, ProcessTask, Sentry, SentryIfPartExpression, Stage,
     parse_sentry_if_part_expression,
 };
+use quick_xml::events::Event as XmlEvent;
+use quick_xml::reader::Reader;
 use roxmltree::{Document, Node, ParsingOptions};
 use std::collections::{BTreeMap, HashSet};
 use std::error::Error;
@@ -52,7 +54,24 @@ pub struct CmmnXmlConverter;
 
 /// Maximum XML element nesting depth accepted (M3): bounds converter
 /// recursion over plan items / case file items / sentries.
-const MAX_XML_NESTING_DEPTH: usize = 512;
+///
+/// Deliberately far lower than the BPMN converter's 512. BPMN is parsed by
+/// `quick_xml`, an iterative pull parser with no depth-proportional stack use,
+/// so a high cap costs it nothing. CMMN and DMN are parsed by `roxmltree`,
+/// whose parser recurses per element and overflows the thread stack well below
+/// 512. Measured on this workspace (nested-element chain, roxmltree 0.20):
+///
+/// | build   | thread stack        | deepest OK | overflows |
+/// |---------|---------------------|-----------:|----------:|
+/// | debug   | ~1 MiB (main)       |        150 |       200 |
+/// | debug   | 2 MiB (test/spawn)  |        300 |       400 |
+/// | release | 2 MiB (tokio worker)|       2000 |      3000 |
+///
+/// A 512 cap therefore *admitted* documents that abort the process in any debug
+/// build. 64 sits under the tightest of those ceilings while leaving ~9x room
+/// over the deepest XML in this repository (depth 7 across every fixture), and
+/// allows far more nested stages / decision structure than a real model uses.
+const MAX_XML_NESTING_DEPTH: usize = 64;
 /// Total XML node budget; rejects quadratic / pathological documents before
 /// conversion work begins.
 const XML_NODES_LIMIT: u32 = 1_000_000;
@@ -60,6 +79,7 @@ const XML_NODES_LIMIT: u32 = 1_000_000;
 /// Parse with a bounded node budget and reject overly-deep nesting so hostile
 /// documents cannot drive converter recursion into stack overflow.
 fn parse_document<'a>(xml: &'a str) -> Result<Document<'a>, CmmnConverterError> {
+    reject_deep_nesting(xml)?;
     let document = Document::parse_with_options(
         xml,
         ParsingOptions {
@@ -68,16 +88,59 @@ fn parse_document<'a>(xml: &'a str) -> Result<Document<'a>, CmmnConverterError> 
         },
     )
     .map_err(|error| CmmnConverterError::InvalidXml(error.to_string()))?;
-    for node in document.descendants() {
-        if node.is_element() && node.ancestors().count() > MAX_XML_NESTING_DEPTH {
-            return Err(CmmnConverterError::InvalidXml(format!(
-                "XML element nesting exceeds the limit of {} levels",
-                MAX_XML_NESTING_DEPTH
-            )));
-        }
-    }
     Ok(document)
 }
+
+/// Reject over-deep nesting **before** roxmltree sees the document.
+///
+/// This must run pre-parse, not post-parse: `roxmltree`'s parser recurses per
+/// element, so a deeply-nested document overflows the thread stack *inside*
+/// `Document::parse_with_options` and aborts the process. A guard that walks
+/// the parsed tree can therefore never fire for the documents it exists to
+/// reject. Measured on this workspace: a debug build dies below 200 levels, a
+/// release build on a 2 MiB stack around 2000 -- both reachable by an attacker,
+/// and neither bounded by `nodes_limit` (a 3000-deep chain is only 3000 nodes).
+///
+/// `quick_xml::Reader` is a pull parser with an explicit stack, so counting
+/// depth with it cannot itself overflow. Same boundary convention as the BPMN
+/// converter's `validate_well_formed_xml` (root element = depth 1); the cap
+/// itself is lower here -- see `MAX_XML_NESTING_DEPTH`.
+///
+/// Lexer errors are rejected rather than passed through: a document quick-xml
+/// cannot tokenize is not valid CMMN/DMN, and failing closed keeps a document
+/// that stalls the scan early from reaching the recursive parser unchecked.
+fn reject_deep_nesting(xml: &str) -> Result<(), CmmnConverterError> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+    let mut depth: usize = 0;
+    loop {
+        match reader.read_event() {
+            Ok(XmlEvent::Start(_)) => {
+                depth += 1;
+                if depth > MAX_XML_NESTING_DEPTH {
+                    return Err(CmmnConverterError::InvalidXml(format!(
+                        "XML element nesting exceeds the limit of {MAX_XML_NESTING_DEPTH} levels"
+                    )));
+                }
+            }
+            // Self-closing elements occupy a level without opening one.
+            Ok(XmlEvent::Empty(_)) => {
+                if depth + 1 > MAX_XML_NESTING_DEPTH {
+                    return Err(CmmnConverterError::InvalidXml(format!(
+                        "XML element nesting exceeds the limit of {MAX_XML_NESTING_DEPTH} levels"
+                    )));
+                }
+            }
+            Ok(XmlEvent::End(_)) => depth = depth.saturating_sub(1),
+            Ok(XmlEvent::Eof) => return Ok(()),
+            Ok(_) => {}
+            Err(error) => {
+                return Err(CmmnConverterError::InvalidXml(format!("malformed XML: {error}")));
+            }
+        }
+    }
+}
+
 
 impl CmmnXmlConverter {
     pub fn new() -> Self {

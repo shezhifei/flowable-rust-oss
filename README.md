@@ -10,7 +10,7 @@ Flowable REST API.
 
 ## Status
 
-Work in progress. `cargo test --workspace` passes **3593 tests (0 failures, 16
+Work in progress. `cargo test --workspace` passes **3605 tests (0 failures, 16
 ignored)** across the 33 crates, and the port is behavior-aligned with the
 Flowable Java engines on the covered surface. The ignored tests are gated on
 external services rather than broken — see
@@ -39,10 +39,13 @@ site:
   5 minutes → HTTP 429). The key is the TCP peer address, so behind a reverse
   proxy all clients share one bucket — terminate rate limiting at the proxy in
   that topology.
-- BPMN/CMMN/DMN XML is rejected past 512 levels of element nesting, and
-  CMMN/DMN parsing carries a 1M node budget, so hostile documents cannot drive
-  converter recursion into stack overflow. DTDs are refused (no XXE, no
-  entity expansion).
+- XML element nesting is capped before parsing, so hostile documents cannot
+  drive a parser or converter into stack overflow: 512 levels for BPMN
+  (`quick-xml`, an iterative pull parser), and 64 for CMMN/DMN, whose parser
+  (`roxmltree`) recurses per element and overflows well below 512 on a debug
+  build. Both caps are enforced by an iterative pre-parse scan — a post-parse
+  check cannot help, because the overflow happens during parsing. CMMN/DMN also
+  carry a 1M node budget. DTDs are refused (no XXE, no entity expansion).
 - Shell service tasks are disabled by default (opt-in via engine config).
 - Outbound HTTP (HTTP service tasks, event-registry REST channels) denies
   private/loopback/link-local targets by default (SSRF guard); escape hatches

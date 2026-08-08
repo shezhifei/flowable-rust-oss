@@ -17,9 +17,34 @@ const P_COST: u32 = 1;
 /// legacy plaintext values on read.
 pub const HASH_PREFIX: &str = "$argon2id$";
 
-/// True when `stored` is an argon2id hash rather than a legacy plaintext row.
+/// True when `stored` *claims* to be an argon2id hash, by prefix alone.
+///
+/// Deliberately a prefix test, not a parse: this drives the read path in
+/// `verify_password`, where claiming-but-malformed must route to argon2
+/// verification (and fail) rather than to the plaintext comparison. Treating
+/// `$argon2id$<garbage>` as plaintext would let anyone who knows that literal
+/// string authenticate as the user.
 pub fn is_hash(stored: &str) -> bool {
     stored.starts_with(HASH_PREFIX)
+}
+
+/// True when `stored` is a *well-formed* argon2id hash — prefix plus a
+/// successful PHC parse.
+///
+/// This drives the write path, where the question is the opposite one: "may I
+/// skip hashing this value?". Skipping on prefix alone is fail-open — a user
+/// whose chosen password happens to start with `$argon2id$` would be written to
+/// the database verbatim, i.e. stored in plaintext *and* unverifiable
+/// afterwards (`verify_password` sees the prefix, fails to parse, and rejects
+/// every attempt), locking that user out permanently.
+/// A bare `PasswordHash::new` is not enough: PHC parsing accepts a string with
+/// no digest at all (`$argon2id$whatever` parses fine, with `hash: None`), and
+/// such a value can never verify. Require both a salt and a digest, which is
+/// exactly what `verify_password` needs to succeed later.
+pub fn is_valid_hash(stored: &str) -> bool {
+    is_hash(stored)
+        && PasswordHash::new(stored)
+            .is_ok_and(|parsed| parsed.hash.is_some() && parsed.salt.is_some())
 }
 
 /// Hash a plaintext password into an argon2id PHC string. The salt comes from
@@ -97,6 +122,32 @@ mod tests {
     fn verify_legacy_plaintext_still_works() {
         assert!(verify_password("secret", "secret"));
         assert!(!verify_password("wrong", "secret"));
+    }
+
+    #[test]
+    fn is_valid_hash_accepts_only_parseable_hashes() {
+        assert!(is_valid_hash(&hash_password("x")));
+        // Claims the prefix but is not a PHC string: must not be mistaken for
+        // an already-hashed value on the write path.
+        assert!(!is_valid_hash("$argon2id$not-a-valid-hash"));
+        assert!(!is_valid_hash("$argon2id$"));
+        assert!(!is_valid_hash("plaintext"));
+    }
+
+    #[test]
+    fn a_password_shaped_like_a_hash_is_still_hashed() {
+        // Regression: with a prefix-only write guard this value was stored
+        // verbatim — plaintext in the database, and unverifiable afterwards,
+        // locking the user out. It must be treated as a plaintext password.
+        let chosen = "$argon2id$hunter2";
+        assert!(is_hash(chosen), "it does claim the prefix");
+        assert!(!is_valid_hash(chosen), "but it is not a real hash");
+
+        // What the write path does with it, and that login still works.
+        let stored = hash_password(chosen);
+        assert!(is_valid_hash(&stored));
+        assert!(verify_password(chosen, &stored));
+        assert!(!verify_password("hunter2", &stored));
     }
 
     #[test]

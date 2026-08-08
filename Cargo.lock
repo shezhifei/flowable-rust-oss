@@ -685,6 +685,7 @@ name = "flowable-cmmn-converter"
 version = "0.1.0"
 dependencies = [
  "flowable-cmmn-model",
+ "quick-xml",
  "roxmltree 0.20.0",
 ]
 
@@ -742,6 +743,7 @@ name = "flowable-dmn-converter"
 version = "0.1.0"
 dependencies = [
  "flowable-dmn-model",
+ "quick-xml",
  "roxmltree 0.20.0",
 ]
 

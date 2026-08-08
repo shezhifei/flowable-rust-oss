@@ -54,11 +54,15 @@ impl IdentityService {
 
     /// Persist a user. Plaintext passwords are argon2id-hashed before the
     /// entity is written to the store (security deviation from Java plaintext
-    /// storage); values that already look like hashes are stored unchanged so
-    /// update flows that re-save a loaded user never double-hash.
+    /// storage); values that are already *well-formed* hashes are stored
+    /// unchanged so update flows that re-save a loaded user never double-hash.
+    ///
+    /// The guard parses rather than prefix-matches: a chosen password that
+    /// merely starts with `$argon2id$` must still be hashed, or it would land in
+    /// the database as plaintext and be unverifiable afterwards.
     pub fn save_user_in_session(&self, mut user: User, session: &mut DbSession) {
         if let Some(value) = user.password.take()
-            && !crate::identity::password::is_hash(&value)
+            && !crate::identity::password::is_valid_hash(&value)
         {
             user.password = Some(crate::identity::password::hash_password(&value));
         }
