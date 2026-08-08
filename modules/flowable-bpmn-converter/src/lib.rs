@@ -24,6 +24,12 @@ fn parse_comma_separated_id_list(value: &str) -> Vec<String> {
         .collect()
 }
 
+/// Maximum XML element nesting depth accepted by the BPMN converter (M3).
+/// Bounds every converter recursion (subprocess descent, flow-element map
+/// population, canonical JSON normalization) against hostile deeply-nested
+/// documents; far beyond anything a legitimate process definition reaches.
+const MAX_XML_NESTING_DEPTH: usize = 512;
+
 /// Java `ValuedDataObjectXMLConverter` + type-specific `setValue` subclasses:
 /// convert the raw extension text into Long/Double/Boolean/Date/JSON values at
 /// convert time. Expressions like `${...}` are **not** evaluated — they remain
@@ -130,7 +136,21 @@ impl BpmnXMLConverter {
 
         loop {
             match reader.read_event_into(&mut buf) {
-                Ok(XmlEvent::Start(e)) => open_elements.push(e.local_name().as_ref().to_vec()),
+                Ok(XmlEvent::Start(e)) => {
+                    open_elements.push(e.local_name().as_ref().to_vec());
+                    // M3: cap XML nesting so adversarial documents cannot push
+                    // converter recursion (subprocess descent, element maps)
+                    // into stack overflow. Depth beyond any legitimate BPMN.
+                    if open_elements.len() > MAX_XML_NESTING_DEPTH {
+                        return Err(FlowableError::InvalidBpmnXml {
+                            position: reader.buffer_position(),
+                            message: format!(
+                                "XML element nesting exceeds the limit of {} levels",
+                                MAX_XML_NESTING_DEPTH
+                            ),
+                        });
+                    }
+                }
                 Ok(XmlEvent::End(e)) => {
                     let Some(open) = open_elements.pop() else {
                         return Err(FlowableError::InvalidBpmnXml {
@@ -5554,22 +5574,28 @@ impl BpmnXMLConverter {
 
     fn populate_all_maps(&self, process: &mut Process) {
         for element in &mut process.flow_elements {
-            self.populate_sub_process_maps_recursive(element);
+            self.populate_sub_process_maps_recursive(element, 0);
         }
 
         let mut map = IndexMap::new();
-        self.populate_element_map(&process.flow_elements, &mut map, &process.data_objects);
+        self.populate_element_map(&process.flow_elements, &mut map, &process.data_objects, 0);
         process.flow_element_map = map;
     }
 
-    fn populate_sub_process_maps_recursive(&self, element: &mut FlowElementEnum) {
+    fn populate_sub_process_maps_recursive(&self, element: &mut FlowElementEnum, depth: usize) {
+        if depth >= MAX_XML_NESTING_DEPTH {
+            // M3: refuse to descend past the nesting cap even for
+            // programmatically-built models; XML-parsed models cannot reach
+            // this because validate_well_formed_xml caps their nesting.
+            return;
+        }
         if let Some(sub_proc) = self.get_sub_process_mut(element) {
             for child in &mut sub_proc.flow_elements {
-                self.populate_sub_process_maps_recursive(child);
+                self.populate_sub_process_maps_recursive(child, depth + 1);
             }
 
             let mut map = IndexMap::new();
-            self.populate_element_map(&sub_proc.flow_elements, &mut map, &[]);
+            self.populate_element_map(&sub_proc.flow_elements, &mut map, &[], depth + 1);
             sub_proc.flow_element_map = map;
         }
     }
@@ -5580,23 +5606,27 @@ impl BpmnXMLConverter {
         flow_elements: &[FlowElementEnum],
         map: &mut IndexMap<String, FlowElementEnum>,
         data_objects: &[ValuedDataObject],
+        depth: usize,
     ) {
+        if depth >= MAX_XML_NESTING_DEPTH {
+            return;
+        }
         for element in flow_elements {
             if let Some(id) = self.get_element_id(element) {
                 map.insert(id, element.clone());
             }
             match element {
                 FlowElementEnum::SubProcess(s) => {
-                    self.populate_element_map(&s.flow_elements, map, &[])
+                    self.populate_element_map(&s.flow_elements, map, &[], depth + 1)
                 }
                 FlowElementEnum::Transaction(t) => {
-                    self.populate_element_map(&t.sub_process.flow_elements, map, &[])
+                    self.populate_element_map(&t.sub_process.flow_elements, map, &[], depth + 1)
                 }
                 FlowElementEnum::EventSubProcess(e) => {
-                    self.populate_element_map(&e.sub_process.flow_elements, map, &[])
+                    self.populate_element_map(&e.sub_process.flow_elements, map, &[], depth + 1)
                 }
                 FlowElementEnum::AdhocSubProcess(a) => {
-                    self.populate_element_map(&a.sub_process.flow_elements, map, &[])
+                    self.populate_element_map(&a.sub_process.flow_elements, map, &[], depth + 1)
                 }
                 _ => {}
             }

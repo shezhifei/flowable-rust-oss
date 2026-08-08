@@ -2,9 +2,38 @@ use flowable_dmn_model::{
     CollectOperator, Decision, DecisionRule, DecisionTable, DmnDefinition, HitPolicy, InputClause,
     LiteralExpression, OutputClause, UnaryTests,
 };
-use roxmltree::{Document, Node};
+use roxmltree::{Document, Node, ParsingOptions};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+
+/// Maximum XML element nesting depth accepted (M3): bounds converter
+/// recursion over decisions / decision tables / expressions.
+const MAX_XML_NESTING_DEPTH: usize = 512;
+/// Total XML node budget; rejects pathological documents before conversion
+/// work begins.
+const XML_NODES_LIMIT: u32 = 1_000_000;
+
+/// Parse with a bounded node budget and reject overly-deep nesting so hostile
+/// documents cannot drive converter recursion into stack overflow.
+fn parse_document<'a>(xml: &'a str) -> Result<Document<'a>, DmnConverterError> {
+    let document = Document::parse_with_options(
+        xml,
+        ParsingOptions {
+            nodes_limit: XML_NODES_LIMIT,
+            ..Default::default()
+        },
+    )
+    .map_err(|error| DmnConverterError::InvalidXml(error.to_string()))?;
+    for node in document.descendants() {
+        if node.is_element() && node.ancestors().count() > MAX_XML_NESTING_DEPTH {
+            return Err(DmnConverterError::InvalidXml(format!(
+                "XML element nesting exceeds the limit of {} levels",
+                MAX_XML_NESTING_DEPTH
+            )));
+        }
+    }
+    Ok(document)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DmnConverterError {
@@ -88,8 +117,7 @@ impl DmnXmlConverter {
         xml: &str,
         validate_namespace: bool,
     ) -> Result<DmnDefinition, DmnConverterError> {
-        let document = Document::parse(xml)
-            .map_err(|error| DmnConverterError::InvalidXml(error.to_string()))?;
+        let document = parse_document(xml)?;
         let root = document.root_element();
         expect_element_name(root, "definitions")?;
         if validate_namespace {

@@ -51,6 +51,7 @@ use flowable_platform_bootstrap::{
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
@@ -6561,7 +6562,13 @@ async fn run_server_with_components(
             MakeRequestUuid,
         ));
 
-    axum::serve(listener, app).await?;
+    // ConnectInfo is required so auth_middleware can key its per-IP failure
+    // window on the real peer address (M2 brute-force lockout).
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 

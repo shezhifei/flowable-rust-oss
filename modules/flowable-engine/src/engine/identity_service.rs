@@ -37,7 +37,10 @@ impl IdentityService {
         session: &mut DbSession,
     ) -> bool {
         if let Some(user) = self.get_store().find_user(user_id, session) {
-            user.password.as_deref() == Some(password)
+            match user.password.as_deref() {
+                Some(stored) => crate::identity::password::verify_password(password, stored),
+                None => false,
+            }
         } else {
             false
         }
@@ -49,7 +52,16 @@ impl IdentityService {
         session.flush_and_commit().unwrap();
     }
 
-    pub fn save_user_in_session(&self, user: User, session: &mut DbSession) {
+    /// Persist a user. Plaintext passwords are argon2id-hashed before the
+    /// entity is written to the store (security deviation from Java plaintext
+    /// storage); values that already look like hashes are stored unchanged so
+    /// update flows that re-save a loaded user never double-hash.
+    pub fn save_user_in_session(&self, mut user: User, session: &mut DbSession) {
+        if let Some(value) = user.password.take()
+            && !crate::identity::password::is_hash(&value)
+        {
+            user.password = Some(crate::identity::password::hash_password(&value));
+        }
         self.get_store().insert_user(user, session);
     }
 

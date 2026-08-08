@@ -64,7 +64,8 @@ async fn idm_paths_cover_users_groups_privileges_and_engine_info() {
     assert_eq!(create_user_body["id"], "kermit");
     assert_eq!(create_user_body["firstName"], "Kermit");
     assert_eq!(create_user_body["displayName"], "Kermit The Frog");
-    assert_eq!(create_user_body["password"], "secret");
+    // Security deviation from Java: the create response never echoes the password.
+    assert!(create_user_body.get("password").is_none());
     assert!(create_user_body["tenantId"].is_null());
     assert!(create_user_body["pictureUrl"].is_null());
     assert!(
@@ -280,7 +281,8 @@ async fn idm_user_shape_supports_null_updates_without_leaking_to_identity_respon
         .unwrap();
     assert_eq!(create_user.status(), reqwest::StatusCode::CREATED);
     let create_user_body: Value = create_user.json().await.unwrap();
-    assert_eq!(create_user_body["password"], "piano");
+    // Security deviation from Java: the create response never echoes the password.
+    assert!(create_user_body.get("password").is_none());
     assert!(create_user_body["tenantId"].is_null());
     assert!(create_user_body["pictureUrl"].is_null());
 

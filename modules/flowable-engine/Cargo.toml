@@ -53,6 +53,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 # Java DefaultCorrelationKeyGenerator MD5 (P93)
 md-5 = "0.10"
 indexmap = "2"
+# Password hashing (security deviation from Java plaintext storage)
+argon2 = "0.5"
 
 [dev-dependencies]
 flowable-history-service = { path = "../flowable-history-service" }

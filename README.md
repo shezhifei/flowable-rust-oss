@@ -22,9 +22,25 @@ A pre-release security audit hardened several dangerous Java-compatible
 defaults. Each is an intentional deviation, documented at the implementation
 site:
 
+- Passwords are stored as argon2id digests (m=19MiB, t=2, p=1) rather than the
+  Java plaintext default; verification is constant-time. Pre-existing plaintext
+  rows still authenticate and are upgraded to a digest the next time the user is
+  saved, so deployers upgrading an existing database should force a password
+  reset to retire the plaintext values. REST user responses never echo the
+  password field.
 - No default `admin/admin` bootstrap user; startup refuses a blank/default
   password. Privileged REST writes (deployments, `/idm`, `/management`,
-  `/cmmn-management`) require an admin from `FLOWABLE_REST_ADMIN_USERS`.
+  `/cmmn-management`, `/event-registry-management`, `/app-management`,
+  `/dmn-management`, `/idm-management`) require an admin from
+  `FLOWABLE_REST_ADMIN_USERS`.
+- Failed Basic-auth attempts are rate-limited per client IP (30 failures per
+  5 minutes → HTTP 429). The key is the TCP peer address, so behind a reverse
+  proxy all clients share one bucket — terminate rate limiting at the proxy in
+  that topology.
+- BPMN/CMMN/DMN XML is rejected past 512 levels of element nesting, and
+  CMMN/DMN parsing carries a 1M node budget, so hostile documents cannot drive
+  converter recursion into stack overflow. DTDs are refused (no XXE, no
+  entity expansion).
 - Shell service tasks are disabled by default (opt-in via engine config).
 - Outbound HTTP (HTTP service tasks, event-registry REST channels) denies
   private/loopback/link-local targets by default (SSRF guard); escape hatches

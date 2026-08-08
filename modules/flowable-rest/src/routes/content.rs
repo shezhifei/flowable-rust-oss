@@ -459,6 +459,11 @@ fn parse_range(range_header: &str, content_len: usize) -> Option<(usize, usize)>
 
     if start_str.is_empty() {
         let end_val = end_str.parse::<usize>().ok()?;
+        if content_len == 0 {
+            // Suffix range on an empty body is unsatisfiable; return None
+            // instead of underflowing `content_len - 1` (0usize - 1 wraps).
+            return None;
+        }
         if end_val >= content_len {
             Some((0, content_len - 1))
         } else {
@@ -599,4 +604,42 @@ pub async fn get_storage_status(
     Extension(service): Extension<DynContentService>,
 ) -> Result<Json<Value>, ApiError> {
     Ok(Json(service.get_storage_status()?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_range;
+
+    #[test]
+    fn suffix_range_on_empty_content_is_unsatisfiable_not_underflow() {
+        assert_eq!(parse_range("bytes=-5", 0), None);
+    }
+
+    #[test]
+    fn suffix_range_clamps_to_content_length() {
+        assert_eq!(parse_range("bytes=-5", 10), Some((5, 9)));
+        assert_eq!(parse_range("bytes=-99", 10), Some((0, 9)));
+        assert_eq!(parse_range("bytes=-10", 10), Some((0, 9)));
+    }
+
+    #[test]
+    fn open_ranges_are_unsatisfiable_on_empty_content() {
+        assert_eq!(parse_range("bytes=0-", 0), None);
+        assert_eq!(parse_range("bytes=0-5", 0), None);
+        assert_eq!(parse_range("bytes=-", 0), None);
+    }
+
+    #[test]
+    fn prefix_and_bounded_ranges_still_parse() {
+        assert_eq!(parse_range("bytes=0-4", 10), Some((0, 4)));
+        assert_eq!(parse_range("bytes=0-99", 10), Some((0, 9)));
+        assert_eq!(parse_range("bytes=0-", 10), Some((0, 9)));
+    }
+
+    #[test]
+    fn malformed_ranges_are_rejected() {
+        assert_eq!(parse_range("bytes=abc", 10), None);
+        assert_eq!(parse_range("items=0-5", 10), None);
+        assert_eq!(parse_range("bytes=5-2", 10), None);
+    }
 }

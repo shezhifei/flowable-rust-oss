@@ -23,6 +23,9 @@ pub enum ApiError {
     /// does not cover Multipart extractors, so handlers enforce limits and map
     /// oversize to HTTP 413 with the standard ErrorResponse shape.
     PayloadTooLarge(String),
+    /// Too many failed authentication attempts from this client within the
+    /// lockout window (per-IP brute-force protection on Basic auth).
+    RateLimited(String),
     Conflict(String),
     InternalServerError(String),
 }
@@ -60,6 +63,12 @@ impl IntoResponse for ApiError {
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "PAYLOAD_TOO_LARGE",
                 "Payload Too Large",
+                Some(msg),
+            ),
+            ApiError::RateLimited(msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "TOO_MANY_REQUESTS",
+                "Too Many Requests",
                 Some(msg),
             ),
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", "Conflict", Some(msg)),

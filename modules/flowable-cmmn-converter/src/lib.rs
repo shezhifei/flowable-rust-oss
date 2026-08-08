@@ -5,7 +5,7 @@ use flowable_cmmn_model::{
     PlanItemOnPart, PlanningTable, ProcessTask, Sentry, SentryIfPartExpression, Stage,
     parse_sentry_if_part_expression,
 };
-use roxmltree::{Document, Node};
+use roxmltree::{Document, Node, ParsingOptions};
 use std::collections::{BTreeMap, HashSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -50,14 +50,42 @@ impl Error for CmmnConverterError {}
 
 pub struct CmmnXmlConverter;
 
+/// Maximum XML element nesting depth accepted (M3): bounds converter
+/// recursion over plan items / case file items / sentries.
+const MAX_XML_NESTING_DEPTH: usize = 512;
+/// Total XML node budget; rejects quadratic / pathological documents before
+/// conversion work begins.
+const XML_NODES_LIMIT: u32 = 1_000_000;
+
+/// Parse with a bounded node budget and reject overly-deep nesting so hostile
+/// documents cannot drive converter recursion into stack overflow.
+fn parse_document<'a>(xml: &'a str) -> Result<Document<'a>, CmmnConverterError> {
+    let document = Document::parse_with_options(
+        xml,
+        ParsingOptions {
+            nodes_limit: XML_NODES_LIMIT,
+            ..Default::default()
+        },
+    )
+    .map_err(|error| CmmnConverterError::InvalidXml(error.to_string()))?;
+    for node in document.descendants() {
+        if node.is_element() && node.ancestors().count() > MAX_XML_NESTING_DEPTH {
+            return Err(CmmnConverterError::InvalidXml(format!(
+                "XML element nesting exceeds the limit of {} levels",
+                MAX_XML_NESTING_DEPTH
+            )));
+        }
+    }
+    Ok(document)
+}
+
 impl CmmnXmlConverter {
     pub fn new() -> Self {
         Self
     }
 
     pub fn parse_definitions(&self, xml: &str) -> Result<CmmnDefinitions, CmmnConverterError> {
-        let document = Document::parse(xml)
-            .map_err(|error| CmmnConverterError::InvalidXml(error.to_string()))?;
+        let document = parse_document(xml)?;
         let root = document.root_element();
         expect_element_name(root, "definitions")?;
         warn_unknown_attributes(
@@ -121,8 +149,7 @@ pub fn parse_cmmn_definitions(xml: &str) -> Result<CmmnDefinitions, CmmnConverte
 pub fn parse_cmmn_case_file_models(
     xml: &str,
 ) -> Result<Vec<(String, CaseFileModel)>, CmmnConverterError> {
-    let document =
-        Document::parse(xml).map_err(|error| CmmnConverterError::InvalidXml(error.to_string()))?;
+    let document = parse_document(xml)?;
     let mut result = Vec::new();
     for case in document
         .descendants()

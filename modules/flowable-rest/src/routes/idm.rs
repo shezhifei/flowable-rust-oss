@@ -251,7 +251,6 @@ pub struct RestUserResponse {
     #[serde(rename = "displayName")]
     pub display_name: String,
     pub email: Option<String>,
-    pub password: Option<String>,
     pub url: String,
     #[serde(rename = "tenantId")]
     pub tenant_id: Option<String>,
@@ -260,7 +259,7 @@ pub struct RestUserResponse {
 }
 
 impl RestUserResponse {
-    fn from_user(user: User, base_url: &str, include_password: bool, has_picture: bool) -> Self {
+    fn from_user(user: User, base_url: &str, has_picture: bool) -> Self {
         let display_name = user_display_name(&user);
         let url = user_url(base_url, &user.id);
         let picture_url = has_picture.then(|| user_picture_url(base_url, &user.id));
@@ -270,7 +269,6 @@ impl RestUserResponse {
             last_name: user.last_name,
             display_name,
             email: user.email,
-            password: include_password.then_some(user.password).flatten(),
             url,
             tenant_id: user.tenant_id,
             picture_url,
@@ -322,7 +320,7 @@ async fn list_rest_users(
                     .get_identity_service()
                     .get_user_picture(&user.id)
                     .is_some();
-                RestUserResponse::from_user(user, &base_url, false, has_picture)
+                RestUserResponse::from_user(user, &base_url, has_picture)
             })
             .collect(),
         &params.paging(),
@@ -360,12 +358,7 @@ async fn get_rest_user(
         .get_user_picture(&user.id)
         .is_some();
     let base_url = request_base_url(None);
-    Ok(Json(RestUserResponse::from_user(
-        user,
-        &base_url,
-        false,
-        has_picture,
-    )))
+    Ok(Json(RestUserResponse::from_user(user, &base_url, has_picture)))
 }
 
 #[derive(Deserialize)]
@@ -436,14 +429,12 @@ async fn create_rest_user(
         .get_user_picture(&user.id)
         .is_some();
     let base_url = request_base_url(None);
+    // Security deviation from Java: the 201 response never echoes the
+    // password (plaintext or hash); the password field was removed from
+    // RestUserResponse entirely.
     Ok((
         StatusCode::CREATED,
-        Json(RestUserResponse::from_user(
-            user,
-            &base_url,
-            true,
-            has_picture,
-        )),
+        Json(RestUserResponse::from_user(user, &base_url, has_picture)),
     ))
 }
 
@@ -471,12 +462,7 @@ async fn update_rest_user(
         .get_user_picture(&user.id)
         .is_some();
     let base_url = request_base_url(None);
-    Ok(Json(RestUserResponse::from_user(
-        user,
-        &base_url,
-        false,
-        has_picture,
-    )))
+    Ok(Json(RestUserResponse::from_user(user, &base_url, has_picture)))
 }
 
 async fn delete_user(
@@ -2135,7 +2121,6 @@ mod tests {
             },
             "https://example.org/base",
             true,
-            true,
         );
         assert_eq!(response.url, "https://example.org/base/identity/users/u1");
         assert_eq!(
@@ -2143,7 +2128,6 @@ mod tests {
             Some("https://example.org/base/identity/users/u1/picture")
         );
         assert_eq!(response.tenant_id.as_deref(), Some("tenant-b"));
-        assert_eq!(response.password.as_deref(), Some("secret"));
     }
 
     #[test]

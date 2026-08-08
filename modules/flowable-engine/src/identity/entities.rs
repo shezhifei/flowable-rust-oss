@@ -6,6 +6,10 @@ pub struct User {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub email: Option<String>,
+    /// Password digest: argon2id PHC string (`$argon2id$…`) when the user was
+    /// saved through the engine since the hashing change; legacy plaintext
+    /// values from before the change are verifiable but never written back as
+    /// plaintext. Never echo this field to clients.
     pub password: Option<String>,
     #[serde(default)]
     pub tenant_id: Option<String>,
