@@ -10,9 +10,11 @@ Flowable REST API.
 
 ## Status
 
-Work in progress. The codebase passes **3255 tests (0 failures)** across the
-ten main crates and is behavior-aligned with the Flowable Java engines on the
-covered surface. Alignment was driven file-by-file against the Java sources
+Work in progress. `cargo test --workspace` passes **3593 tests (0 failures, 16
+ignored)** across the 33 crates, and the port is behavior-aligned with the
+Flowable Java engines on the covered surface. The ignored tests are gated on
+external services rather than broken — see
+[Build and test](#build-and-test). Alignment was driven file-by-file against the Java sources
 (every behavioral rule cites the corresponding Java file and line number in
 code comments).
 
@@ -48,9 +50,14 @@ site:
 - Multipart uploads, request bodies and ZIP extraction have cumulative size /
   entry-count limits; expression evaluation has a recursion-depth cap.
 - SQL `LIKE` in-memory matching uses a single shared O(pattern × value)
-  implementation with a 512-character input cap (`flowable-engine-common`,
-  every crate delegates to it); HTTP 500 responses no longer echo internal
-  error details.
+  implementation with a 512-character input cap (`flowable-engine-common::like`);
+  every crate that implements `*Like` query semantics delegates to it, replacing
+  earlier per-crate copies that could backtrack exponentially or allocate an
+  O(n×m) matrix. Three REST filter helpers (DMN decision/deployment listing and
+  app-definition listing) keep their own narrower prefix/suffix/substring
+  matching: they are linear-time and carry no DoS exposure, but they are not
+  SQL-LIKE-complete (`_` is literal, a mid-pattern `%` is not a wildcard).
+- HTTP 500 responses no longer echo internal error details.
 - `/metrics` requires authentication; `FLOWABLE_REST_AUTH_MODE=disabled`
   refuses to bind non-loopback addresses.
 
@@ -60,7 +67,7 @@ implementation (search for `Java ` citations and `P1xx` markers). Notable ones:
 - Expression language: read-only JUEL dialect; expression-based variable writes
   are not modeled.
 - CMMN historic queries: parameters without a persisted data source return
-  HTTP 400 rather than silently no-op'ing (see `docs/runbooks/` and code).
+  HTTP 400 rather than silently no-op'ing (documented at the handler).
 - Event listener / lifecycle listener extension points use a registry of named
   handlers instead of Java class loading / Spring beans.
 
@@ -79,15 +86,33 @@ implementation (search for `Java ` citations and `P1xx` markers). Notable ones:
 
 ## Build and test
 
-Requires a recent stable Rust toolchain.
+Requires Rust **1.85 or newer** (the workspace uses edition 2024).
 
 ```sh
 cargo test --workspace
 ```
 
-Some integration tests exercise MySQL / PostgreSQL backends and are gated on
-environment variables (see `docs/runbooks/multi-db-test.md`); they are skipped
-or use defaults when the variables are absent.
+The default run needs no external services — SQLite is bundled. Two groups sit
+outside it:
+
+- **MySQL / PostgreSQL backend suites** are gated on `FLOWABLE_TEST_MYSQL_URL` /
+  `FLOWABLE_TEST_POSTGRES_URL`; without those they fall back to defaults rather
+  than failing. See [docs/runbooks/multi-db-test.md](docs/runbooks/multi-db-test.md).
+- **The 16 `#[ignore]`d tests** need something the repo cannot assume: the
+  Java-vs-Rust differential fixtures require a Flowable Java checkout with a JDK
+  and Maven (see [differential/README.md](differential/README.md)), and the
+  live HTTP-client tests require outbound network access. Run them with
+  `cargo test --workspace -- --ignored` once those are available.
+
+## Security
+
+To report a vulnerability, and for the current list of known security
+limitations (authorization granularity, tenant isolation, authentication cost),
+see [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

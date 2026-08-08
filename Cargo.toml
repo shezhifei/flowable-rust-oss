@@ -36,3 +36,17 @@ members = [
     ]
 
 resolver = "2"
+
+[workspace.package]
+# Every crate inherits these with `license.workspace = true` /
+# `rust-version.workspace = true`.
+license = "Apache-2.0"
+# Edition 2024 is the real floor here; 1.85 is the first release that accepts it.
+rust-version = "1.85"
+
+[profile.release]
+# Java's engine relies on checked arithmetic semantics in several accounting
+# paths (retry counters, byte ranges, loop bounds). Cargo's default release
+# profile turns overflow checks off, which would let those wrap silently
+# instead of failing loudly; a panic is the safer outcome for a workflow engine.
+overflow-checks = true

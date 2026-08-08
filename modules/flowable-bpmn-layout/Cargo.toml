@@ -2,6 +2,8 @@
 name = "flowable-bpmn-layout"
 version = "0.1.0"
 edition = "2024"
+rust-version.workspace = true
+license.workspace = true
 
 [dependencies]
 flowable-bpmn-model = { path = "../flowable-bpmn-model" }

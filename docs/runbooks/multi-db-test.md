@@ -11,12 +11,36 @@ integration tests **skip gracefully** when the backend is unreachable.
 | `FLOWABLE_TEST_POSTGRES_URL` | `postgres://postgres:postgres@localhost:5432/flowable_test` | PostgreSQL connection URL |
 | `FLOWABLE_TEST_MYSQL_URL` | `mysql://flowable:flowable@localhost:3306/flowable_test` | MySQL connection URL |
 
-Schema bootstrap helpers (repo root / parent workspace):
+The engine creates/migrates its own tables on first
+`ProcessEngine::build_with_config`, so bootstrap only has to create the database
+and the login role.
 
-- `setup_postgres.sql` — creates `flowable_test` DB and `flowable` role (if using that user)
-- `setup_mysql.sql` — creates `flowable_test` DB and `flowable` user
+> The credentials below are throwaway values for a local test database and match
+> the defaults in the table above. Do not reuse them anywhere else.
 
-The engine creates/migrates its own tables on first `ProcessEngine::build_with_config`.
+PostgreSQL (as a superuser; neither statement supports `IF NOT EXISTS`, so
+re-running reports an "already exists" error you can ignore). The default URL
+above connects as the `postgres` superuser, in which case only the first line is
+needed — create the `flowable` role only if you point
+`FLOWABLE_TEST_POSTGRES_URL` at it instead:
+
+```sql
+CREATE DATABASE flowable_test;
+-- Only if you connect as `flowable` rather than as the superuser:
+CREATE ROLE flowable LOGIN PASSWORD 'flowable';
+GRANT ALL PRIVILEGES ON DATABASE flowable_test TO flowable;
+-- then, connected to flowable_test:
+GRANT ALL ON SCHEMA public TO flowable;
+```
+
+MySQL:
+
+```sql
+CREATE DATABASE IF NOT EXISTS flowable_test;
+CREATE USER IF NOT EXISTS 'flowable'@'%' IDENTIFIED BY 'flowable';
+GRANT ALL PRIVILEGES ON flowable_test.* TO 'flowable'@'%';
+FLUSH PRIVILEGES;
+```
 
 ## Prerequisites
 
@@ -27,8 +51,6 @@ The engine creates/migrates its own tables on first `ProcessEngine::build_with_c
 # Ensure database exists:
 $env:PGPASSWORD = "postgres"
 psql -h localhost -U postgres -c "CREATE DATABASE flowable_test;" 2>$null
-# Or apply parent setup script if present:
-# psql -h localhost -U postgres -f setup_postgres.sql
 
 $env:FLOWABLE_TEST_POSTGRES_URL = "postgres://postgres:postgres@localhost:5432/flowable_test"
 ```
@@ -36,7 +58,7 @@ $env:FLOWABLE_TEST_POSTGRES_URL = "postgres://postgres:postgres@localhost:5432/f
 ### MySQL
 
 ```powershell
-# mysql -u root -p < setup_mysql.sql
+# Apply the MySQL bootstrap SQL above first, then:
 $env:FLOWABLE_TEST_MYSQL_URL = "mysql://flowable:flowable@localhost:3306/flowable_test"
 ```
 
@@ -124,7 +146,7 @@ export FLOWABLE_TEST_MYSQL_URL="mysql://flowable:flowable@localhost:3306/flowabl
 cargo test -p flowable-engine --features mysql --test mysql_engine_integration_test -- --nocapture
 ```
 
-## Exit criteria (M78)
+## Exit criteria
 
 - Postgres engine suite green for deploy / start / complete user task / timer job presence / history presence.
 - MySQL engine suite present with the same skip-if-unavailable contract (smoke at minimum when MySQL is provisioned).

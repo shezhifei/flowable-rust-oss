@@ -2,6 +2,8 @@
 name = "flowable-bpmn-converter"
 version = "0.1.0"
 edition = "2024"
+rust-version.workspace = true
+license.workspace = true
 
 [dependencies]
 tracing = "0.1"

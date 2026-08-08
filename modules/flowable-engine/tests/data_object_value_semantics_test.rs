@@ -1,5 +1,10 @@
 //! P24 sub-item 4: data object value semantics — converter-typed, no EL eval.
 
+// The 3.14 below is the literal value in the BPMN fixture being round-tripped,
+// not an approximation of pi; substituting `f64::consts::PI` would break the
+// assertion it exists to make.
+#![allow(clippy::approx_constant)]
+
 use flowable_bpmn_converter::BpmnXMLConverter;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use serde_json::json;

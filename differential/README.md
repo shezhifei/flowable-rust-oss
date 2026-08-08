@@ -10,7 +10,7 @@ The Java runner is an isolated Maven application pinned to Flowable Java
 `8.0.0`, matching the sibling Java checkout used as the implementation
 baseline. It does not modify or compile test helpers into the Java repository.
 
-### Adding a new domain (after B0)
+### Adding a new domain
 
 Prefer **operations-scripted** cases so neither the Java runner nor Rust
 HTTP helpers need new branches:

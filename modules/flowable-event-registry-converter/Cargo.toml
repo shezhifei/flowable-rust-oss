@@ -2,6 +2,8 @@
 name = "flowable-event-registry-converter"
 version = "0.1.0"
 edition = "2024"
+rust-version.workspace = true
+license.workspace = true
 
 [dependencies]
 flowable-event-registry-model = { version = "0.1.0", path = "../flowable-event-registry-model" }
