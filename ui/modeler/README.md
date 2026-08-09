@@ -31,9 +31,12 @@ The current M1 renderer is a first-party React/SVG implementation:
 - `src/modeler/BpmnElement.tsx` renders the task, event, gateway, subprocess, call-activity, and
   data-object families from their generated discriminated unions.
 
-The sample workbench is deliberately read-only until the M2 command stack is introduced. Node
-selection, wheel/button zoom, drag-to-pan, and the typed property summary are live and covered by
-Chromium acceptance tests.
+The M2 command boundary is now active for node movement. Document mutations are captured as Immer
+forward/inverse patches in `src/modeler/commands.ts`; one drag creates one history entry, adjusts
+attached boundary-event geometry and connected DI endpoints, and supports button or keyboard
+undo/redo. The property panel remains read-only until M3. Node selection, wheel/button zoom,
+drag-to-pan, node dragging, and the typed property summary are covered by Chromium acceptance
+tests.
 
 ## Architecture boundaries
 

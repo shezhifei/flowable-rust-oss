@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 import type { FlowElementEnum } from '../generated/editor-protocol';
 import { BpmnCanvas } from './BpmnCanvas';
 import { documentElements } from './diagramModel';
@@ -17,9 +19,29 @@ export function ModelerWorkspace() {
   const selectedElementId = useModelerStore((state) => state.selectedElementId);
   const zoomBy = useModelerStore((state) => state.zoomBy);
   const resetViewport = useModelerStore((state) => state.resetViewport);
+  const undoStack = useModelerStore((state) => state.undoStack);
+  const redoStack = useModelerStore((state) => state.redoStack);
+  const undo = useModelerStore((state) => state.undo);
+  const redo = useModelerStore((state) => state.redo);
   const process = document.model.processes[0];
   const elements = documentElements(document);
   const selectedElement = elements.find((element) => element.id === selectedElementId);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      } else if (event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [redo, undo]);
 
   return (
     <main className="modeler-shell">
@@ -37,7 +59,7 @@ export function ModelerWorkspace() {
           <span className="document-kind">BPMN 2.0</span>
           <strong>{process?.name ?? 'Untitled process'}</strong>
           <span className="save-state">
-            <i aria-hidden="true" /> All changes saved
+            <i aria-hidden="true" /> {undoStack.length ? 'Local changes' : 'Local draft ready'}
           </span>
         </div>
         <div className="topbar-actions">
@@ -77,10 +99,22 @@ export function ModelerWorkspace() {
                 ✥
               </button>
               <span className="tool-divider" />
-              <button type="button" aria-label="Undo" disabled>
+              <button
+                type="button"
+                aria-label="Undo"
+                title={undoStack.at(-1)?.label}
+                disabled={undoStack.length === 0}
+                onClick={undo}
+              >
                 ↶
               </button>
-              <button type="button" aria-label="Redo" disabled>
+              <button
+                type="button"
+                aria-label="Redo"
+                title={redoStack.at(-1)?.label}
+                disabled={redoStack.length === 0}
+                onClick={redo}
+              >
                 ↷
               </button>
             </div>

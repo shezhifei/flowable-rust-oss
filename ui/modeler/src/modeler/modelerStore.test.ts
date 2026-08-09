@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { moveElementCommand } from './commands';
 import { useModelerStore } from './modelerStore';
+import { sampleDocument } from './sampleDocument';
 
-describe('modeler store viewport', () => {
+describe('modeler store', () => {
   beforeEach(() => {
+    useModelerStore.getState().setDocument(structuredClone(sampleDocument));
     useModelerStore.getState().resetViewport();
     useModelerStore.getState().selectElement(null);
   });
@@ -19,4 +22,46 @@ describe('modeler store viewport', () => {
     useModelerStore.getState().zoomBy(0.001);
     expect(useModelerStore.getState().viewport.zoom).toBe(0.35);
   });
+
+  it('undoes and redoes fifty moves without losing node, boundary, or edge geometry', () => {
+    const store = useModelerStore.getState();
+    for (let index = 0; index < 50; index += 1) {
+      store.execute(moveElementCommand('review', 1, 2));
+    }
+
+    let state = useModelerStore.getState();
+    expect(state.undoStack).toHaveLength(50);
+    expect(state.document.model.locationMap.review).toMatchObject({ x: 354, y: 235 });
+    expect(state.document.model.locationMap.reviewTimer).toMatchObject({ x: 460, y: 314 });
+    expect(required(state.document.model.flowLocationMap.requestFlow).at(-1)).toMatchObject({
+      x: 354,
+      y: 285,
+    });
+    expect(required(state.document.model.flowLocationMap.decisionFlow)[0]).toMatchObject({
+      x: 510,
+      y: 285,
+    });
+
+    for (let index = 0; index < 50; index += 1) useModelerStore.getState().undo();
+    state = useModelerStore.getState();
+    expect(state.undoStack).toHaveLength(0);
+    expect(state.redoStack).toHaveLength(50);
+    expect(state.document.model.locationMap.review).toMatchObject({ x: 304, y: 135 });
+    expect(state.document.model.locationMap.reviewTimer).toMatchObject({ x: 410, y: 214 });
+    expect(required(state.document.model.flowLocationMap.requestFlow).at(-1)).toMatchObject({
+      x: 304,
+      y: 185,
+    });
+
+    for (let index = 0; index < 50; index += 1) useModelerStore.getState().redo();
+    state = useModelerStore.getState();
+    expect(state.undoStack).toHaveLength(50);
+    expect(state.redoStack).toHaveLength(0);
+    expect(state.document.model.locationMap.review).toMatchObject({ x: 354, y: 235 });
+  });
 });
+
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('expected fixture value to exist');
+  return value;
+}

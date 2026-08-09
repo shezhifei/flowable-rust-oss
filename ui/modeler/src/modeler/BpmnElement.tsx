@@ -1,3 +1,5 @@
+import type { PointerEvent as ReactPointerEvent } from 'react';
+
 import type { FlowElementEnum, GraphicInfo, StartEvent } from '../generated/editor-protocol';
 
 interface BpmnElementProps {
@@ -5,7 +7,9 @@ interface BpmnElementProps {
   bounds: GraphicInfo;
   labelBounds?: GraphicInfo;
   selected: boolean;
+  dragOffset?: { x: number; y: number };
   onSelect: (id: string) => void;
+  onDragStart: (id: string, event: ReactPointerEvent<SVGGElement>) => void;
 }
 
 const taskTypes = new Set<FlowElementEnum['elementType']>([
@@ -47,15 +51,25 @@ export function BpmnElement({
   bounds,
   labelBounds,
   selected,
+  dragOffset,
   onSelect,
+  onDragStart,
 }: BpmnElementProps) {
   const id = element.id ?? element.elementType;
   const className = `diagram-element element-${element.elementType}${selected ? ' is-selected' : ''}`;
   const handleSelect = () => onSelect(id);
+  const handlePointerDown = (event: ReactPointerEvent<SVGGElement>) => onDragStart(id, event);
+  const transform = dragOffset ? `translate(${dragOffset.x} ${dragOffset.y})` : undefined;
 
   if (taskTypes.has(element.elementType)) {
     return (
-      <g className={className} data-element-id={id} onClick={handleSelect}>
+      <g
+        className={className}
+        data-element-id={id}
+        transform={transform}
+        onClick={handleSelect}
+        onPointerDown={handlePointerDown}
+      >
         <rect
           className="element-surface task-surface"
           x={bounds.x}
@@ -81,7 +95,13 @@ export function BpmnElement({
     const centerY = bounds.y + bounds.height / 2;
     const definitionType = eventDefinitionType(element);
     return (
-      <g className={className} data-element-id={id} onClick={handleSelect}>
+      <g
+        className={className}
+        data-element-id={id}
+        transform={transform}
+        onClick={handleSelect}
+        onPointerDown={handlePointerDown}
+      >
         <circle
           className="element-surface event-surface"
           cx={centerX}
@@ -122,7 +142,13 @@ export function BpmnElement({
     const centerY = bounds.y + bounds.height / 2;
     const half = Math.min(bounds.width, bounds.height) / 2 - 2;
     return (
-      <g className={className} data-element-id={id} onClick={handleSelect}>
+      <g
+        className={className}
+        data-element-id={id}
+        transform={transform}
+        onClick={handleSelect}
+        onPointerDown={handlePointerDown}
+      >
         <path
           className="element-surface gateway-surface"
           d={`M ${centerX} ${centerY - half} L ${centerX + half} ${centerY} L ${centerX} ${
@@ -141,7 +167,13 @@ export function BpmnElement({
 
   if (subprocessTypes.has(element.elementType)) {
     return (
-      <g className={className} data-element-id={id} onClick={handleSelect}>
+      <g
+        className={className}
+        data-element-id={id}
+        transform={transform}
+        onClick={handleSelect}
+        onPointerDown={handlePointerDown}
+      >
         <rect
           className="element-surface subprocess-surface"
           x={bounds.x}
@@ -182,7 +214,13 @@ export function BpmnElement({
 
   if (element.elementType === 'callActivity') {
     return (
-      <g className={className} data-element-id={id} onClick={handleSelect}>
+      <g
+        className={className}
+        data-element-id={id}
+        transform={transform}
+        onClick={handleSelect}
+        onPointerDown={handlePointerDown}
+      >
         <rect
           className="element-surface call-activity-surface"
           x={bounds.x}
@@ -202,7 +240,13 @@ export function BpmnElement({
   }
 
   return (
-    <g className={className} data-element-id={id} onClick={handleSelect}>
+    <g
+      className={className}
+      data-element-id={id}
+      transform={transform}
+      onClick={handleSelect}
+      onPointerDown={handlePointerDown}
+    >
       <path
         className="element-surface data-object-surface"
         d={`M ${bounds.x} ${bounds.y} h ${bounds.width - 13} l 13 13 v ${bounds.height - 13} h -${

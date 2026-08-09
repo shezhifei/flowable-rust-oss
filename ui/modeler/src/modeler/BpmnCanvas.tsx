@@ -1,4 +1,4 @@
-import { useRef, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react';
 
 import type {
   ArtifactEnum,
@@ -7,6 +7,7 @@ import type {
   MessageFlow,
 } from '../generated/editor-protocol';
 import { BpmnElement } from './BpmnElement';
+import { moveElementCommand } from './commands';
 import { documentElements } from './diagramModel';
 import { useModelerStore } from './modelerStore';
 
@@ -20,7 +21,10 @@ export function BpmnCanvas() {
   const selectElement = useModelerStore((state) => state.selectElement);
   const panBy = useModelerStore((state) => state.panBy);
   const zoomBy = useModelerStore((state) => state.zoomBy);
+  const execute = useModelerStore((state) => state.execute);
   const dragOrigin = useRef<{ x: number; y: number } | null>(null);
+  const elementDrag = useRef<{ elementId: string; x: number; y: number } | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
 
   const elements = documentElements(document);
   const nodes = elements.filter(isNode);
@@ -35,6 +39,13 @@ export function BpmnCanvas() {
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (elementDrag.current) {
+      setDragOffset({
+        x: (event.clientX - elementDrag.current.x) / viewport.zoom,
+        y: (event.clientY - elementDrag.current.y) / viewport.zoom,
+      });
+      return;
+    }
     if (!dragOrigin.current) return;
     const deltaX = event.clientX - dragOrigin.current.x;
     const deltaY = event.clientY - dragOrigin.current.y;
@@ -43,8 +54,33 @@ export function BpmnCanvas() {
   };
 
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (elementDrag.current) {
+      const finalOffset = {
+        x: (event.clientX - elementDrag.current.x) / viewport.zoom,
+        y: (event.clientY - elementDrag.current.y) / viewport.zoom,
+      };
+      if (finalOffset.x !== 0 || finalOffset.y !== 0) {
+        execute(moveElementCommand(elementDrag.current.elementId, finalOffset.x, finalOffset.y));
+      }
+      elementDrag.current = null;
+      setDragOffset(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
     dragOrigin.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleElementDragStart = (elementId: string, event: ReactPointerEvent<SVGGElement>) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    selectElement(elementId);
+    elementDrag.current = { elementId, x: event.clientX, y: event.clientY };
+    event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
   };
 
   const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
@@ -124,7 +160,9 @@ export function BpmnCanvas() {
                   bounds={bounds}
                   labelBounds={document.model.labelLocationMap[id]}
                   selected={selectedElementId === id}
+                  dragOffset={selectedElementId === id ? (dragOffset ?? undefined) : undefined}
                   onSelect={selectElement}
+                  onDragStart={handleElementDragStart}
                 />
               );
             })}
