@@ -563,6 +563,90 @@ impl IdentityService {
         privileges
     }
 
+    /// Privileges granted to the user *directly*, excluding anything inherited
+    /// through group membership — Java's `createPrivilegeQuery().userId(id)`.
+    ///
+    /// Distinct from [`Self::get_privileges_for_user`], which unions the group
+    /// grants because that is what an effective-permission check needs. Callers
+    /// that manipulate mappings (deleting a user, listing what to revoke) need
+    /// this narrower set.
+    pub fn get_direct_privileges_for_user(&self, user_id: &str) -> Vec<Privilege> {
+        let mut session = self.create_session();
+        let result = self.get_direct_privileges_for_user_in_session(user_id, &mut session);
+        let _ = session.rollback();
+        result
+    }
+
+    pub fn get_direct_privileges_for_user_in_session(
+        &self,
+        user_id: &str,
+        session: &mut DbSession,
+    ) -> Vec<Privilege> {
+        let store = self.get_store();
+        let mut privileges = store
+            .find_privilege_mappings_by_user(user_id, session)
+            .into_iter()
+            .filter_map(|mapping| store.find_privilege(&mapping.privilege_id, session))
+            .collect::<Vec<_>>();
+        privileges.sort_by(|left, right| left.id.cmp(&right.id));
+        privileges.dedup_by(|left, right| left.id == right.id);
+        privileges
+    }
+
+    /// Every privilege row. Java reaches these through
+    /// `PrivilegeRepository.findAll()`, which the idm app's privilege list needs;
+    /// there is no query builder for privileges because there is nothing to filter
+    /// on.
+    pub fn list_privileges(&self) -> Vec<Privilege> {
+        let mut session = self.create_session();
+        let result = self.list_privileges_in_session(&mut session);
+        let _ = session.rollback();
+        result
+    }
+
+    pub fn list_privileges_in_session(&self, session: &mut DbSession) -> Vec<Privilege> {
+        let mut privileges = self.get_store().list_privileges(session);
+        privileges.sort_by(|left, right| left.id.cmp(&right.id));
+        privileges
+    }
+
+    /// The users and groups a privilege is granted to — the reverse of
+    /// [`Self::get_privileges_for_user`]. Java exposes this as
+    /// `PrivilegeMappingRepository.findByPrivilegeId`; the idm app's
+    /// single-privilege screen lists both sides.
+    ///
+    /// A mapping row carries either `user_id` or `group_id`, never both, so the
+    /// two returned vectors partition the mappings.
+    pub fn get_privilege_mapping_ids(&self, privilege_id: &str) -> (Vec<String>, Vec<String>) {
+        let mut session = self.create_session();
+        let result = self.get_privilege_mapping_ids_in_session(privilege_id, &mut session);
+        let _ = session.rollback();
+        result
+    }
+
+    pub fn get_privilege_mapping_ids_in_session(
+        &self,
+        privilege_id: &str,
+        session: &mut DbSession,
+    ) -> (Vec<String>, Vec<String>) {
+        let mappings = self
+            .get_store()
+            .find_privilege_mappings_by_privilege(privilege_id, session);
+
+        let mut user_ids = Vec::new();
+        let mut group_ids = Vec::new();
+        for mapping in mappings {
+            if let Some(user_id) = mapping.user_id {
+                user_ids.push(user_id);
+            } else if let Some(group_id) = mapping.group_id {
+                group_ids.push(group_id);
+            }
+        }
+        user_ids.sort();
+        group_ids.sort();
+        (user_ids, group_ids)
+    }
+
     pub fn save_token(&self, token: Token) {
         let mut session = self.create_session();
         self.save_token_in_session(token, &mut session);
