@@ -9,6 +9,9 @@ license.workspace = true
 flowable-engine = { path = "../flowable-engine" }
 flowable-engine-common = { path = "../flowable-engine-common" }
 flowable-identity-service = { path = "../flowable-identity-service" }
+flowable-bpmn-model = { path = "../flowable-bpmn-model" }
+flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
+flowable-content-service = { path = "../flowable-content-service" }
 axum = { version = "0.7.9", features = ["multipart"] }
 # axum-core 0.4 still declares `FromRequestParts` with `#[async_trait]`, so the
 # `UiAuth` extractor impl has to carry the same attribute.

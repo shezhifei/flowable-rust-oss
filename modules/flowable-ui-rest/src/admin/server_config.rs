@@ -1,8 +1,11 @@
 //! ServerConfig store aligned with Java admin domain + representation.
+//! Durable via JSON file (path from `FLOWABLE_UI_SERVER_CONFIG_PATH` or
+//! `./data/ui-admin-server-configs.json`).
 
 use super::crypto::PasswordCipher;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use uuid::Uuid;
 
@@ -101,19 +104,31 @@ impl From<&ServerConfig> for ServerConfigRepresentation {
     }
 }
 
-/// In-memory store seeded with defaults pointing at this process's engine REST.
+fn default_store_path() -> PathBuf {
+    std::env::var("FLOWABLE_UI_SERVER_CONFIG_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("./data/ui-admin-server-configs.json"))
+}
+
+/// In-memory store with optional JSON file durability.
 pub struct ServerConfigStore {
     configs: RwLock<HashMap<String, ServerConfig>>,
     cipher: PasswordCipher,
+    path: PathBuf,
 }
 
 impl ServerConfigStore {
     pub fn with_defaults() -> Self {
+        let path = default_store_path();
         let store = Self {
             configs: RwLock::new(HashMap::new()),
             cipher: PasswordCipher::from_env(),
+            path,
         };
-        store.seed_defaults();
+        if !store.load_from_disk() {
+            store.seed_defaults();
+            let _ = store.persist();
+        }
         store
     }
 
@@ -121,11 +136,48 @@ impl ServerConfigStore {
         Self {
             configs: RwLock::new(HashMap::new()),
             cipher,
+            path: PathBuf::from(std::env::temp_dir()).join(format!(
+                "flowable-ui-sc-test-{}.json",
+                Uuid::new_v4()
+            )),
         }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     pub fn cipher(&self) -> &PasswordCipher {
         &self.cipher
+    }
+
+    fn load_from_disk(&self) -> bool {
+        let Ok(bytes) = std::fs::read(&self.path) else {
+            return false;
+        };
+        let Ok(list) = serde_json::from_slice::<Vec<ServerConfig>>(&bytes) else {
+            return false;
+        };
+        if list.is_empty() {
+            return false;
+        }
+        let mut guard = self.configs.write().expect("server config lock");
+        guard.clear();
+        for cfg in list {
+            guard.insert(cfg.id.clone(), cfg);
+        }
+        true
+    }
+
+    fn persist(&self) -> Result<(), String> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let guard = self.configs.read().expect("server config lock");
+        let mut list: Vec<_> = guard.values().cloned().collect();
+        list.sort_by_key(|c| c.endpoint_type);
+        let bytes = serde_json::to_vec_pretty(&list).map_err(|e| e.to_string())?;
+        std::fs::write(&self.path, bytes).map_err(|e| e.to_string())
     }
 
     fn seed_defaults(&self) {
@@ -139,8 +191,6 @@ impl ServerConfigStore {
         let password =
             std::env::var("FLOWABLE_UI_ENGINE_PASSWORD").unwrap_or_else(|_| "test".into());
 
-        // Rust engine REST is flat (no process-api / cmmn-api prefixes).
-        // Empty context/rest roots → URL is host:port/<engine-path>.
         for endpoint in EndpointType::all() {
             let (name, description) = default_meta(endpoint);
             let mut cfg = ServerConfig {
@@ -201,22 +251,24 @@ impl ServerConfigStore {
         server_id: &str,
         rep: ServerConfigRepresentation,
     ) -> Result<(), String> {
-        let mut guard = self.configs.write().expect("server config lock");
-        let config = guard
-            .get_mut(server_id)
-            .ok_or_else(|| format!("Server with id '{server_id}' does not exist"))?;
+        {
+            let mut guard = self.configs.write().expect("server config lock");
+            let config = guard
+                .get_mut(server_id)
+                .ok_or_else(|| format!("Server with id '{server_id}' does not exist"))?;
 
-        if let Some(plain) = rep.password.filter(|p| !p.is_empty()) {
-            config.password = self.cipher.encrypt(&plain)?;
+            if let Some(plain) = rep.password.filter(|p| !p.is_empty()) {
+                config.password = self.cipher.encrypt(&plain)?;
+            }
+            config.context_root = rep.context_root;
+            config.description = rep.description;
+            config.name = rep.name;
+            config.port = rep.server_port;
+            config.rest_root = rep.rest_root;
+            config.server_address = rep.server_address;
+            config.user_name = rep.user_name;
         }
-        config.context_root = rep.context_root;
-        config.description = rep.description;
-        config.name = rep.name;
-        config.port = rep.server_port;
-        config.rest_root = rep.rest_root;
-        config.server_address = rep.server_address;
-        config.user_name = rep.user_name;
-        Ok(())
+        self.persist()
     }
 
     pub fn save_new(&self, mut config: ServerConfig, encrypt_password: bool) -> Result<(), String> {
@@ -230,7 +282,7 @@ impl ServerConfigStore {
             .write()
             .expect("server config lock")
             .insert(config.id.clone(), config);
-        Ok(())
+        self.persist()
     }
 
     pub fn default_representation(endpoint: EndpointType) -> ServerConfigRepresentation {

@@ -14,6 +14,8 @@ use axum::{
     Json, Router,
 };
 use chrono::{DateTime, Utc};
+use flowable_cmmn_engine::CmmnCaseInstanceStartRequest;
+use flowable_content_service::{CreateContentItemRequest, FlowableContentService};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query as EngineQuery;
 use flowable_engine::engine::task_service::TaskUpdate;
@@ -109,12 +111,36 @@ pub fn router() -> Router {
             "/app/rest/process-definitions/:process_definition_id/start-form",
             get(process_definition_start_form),
         )
-        // Case (thin list/start surface)
+        // Case
         .route("/app/rest/case-definitions", get(list_case_definitions))
-        .route("/app/rest/case-instances", post(start_case_instance_stub))
+        .route("/app/rest/case-instances", post(start_case_instance))
+        .route(
+            "/app/rest/case-instances/:case_instance_id",
+            get(get_case_instance).delete(delete_case_instance),
+        )
         .route(
             "/app/rest/query/case-instances",
-            post(query_case_instances_stub),
+            post(query_case_instances),
+        )
+        // Debugger (gated by FLOWABLE_EXPERIMENTAL_DEBUGGER_ENABLED)
+        .route("/app/rest/debugger", get(debugger_allowed))
+        .route(
+            "/app/rest/debugger/breakpoints",
+            get(list_breakpoints)
+                .post(add_breakpoint)
+                .delete(remove_breakpoint),
+        )
+        .route(
+            "/app/rest/debugger/eventlog/:process_instance_id",
+            get(debugger_event_log),
+        )
+        .route(
+            "/app/rest/debugger/executions/:process_instance_id",
+            get(debugger_executions),
+        )
+        .route(
+            "/app/rest/debugger/variables/:execution_id",
+            get(debugger_variables),
         )
         // Workflow users/groups
         .route("/app/rest/workflow-users", get(workflow_users))
@@ -130,20 +156,24 @@ pub fn router() -> Router {
             "/app/rest/runtime/app-definitions/:app_definition_key",
             get(get_app_definition),
         )
-        // Content stubs (content-service wiring deferred)
+        // Related content
         .route(
             "/app/rest/tasks/:task_id/content",
-            get(empty_content_list),
+            get(list_task_content).post(add_task_content),
         )
         .route(
             "/app/rest/process-instances/:process_instance_id/content",
-            get(empty_content_list),
+            get(list_pi_content).post(add_pi_content),
         )
         .route(
             "/app/rest/case-instances/:case_instance_id/content",
-            get(empty_content_list),
+            get(list_case_content),
         )
-        }
+        .route(
+            "/app/rest/content/:content_id",
+            get(get_content).delete(delete_content),
+        )
+}
 
 
 // ---------------------------------------------------------------------------
@@ -1025,30 +1055,441 @@ async fn process_definition_start_form(
     Json(json!({ "id": null, "fields": [], "outcomes": [] }))
 }
 
-// ---- Case stubs ----
+// ---- Case ----
 
-async fn list_case_definitions(Extension(_engine): Extension<Arc<ProcessEngine>>) -> impl IntoResponse {
-    Json(ResultListDataRepresentation::<Value>::from_page(
-        vec![],
-        0,
-        Some(0),
-    ))
+fn cmmn_engine(
+    engine: &ProcessEngine,
+) -> Result<Arc<flowable_cmmn_engine::CmmnEngine>, TaskError> {
+    engine
+        .get_config()
+        .cmmn_engine
+        .clone()
+        .ok_or_else(|| TaskError::bad_request("CMMN engine is not configured on this process engine"))
 }
 
-async fn start_case_instance_stub() -> impl IntoResponse {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({ "message": "Case instance start requires cmmn-engine wiring (follow-up)" })),
-    )
+async fn list_case_definitions(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let defs = cmmn
+        .repository_service()
+        .create_case_definition_query()
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let data: Vec<_> = defs
+        .into_iter()
+        .map(|d| {
+            json!({
+                "id": d.id,
+                "name": d.name,
+                "key": d.key,
+                "version": d.version,
+                "category": d.category,
+                "deploymentId": d.deployment_id,
+            })
+        })
+        .collect();
+    let total = data.len() as i64;
+    Ok(Json(ResultListDataRepresentation::from_page(
+        data, 0, Some(total),
+    )))
 }
 
-async fn query_case_instances_stub() -> impl IntoResponse {
-    Json(ResultListDataRepresentation::<Value>::from_page(
-        vec![],
-        0,
-        Some(0),
-    ))
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StartCaseBody {
+    case_definition_id: Option<String>,
+    case_definition_key: Option<String>,
+    name: Option<String>,
+    business_key: Option<String>,
+    values: Option<HashMap<String, Value>>,
 }
+
+async fn start_case_instance(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Json(body): Json<StartCaseBody>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let mut request = CmmnCaseInstanceStartRequest::default();
+    request.name = body.name;
+    request.business_key = body.business_key;
+    if let Some(vars) = body.values {
+        request.variables = Value::Object(vars.into_iter().collect());
+    }
+    let instance = if let Some(id) = body.case_definition_id.filter(|s| !s.is_empty()) {
+        cmmn.runtime_service()
+            .start_case_instance_by_id(&id, request)
+            .map_err(|e| TaskError::bad_request(e.to_string()))?
+    } else if let Some(key) = body.case_definition_key.filter(|s| !s.is_empty()) {
+        cmmn.runtime_service()
+            .start_case_instance_by_key(&key, request)
+            .map_err(|e| TaskError::bad_request(e.to_string()))?
+    } else {
+        return Err(TaskError::bad_request(
+            "caseDefinitionId or caseDefinitionKey is required",
+        ));
+    };
+    Ok(Json(json!({
+        "id": instance.id,
+        "name": instance.name,
+        "businessKey": instance.business_key,
+        "caseDefinitionId": instance.case_definition_id,
+        "caseDefinitionKey": instance.case_definition_key,
+        "ended": instance.ended_at.is_some(),
+    })))
+}
+
+async fn get_case_instance(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let list = cmmn
+        .runtime_service()
+        .create_case_instance_query()
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let instance = list
+        .into_iter()
+        .find(|c| c.id == case_instance_id)
+        .ok_or_else(|| TaskError::not_found(format!("Case instance {case_instance_id}")))?;
+    Ok(Json(json!({
+        "id": instance.id,
+        "name": instance.name,
+        "businessKey": instance.business_key,
+        "caseDefinitionId": instance.case_definition_id,
+        "caseDefinitionKey": instance.case_definition_key,
+        "ended": instance.ended_at.is_some(),
+    })))
+}
+
+async fn delete_case_instance(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    cmmn.runtime_service()
+        .terminate_case_instance(&case_instance_id)
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    Ok(StatusCode::OK)
+}
+
+async fn query_case_instances(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Json(body): Json<Value>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let page = body.get("page").and_then(|v| v.as_i64()).unwrap_or(0) as usize;
+    let size = body
+        .get("size")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(25)
+        .clamp(1, 1000) as usize;
+    let mut list = cmmn
+        .runtime_service()
+        .create_case_instance_query()
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    if let Some(key) = body
+        .get("caseDefinitionKey")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        list.retain(|c| c.case_definition_key == key);
+    }
+    let total = list.len() as i64;
+    let start = page * size;
+    let data: Vec<_> = list
+        .into_iter()
+        .skip(start)
+        .take(size)
+        .map(|c| {
+            json!({
+                "id": c.id,
+                "name": c.name,
+                "businessKey": c.business_key,
+                "caseDefinitionId": c.case_definition_id,
+                "caseDefinitionKey": c.case_definition_key,
+                "ended": c.ended_at.is_some(),
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(
+        data,
+        start as i32,
+        Some(total),
+    )))
+}
+
+// ---- Content ----
+
+fn content_service(engine: Arc<ProcessEngine>) -> FlowableContentService {
+    FlowableContentService::new(engine)
+}
+
+async fn list_task_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(task_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let svc = content_service(engine);
+    let items = svc
+        .create_content_item_query()
+        .task_id(task_id)
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let data: Vec<_> = items.into_iter().map(content_item_json).collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn list_pi_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let svc = content_service(engine);
+    let items = svc
+        .create_content_item_query()
+        .process_instance_id(process_instance_id)
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let data: Vec<_> = items.into_iter().map(content_item_json).collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn list_case_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let svc = content_service(engine);
+    let items = svc
+        .create_content_item_query()
+        .scope_id(case_instance_id)
+        .scope_type("cmmn")
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let data: Vec<_> = items.into_iter().map(content_item_json).collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContentBody {
+    name: Option<String>,
+    content: Option<String>,
+    mime_type: Option<String>,
+}
+
+async fn add_task_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(task_id): Path<String>,
+    Json(body): Json<ContentBody>,
+) -> Result<impl IntoResponse, TaskError> {
+    let name = body
+        .name
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| TaskError::bad_request("Content name is required"))?;
+    let svc = content_service(engine);
+    let item = svc
+        .create_content_item(CreateContentItemRequest {
+            name,
+            mime_type: body.mime_type,
+            description: None,
+            attachment_type: None,
+            external_url: None,
+            content: body.content,
+            task_id: Some(task_id),
+            process_instance_id: None,
+            scope_type: None,
+            scope_id: None,
+            created_by: Some(default_user_id()),
+            expires_in_seconds: None,
+        })
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn add_pi_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+    Json(body): Json<ContentBody>,
+) -> Result<impl IntoResponse, TaskError> {
+    let name = body
+        .name
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| TaskError::bad_request("Content name is required"))?;
+    let svc = content_service(engine);
+    let item = svc
+        .create_content_item(CreateContentItemRequest {
+            name,
+            mime_type: body.mime_type,
+            description: None,
+            attachment_type: None,
+            external_url: None,
+            content: body.content,
+            task_id: None,
+            process_instance_id: Some(process_instance_id),
+            scope_type: None,
+            scope_id: None,
+            created_by: Some(default_user_id()),
+            expires_in_seconds: None,
+        })
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn get_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(content_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let svc = content_service(engine);
+    let item = svc
+        .get_content_item(&content_id)
+        .map_err(|e| {
+            let s = e.to_string();
+            if s.to_lowercase().contains("not found") {
+                TaskError::not_found(format!("Content {content_id}"))
+            } else {
+                TaskError::bad_request(s)
+            }
+        })?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn delete_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(content_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let svc = content_service(engine);
+    svc.delete_content_item(&content_id)
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    Ok(StatusCode::OK)
+}
+
+fn content_item_json(item: flowable_content_service::ContentItem) -> Value {
+    json!({
+        "id": item.id,
+        "name": item.name,
+        "mimeType": item.mime_type,
+        "contentAvailable": item.content.is_some() || item.storage_id.is_some(),
+        "contentSize": item.content_size,
+        "created": item.created_at,
+        "createdBy": item.created_by,
+        "taskId": item.task_id,
+        "processInstanceId": item.process_instance_id,
+        "scopeId": item.scope_id,
+        "scopeType": item.scope_type,
+    })
+}
+
+// ---- Debugger ----
+
+fn debugger_enabled() -> bool {
+    std::env::var("FLOWABLE_EXPERIMENTAL_DEBUGGER_ENABLED")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false)
+}
+
+async fn debugger_allowed() -> Json<bool> {
+    Json(debugger_enabled())
+}
+
+async fn list_breakpoints() -> Result<impl IntoResponse, TaskError> {
+    if !debugger_enabled() {
+        return Err(TaskError::bad_request(
+            "property flowable.experimental.debugger.enabled is not enabled",
+        ));
+    }
+    // In-memory breakpoints live in a process-local static.
+    Ok(Json(DEBUG_BREAKPOINTS.lock().unwrap().clone()))
+}
+
+async fn add_breakpoint(Json(body): Json<Value>) -> Result<impl IntoResponse, TaskError> {
+    if !debugger_enabled() {
+        return Err(TaskError::bad_request(
+            "property flowable.experimental.debugger.enabled is not enabled",
+        ));
+    }
+    DEBUG_BREAKPOINTS.lock().unwrap().push(body);
+    Ok(StatusCode::OK)
+}
+
+async fn remove_breakpoint(Json(body): Json<Value>) -> Result<impl IntoResponse, TaskError> {
+    if !debugger_enabled() {
+        return Err(TaskError::bad_request(
+            "property flowable.experimental.debugger.enabled is not enabled",
+        ));
+    }
+    let mut guard = DEBUG_BREAKPOINTS.lock().unwrap();
+    guard.retain(|b| b != &body);
+    Ok(StatusCode::OK)
+}
+
+async fn debugger_event_log(
+    Extension(_engine): Extension<Arc<ProcessEngine>>,
+    Path(_process_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    if !debugger_enabled() {
+        return Err(TaskError::bad_request(
+            "property flowable.experimental.debugger.enabled is not enabled",
+        ));
+    }
+    Ok(Json(json!([])))
+}
+
+async fn debugger_executions(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    if !debugger_enabled() {
+        return Err(TaskError::bad_request(
+            "property flowable.experimental.debugger.enabled is not enabled",
+        ));
+    }
+    let rows = engine
+        .get_runtime_store()
+        .db_store()
+        .find_all::<Value>("executions")
+        .unwrap_or_default();
+    let data: Vec<_> = rows
+        .into_iter()
+        .filter(|r| {
+            r.get("processInstanceId")
+                .and_then(|v| v.as_str())
+                .or_else(|| r.get("process_instance_id").and_then(|v| v.as_str()))
+                == Some(process_instance_id.as_str())
+        })
+        .collect();
+    Ok(Json(data))
+}
+
+async fn debugger_variables(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(execution_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    if !debugger_enabled() {
+        return Err(TaskError::bad_request(
+            "property flowable.experimental.debugger.enabled is not enabled",
+        ));
+    }
+    let vars = engine
+        .get_variable_service()
+        .create_variable_instance_query()
+        .list()
+        .map_err(TaskError::from_engine)?;
+    let data: Vec<_> = vars
+        .into_iter()
+        .filter(|v| v.execution_id == execution_id)
+        .map(|v| {
+            json!({
+                "name": v.name,
+                "type": v.variable_type,
+                "value": v.value,
+            })
+        })
+        .collect();
+    Ok(Json(data))
+}
+
+static DEBUG_BREAKPOINTS: std::sync::Mutex<Vec<Value>> = std::sync::Mutex::new(Vec::new());
 
 // ---- IDM helpers ----
 
@@ -1154,14 +1595,6 @@ async fn get_app_definition(Path(key): Path<String>) -> impl IntoResponse {
         StatusCode::NOT_FOUND,
         Json(json!({ "message": format!("App definition '{key}' not found") })),
     )
-}
-
-async fn empty_content_list() -> impl IntoResponse {
-    Json(ResultListDataRepresentation::<Value>::from_page(
-        vec![],
-        0,
-        Some(0),
-    ))
 }
 
 // ---------------------------------------------------------------------------

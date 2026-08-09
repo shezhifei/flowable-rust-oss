@@ -200,6 +200,92 @@ async fn workflow_users_lists_identity() {
 }
 
 #[tokio::test]
+async fn content_create_and_list_for_task() {
+    let app = router_with_engine(test_engine());
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/app/rest/tasks")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({ "name": "with content" })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let task_id = body_json(res).await["id"].as_str().unwrap().to_string();
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/app/rest/tasks/{task_id}/content"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "name": "note.txt",
+                        "content": "hello",
+                        "mimeType": "text/plain"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let created = body_json(res).await;
+    assert_eq!(created["name"], "note.txt");
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/app/rest/tasks/{task_id}/content"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let list = body_json(res).await;
+    assert!(list["data"].as_array().unwrap().iter().any(|c| c["name"] == "note.txt"));
+}
+
+#[tokio::test]
+async fn debugger_gate_and_allowed_flag() {
+    let app = router_with_engine(test_engine());
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/app/rest/debugger")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    // default false
+    let v = body_json(res).await;
+    assert_eq!(v, json!(false));
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/app/rest/debugger/breakpoints")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn assign_task_returns_representation() {
     let app = router_with_engine(test_engine());
     let res = app

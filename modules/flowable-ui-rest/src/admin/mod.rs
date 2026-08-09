@@ -3,17 +3,19 @@
 //! Transparent HTTP proxy over engine REST, plus ServerConfig CRUD.
 
 mod crypto;
+mod display_json;
 mod proxy;
 mod server_config;
 
 use axum::{
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
 };
+use flowable_engine::engine::process_engine::ProcessEngine;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -196,7 +198,7 @@ pub fn router_with_state(state: AdminState) -> Router {
         // ---- CMMN domain ----
         .route(
             "/admin-app/rest/admin/cmmn-deployments",
-            get(list_cmmn_deployments).post(upload_not_implemented),
+            get(list_cmmn_deployments).post(upload_cmmn_deployment),
         )
         .route(
             "/admin-app/rest/admin/cmmn-deployments/:deployment_id",
@@ -263,7 +265,7 @@ pub fn router_with_state(state: AdminState) -> Router {
         // ---- DMN domain ----
         .route(
             "/admin-app/rest/admin/decision-table-deployments",
-            get(list_decision_deployments).post(upload_not_implemented),
+            get(list_decision_deployments).post(upload_dmn_deployment),
         )
         .route(
             "/admin-app/rest/admin/decision-table-deployments/:deployment_id",
@@ -292,7 +294,7 @@ pub fn router_with_state(state: AdminState) -> Router {
         // ---- FORM domain ----
         .route(
             "/admin-app/rest/admin/form-deployments",
-            get(list_form_deployments).post(upload_not_implemented),
+            get(list_form_deployments).post(upload_form_deployment),
         )
         .route(
             "/admin-app/rest/admin/form-deployments/:deployment_id",
@@ -317,7 +319,7 @@ pub fn router_with_state(state: AdminState) -> Router {
         // ---- APP domain ----
         .route(
             "/admin-app/rest/admin/app-deployments",
-            get(list_app_deployments).post(upload_not_implemented),
+            get(list_app_deployments).post(upload_app_deployment),
         )
         .route(
             "/admin-app/rest/admin/app-deployments/:deployment_id",
@@ -336,6 +338,19 @@ pub fn router_with_state(state: AdminState) -> Router {
         .route(
             "/admin-app/rest/admin/content-items/:content_item_id",
             get(get_content_item),
+        )
+        // Display JSON (assembled from BpmnModel DI)
+        .route(
+            "/admin-app/rest/admin/process-definitions/:process_definition_id/model-json",
+            get(process_definition_model_json),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/model-json",
+            get(process_instance_model_json),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/history-model-json",
+            get(process_instance_history_model_json),
         )
         .with_state(state)
 }
@@ -1682,23 +1697,86 @@ async fn get_content_item(
     .await
 }
 
-async fn upload_not_implemented() -> impl IntoResponse {
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "message": "Multipart deployment upload for this endpoint type is not yet implemented"
-        })),
-    )
-}
-
-/// PROCESS deployment multipart upload → engine `POST repository/deployments`.
 async fn upload_deployment(
     State(state): State<AdminState>,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AdminError> {
+    upload_to_engine(
+        &state,
+        EndpointType::Process,
+        "repository/deployments",
+        multipart,
+        &[".bpmn", ".bpmn20.xml", ".zip", ".bar"],
+    )
+    .await
+}
+
+async fn upload_cmmn_deployment(
+    State(state): State<AdminState>,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AdminError> {
+    upload_to_engine(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-repository/deployments",
+        multipart,
+        &[".cmmn", ".cmmn.xml", ".zip", ".bar"],
+    )
+    .await
+}
+
+async fn upload_dmn_deployment(
+    State(state): State<AdminState>,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AdminError> {
+    upload_to_engine(
+        &state,
+        EndpointType::Dmn,
+        "dmn-repository/deployments",
+        multipart,
+        &[".dmn", ".dmn.xml", ".zip", ".bar"],
+    )
+    .await
+}
+
+async fn upload_form_deployment(
+    State(state): State<AdminState>,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AdminError> {
+    upload_to_engine(
+        &state,
+        EndpointType::Form,
+        "form-repository/deployments",
+        multipart,
+        &[".form", ".json", ".zip", ".bar"],
+    )
+    .await
+}
+
+async fn upload_app_deployment(
+    State(state): State<AdminState>,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AdminError> {
+    upload_to_engine(
+        &state,
+        EndpointType::App,
+        "app-repository/deployments",
+        multipart,
+        &[".zip", ".bar", ".app"],
+    )
+    .await
+}
+
+async fn upload_to_engine(
+    state: &AdminState,
+    endpoint: EndpointType,
+    engine_path: &str,
     mut multipart: axum::extract::Multipart,
+    allowed_ext: &[&str],
 ) -> Result<Response, AdminError> {
     let config = state
         .configs
-        .get_by_endpoint(EndpointType::Process)
+        .get_by_endpoint(endpoint)
         .map_err(AdminError::bad_request)?;
     let password = state
         .configs
@@ -1728,15 +1806,11 @@ async fn upload_deployment(
         .ok_or_else(|| AdminError::bad_request("No file found in POST body"))?;
     let bytes = file_bytes.ok_or_else(|| AdminError::bad_request("No file found in POST body"))?;
     let lower = file_name.to_lowercase();
-    if !(lower.ends_with(".bpmn")
-        || lower.ends_with(".bpmn20.xml")
-        || lower.ends_with(".zip")
-        || lower.ends_with(".bar"))
-    {
+    if !allowed_ext.iter().any(|ext| lower.ends_with(ext)) {
         return Err(AdminError::bad_request("Invalid file name"));
     }
 
-    let url = crate::admin::proxy::build_server_url(&config, "repository/deployments");
+    let url = crate::admin::proxy::build_server_url(&config, engine_path);
     let part = reqwest::multipart::Part::bytes(bytes.to_vec())
         .file_name(file_name)
         .mime_str("application/octet-stream")
@@ -1773,6 +1847,123 @@ async fn upload_deployment(
             "Deployment failed with status {status}"
         )))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Display JSON (in-process BpmnModel when engine Extension is present)
+// ---------------------------------------------------------------------------
+
+async fn process_definition_model_json(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_definition_id): Path<String>,
+) -> Result<impl IntoResponse, AdminError> {
+    let model = engine
+        .get_repository_service()
+        .get_bpmn_model(&process_definition_id)
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    Ok(Json(display_json::build_process_definition_display(
+        model.as_ref(),
+    )))
+}
+
+async fn process_instance_model_json(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse, AdminError> {
+    let pd_id = params
+        .get("processDefinitionId")
+        .cloned()
+        .ok_or_else(|| AdminError::bad_request("processDefinitionId is required"))?;
+    let model = engine
+        .get_repository_service()
+        .get_bpmn_model(&pd_id)
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    let completed = historic_activity_ids(&engine, &process_instance_id, true);
+    let current = runtime_activity_ids(&engine, &process_instance_id);
+    Ok(Json(display_json::build_process_instance_display(
+        model.as_ref(),
+        &completed,
+        &current,
+    )))
+}
+
+async fn process_instance_history_model_json(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse, AdminError> {
+    let pd_id = params
+        .get("processDefinitionId")
+        .cloned()
+        .ok_or_else(|| AdminError::bad_request("processDefinitionId is required"))?;
+    let model = engine
+        .get_repository_service()
+        .get_bpmn_model(&pd_id)
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    let completed = historic_activity_ids(&engine, &process_instance_id, false);
+    Ok(Json(display_json::build_history_display(
+        model.as_ref(),
+        &completed,
+    )))
+}
+
+fn historic_activity_ids(engine: &ProcessEngine, process_instance_id: &str, only_finished: bool) -> Vec<String> {
+    // Best-effort: read historic activity instances from the store if present.
+    let Ok(rows) = engine
+        .get_runtime_store()
+        .db_store()
+        .find_all::<serde_json::Value>("historic_activity_instances")
+    else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .filter(|r| {
+            r.get("processInstanceId")
+                .and_then(|v| v.as_str())
+                .or_else(|| r.get("process_instance_id").and_then(|v| v.as_str()))
+                == Some(process_instance_id)
+        })
+        .filter(|r| {
+            if !only_finished {
+                return true;
+            }
+            r.get("endTime")
+                .or_else(|| r.get("end_time"))
+                .map(|v| !v.is_null())
+                .unwrap_or(false)
+        })
+        .filter_map(|r| {
+            r.get("activityId")
+                .or_else(|| r.get("activity_id"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+fn runtime_activity_ids(engine: &ProcessEngine, process_instance_id: &str) -> Vec<String> {
+    let Ok(rows) = engine
+        .get_runtime_store()
+        .db_store()
+        .find_all::<serde_json::Value>("executions")
+    else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .filter(|r| {
+            r.get("processInstanceId")
+                .and_then(|v| v.as_str())
+                .or_else(|| r.get("process_instance_id").and_then(|v| v.as_str()))
+                == Some(process_instance_id)
+        })
+        .filter_map(|r| {
+            r.get("activityId")
+                .or_else(|| r.get("activity_id"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------

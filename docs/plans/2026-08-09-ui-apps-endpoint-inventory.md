@@ -77,11 +77,13 @@ Display JSON: `/rest/admin/process-definitions|process-instances|case-definition
 ## Stream B implementation status (this branch)
 
 - [x] B0 scaffold + health probes
-- [x] Admin ServerConfig CRUD + AES encrypt
+- [x] Admin ServerConfig CRUD + AES encrypt + **JSON file persistence**
 - [x] Admin proxy core + primary domains (process/cmmn/dmn/form/app/content)
-- [x] Admin multipart PROCESS deploy upload
-- [ ] Admin display-json full assembly (partial / deferred; engine model endpoints usable)
+- [x] Admin multipart deploy (process/cmmn/dmn/form/app)
+- [x] Admin display-json (BpmnModel DI → elements/flows/highlight)
 - [x] Task RestVariable converters
 - [x] Task aggregation: create/query/action/form/comments/process/users/groups
-- [ ] Case full surface + related content upload + debugger (stubs/empty lists)
-- [x] Mounted into `flowable-rest` via `ui_router_with_engine`
+- [x] Case list/start/get/delete/query (via ProcessEngine.cmmn_engine)
+- [x] Related content list/create/get/delete
+- [x] Debugger gate + breakpoints + executions/variables (env-flagged)
+- [x] Mounted into `flowable-rest` via stream A `ui_router()`
