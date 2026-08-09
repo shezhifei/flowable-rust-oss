@@ -30,11 +30,17 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
         id: "token-1".to_string(),
         token_value: "alpha-token".to_string(),
         user_id: Some("kermit".to_string()),
+        token_date: None,
+        ip_address: None,
+        user_agent: None,
     });
     identity_facade.save_token(Token {
         id: "token-2".to_string(),
         token_value: "beta-token".to_string(),
         user_id: Some("gonzo".to_string()),
+        token_date: None,
+        ip_address: None,
+        user_agent: None,
     });
 
     let kermit_tokens = identity_facade

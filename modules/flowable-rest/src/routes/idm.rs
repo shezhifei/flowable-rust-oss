@@ -1364,6 +1364,9 @@ pub async fn create_token(
         id: req.id.clone(),
         token_value: req.token_value.clone(),
         user_id: req.user_id.clone(),
+        token_date: Some(chrono::Utc::now().timestamp_millis()),
+        ip_address: None,
+        user_agent: None,
     };
     engine.0.get_identity_service().save_token(token.clone());
     Ok(Json(TokenResponse::from(token)))

@@ -62,11 +62,27 @@ pub struct PrivilegeMapping {
     pub group_id: Option<String>,
 }
 
+/// Persistent authentication token. `id` doubles as the remember-me *series*
+/// identifier: the UI cookie carries `series:tokenValue`, the series locates the
+/// row and the value is then compared to detect cookie theft.
+///
+/// `token_date`/`ip_address`/`user_agent` mirror Java's `ACT_ID_TOKEN` columns
+/// and are what the remember-me rolling/expiry logic reads. They are
+/// `#[serde(default)]` because the store keeps entities as JSON documents: rows
+/// written before these fields existed still deserialize, with `token_date`
+/// absent meaning "unknown age" (treated as expired by the UI auth layer).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Token {
     pub id: String,
     pub token_value: String,
     pub user_id: Option<String>,
+    /// Issue time in epoch milliseconds.
+    #[serde(default)]
+    pub token_date: Option<i64>,
+    #[serde(default)]
+    pub ip_address: Option<String>,
+    #[serde(default)]
+    pub user_agent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
