@@ -821,3 +821,68 @@ pub fn router(config: Arc<UiAuthConfig>) -> Router {
         .route("/app/logout", get(logout).post(logout))
         .with_state(config)
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The whole `DEFAULT_AUTHORIZE_REQUESTS` table, path by path.
+    ///
+    /// Spring stops at the first matching `antMatcher`, so the ordering inside
+    /// [`required_access`] is what makes the exact-path rules survive the prefix
+    /// rules that would otherwise capture them. That ordering is invisible from
+    /// the outside and a reordering would silently downgrade access rather than
+    /// fail loudly, which is why the pairs that collide are all listed here.
+    #[test]
+    fn access_table_matches_the_java_configuration() {
+        let cases: &[(&str, Access)] = &[
+            // permitAll.
+            ("/app/authentication", Access::Public),
+            ("/idm", Access::Public),
+            ("/app/logout", Access::Public),
+            // authenticated(), each of which sits under a prefix rule below.
+            ("/app/rest/account", Access::Authenticated),
+            ("/app/rest/runtime/app-definitions", Access::Authenticated),
+            ("/idm-app/rest/authenticate", Access::Authenticated),
+            ("/idm-app/rest/account", Access::Authenticated),
+            ("/", Access::Authenticated),
+            // Privilege prefixes.
+            ("/app/rest/tasks", Access::Privilege(ACCESS_TASK)),
+            ("/workflow/", Access::Privilege(ACCESS_TASK)),
+            ("/admin-app/rest/server-configs", Access::Privilege(ACCESS_ADMIN)),
+            ("/admin/", Access::Privilege(ACCESS_ADMIN)),
+            ("/idm-app/rest/admin/users", Access::Privilege(ACCESS_IDM)),
+            ("/modeler-app/rest/models", Access::Privilege(ACCESS_MODELER)),
+            ("/modeler/", Access::Privilege(ACCESS_MODELER)),
+            // Everything unlisted, which is how Spring's default-permit branch
+            // behaves and how the static assets stay reachable before login.
+            ("/scripts/app-cfg.js", Access::Public),
+            ("/styles/style.css", Access::Public),
+            ("/images/logo.png", Access::Public),
+            ("/idm/index.html", Access::Public),
+            ("/favicon.ico", Access::Public),
+            ("/totally-unknown", Access::Public),
+        ];
+
+        for (path, expected) in cases {
+            assert_eq!(
+                required_access(path),
+                *expected,
+                "access for {path} does not match the Java table"
+            );
+        }
+    }
+
+    /// `/idm` is public so an anonymous user can reach the login screen, while
+    /// `/` is not. Both are exact matches that a careless prefix rule would
+    /// swallow, and getting them backwards either locks everyone out of login or
+    /// exposes the task app, so they are worth stating on their own.
+    #[test]
+    fn login_app_is_public_but_the_root_is_not() {
+        assert_eq!(required_access("/idm"), Access::Public);
+        assert_eq!(required_access("/"), Access::Authenticated);
+        // The trailing-slash form is not the permitAll entry; it falls through to
+        // the idm prefix rules, which do not match `/idm/`, so it is public too.
+        // Stated because the pair looks like an oversight otherwise.
+        assert_eq!(required_access("/idm/"), Access::Public);
+    }
+}

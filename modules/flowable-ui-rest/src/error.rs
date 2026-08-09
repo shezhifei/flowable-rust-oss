@@ -37,25 +37,26 @@ pub struct ErrorInfo {
 
 #[derive(Debug)]
 pub enum UiError {
-    /// 401. Java throws `UnauthorizedException`.
+    /// HTTP 401 — Java throws `UnauthorizedException`.
     Unauthorized(String),
-    /// 403. Java throws `NotPermittedException`.
+    /// HTTP 403 — Java throws `NotPermittedException`.
     Forbidden(String),
-    /// 404. Java throws `NotFoundException`. `None` is the no-argument
+    /// HTTP 404 — Java throws `NotFoundException`; `None` is its no-argument
     /// constructor, which serialises `"message": null`.
     NotFound(Option<String>),
-    /// 400. Java throws `BadRequestException`.
+    /// HTTP 400 — Java throws `BadRequestException`.
     BadRequest(String),
-    /// 409. Java throws `ConflictingRequestException`, which carries a caller
-    /// supplied message key (e.g. `ACCOUNT.SIGNUP.ERROR.ALREADY-REGISTERED`)
-    /// and falls back to the bad-request key.
+    /// HTTP 409 — Java throws `ConflictingRequestException`, which carries a
+    /// caller-supplied message key such as
+    /// `ACCOUNT.SIGNUP.ERROR.ALREADY-REGISTERED` and falls back to the
+    /// bad-request key.
     Conflict {
         message: String,
         message_key: Option<String>,
     },
-    /// 500. Java throws `InternalServerErrorException`.
+    /// HTTP 500 — Java throws `InternalServerErrorException`.
     Internal(String),
-    /// 404 with an empty body, for endpoints that declare a non-JSON content
+    /// HTTP 404 with an empty body, for endpoints that declare a non-JSON content
     /// type (Java's `NonJsonResourceNotFoundException`, whose handler returns
     /// no body). Used by the profile-picture endpoint.
     NotFoundNoBody,
