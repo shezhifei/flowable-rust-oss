@@ -20,7 +20,9 @@ pub use adapters::rusqlite_pool::{
     SqliteConnectionManager, SqlitePool, SqlitePooledConnection, SqliteTarget,
     create_sqlite_session_factory,
 };
-pub use adapters::sqlx_executor::{SqlxExecutor, SqlxExecutorFactory, dialect_for};
+pub use adapters::sqlx_executor::{
+    SqlxExecutor, SqlxExecutorFactory, dialect_for, shared_runtime,
+};
 pub use config::{DatabaseConfig, DatabaseKind, SchemaMode};
 pub use db_session::{DbSession, FilterOp};
 pub use db_session_factory::DbSessionFactory;

@@ -6,8 +6,77 @@ use crate::row::DbRow;
 use crate::statement::RenderedStatement;
 use crate::value::DbValue;
 use sqlx::{Column, Row};
+use std::future::Future;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
+use tokio::runtime::{Runtime, RuntimeFlavor};
+
+/// The one tokio runtime the sqlx backends bridge onto, for the life of the
+/// process.
+///
+/// A runtime per session factory would be dropped whenever its engine is, and
+/// dropping a `Runtime` blocks until its threads wind down — which tokio forbids
+/// on a thread that is driving tasks. An engine released inside a handler or at
+/// `#[tokio::main]` shutdown would panic on the way out. One shared runtime is
+/// never dropped, so that end of the bridge cannot fail; it also stops each
+/// engine from standing up its own thread pool, which is the behaviour a server
+/// wants anyway.
+pub fn shared_runtime() -> Result<Arc<Runtime>, PersistenceError> {
+    static SHARED: std::sync::OnceLock<Result<Arc<Runtime>, String>> = std::sync::OnceLock::new();
+    SHARED
+        .get_or_init(|| {
+            Runtime::new()
+                .map(Arc::new)
+                .map_err(|error| error.to_string())
+        })
+        .clone()
+        .map_err(PersistenceError::Connection)
+}
+
+/// Drives `future` to completion on `runtime` from synchronous code, including
+/// when the caller is already inside *another* tokio runtime.
+///
+/// The store API is synchronous while sqlx is not, so every statement here
+/// bridges the two with `block_on`. Called bare, that bridge panics with
+/// "Cannot start a runtime from within a runtime" whenever a runtime is already
+/// on the thread — which is every axum handler and anything under
+/// `#[tokio::main]` or `#[tokio::test]`. That left the sqlx backends unusable
+/// from a server: `flowable-rest` panicked on the first request against Postgres
+/// or MySQL, and its bootstrap panicked before reaching one.
+///
+/// Each case gets the cheapest escape that works:
+/// * no runtime on the thread — block directly, as before;
+/// * multi-thread runtime — `block_in_place` hands this worker's queued tasks to
+///   a sibling and marks the thread blocking, which lifts the restriction;
+/// * anything else — `block_in_place` is only valid on the multi-thread flavour,
+///   so the work goes to a scoped thread that has no runtime of its own. That
+///   covers current-thread and, because `RuntimeFlavor` is `#[non_exhaustive]`,
+///   any flavour added later: the fallback works everywhere, so an unfamiliar
+///   runtime gets the safe path rather than an assumption. It costs a thread
+///   spawn per statement, which is why it is the last resort — a server runs
+///   multi-thread and never lands here, while the shape that does is test code.
+///
+/// Every branch is reached only where the bare call would have panicked, so no
+/// path that works today changes behaviour.
+fn block_on<F>(runtime: &Runtime, future: F) -> F::Output
+where
+    F: Future + Send,
+    F::Output: Send,
+{
+    match tokio::runtime::Handle::try_current() {
+        Err(_) => runtime.block_on(future),
+        Ok(handle) => match handle.runtime_flavor() {
+            RuntimeFlavor::MultiThread => {
+                tokio::task::block_in_place(|| runtime.block_on(future))
+            }
+            _ => std::thread::scope(|scope| {
+                scope
+                    .spawn(|| runtime.block_on(future))
+                    .join()
+                    .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+            }),
+        },
+    }
+}
 
 /// Convert a sqlx row to a `DbRow` by trying each `DbValue` variant in order.
 /// Implemented as a macro to avoid complex generic trait bounds on `Row::try_get`.
@@ -81,7 +150,7 @@ impl SqlxSqliteExecutor {
         runtime: Arc<Runtime>,
         mut connection: sqlx::pool::PoolConnection<sqlx::Sqlite>,
     ) -> Result<Self, PersistenceError> {
-        match runtime.block_on(async { sqlx::query("BEGIN").execute(&mut *connection).await }) {
+        match block_on(&runtime, async { sqlx::query("BEGIN").execute(&mut *connection).await }) {
             Ok(_) => Ok(Self {
                 runtime,
                 connection: Some(connection),
@@ -105,7 +174,7 @@ impl SqlExecutor for SqlxSqliteExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -136,7 +205,7 @@ impl SqlExecutor for SqlxSqliteExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -162,7 +231,7 @@ impl SqlExecutor for SqlxSqliteExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -185,8 +254,7 @@ impl SqlExecutor for SqlxSqliteExecutor {
     fn commit(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                self.runtime
-                    .block_on(async { sqlx::query("COMMIT").execute(&mut **conn).await })
+                block_on(&self.runtime, async { sqlx::query("COMMIT").execute(&mut **conn).await })
                     .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
@@ -197,8 +265,7 @@ impl SqlExecutor for SqlxSqliteExecutor {
     fn rollback(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                self.runtime
-                    .block_on(async { sqlx::query("ROLLBACK").execute(&mut **conn).await })
+                block_on(&self.runtime, async { sqlx::query("ROLLBACK").execute(&mut **conn).await })
                     .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
@@ -238,7 +305,7 @@ impl SqlxPostgresExecutor {
         runtime: Arc<Runtime>,
         mut connection: sqlx::pool::PoolConnection<sqlx::Postgres>,
     ) -> Result<Self, PersistenceError> {
-        match runtime.block_on(async { sqlx::query("BEGIN").execute(&mut *connection).await }) {
+        match block_on(&runtime, async { sqlx::query("BEGIN").execute(&mut *connection).await }) {
             Ok(_) => Ok(Self {
                 runtime,
                 connection: Some(connection),
@@ -263,7 +330,7 @@ impl SqlExecutor for SqlxPostgresExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(&runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -294,7 +361,7 @@ impl SqlExecutor for SqlxPostgresExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(&runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -320,7 +387,7 @@ impl SqlExecutor for SqlxPostgresExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(&runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -343,8 +410,7 @@ impl SqlExecutor for SqlxPostgresExecutor {
     fn commit(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                self.runtime
-                    .block_on(async { sqlx::query("COMMIT").execute(&mut **conn).await })
+                block_on(&self.runtime, async { sqlx::query("COMMIT").execute(&mut **conn).await })
                     .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
@@ -355,8 +421,7 @@ impl SqlExecutor for SqlxPostgresExecutor {
     fn rollback(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                self.runtime
-                    .block_on(async { sqlx::query("ROLLBACK").execute(&mut **conn).await })
+                block_on(&self.runtime, async { sqlx::query("ROLLBACK").execute(&mut **conn).await })
                     .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
@@ -415,8 +480,7 @@ impl SqlxMySqlExecutor {
             .connection
             .as_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        self.runtime
-            .block_on(async {
+        block_on(&self.runtime, async {
                 use sqlx::Executor;
                 // Simple query protocol — prepared BEGIN is rejected (error 1295).
                 conn.execute("START TRANSACTION").await
@@ -453,7 +517,7 @@ impl SqlExecutor for SqlxMySqlExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(&runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -485,7 +549,7 @@ impl SqlExecutor for SqlxMySqlExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(&runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -512,7 +576,7 @@ impl SqlExecutor for SqlxMySqlExecutor {
             .connection
             .as_deref_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
-        let result = runtime.block_on(async {
+        let result = block_on(&runtime, async {
             let mut query = sqlx::query(&statement.sql);
             for value in &statement.params.values {
                 query = match value {
@@ -538,7 +602,7 @@ impl SqlExecutor for SqlxMySqlExecutor {
         }
         if let Some(conn) = self.connection.as_mut() {
             // DDL may have already auto-committed; tolerate "no transaction" errors.
-            let result = self.runtime.block_on(async {
+            let result = block_on(&self.runtime, async {
                 use sqlx::Executor;
                 conn.execute("COMMIT").await
             });
@@ -561,7 +625,7 @@ impl SqlExecutor for SqlxMySqlExecutor {
             return Ok(());
         }
         if let Some(conn) = self.connection.as_mut() {
-            let result = self.runtime.block_on(async {
+            let result = block_on(&self.runtime, async {
                 use sqlx::Executor;
                 conn.execute("ROLLBACK").await
             });
@@ -615,8 +679,7 @@ impl SqlxExecutorFactory {
     ) -> Result<Self, PersistenceError> {
         match config.kind {
             crate::config::DatabaseKind::Sqlite => {
-                let pool = runtime
-                    .block_on(async {
+                let pool = block_on(&runtime, async {
                         sqlx::sqlite::SqlitePoolOptions::new()
                             .max_connections(config.pool_size)
                             .connect(&config.url)
@@ -635,8 +698,7 @@ impl SqlxExecutorFactory {
             }
             #[cfg(feature = "postgres")]
             crate::config::DatabaseKind::Postgres => {
-                let pool = runtime
-                    .block_on(async {
+                let pool = block_on(&runtime, async {
                         sqlx::postgres::PgPoolOptions::new()
                             .max_connections(config.pool_size)
                             .connect(&config.url)
@@ -658,8 +720,7 @@ impl SqlxExecutorFactory {
             )),
             #[cfg(feature = "mysql")]
             crate::config::DatabaseKind::Mysql => {
-                let pool = runtime
-                    .block_on(async {
+                let pool = block_on(&runtime, async {
                         sqlx::mysql::MySqlPoolOptions::new()
                             .max_connections(config.pool_size.max(4))
                             .acquire_timeout(std::time::Duration::from_secs(60))
@@ -694,9 +755,7 @@ impl SqlxExecutorFactory {
                 let pool = self.sqlite_pool.as_ref().ok_or_else(|| {
                     PersistenceError::Pool("SQLite pool not initialized".to_string())
                 })?;
-                let conn = self
-                    .runtime
-                    .block_on(async { pool.acquire().await })
+                let conn = block_on(&self.runtime, async { pool.acquire().await })
                     .map_err(|e| PersistenceError::Connection(e.to_string()))?;
                 Ok(Box::new(SqlxSqliteExecutor::new(
                     Arc::clone(&self.runtime),
@@ -708,9 +767,7 @@ impl SqlxExecutorFactory {
                 let pool = self.postgres_pool.as_ref().ok_or_else(|| {
                     PersistenceError::Pool("Postgres pool not initialized".to_string())
                 })?;
-                let conn = self
-                    .runtime
-                    .block_on(async { pool.acquire().await })
+                let conn = block_on(&self.runtime, async { pool.acquire().await })
                     .map_err(|e| PersistenceError::Connection(e.to_string()))?;
                 Ok(Box::new(SqlxPostgresExecutor::new(
                     Arc::clone(&self.runtime),
@@ -726,9 +783,7 @@ impl SqlxExecutorFactory {
                 let pool = self.mysql_pool.as_ref().ok_or_else(|| {
                     PersistenceError::Pool("MySQL pool not initialized".to_string())
                 })?;
-                let conn = self
-                    .runtime
-                    .block_on(async { pool.acquire().await })
+                let conn = block_on(&self.runtime, async { pool.acquire().await })
                     .map_err(|e| PersistenceError::Connection(e.to_string()))?;
                 Ok(Box::new(SqlxMySqlExecutor::new(
                     Arc::clone(&self.runtime),

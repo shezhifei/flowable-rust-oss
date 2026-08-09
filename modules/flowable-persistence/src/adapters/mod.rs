@@ -28,10 +28,7 @@ pub fn create_session_factory(
             rusqlite_pool::create_sqlite_session_factory(config, catalog)
         }
         DatabaseKind::Postgres | DatabaseKind::Mysql => {
-            let runtime = Arc::new(
-                tokio::runtime::Runtime::new()
-                    .map_err(|e| PersistenceError::Connection(e.to_string()))?,
-            );
+            let runtime = sqlx_executor::shared_runtime()?;
             let sqlx_factory =
                 sqlx_executor::SqlxExecutorFactory::new(config, Arc::clone(&runtime))?;
             let sqlx_factory = Arc::new(sqlx_factory);

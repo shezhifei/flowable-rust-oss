@@ -3,7 +3,7 @@
 //! Connects via the existing sqlx adapter path and reports table presence /
 //! row counts for a fixed candidate list. Does not pull full table contents.
 
-use crate::adapters::sqlx_executor::SqlxExecutorFactory;
+use crate::adapters::sqlx_executor::{SqlxExecutorFactory, shared_runtime};
 use crate::config::{DatabaseConfig, DatabaseKind, SchemaMode};
 use crate::error::PersistenceError;
 use crate::executor::SqlExecutor;
@@ -36,9 +36,9 @@ impl LiveSqlProbe {
             }
         }
 
-        let runtime = Arc::new(
-            Runtime::new().map_err(|error| PersistenceError::Connection(error.to_string()))?,
-        );
+        // Shares the process-wide bridge runtime, so a LiveInspector dropped
+        // inside an async context cannot take a runtime down with it.
+        let runtime = shared_runtime()?;
         let config = DatabaseConfig {
             kind,
             url: url.to_string(),
