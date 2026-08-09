@@ -29,30 +29,6 @@ pub use rest_variable::{
     create_rest_variable, rest_variable_value, RestVariable, RestVariableScope,
 };
 
-/// Shared task-app state.
-#[derive(Clone)]
-pub struct TaskState {
-    pub engine: Arc<ProcessEngine>,
-    /// Current user id used when auth is disabled (stream A backdoor).
-    pub default_user_id: String,
-}
-
-impl TaskState {
-    pub fn new(engine: Arc<ProcessEngine>) -> Self {
-        Self {
-            engine,
-            default_user_id: std::env::var("FLOWABLE_UI_DEFAULT_USER")
-                .unwrap_or_else(|_| "admin".into()),
-        }
-    }
-
-    fn user_id(&self) -> String {
-        // Prefer env-disabled auth principal later via UiAuth extractor when enforced.
-        self.default_user_id.clone()
-    }
-}
-
-
 fn default_user_id() -> String {
     std::env::var("FLOWABLE_UI_DEFAULT_USER").unwrap_or_else(|_| "admin".into())
 }
@@ -458,6 +434,7 @@ struct TaskQueryBody {
     text: Option<String>,
     assignment: Option<String>,
     process_instance_id: Option<String>,
+    #[allow(dead_code)]
     process_definition_id: Option<String>,
     due_before: Option<String>,
     due_after: Option<String>,
