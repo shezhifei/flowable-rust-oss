@@ -23,8 +23,16 @@ base64 = "0.22.1"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
 
+[features]
+# Passthrough only: the UI crate has no backend-specific code, but its smoke
+# tests need the engine built against a real server.
+postgres = ["flowable-engine/postgres"]
+mysql = ["flowable-engine/mysql"]
+
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full"] }
+# The Postgres smoke tests share one schema, so each needs unique row ids.
+uuid = { version = "1.23.1", features = ["v4"] }
 # `cookies` is off on purpose: the tests assert on raw Set-Cookie headers and
 # drive the cookie by hand, so a cookie jar would hide exactly what is under test.
 reqwest = { version = "0.12", features = ["json", "multipart"] }
