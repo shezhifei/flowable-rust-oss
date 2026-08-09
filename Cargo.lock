@@ -1127,6 +1127,8 @@ dependencies = [
  "flowable-engine",
  "flowable-engine-common",
  "flowable-identity-service",
+ "flowable-modeler-protocol",
+ "flowable-modeler-service",
  "http-body-util",
  "once_cell",
  "rand 0.8.6",
@@ -1273,7 +1275,7 @@ checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
 ]
 
 [[package]]

@@ -18,6 +18,11 @@ npm run test:e2e
 The production base path is `/modeler-app/`. Vite development runs on port `5174`; preview and
 Playwright use port `4174`.
 
+The Rust UI server discovers the production bundle at `ui/modeler/dist` relative to the workspace.
+Set `FLOWABLE_MODELER_STATIC_DIR` to override that location in packaged deployments. If the
+directory is absent, REST routes remain mounted and static Modeler routes are omitted rather than
+falling back to source files.
+
 ## BPMN renderer foundation
 
 The current M1 renderer is a first-party React/SVG implementation:

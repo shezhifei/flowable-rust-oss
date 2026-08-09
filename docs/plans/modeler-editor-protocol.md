@@ -55,6 +55,26 @@ without deployment/runtime metadata. Fields use `fieldType` with the values `Con
 `OptionFormField`, `ExpressionFormField`, and `BaseField`. The ordinary field control kind (for
 example `text`, `date`, or `dropdown`) remains the nested field's `type` property.
 
+## HTTP boundary
+
+`flowable-ui-rest::modeler` exposes the protocol through the cookie-authenticated UI surface. Every
+handler also extracts `UiAuth`, so mounting the route module without A's middleware fails closed.
+
+| Method | Path | Request / response |
+| --- | --- | --- |
+| `GET`, `PUT` | `/modeler-app/rest/models/:id/editor/bpmn-json` | BPMN editor document; PUT persists validated BPMN XML |
+| `GET`, `PUT` | `/modeler-app/rest/models/:id/editor/dmn-json` | DMN editor document; PUT persists validated DMN XML |
+| `GET`, `PUT` | `/modeler-app/rest/form-models/:id/editor/form-json` | Form editor document; PUT rejects invalid form semantics before persistence |
+| `POST` | `/modeler-app/rest/models/:id/validate` | Validates the stored BPMN, DMN, or Form source and returns `ValidationResult` |
+| `GET` | `/modeler-app/rest/models/:id/thumbnail` | Returns a generated `image/png`, laying out BPMN without DI first |
+| `POST` | `/modeler-app/rest/editor/layout` | Accepts and returns a BPMN editor document with generated DI |
+
+Repository not-found/conflict/permission errors are translated to A's UI error envelope. Invalid
+client documents are `400`; corrupt persisted source is logged and returned as a non-leaking `500`.
+When `ui/modeler/dist` exists—or `FLOWABLE_MODELER_STATIC_DIR` points to a distribution—the same
+module serves `/modeler-app/` and returns `index.html` for SPA deep links. Exact REST routes take
+precedence over the static fallback.
+
 ## Generation and change discipline
 
 Run from `ui/modeler`:
