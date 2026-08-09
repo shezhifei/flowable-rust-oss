@@ -6537,12 +6537,24 @@ async fn run_server_with_components(
     let app = Router::new()
         .route("/health", get(routes::health::health))
         .route("/ready", get(routes::health::ready))
-        .merge(api_routes)
         // Merged outside `api_routes` on purpose: the UI surface authenticates
         // with its own remember-me cookie scheme and must not sit behind the
         // engine API's Basic-auth middleware. It still lands inside the
         // `Extension(engine)` layer below, which its handlers require.
+        //
+        // It must also be merged *before* `api_routes`, and the order is load
+        // bearing. `Router::layer` wraps a router's fallback as well as its
+        // routes, so the Basic-auth layer on `api_routes` is what answers an
+        // unknown URL with 401 rather than a bare 404. `Router::merge` takes the
+        // fallback of whichever router is merged later, so merging a router with
+        // no fallback of its own after `api_routes` would silently discard that
+        // layered fallback and turn every unknown URL into a 404 — including the
+        // deprecated `/service/**` prefix that
+        // `rest_jmx_native_contract_test` pins at 401.
+        // `ui_surface_wiring_test::unknown_paths_stay_behind_the_api_auth_layer`
+        // guards this.
         .merge(flowable_ui_rest::ui_router())
+        .merge(api_routes)
         .layer(Extension(directory_read_state))
         .layer(Extension(dmn_engine))
         .layer(Extension(engine))

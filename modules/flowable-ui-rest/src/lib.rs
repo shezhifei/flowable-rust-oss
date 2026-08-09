@@ -71,7 +71,14 @@ fn ui_router_from_parts(config: Arc<auth::UiAuthConfig>, static_routes: Router) 
         .merge(auth::router(Arc::clone(&config)))
         .merge(static_routes);
 
-    routes.layer(middleware::from_fn_with_state(
+    // `route_layer`, not `layer`: the latter also wraps the router's fallback,
+    // which would make this router carry a layered catch-all. Merged into the
+    // engine API's app that catch-all wins over the API's own, so every unknown
+    // URL would be answered here — passing the UI auth check, since unmatched
+    // paths map to `Public` — instead of by the API's Basic-auth layer, turning
+    // its 401 into a bare 404. `route_layer` runs only for paths this router
+    // actually claims, which is all the UI surface needs.
+    routes.route_layer(middleware::from_fn_with_state(
         config,
         auth::auth_middleware,
     ))

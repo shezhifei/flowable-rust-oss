@@ -94,6 +94,40 @@ async fn login_endpoint_is_reachable_anonymously() {
     );
 }
 
+/// An unknown URL must still be answered by the engine API's auth layer, not by
+/// the UI router.
+///
+/// `Router::layer` wraps a router's fallback as well as its routes, so the
+/// Basic-auth layer on `api_routes` is what turns an unmatched path into a 401
+/// instead of a bare 404. `Router::merge` adopts the fallback of whichever router
+/// merges later, so merging any router without a fallback of its own after
+/// `api_routes` silently drops that — every unknown URL becomes a 404 and
+/// authentication failures start looking like missing pages. Merging the UI
+/// router *before* `api_routes` is what keeps it; this pins that ordering, since
+/// nothing about the call site makes the dependency visible.
+#[tokio::test]
+async fn unknown_paths_stay_behind_the_api_auth_layer() {
+    let (base_url, client) = spawn("ui_wiring_unknown_paths").await;
+
+    for path in [
+        "/totally-unknown-xyz",
+        // The deprecated management prefix, deliberately unregistered.
+        "/service/management/jmx/connector-descriptor",
+        "/service",
+    ] {
+        let response = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            401,
+            "{path} should be rejected by the API auth layer, not 404'd by the UI router"
+        );
+    }
+}
+
 /// Merging the UI router must not have shadowed the engine API or the health
 /// probes.
 #[tokio::test]

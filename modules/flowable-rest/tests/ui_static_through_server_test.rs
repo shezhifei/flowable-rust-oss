@@ -102,6 +102,10 @@ async fn idm_bundle_is_served_under_its_prefix() {
 /// unknown paths into the SPA shell. A wrong `fallback_service` arrangement
 /// would answer every 404 with `index.html`, which hides broken asset
 /// references and makes missing API routes look like successes.
+///
+/// These requests carry Basic credentials, so they clear the API's auth layer and
+/// reach a genuine 404. Without credentials the same paths are 401 — that half is
+/// `ui_surface_wiring_test::unknown_paths_stay_behind_the_api_auth_layer`.
 #[tokio::test]
 async fn unknown_paths_still_404_rather_than_returning_the_shell() {
     let (base_url, client) = spawn("static_server_unknown_404").await;

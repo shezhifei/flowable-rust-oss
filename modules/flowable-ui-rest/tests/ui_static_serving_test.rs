@@ -197,3 +197,66 @@ async fn a_missing_static_root_mounts_nothing_and_leaves_rest_working() {
     let response = client.get(format!("{base_url}/idm/")).send().await.unwrap();
     assert_eq!(response.status(), 404, "no bundle should be mounted");
 }
+
+/// The task bundle is mounted entry by entry rather than behind a catch-all
+/// fallback, because a fallback would answer every path nothing else claimed and
+/// displace the engine API's auth layer. The cost of that choice is a list that
+/// can drift: an entry missing from `TASK_ENTRIES` is silently unreachable.
+///
+/// So walk the real directory and require every top-level name to be served.
+#[tokio::test]
+async fn every_task_bundle_entry_is_reachable() {
+    let bundle = legacy_root().join("task");
+    if !bundle.is_dir() {
+        eprintln!("skipping: {} not present", bundle.display());
+        return;
+    }
+    let (base_url, client) = spawn("static_task_entry_coverage").await;
+
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&bundle).expect("read task bundle") {
+        let entry = entry.expect("dir entry");
+        let name = entry.file_name().to_string_lossy().to_string();
+        // A directory is probed through a real file inside it, not through the
+        // directory itself: several of these (`display/`, `display-cmmn/`) have no
+        // `index.html`, so a bare directory request correctly 404s and would say
+        // nothing about whether the mount exists.
+        let path = if entry.path().is_dir() {
+            let Some(inner) = first_file_in(&entry.path()) else {
+                continue;
+            };
+            format!("/{name}/{inner}")
+        } else {
+            format!("/{name}")
+        };
+
+        let status = client
+            .get(format!("{base_url}{path}"))
+            .send()
+            .await
+            .unwrap()
+            .status();
+        assert_ne!(
+            status, 404,
+            "{path} is in ui/legacy/task but not served; add \"{name}\" to TASK_ENTRIES in \
+             static_srv.rs"
+        );
+        checked += 1;
+    }
+    assert!(checked > 0, "the bundle should not be empty");
+}
+
+/// The name of some regular file directly inside `directory`, for probing that a
+/// mount resolves. Returns `None` for a directory holding only subdirectories,
+/// which the caller skips.
+fn first_file_in(directory: &std::path::Path) -> Option<String> {
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .ok()?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().is_file())
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .collect();
+    // Sorted so a failure names the same file every run.
+    names.sort();
+    names.into_iter().next()
+}
