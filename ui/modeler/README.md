@@ -38,6 +38,11 @@ undo/redo. The property panel remains read-only until M3. Node selection, wheel/
 drag-to-pan, node dragging, and the typed property summary are covered by Chromium acceptance
 tests.
 
+Palette clicks now create canonical start-event, user-task, exclusive-gateway, subprocess, and data
+object variants with synchronized list/map/DI state. Delete/Backspace and the toolbar delete action
+remove the selected node together with attached boundary events, connected flows, lane references,
+and DI metadata in one reversible command.
+
 ## Architecture boundaries
 
 - The frontend never parses or emits BPMN or DMN XML.

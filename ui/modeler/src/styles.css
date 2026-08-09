@@ -183,7 +183,7 @@ a:focus-visible {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
-  cursor: default;
+  cursor: pointer;
   font-size: 0.59rem;
 }
 .palette-list button:hover {

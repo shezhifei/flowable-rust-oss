@@ -2,15 +2,21 @@ import { useEffect } from 'react';
 
 import type { FlowElementEnum } from '../generated/editor-protocol';
 import { BpmnCanvas } from './BpmnCanvas';
+import { createElementCommand, deleteElementsCommand } from './commands';
 import { documentElements } from './diagramModel';
+import {
+  createPaletteElement,
+  defaultElementSize,
+  type PaletteElementKind,
+} from './elementFactory';
 import { useModelerStore } from './modelerStore';
 
 const palette = [
-  ['Event', '○'],
-  ['Task', '▢'],
-  ['Gateway', '◇'],
-  ['Subprocess', '▣'],
-  ['Data', '⌑'],
+  ['Event', '○', 'event'],
+  ['Task', '▢', 'task'],
+  ['Gateway', '◇', 'gateway'],
+  ['Subprocess', '▣', 'subprocess'],
+  ['Data', '⌑', 'data'],
 ] as const;
 
 export function ModelerWorkspace() {
@@ -23,12 +29,28 @@ export function ModelerWorkspace() {
   const redoStack = useModelerStore((state) => state.redoStack);
   const undo = useModelerStore((state) => state.undo);
   const redo = useModelerStore((state) => state.redo);
+  const execute = useModelerStore((state) => state.execute);
+  const selectElement = useModelerStore((state) => state.selectElement);
   const process = document.model.processes[0];
   const elements = documentElements(document);
   const selectedElement = elements.find((element) => element.id === selectedElementId);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedElementId) {
+        event.preventDefault();
+        execute(deleteElementsCommand([selectedElementId]));
+        selectElement(null);
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.key.toLowerCase() === 'z') {
         event.preventDefault();
@@ -41,7 +63,26 @@ export function ModelerWorkspace() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [redo, undo]);
+  }, [execute, redo, selectElement, selectedElementId, undo]);
+
+  const createElement = (kind: PaletteElementKind) => {
+    const id = nextElementId(elements, kind);
+    const element = createPaletteElement(kind, id);
+    const size = defaultElementSize(kind);
+    const creationIndex = elements.filter((item) => item.id?.startsWith(`modeler-${kind}`)).length;
+    execute(
+      createElementCommand(element, {
+        x: 220 + (creationIndex % 4) * 190,
+        y: 260 + Math.floor(creationIndex / 4) * 140,
+        ...size,
+        rotation: 0,
+        expanded: true,
+        xmlRowNumber: 0,
+        xmlColumnNumber: 0,
+      }),
+    );
+    selectElement(id);
+  };
 
   return (
     <main className="modeler-shell">
@@ -79,14 +120,21 @@ export function ModelerWorkspace() {
         <aside className="palette-panel" aria-label="BPMN element palette">
           <div className="panel-kicker">Elements</div>
           <div className="palette-list">
-            {palette.map(([label, glyph]) => (
-              <button key={label} type="button" title={`${label} tools are enabled in M2`}>
+            {palette.map(([label, glyph, kind]) => (
+              <button
+                key={label}
+                type="button"
+                title={`Create ${label.toLowerCase()}`}
+                onClick={() => createElement(kind)}
+              >
                 <span aria-hidden="true">{glyph}</span>
                 {label}
               </button>
             ))}
           </div>
-          <div className="palette-hint">Drag creation arrives with the M2 command stack.</div>
+          <div className="palette-hint">
+            Click to create. Drag-to-place is the next interaction increment.
+          </div>
         </aside>
 
         <section className="canvas-workspace" aria-label="Process editor workspace">
@@ -116,6 +164,18 @@ export function ModelerWorkspace() {
                 onClick={redo}
               >
                 ↷
+              </button>
+              <button
+                type="button"
+                aria-label="Delete selection"
+                disabled={!selectedElementId}
+                onClick={() => {
+                  if (!selectedElementId) return;
+                  execute(deleteElementsCommand([selectedElementId]));
+                  selectElement(null);
+                }}
+              >
+                ⌫
               </button>
             </div>
             <div className="tool-cluster zoom-controls">
@@ -220,4 +280,11 @@ function elementGlyph(element: FlowElementEnum) {
 
 function humanize(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function nextElementId(elements: FlowElementEnum[], kind: PaletteElementKind) {
+  const existing = new Set(elements.flatMap((element) => (element.id ? [element.id] : [])));
+  let suffix = 1;
+  while (existing.has(`modeler-${kind}-${suffix}`)) suffix += 1;
+  return `modeler-${kind}-${suffix}`;
 }
