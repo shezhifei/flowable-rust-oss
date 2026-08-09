@@ -22,6 +22,17 @@ tracing = "0.1"
 base64 = "0.22.1"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
+# Stream B (admin proxy + crypto)
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream"] }
+uuid = { version = "1", features = ["v4"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+cipher = "0.4"
+bytes = "1"
+thiserror = "2"
+url = "2"
+dashmap = "6"
+once_cell = "1"
 
 [features]
 # Passthrough only: the UI crate has no backend-specific code, but its smoke
@@ -38,6 +49,9 @@ uuid = { version = "1.23.1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 # The auth tests decode the remember-me cookie to forge a same-series token.
 base64 = "0.22.1"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3.14"
 
 [lib]
 path = "src/lib.rs"

@@ -1,0 +1,1884 @@
+//! Admin UI app (`/admin-app/**`) — stream B.
+//!
+//! Transparent HTTP proxy over engine REST, plus ServerConfig CRUD.
+
+mod crypto;
+mod proxy;
+mod server_config;
+
+use axum::{
+    body::Bytes,
+    extract::{Path, Query, State},
+    http::{HeaderMap, Method, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post, put},
+    Json, Router,
+};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+pub use proxy::{ProxyClient, ProxyError};
+pub use server_config::{
+    EndpointType, ServerConfig, ServerConfigRepresentation, ServerConfigStore,
+};
+
+/// Shared admin state: config store + HTTP proxy client.
+#[derive(Clone)]
+pub struct AdminState {
+    pub configs: Arc<ServerConfigStore>,
+    pub proxy: Arc<ProxyClient>,
+}
+
+impl AdminState {
+    pub fn new() -> Self {
+        let configs = Arc::new(ServerConfigStore::with_defaults());
+        let proxy = Arc::new(ProxyClient::new());
+        Self { configs, proxy }
+    }
+
+    pub fn with_store(configs: Arc<ServerConfigStore>) -> Self {
+        Self {
+            configs,
+            proxy: Arc::new(ProxyClient::new()),
+        }
+    }
+}
+
+impl Default for AdminState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Build the admin router (mounted under `/admin-app` by `ui_router`).
+pub fn router() -> Router {
+    router_with_state(AdminState::new())
+}
+
+pub fn router_with_state(state: AdminState) -> Router {
+    Router::new()
+        // Health probe (B0)
+        .route("/admin-app/rest/health", get(health))
+        // ServerConfig CRUD
+        .route("/admin-app/rest/server-configs", get(list_server_configs))
+        .route(
+            "/admin-app/rest/server-configs/default/:endpoint_type_code",
+            get(get_default_server_config),
+        )
+        .route("/admin-app/rest/server-configs/:server_id", put(update_server_config))
+        // Engine info
+        .route(
+            "/admin-app/rest/admin/engine-info/:endpoint_type_code",
+            get(get_engine_info),
+        )
+        // ---- PROCESS domain ----
+        .route(
+            "/admin-app/rest/admin/deployments",
+            get(list_deployments).post(upload_not_implemented),
+        )
+        .route(
+            "/admin-app/rest/admin/deployments/:deployment_id",
+            get(get_deployment).delete(delete_deployment),
+        )
+        .route(
+            "/admin-app/rest/admin/process-definitions",
+            get(list_process_definitions),
+        )
+        .route(
+            "/admin-app/rest/admin/process-definitions/:definition_id",
+            get(get_process_definition).put(update_process_definition),
+        )
+        .route(
+            "/admin-app/rest/admin/process-definitions/:definition_id/process-instances",
+            get(process_definition_instances),
+        )
+        .route(
+            "/admin-app/rest/admin/process-definitions/:definition_id/jobs",
+            get(process_definition_jobs),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances",
+            post(list_process_instances),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id",
+            get(get_process_instance).post(process_instance_action),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/tasks",
+            get(process_instance_tasks),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/variables",
+            get(process_instance_variables).post(create_process_instance_variable),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/variables/:variable_name",
+            put(update_process_instance_variable).delete(delete_process_instance_variable),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/jobs",
+            get(process_instance_jobs),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/subprocesses",
+            get(process_instance_subprocesses),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/change-state",
+            post(process_instance_change_state),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/migrate",
+            post(process_instance_migrate),
+        )
+        .route("/admin-app/rest/admin/tasks", post(list_tasks))
+        .route(
+            "/admin-app/rest/admin/tasks/:task_id",
+            get(get_task)
+                .delete(delete_task)
+                .post(task_action)
+                .put(update_task),
+        )
+        .route(
+            "/admin-app/rest/admin/tasks/:task_id/subtasks",
+            get(task_subtasks),
+        )
+        .route(
+            "/admin-app/rest/admin/tasks/:task_id/variables",
+            get(task_variables),
+        )
+        .route(
+            "/admin-app/rest/admin/tasks/:task_id/identitylinks",
+            get(task_identity_links),
+        )
+        .route("/admin-app/rest/admin/jobs", get(list_jobs))
+        .route(
+            "/admin-app/rest/admin/jobs/:job_id",
+            get(get_job).delete(delete_job).post(execute_job),
+        )
+        .route(
+            "/admin-app/rest/admin/jobs/:job_id/exception-stacktrace",
+            get(job_stacktrace),
+        )
+        .route(
+            "/admin-app/rest/admin/event-subscriptions",
+            get(list_event_subscriptions),
+        )
+        .route(
+            "/admin-app/rest/admin/event-subscriptions/:event_subscription_id",
+            get(get_event_subscription).post(event_subscription_action),
+        )
+        .route("/admin-app/rest/admin/batches", get(list_batches))
+        .route(
+            "/admin-app/rest/admin/batches/:batch_id",
+            get(get_batch).delete(delete_batch),
+        )
+        .route(
+            "/admin-app/rest/admin/batches/:batch_id/batch-parts",
+            get(batch_parts),
+        )
+        .route(
+            "/admin-app/rest/admin/batches/:batch_id/batch-document",
+            get(batch_document),
+        )
+        .route(
+            "/admin-app/rest/admin/batch-parts/:batch_part_id",
+            get(get_batch_part),
+        )
+        .route(
+            "/admin-app/rest/admin/batch-parts/:batch_part_id/batch-part-document",
+            get(batch_part_document),
+        )
+        .route("/admin-app/rest/admin/models", get(list_models))
+        // ---- CMMN domain ----
+        .route(
+            "/admin-app/rest/admin/cmmn-deployments",
+            get(list_cmmn_deployments).post(upload_not_implemented),
+        )
+        .route(
+            "/admin-app/rest/admin/cmmn-deployments/:deployment_id",
+            get(get_cmmn_deployment).delete(delete_cmmn_deployment),
+        )
+        .route(
+            "/admin-app/rest/admin/case-definitions",
+            get(list_case_definitions),
+        )
+        .route(
+            "/admin-app/rest/admin/case-definitions/:definition_id",
+            get(get_case_definition),
+        )
+        .route(
+            "/admin-app/rest/admin/case-definitions/:definition_id/case-instances",
+            get(case_definition_instances),
+        )
+        .route(
+            "/admin-app/rest/admin/case-definitions/:definition_id/jobs",
+            get(case_definition_jobs),
+        )
+        .route("/admin-app/rest/admin/case-instances", post(list_case_instances))
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id",
+            get(get_case_instance).post(case_instance_action),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/tasks",
+            get(case_instance_tasks),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/variables",
+            get(case_instance_variables).post(create_case_instance_variable),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/variables/:variable_name",
+            put(update_case_instance_variable).delete(delete_case_instance_variable),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/jobs",
+            get(case_instance_jobs),
+        )
+        .route("/admin-app/rest/admin/cmmn-tasks", post(list_cmmn_tasks))
+        .route(
+            "/admin-app/rest/admin/cmmn-tasks/:task_id",
+            get(get_cmmn_task)
+                .delete(delete_cmmn_task)
+                .post(cmmn_task_action)
+                .put(update_cmmn_task),
+        )
+        .route(
+            "/admin-app/rest/admin/cmmn-tasks/:task_id/subtasks",
+            get(cmmn_task_subtasks),
+        )
+        .route(
+            "/admin-app/rest/admin/cmmn-tasks/:task_id/variables",
+            get(cmmn_task_variables),
+        )
+        .route(
+            "/admin-app/rest/admin/cmmn-tasks/:task_id/identitylinks",
+            get(cmmn_task_identity_links),
+        )
+        .route("/admin-app/rest/admin/cmmn-jobs", get(list_cmmn_jobs))
+        // ---- DMN domain ----
+        .route(
+            "/admin-app/rest/admin/decision-table-deployments",
+            get(list_decision_deployments).post(upload_not_implemented),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-table-deployments/:deployment_id",
+            get(get_decision_deployment).delete(delete_decision_deployment),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-tables",
+            get(list_decision_tables),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-tables/:decision_table_id",
+            get(get_decision_table),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-tables/:decision_table_id/editorJson",
+            get(decision_table_editor_json),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-tables/history/:execution_id",
+            get(decision_historic_execution),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-tables/history/:execution_id/auditdata",
+            get(decision_historic_audit),
+        )
+        // ---- FORM domain ----
+        .route(
+            "/admin-app/rest/admin/form-deployments",
+            get(list_form_deployments).post(upload_not_implemented),
+        )
+        .route(
+            "/admin-app/rest/admin/form-deployments/:deployment_id",
+            get(get_form_deployment).delete(delete_form_deployment),
+        )
+        .route(
+            "/admin-app/rest/admin/form-definitions",
+            get(list_form_definitions),
+        )
+        .route(
+            "/admin-app/rest/admin/form-definitions/:form_definition_id",
+            get(get_form_definition),
+        )
+        .route(
+            "/admin-app/rest/admin/form-instances",
+            get(list_form_instances),
+        )
+        .route(
+            "/admin-app/rest/admin/form-instances/:form_instance_id",
+            get(get_form_instance),
+        )
+        // ---- APP domain ----
+        .route(
+            "/admin-app/rest/admin/app-deployments",
+            get(list_app_deployments).post(upload_not_implemented),
+        )
+        .route(
+            "/admin-app/rest/admin/app-deployments/:deployment_id",
+            get(get_app_deployment).delete(delete_app_deployment),
+        )
+        .route(
+            "/admin-app/rest/admin/app-definitions",
+            get(list_app_definitions),
+        )
+        .route(
+            "/admin-app/rest/admin/app-definitions/:definition_id",
+            get(get_app_definition),
+        )
+        // ---- CONTENT domain ----
+        .route("/admin-app/rest/admin/content-items", get(list_content_items))
+        .route(
+            "/admin-app/rest/admin/content-items/:content_item_id",
+            get(get_content_item),
+        )
+        .with_state(state)
+}
+
+async fn health() -> impl IntoResponse {
+    Json(json!({ "status": "ok", "app": "admin" }))
+}
+
+// ---------------------------------------------------------------------------
+// ServerConfig
+// ---------------------------------------------------------------------------
+
+async fn list_server_configs(State(state): State<AdminState>) -> impl IntoResponse {
+    Json(state.configs.list_representations())
+}
+
+async fn get_default_server_config(
+    Path(endpoint_type_code): Path<i32>,
+) -> Result<impl IntoResponse, AdminError> {
+    let endpoint = EndpointType::from_code(endpoint_type_code)
+        .ok_or_else(|| AdminError::bad_request(format!("Unknown endpoint type code: {endpoint_type_code}")))?;
+    Ok(Json(ServerConfigStore::default_representation(endpoint)))
+}
+
+async fn update_server_config(
+    State(state): State<AdminState>,
+    Path(server_id): Path<String>,
+    Json(body): Json<ServerConfigRepresentation>,
+) -> Result<impl IntoResponse, AdminError> {
+    state
+        .configs
+        .update(&server_id, body)
+        .map_err(AdminError::bad_request)?;
+    Ok(StatusCode::OK)
+}
+
+// ---------------------------------------------------------------------------
+// Engine info
+// ---------------------------------------------------------------------------
+
+async fn get_engine_info(
+    State(state): State<AdminState>,
+    Path(endpoint_type_code): Path<i32>,
+) -> Result<Response, AdminError> {
+    let endpoint = EndpointType::from_code(endpoint_type_code)
+        .ok_or_else(|| AdminError::bad_request(format!("No valid endpoint type code provided: {endpoint_type_code}")))?;
+    let path = match endpoint {
+        EndpointType::Process => "management/engine",
+        EndpointType::Dmn => "dmn-management/engine",
+        EndpointType::Form => "form-management/engine",
+        EndpointType::Content => "content-management/engine",
+        EndpointType::Cmmn => "cmmn-management/engine",
+        EndpointType::App => "app-management/engine",
+    };
+    proxy_get(&state, endpoint, path, &[]).await
+}
+
+// ---------------------------------------------------------------------------
+// PROCESS — deployments / definitions / instances / tasks / jobs
+// ---------------------------------------------------------------------------
+
+async fn list_deployments(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Process, "repository/deployments", &q).await
+}
+
+async fn get_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("repository/deployments/{deployment_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Process,
+        Method::DELETE,
+        &format!("repository/deployments/{deployment_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn list_process_definitions(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "repository/process-definitions",
+        &q,
+    )
+    .await
+}
+
+async fn get_process_definition(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("repository/process-definitions/{definition_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn update_process_definition(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::PUT,
+        &format!("repository/process-definitions/{definition_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn process_definition_instances(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("processDefinitionId".into(), definition_id));
+    // Admin lists historic instances for a definition via query API.
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "history/historic-process-instances",
+        &q,
+    )
+    .await
+}
+
+async fn process_definition_jobs(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("processDefinitionId".into(), definition_id));
+    proxy_get(&state, EndpointType::Process, "management/jobs", &q).await
+}
+
+async fn list_process_instances(
+    State(state): State<AdminState>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    // Java: POST query/historic-process-instances with body + paging query params extracted from body.
+    let (uri_extra, body) = extract_paging_from_json_body(body, "query/historic-process-instances")?;
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &uri_extra,
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn get_process_instance(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("history/historic-process-instances/{process_instance_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn process_instance_action(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    // Java uses runtime delete / suspend via POST body action.
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("runtime/process-instances/{process_instance_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn process_instance_tasks(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("processInstanceId".into(), process_instance_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "history/historic-task-instances",
+        &q,
+    )
+    .await
+}
+
+async fn process_instance_variables(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("processInstanceId".into(), process_instance_id),
+        ("size".into(), "1024".into()),
+        ("sort".into(), "variableName".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "history/historic-variable-instances",
+        &q,
+    )
+    .await
+}
+
+async fn create_process_instance_variable(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("runtime/process-instances/{process_instance_id}/variables"),
+        body,
+        "application/json",
+        StatusCode::CREATED,
+    )
+    .await
+}
+
+async fn update_process_instance_variable(
+    State(state): State<AdminState>,
+    Path((process_instance_id, variable_name)): Path<(String, String)>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::PUT,
+        &format!("runtime/process-instances/{process_instance_id}/variables/{variable_name}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn delete_process_instance_variable(
+    State(state): State<AdminState>,
+    Path((process_instance_id, variable_name)): Path<(String, String)>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Process,
+        Method::DELETE,
+        &format!("runtime/process-instances/{process_instance_id}/variables/{variable_name}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn process_instance_jobs(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("processInstanceId".into(), process_instance_id));
+    proxy_get(&state, EndpointType::Process, "management/jobs", &q).await
+}
+
+async fn process_instance_subprocesses(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("superProcessInstanceId".into(), process_instance_id),
+        ("size".into(), "100".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "history/historic-process-instances",
+        &q,
+    )
+    .await
+}
+
+async fn process_instance_change_state(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("runtime/process-instances/{process_instance_id}/change-state"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn process_instance_migrate(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("runtime/process-instances/{process_instance_id}/migrate"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn list_tasks(
+    State(state): State<AdminState>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    let (uri_extra, body) = extract_paging_from_json_body(body, "query/historic-task-instances")?;
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &uri_extra,
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn get_task(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let runtime = params
+        .get("runtime")
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    let path = if runtime {
+        format!("runtime/tasks/{task_id}")
+    } else {
+        format!("history/historic-task-instances/{task_id}")
+    };
+    proxy_get(&state, EndpointType::Process, &path, &[]).await
+}
+
+async fn delete_task(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    // Prefer runtime cascade; engine returns 404 if already historic-only.
+    proxy_no_body(
+        &state,
+        EndpointType::Process,
+        Method::DELETE,
+        &format!("runtime/tasks/{task_id}?cascadeHistory=true"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn task_action(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("runtime/tasks/{task_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn update_task(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::PUT,
+        &format!("runtime/tasks/{task_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn task_subtasks(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("parentTaskId".into(), task_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "history/historic-task-instances",
+        &q,
+    )
+    .await
+}
+
+async fn task_variables(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("taskId".into(), task_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "history/historic-variable-instances",
+        &q,
+    )
+    .await
+}
+
+async fn task_identity_links(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("history/historic-task-instances/{task_id}/identitylinks"),
+        &[],
+    )
+    .await
+}
+
+async fn list_jobs(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    let job_url = job_collection_path(&params);
+    proxy_get(&state, EndpointType::Process, job_url, &q).await
+}
+
+async fn get_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("{base}/{job_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_no_body(
+        &state,
+        EndpointType::Process,
+        Method::DELETE,
+        &format!("{base}/{job_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn execute_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("{base}/{job_id}"),
+        body,
+        "application/json",
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn job_stacktrace(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("{base}/{job_id}/exception-stacktrace"),
+        &[],
+    )
+    .await
+}
+
+async fn list_event_subscriptions(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        "runtime/event-subscriptions",
+        &q,
+    )
+    .await
+}
+
+async fn get_event_subscription(
+    State(state): State<AdminState>,
+    Path(event_subscription_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("runtime/event-subscriptions/{event_subscription_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn event_subscription_action(
+    State(state): State<AdminState>,
+    Path(event_subscription_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("runtime/event-subscriptions/{event_subscription_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn list_batches(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Process, "management/batches", &q).await
+}
+
+async fn get_batch(
+    State(state): State<AdminState>,
+    Path(batch_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("management/batches/{batch_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_batch(
+    State(state): State<AdminState>,
+    Path(batch_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Process,
+        Method::DELETE,
+        &format!("management/batches/{batch_id}"),
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn batch_parts(
+    State(state): State<AdminState>,
+    Path(batch_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("management/batches/{batch_id}/batch-parts"),
+        &q,
+    )
+    .await
+}
+
+async fn batch_document(
+    State(state): State<AdminState>,
+    Path(batch_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("management/batches/{batch_id}/batch-document"),
+        &[],
+    )
+    .await
+}
+
+async fn get_batch_part(
+    State(state): State<AdminState>,
+    Path(batch_part_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("management/batch-parts/{batch_part_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn batch_part_document(
+    State(state): State<AdminState>,
+    Path(batch_part_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("management/batch-parts/{batch_part_id}/batch-part-document"),
+        &[],
+    )
+    .await
+}
+
+async fn list_models(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Process, "repository/models", &q).await
+}
+
+// ---------------------------------------------------------------------------
+// CMMN
+// ---------------------------------------------------------------------------
+
+async fn list_cmmn_deployments(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Cmmn, "cmmn-repository/deployments", &q).await
+}
+
+async fn get_cmmn_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-repository/deployments/{deployment_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_cmmn_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::DELETE,
+        &format!("cmmn-repository/deployments/{deployment_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn list_case_definitions(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-repository/case-definitions",
+        &q,
+    )
+    .await
+}
+
+async fn get_case_definition(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-repository/case-definitions/{definition_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn case_definition_instances(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("caseDefinitionId".into(), definition_id));
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-history/historic-case-instances",
+        &q,
+    )
+    .await
+}
+
+async fn case_definition_jobs(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("caseDefinitionId".into(), definition_id));
+    proxy_get(&state, EndpointType::Cmmn, "cmmn-management/jobs", &q).await
+}
+
+async fn list_case_instances(
+    State(state): State<AdminState>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    let (uri_extra, body) =
+        extract_paging_from_json_body(body, "cmmn-query/historic-case-instances")?;
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &uri_extra,
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn get_case_instance(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-history/historic-case-instances/{case_instance_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn case_instance_action(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("cmmn-runtime/case-instances/{case_instance_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn case_instance_tasks(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("caseInstanceId".into(), case_instance_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-history/historic-task-instances",
+        &q,
+    )
+    .await
+}
+
+async fn case_instance_variables(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("caseInstanceId".into(), case_instance_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-history/historic-variable-instances",
+        &q,
+    )
+    .await
+}
+
+async fn create_case_instance_variable(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("cmmn-runtime/case-instances/{case_instance_id}/variables"),
+        body,
+        "application/json",
+        StatusCode::CREATED,
+    )
+    .await
+}
+
+async fn update_case_instance_variable(
+    State(state): State<AdminState>,
+    Path((case_instance_id, variable_name)): Path<(String, String)>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::PUT,
+        &format!("cmmn-runtime/case-instances/{case_instance_id}/variables/{variable_name}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn delete_case_instance_variable(
+    State(state): State<AdminState>,
+    Path((case_instance_id, variable_name)): Path<(String, String)>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::DELETE,
+        &format!("cmmn-runtime/case-instances/{case_instance_id}/variables/{variable_name}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn case_instance_jobs(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("caseInstanceId".into(), case_instance_id));
+    proxy_get(&state, EndpointType::Cmmn, "cmmn-management/jobs", &q).await
+}
+
+async fn list_cmmn_tasks(
+    State(state): State<AdminState>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    let (uri_extra, body) =
+        extract_paging_from_json_body(body, "cmmn-query/historic-task-instances")?;
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &uri_extra,
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn get_cmmn_task(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-history/historic-task-instances/{task_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_cmmn_task(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::DELETE,
+        &format!("cmmn-runtime/tasks/{task_id}?cascadeHistory=true"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn cmmn_task_action(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("cmmn-runtime/tasks/{task_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn update_cmmn_task(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::PUT,
+        &format!("cmmn-runtime/tasks/{task_id}"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+async fn cmmn_task_subtasks(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("parentTaskId".into(), task_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-history/historic-task-instances",
+        &q,
+    )
+    .await
+}
+
+async fn cmmn_task_variables(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![("taskId".into(), task_id), ("size".into(), "1024".into())];
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-history/historic-variable-instances",
+        &q,
+    )
+    .await
+}
+
+async fn cmmn_task_identity_links(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-history/historic-task-instances/{task_id}/identitylinks"),
+        &[],
+    )
+    .await
+}
+
+async fn list_cmmn_jobs(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Cmmn, "cmmn-management/jobs", &q).await
+}
+
+// ---------------------------------------------------------------------------
+// DMN / FORM / APP / CONTENT (thin proxies)
+// ---------------------------------------------------------------------------
+
+async fn list_decision_deployments(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Dmn, "dmn-repository/deployments", &q).await
+}
+
+async fn get_decision_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        &format!("dmn-repository/deployments/{deployment_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_decision_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Dmn,
+        Method::DELETE,
+        &format!("dmn-repository/deployments/{deployment_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn list_decision_tables(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        "dmn-repository/decision-tables",
+        &q,
+    )
+    .await
+}
+
+async fn get_decision_table(
+    State(state): State<AdminState>,
+    Path(decision_table_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        &format!("dmn-repository/decision-tables/{decision_table_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn decision_table_editor_json(
+    State(state): State<AdminState>,
+    Path(decision_table_id): Path<String>,
+) -> Result<Response, AdminError> {
+    // Engine serves model resource; path may vary — use decision resource data.
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        &format!("dmn-repository/decision-tables/{decision_table_id}/model"),
+        &[],
+    )
+    .await
+}
+
+async fn decision_historic_execution(
+    State(state): State<AdminState>,
+    Path(execution_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        &format!("dmn-history/historic-decision-executions/{execution_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn decision_historic_audit(
+    State(state): State<AdminState>,
+    Path(execution_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        &format!("dmn-history/historic-decision-executions/{execution_id}/auditdata"),
+        &[],
+    )
+    .await
+}
+
+async fn list_form_deployments(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Form, "form-repository/deployments", &q).await
+}
+
+async fn get_form_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Form,
+        &format!("form-repository/deployments/{deployment_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_form_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::Form,
+        Method::DELETE,
+        &format!("form-repository/deployments/{deployment_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn list_form_definitions(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Form,
+        "form-repository/form-definitions",
+        &q,
+    )
+    .await
+}
+
+async fn get_form_definition(
+    State(state): State<AdminState>,
+    Path(form_definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Form,
+        &format!("form-repository/form-definitions/{form_definition_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn list_form_instances(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::Form, "form/form-instances", &q).await
+}
+
+async fn get_form_instance(
+    State(state): State<AdminState>,
+    Path(form_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Form,
+        &format!("form/form-instances/{form_instance_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn list_app_deployments(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(&state, EndpointType::App, "app-repository/deployments", &q).await
+}
+
+async fn get_app_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::App,
+        &format!("app-repository/deployments/{deployment_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn delete_app_deployment(
+    State(state): State<AdminState>,
+    Path(deployment_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_no_body(
+        &state,
+        EndpointType::App,
+        Method::DELETE,
+        &format!("app-repository/deployments/{deployment_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+async fn list_app_definitions(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::App,
+        "app-repository/app-definitions",
+        &q,
+    )
+    .await
+}
+
+async fn get_app_definition(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::App,
+        &format!("app-repository/app-definitions/{definition_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn list_content_items(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Content,
+        "content-service/content-items",
+        &q,
+    )
+    .await
+}
+
+async fn get_content_item(
+    State(state): State<AdminState>,
+    Path(content_item_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Content,
+        &format!("content-service/content-items/{content_item_id}"),
+        &[],
+    )
+    .await
+}
+
+async fn upload_not_implemented() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(json!({
+            "message": "Multipart deployment upload not yet implemented in stream B batch 1"
+        })),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Proxy helpers
+// ---------------------------------------------------------------------------
+
+fn query_without_server_id(params: &HashMap<String, String>) -> Vec<(String, String)> {
+    params
+        .iter()
+        .filter(|(k, _)| k.as_str() != "serverId")
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect()
+}
+
+fn job_collection_path(params: &HashMap<String, String>) -> &'static str {
+    match params.get("jobType").map(|s| s.as_str()) {
+        Some("timer") => "management/timer-jobs",
+        Some("suspended") => "management/suspended-jobs",
+        Some("deadletter") => "management/deadletter-jobs",
+        _ => "management/jobs",
+    }
+}
+
+/// Pull size/sort/order out of a JSON body into the URI query (Java FlowableClientService).
+fn extract_paging_from_json_body(
+    body: Bytes,
+    base_path: &str,
+) -> Result<(String, Bytes), AdminError> {
+    if body.is_empty() {
+        return Ok((base_path.to_string(), body));
+    }
+    let mut value: Value = serde_json::from_slice(&body)
+        .map_err(|e| AdminError::bad_request(format!("Invalid JSON body: {e}")))?;
+    let mut pairs = Vec::new();
+    if let Some(obj) = value.as_object_mut() {
+        for key in ["size", "sort", "order"] {
+            if let Some(v) = obj.remove(key) {
+                let text = match v {
+                    Value::String(s) => s,
+                    other => other.to_string().trim_matches('"').to_string(),
+                };
+                pairs.push(format!("{key}={text}"));
+            }
+        }
+    }
+    let uri = if pairs.is_empty() {
+        base_path.to_string()
+    } else {
+        format!("{base_path}?{}", pairs.join("&"))
+    };
+    let new_body = Bytes::from(
+        serde_json::to_vec(&value).map_err(|e| AdminError::bad_request(e.to_string()))?,
+    );
+    Ok((uri, new_body))
+}
+
+async fn proxy_get(
+    state: &AdminState,
+    endpoint: EndpointType,
+    path: &str,
+    query: &[(String, String)],
+) -> Result<Response, AdminError> {
+    let config = state
+        .configs
+        .get_by_endpoint(endpoint)
+        .map_err(AdminError::bad_request)?;
+    let password = state
+        .configs
+        .decrypt_password(&config)
+        .map_err(AdminError::bad_request)?;
+    state
+        .proxy
+        .execute_json(
+            &config,
+            &password,
+            Method::GET,
+            path,
+            query,
+            None,
+            None,
+            StatusCode::OK,
+        )
+        .await
+        .map_err(AdminError::from)
+}
+
+async fn proxy_body(
+    state: &AdminState,
+    endpoint: EndpointType,
+    method: Method,
+    path: &str,
+    body: Bytes,
+    content_type: &str,
+    expected: StatusCode,
+) -> Result<Response, AdminError> {
+    let config = state
+        .configs
+        .get_by_endpoint(endpoint)
+        .map_err(AdminError::bad_request)?;
+    let password = state
+        .configs
+        .decrypt_password(&config)
+        .map_err(AdminError::bad_request)?;
+    state
+        .proxy
+        .execute_json(
+            &config,
+            &password,
+            method,
+            path,
+            &[],
+            Some(body),
+            Some(content_type),
+            expected,
+        )
+        .await
+        .map_err(AdminError::from)
+}
+
+async fn proxy_no_body(
+    state: &AdminState,
+    endpoint: EndpointType,
+    method: Method,
+    path: &str,
+    expected: StatusCode,
+) -> Result<Response, AdminError> {
+    let config = state
+        .configs
+        .get_by_endpoint(endpoint)
+        .map_err(AdminError::bad_request)?;
+    let password = state
+        .configs
+        .decrypt_password(&config)
+        .map_err(AdminError::bad_request)?;
+    state
+        .proxy
+        .execute_json(
+            &config,
+            &password,
+            method,
+            path,
+            &[],
+            None,
+            None,
+            expected,
+        )
+        .await
+        .map_err(AdminError::from)
+}
+
+// ---------------------------------------------------------------------------
+// Errors (align with Java BadRequestException wrapping for admin UI)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+pub struct AdminError {
+    status: StatusCode,
+    message: String,
+}
+
+impl AdminError {
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
+    }
+}
+
+impl From<ProxyError> for AdminError {
+    fn from(value: ProxyError) -> Self {
+        // Java wraps most proxy failures as BadRequestException with a message.
+        Self::bad_request(value.to_string())
+    }
+}
+
+impl IntoResponse for AdminError {
+    fn into_response(self) -> Response {
+        let body = Json(json!({ "message": self.message }));
+        (self.status, body).into_response()
+    }
+}
+
+// Silence unused import warnings for HeaderMap/Deserialize in this module.
+#[allow(dead_code)]
+fn _markers() {
+    let _: Option<HeaderMap> = None;
+    #[derive(Deserialize)]
+    struct _Q {
+        #[allow(dead_code)]
+        x: Option<String>,
+    }
+}
