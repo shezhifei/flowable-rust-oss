@@ -61,10 +61,20 @@ impl IdentityService {
     /// merely starts with `$argon2id$` must still be hashed, or it would land in
     /// the database as plaintext and be unverifiable afterwards.
     pub fn save_user_in_session(&self, mut user: User, session: &mut DbSession) {
-        if let Some(value) = user.password.take()
-            && !crate::identity::password::is_valid_hash(&value)
-        {
-            user.password = Some(crate::identity::password::hash_password(&value));
+        // The password is only moved out when it actually needs hashing.
+        // `take()`-ing first would drop an already-hashed value on the floor
+        // whenever the `&&` short-circuits, wiping the password of every user
+        // re-saved from a loaded entity.
+        let needs_hashing = user
+            .password
+            .as_deref()
+            .is_some_and(|value| !crate::identity::password::is_valid_hash(value));
+        if needs_hashing {
+            let plain = user
+                .password
+                .take()
+                .expect("presence was just established");
+            user.password = Some(crate::identity::password::hash_password(&plain));
         }
         self.get_store().insert_user(user, session);
     }
