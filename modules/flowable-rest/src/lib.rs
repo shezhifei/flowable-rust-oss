@@ -6538,6 +6538,11 @@ async fn run_server_with_components(
         .route("/health", get(routes::health::health))
         .route("/ready", get(routes::health::ready))
         .merge(api_routes)
+        // Merged outside `api_routes` on purpose: the UI surface authenticates
+        // with its own remember-me cookie scheme and must not sit behind the
+        // engine API's Basic-auth middleware. It still lands inside the
+        // `Extension(engine)` layer below, which its handlers require.
+        .merge(flowable_ui_rest::ui_router())
         .layer(Extension(directory_read_state))
         .layer(Extension(dmn_engine))
         .layer(Extension(engine))

@@ -989,6 +989,7 @@ dependencies = [
  "flowable-image-generator",
  "flowable-platform-bootstrap",
  "flowable-task-service",
+ "flowable-ui-rest",
  "flowable-variable-service",
  "reqwest",
  "rusqlite",
@@ -1010,6 +1011,28 @@ version = "0.1.0"
 dependencies = [
  "flowable-engine",
  "serde_json",
+]
+
+[[package]]
+name = "flowable-ui-rest"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "flowable-engine",
+ "flowable-engine-common",
+ "flowable-identity-service",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
 ]
 
 [[package]]
@@ -1320,6 +1343,12 @@ dependencies = [
  "http-body",
  "pin-project-lite",
 ]
+
+[[package]]
+name = "http-range-header"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
 
 [[package]]
 name = "httparse"
@@ -3344,11 +3373,20 @@ checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
  "bitflags",
  "bytes",
+ "futures-core",
  "futures-util",
  "http",
  "http-body",
+ "http-body-util",
+ "http-range-header",
+ "httpdate",
  "iri-string",
+ "mime",
+ "mime_guess",
+ "percent-encoding",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",

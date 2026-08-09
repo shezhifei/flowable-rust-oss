@@ -32,7 +32,8 @@ members = [
     "modules/flowable-identity-service",
     "modules/flowable-history-service",
     "modules/flowable-platform-bootstrap",
-    "modules/flowable-rest"
+    "modules/flowable-rest",
+    "modules/flowable-ui-rest"
     ]
 
 resolver = "2"
