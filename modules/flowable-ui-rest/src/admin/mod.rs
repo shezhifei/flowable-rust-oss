@@ -76,7 +76,7 @@ pub fn router_with_state(state: AdminState) -> Router {
         // ---- PROCESS domain ----
         .route(
             "/admin-app/rest/admin/deployments",
-            get(list_deployments).post(upload_not_implemented),
+            get(list_deployments).post(upload_deployment),
         )
         .route(
             "/admin-app/rest/admin/deployments/:deployment_id",
@@ -1686,9 +1686,93 @@ async fn upload_not_implemented() -> impl IntoResponse {
     (
         StatusCode::NOT_IMPLEMENTED,
         Json(json!({
-            "message": "Multipart deployment upload not yet implemented in stream B batch 1"
+            "message": "Multipart deployment upload for this endpoint type is not yet implemented"
         })),
     )
+}
+
+/// PROCESS deployment multipart upload → engine `POST repository/deployments`.
+async fn upload_deployment(
+    State(state): State<AdminState>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Response, AdminError> {
+    let config = state
+        .configs
+        .get_by_endpoint(EndpointType::Process)
+        .map_err(AdminError::bad_request)?;
+    let password = state
+        .configs
+        .decrypt_password(&config)
+        .map_err(AdminError::bad_request)?;
+
+    let mut file_name = None;
+    let mut file_bytes = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AdminError::bad_request(e.to_string()))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "file" || file_bytes.is_none() {
+            file_name = field.file_name().map(|s| s.to_string());
+            file_bytes = Some(
+                field
+                    .bytes()
+                    .await
+                    .map_err(|e| AdminError::bad_request(e.to_string()))?,
+            );
+        }
+    }
+    let file_name = file_name
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| AdminError::bad_request("No file found in POST body"))?;
+    let bytes = file_bytes.ok_or_else(|| AdminError::bad_request("No file found in POST body"))?;
+    let lower = file_name.to_lowercase();
+    if !(lower.ends_with(".bpmn")
+        || lower.ends_with(".bpmn20.xml")
+        || lower.ends_with(".zip")
+        || lower.ends_with(".bar"))
+    {
+        return Err(AdminError::bad_request("Invalid file name"));
+    }
+
+    let url = crate::admin::proxy::build_server_url(&config, "repository/deployments");
+    let part = reqwest::multipart::Part::bytes(bytes.to_vec())
+        .file_name(file_name)
+        .mime_str("application/octet-stream")
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    let form = reqwest::multipart::Form::new().part("file", part);
+    let token = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        format!("{}:{}", config.user_name, password),
+    );
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header(
+            axum::http::header::AUTHORIZATION.as_str(),
+            format!("Basic {token}"),
+        )
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let body = response
+        .bytes()
+        .await
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    if status.is_success() {
+        Ok(Response::builder()
+            .status(status)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(axum::body::Body::from(body))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()))
+    } else {
+        Err(AdminError::bad_request(format!(
+            "Deployment failed with status {status}"
+        )))
+    }
 }
 
 // ---------------------------------------------------------------------------

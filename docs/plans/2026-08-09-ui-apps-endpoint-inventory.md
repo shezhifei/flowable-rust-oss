@@ -79,6 +79,9 @@ Display JSON: `/rest/admin/process-definitions|process-instances|case-definition
 - [x] B0 scaffold + health probes
 - [x] Admin ServerConfig CRUD + AES encrypt
 - [x] Admin proxy core + primary domains (process/cmmn/dmn/form/app/content)
-- [ ] Admin multipart deploy + display-json assembly
+- [x] Admin multipart PROCESS deploy upload
+- [ ] Admin display-json full assembly (partial / deferred; engine model endpoints usable)
 - [x] Task RestVariable converters
-- [ ] Task aggregation endpoints (B2)
+- [x] Task aggregation: create/query/action/form/comments/process/users/groups
+- [ ] Case full surface + related content upload + debugger (stubs/empty lists)
+- [x] Mounted into `flowable-rest` via `ui_router_with_engine`
