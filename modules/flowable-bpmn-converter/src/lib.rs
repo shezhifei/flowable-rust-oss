@@ -15,6 +15,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+mod writer;
+
+pub use writer::{BpmnXmlWriteError, BpmnXmlWriter, write_bpmn_model};
+
 fn parse_comma_separated_id_list(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -58,7 +62,9 @@ fn convert_data_object_value(raw: &str, data_type: Option<&str>) -> Value {
         // Java DateDataObject stores a Date; we keep the ISO-8601 text so runtime
         // can round-trip without a Date type in serde_json.
         Some("datetime") | Some("date") => Value::String(raw.to_string()),
-        Some("json") => serde_json::from_str(trimmed).unwrap_or_else(|_| Value::String(raw.to_string())),
+        Some("json") => {
+            serde_json::from_str(trimmed).unwrap_or_else(|_| Value::String(raw.to_string()))
+        }
         _ => Value::String(raw.to_string()),
     }
 }
@@ -200,6 +206,11 @@ impl BpmnXMLConverter {
     fn normalize_canonical_contract_value(value: &mut Value) {
         match value {
             Value::Object(map) => {
+                map.remove("elementType");
+                map.remove("eventDefinitionType");
+                map.remove("subProcessType");
+                map.remove("artifactType");
+                map.remove("errorRef");
                 map.remove("isForCompensation");
                 if matches!(map.get("artifactMap"), Some(Value::Object(entries)) if entries.is_empty())
                 {
@@ -971,10 +982,8 @@ impl BpmnXMLConverter {
                             self.get_local_name_bytes(inner_e.local_name().as_ref(), reader);
                         if inner_name_str == ELEMENT_DATA_VALUE {
                             let raw = self.read_element_text(reader, inner_e.name());
-                            obj.value = Some(convert_data_object_value(
-                                &raw,
-                                obj.data_type.as_deref(),
-                            ));
+                            obj.value =
+                                Some(convert_data_object_value(&raw, obj.data_type.as_deref()));
                         } else if inner_name_str == "extensionElements" {
                             self.parse_extensions_into_valued_data_object(
                                 reader,
@@ -1018,10 +1027,7 @@ impl BpmnXMLConverter {
                         self.parse_generic_extension_element(e, reader, &namespaces, is_empty);
                     if local_name == "value" {
                         let raw = ext.element_text.unwrap_or_default();
-                        obj.value = Some(convert_data_object_value(
-                            &raw,
-                            obj.data_type.as_deref(),
-                        ));
+                        obj.value = Some(convert_data_object_value(&raw, obj.data_type.as_deref()));
                         continue;
                     }
                     obj.base_element
@@ -1875,11 +1881,8 @@ impl BpmnXMLConverter {
                 // Java SendTaskParseHandler.java:54-56 — warn (not fail) when the
                 // sendTask has no `type` and is not the webservice form. The webservice
                 // form itself is rejected at deployment validation (P105 deviation).
-                let is_webservice = send_task
-                    .service_task
-                    .implementation_type
-                    .as_deref()
-                    == Some("webservice");
+                let is_webservice =
+                    send_task.service_task.implementation_type.as_deref() == Some("webservice");
                 if !is_webservice
                     && send_task
                         .service_task
@@ -4423,9 +4426,9 @@ impl BpmnXMLConverter {
                                 _ => {}
                             }
                         }
-                        event.event_definitions.push(
-                            EventDefinitionEnum::VariableListenerEventDefinition(def),
-                        );
+                        event
+                            .event_definitions
+                            .push(EventDefinitionEnum::VariableListenerEventDefinition(def));
                         if !is_empty {
                             let _ = self.read_element_text(reader, e.name());
                         }
@@ -4878,8 +4881,7 @@ impl BpmnXMLConverter {
                                 let Ok(attr) = attr else {
                                     continue;
                                 };
-                                let attr_key =
-                                    self.get_local_name_bytes(attr.key.as_ref(), reader);
+                                let attr_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
                                 if attr_key == "endDate" {
                                     let value = attr
                                         .decode_and_unescape_value(reader.decoder())
@@ -5644,7 +5646,9 @@ impl BpmnXMLConverter {
         match element {
             FlowElementEnum::UserTask(e) => Some(&mut e.task.activity.flow_node),
             FlowElementEnum::ServiceTask(e) => Some(&mut e.task.activity.flow_node),
-            FlowElementEnum::CaseServiceTask(e) => Some(&mut e.service_task.task.activity.flow_node),
+            FlowElementEnum::CaseServiceTask(e) => {
+                Some(&mut e.service_task.task.activity.flow_node)
+            }
             FlowElementEnum::SendTask(e) => Some(&mut e.service_task.task.activity.flow_node),
             FlowElementEnum::ScriptTask(e) => Some(&mut e.task.activity.flow_node),
             FlowElementEnum::ManualTask(e) => Some(&mut e.task.activity.flow_node),

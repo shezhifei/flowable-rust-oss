@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -6,7 +7,7 @@ fn is_false(v: &bool) -> bool {
     !*v
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionAttribute {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,7 +20,7 @@ pub struct ExtensionAttribute {
     pub namespace: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionElement {
     #[serde(flatten)]
@@ -32,11 +33,11 @@ pub struct ExtensionElement {
     pub namespace: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub element_text: Option<String>,
-    #[serde(skip_serializing_if = "IndexMap::is_empty")]
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub child_elements: IndexMap<String, Vec<ExtensionElement>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseElement {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -47,7 +48,7 @@ pub struct BaseElement {
     pub attributes: IndexMap<String, Vec<ExtensionAttribute>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowElement {
     #[serde(flatten)]
@@ -59,7 +60,7 @@ pub struct FlowElement {
     pub execution_listeners: Vec<FlowableListener>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldExtension {
     #[serde(flatten)]
@@ -69,7 +70,7 @@ pub struct FieldExtension {
     pub expression: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowableListener {
     #[serde(flatten)]
@@ -80,11 +81,11 @@ pub struct FlowableListener {
     pub on_transaction: Option<String>,
     pub custom_properties_resolver_implementation_type: Option<String>,
     pub custom_properties_resolver_implementation: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub field_extensions: Vec<FieldExtension>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowNode {
     #[serde(flatten)]
@@ -99,7 +100,7 @@ pub struct FlowNode {
     pub outgoing_flows: Vec<SequenceFlow>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Activity {
     #[serde(flatten)]
@@ -112,19 +113,19 @@ pub struct Activity {
     pub for_compensation: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loop_characteristics: Option<MultiInstanceLoopCharacteristics>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_input_associations: Vec<DataAssociation>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_output_associations: Vec<DataAssociation>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub map_exceptions: Vec<MapExceptionEntry>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub boundary_events: Vec<BoundaryEvent>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub field_extensions: Vec<FieldExtension>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MapExceptionEntry {
     pub class_name: Option<String>,
@@ -133,7 +134,7 @@ pub struct MapExceptionEntry {
     pub root_cause: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DataAssociation {
     #[serde(flatten)]
@@ -144,7 +145,7 @@ pub struct DataAssociation {
     pub assignments: Vec<Assignment>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Assignment {
     #[serde(flatten)]
@@ -153,7 +154,7 @@ pub struct Assignment {
     pub to: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiInstanceLoopCharacteristics {
     #[serde(flatten)]
@@ -171,7 +172,7 @@ pub struct MultiInstanceLoopCharacteristics {
     pub no_wait_states_async_leave: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectionHandler {
     #[serde(flatten)]
@@ -180,14 +181,14 @@ pub struct CollectionHandler {
     pub implementation: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VariableAggregationDefinitions {
     pub aggregations: Vec<VariableAggregationDefinition>,
     pub overview_aggregations: Vec<VariableAggregationDefinition>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VariableAggregationDefinition {
     pub target: Option<String>,
@@ -199,7 +200,7 @@ pub struct VariableAggregationDefinition {
     pub definitions: Vec<VariableAggregationDefinitionVariable>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VariableAggregationDefinitionVariable {
     pub source: Option<String>,
@@ -208,7 +209,7 @@ pub struct VariableAggregationDefinitionVariable {
     pub target_expression: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BpmnModel {
     pub definitions_attributes: IndexMap<String, Vec<ExtensionAttribute>>,
@@ -239,7 +240,7 @@ pub struct BpmnModel {
     pub main_process: Option<Process>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageFlow {
     #[serde(flatten)]
@@ -250,7 +251,7 @@ pub struct MessageFlow {
     pub message_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Escalation {
     #[serde(flatten)]
@@ -259,18 +260,18 @@ pub struct Escalation {
     pub escalation_code: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemDefinition {
     #[serde(flatten)]
     pub base_element: BaseElement,
     pub structure_ref: Option<String>,
     pub item_kind: Option<String>,
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_collection: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DataStore {
     #[serde(flatten)]
@@ -280,7 +281,7 @@ pub struct DataStore {
     pub item_subject_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BpmnDiEdge {
     pub id: Option<String>,
@@ -289,7 +290,7 @@ pub struct BpmnDiEdge {
     pub target_docker_info: Option<GraphicInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphicInfo {
     pub x: f64,
@@ -302,7 +303,7 @@ pub struct GraphicInfo {
     pub expanded: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FormProperty {
     #[serde(flatten)]
@@ -338,7 +339,7 @@ impl Default for FormProperty {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FormValue {
     #[serde(flatten)]
@@ -346,7 +347,7 @@ pub struct FormValue {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Signal {
     #[serde(flatten)]
@@ -355,7 +356,7 @@ pub struct Signal {
     pub scope: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     #[serde(flatten)]
@@ -364,7 +365,7 @@ pub struct Message {
     pub item_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     #[serde(flatten)]
@@ -372,8 +373,8 @@ pub struct Event {
     pub event_definitions: Vec<EventDefinitionEnum>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "eventDefinitionType", rename_all = "camelCase")]
 pub enum EventDefinitionEnum {
     TimerEventDefinition(TimerEventDefinition),
     ErrorEventDefinition(ErrorEventDefinition),
@@ -385,16 +386,13 @@ pub enum EventDefinitionEnum {
     LinkEventDefinition(LinkEventDefinition),
     EscalationEventDefinition(EscalationEventDefinition),
     /// Flowable extension: `variableListenerEventDefinition` on event start /
-    /// intermediate / boundary events. Must stay before Terminate so untagged
-    /// deserialization prefers it when `variableName` is present.
+    /// intermediate / boundary events.
     VariableListenerEventDefinition(VariableListenerEventDefinition),
-    // Keep last: `untagged` deserialization tries variants in order, and this
-    // struct (like Cancel) matches any object once its bool fields default.
     TerminateEventDefinition(TerminateEventDefinition),
 }
 
 /// Java `org.flowable.bpmn.model.VariableListenerEventDefinition`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VariableListenerEventDefinition {
     #[serde(flatten)]
@@ -404,7 +402,7 @@ pub struct VariableListenerEventDefinition {
     pub variable_change_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CancelEventDefinition {
     #[serde(flatten)]
@@ -414,7 +412,7 @@ pub struct CancelEventDefinition {
 /// Java `org.flowable.bpmn.model.TerminateEventDefinition`: only valid on end
 /// events; `terminateAll` / `terminateMultiInstance` parsed by
 /// `TerminateEventDefinitionParser`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TerminateEventDefinition {
     #[serde(flatten)]
@@ -423,7 +421,7 @@ pub struct TerminateEventDefinition {
     pub terminate_multi_instance: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CompensateEventDefinition {
     #[serde(flatten)]
@@ -442,7 +440,7 @@ impl Default for CompensateEventDefinition {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ConditionalEventDefinition {
     #[serde(flatten)]
@@ -450,18 +448,18 @@ pub struct ConditionalEventDefinition {
     pub condition_expression: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkEventDefinition {
     #[serde(flatten)]
     pub base_element: BaseElement,
     pub name: Option<String>,
     pub target: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EscalationEventDefinition {
     #[serde(flatten)]
@@ -470,7 +468,7 @@ pub struct EscalationEventDefinition {
     pub escalation_code: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageEventDefinition {
     #[serde(flatten)]
@@ -479,7 +477,7 @@ pub struct MessageEventDefinition {
     pub message_expression: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SignalEventDefinition {
     #[serde(flatten)]
@@ -488,7 +486,7 @@ pub struct SignalEventDefinition {
     pub signal_expression: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimerEventDefinition {
     #[serde(flatten)]
@@ -504,20 +502,19 @@ pub struct TimerEventDefinition {
     pub calendar_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorEventDefinition {
     #[serde(flatten)]
     pub base_element: BaseElement,
     pub error_code: Option<String>,
-    #[serde(skip_serializing)]
     pub error_ref: Option<String>,
     pub error_variable_name: Option<String>,
     pub error_variable_local_scope: bool,
     pub error_variable_transient: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Pool {
     #[serde(flatten)]
@@ -538,7 +535,7 @@ impl Default for Pool {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Import {
     #[serde(flatten)]
@@ -548,7 +545,7 @@ pub struct Import {
     pub namespace: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Interface {
     #[serde(flatten)]
@@ -557,7 +554,7 @@ pub struct Interface {
     pub implementation_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Resource {
     #[serde(flatten)]
@@ -565,7 +562,7 @@ pub struct Resource {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Association {
     #[serde(flatten)]
@@ -574,13 +571,13 @@ pub struct Association {
     pub target_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "artifactType", rename_all = "camelCase")]
 pub enum ArtifactEnum {
     Association(Association),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[derive(Default)]
 pub struct ValuedDataObject {
@@ -600,18 +597,19 @@ pub struct ValuedDataObject {
     pub data_object_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Lane {
     #[serde(flatten)]
     pub base_element: BaseElement,
     pub name: Option<String>,
     #[serde(skip_serializing)]
+    #[schemars(skip)]
     pub parent_process: Option<Process>,
     pub flow_references: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Process {
     #[serde(flatten)]
@@ -623,20 +621,20 @@ pub struct Process {
     pub documentation: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub io_specification: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub execution_listeners: Vec<FlowableListener>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub lanes: Vec<Lane>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_objects: Vec<ValuedDataObject>,
     pub candidate_starter_users: Vec<String>,
     pub candidate_starter_groups: Vec<String>,
     pub event_listeners: Vec<String>,
     pub enable_eager_execution_tree_fetching: bool,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flow_elements: Vec<FlowElementEnum>,
     pub flow_element_map: IndexMap<String, FlowElementEnum>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifacts: Vec<ArtifactEnum>,
     pub artifact_map: IndexMap<String, ArtifactEnum>,
     #[serde(skip)]
@@ -667,38 +665,38 @@ impl Default for Process {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SubProcess {
     #[serde(flatten)]
     pub activity: Activity,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flow_elements: Vec<FlowElementEnum>,
     pub flow_element_map: IndexMap<String, FlowElementEnum>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifacts: Vec<ArtifactEnum>,
     pub artifact_map: IndexMap<String, ArtifactEnum>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_objects: Vec<ValuedDataObject>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub triggered_by_event: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     #[serde(flatten)]
     pub sub_process: SubProcess,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EventSubProcess {
     #[serde(flatten)]
     pub sub_process: SubProcess,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AdhocSubProcess {
     #[serde(flatten)]
@@ -719,8 +717,8 @@ impl Default for AdhocSubProcess {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "subProcessType", rename_all = "camelCase")]
 pub enum SubProcessEnum {
     SubProcess(SubProcess),
     Transaction(Transaction),
@@ -748,20 +746,16 @@ impl SubProcessEnum {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "elementType", rename_all = "camelCase")]
 pub enum FlowElementEnum {
     SequenceFlow(SequenceFlow),
     Task(Task),
     UserTask(UserTask),
     ServiceTask(ServiceTask),
-    /// Java `CaseServiceTask` (CaseServiceTask.java:21-32). Placed after
-    /// `ServiceTask` so untagged serde does not steal ordinary service tasks
-    /// (all case fields are optional). Converter constructs this variant
-    /// directly from `flowable:type="case"`.
+    /// Java `CaseServiceTask` (CaseServiceTask.java:21-32).
     CaseServiceTask(CaseServiceTask),
-    /// Java `SendTask` (SendTask.java:20-24). Placed after `ServiceTask` /
-    /// `CaseServiceTask` so untagged serde does not steal ordinary service tasks.
+    /// Java `SendTask` (SendTask.java:20-24).
     SendTask(SendTask),
     ScriptTask(ScriptTask),
     ManualTask(ManualTask),
@@ -784,7 +778,7 @@ pub enum FlowElementEnum {
     BoundaryEvent(BoundaryEvent),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct BoundaryEvent {
     #[serde(flatten)]
@@ -808,7 +802,7 @@ impl Default for BoundaryEvent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[derive(Default)]
 pub struct CallActivity {
@@ -834,13 +828,13 @@ pub struct CallActivity {
     pub process_instance_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_instance_id_variable_name: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub in_parameters: Vec<IOParameter>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub out_parameters: Vec<IOParameter>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IOParameter {
     #[serde(flatten)]
@@ -856,7 +850,7 @@ pub struct IOParameter {
     pub transient: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceFlow {
     #[serde(flatten)]
@@ -871,18 +865,18 @@ pub struct SequenceFlow {
     pub target_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip_expression: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waypoints: Vec<GraphicInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     #[serde(flatten)]
     pub activity: Activity,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UserTask {
     #[serde(flatten)]
@@ -913,13 +907,13 @@ pub struct UserTask {
     pub due_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub business_calendar_name: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub candidate_users: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub candidate_groups: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub form_properties: Vec<FormProperty>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub task_listeners: Vec<FlowableListener>,
 }
 
@@ -949,7 +943,7 @@ impl Default for UserTask {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpHandlerScriptInfo {
     pub language: Option<String>,
@@ -957,18 +951,18 @@ pub struct HttpHandlerScriptInfo {
     pub result_variable: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpHandlerDefinition {
     pub implementation: Option<String>,
     pub implementation_type: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub field_extensions: Vec<FieldExtension>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub script_info: Option<HttpHandlerScriptInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceTask {
     #[serde(flatten)]
@@ -1000,7 +994,7 @@ pub struct ServiceTask {
     pub event_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger_event_type: Option<String>,
-    #[serde(skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub send_synchronously: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_id: Option<String>,
@@ -1010,13 +1004,13 @@ pub struct ServiceTask {
     pub triggerable: bool,
     pub extended: bool,
     pub store_result_variable_as_transient: bool,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub in_parameters: Vec<IOParameter>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub out_parameters: Vec<IOParameter>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_in_parameters: Vec<IOParameter>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_out_parameters: Vec<IOParameter>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_request_handler: Option<HttpHandlerDefinition>,
@@ -1027,7 +1021,7 @@ pub struct ServiceTask {
 /// Java `org.flowable.bpmn.model.CaseServiceTask` (CaseServiceTask.java:21-32).
 /// XML shape is still `<serviceTask flowable:type="case" …>`
 /// (ServiceTaskXMLConverter.java:123-124, ServiceTask.CASE_TASK = "case").
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CaseServiceTask {
     #[serde(flatten)]
@@ -1090,7 +1084,7 @@ impl CaseServiceTask {
 /// (`ServiceTaskActivityBehavior`) and the deployment validator reuse exactly
 /// the same field-extension and IO-parameter logic — Java's sendTask only adds
 /// `type`, `implementationType`, `operationRef` on top of `TaskWithFieldExtensions`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SendTask {
     #[serde(flatten)]
@@ -1100,7 +1094,7 @@ pub struct SendTask {
     pub operation_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ScriptTask {
     #[serde(flatten)]
@@ -1115,20 +1109,20 @@ pub struct ScriptTask {
     pub skip_expression: Option<String>,
     pub auto_store_variables: bool,
     pub do_not_include_variables: bool,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub in_parameters: Vec<IOParameter>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub out_parameters: Vec<IOParameter>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ManualTask {
     #[serde(flatten)]
     pub task: Task,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReceiveTask {
     #[serde(flatten)]
@@ -1139,7 +1133,7 @@ pub struct ReceiveTask {
     pub skip_expression: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BusinessRuleTask {
     #[serde(flatten)]
@@ -1153,7 +1147,7 @@ pub struct BusinessRuleTask {
     pub class_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StartEvent {
     #[serde(flatten)]
@@ -1177,21 +1171,21 @@ impl Default for StartEvent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EndEvent {
     #[serde(flatten)]
     pub event: Event,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IntermediateCatchEvent {
     #[serde(flatten)]
     pub event: Event,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Gateway {
     #[serde(flatten)]
@@ -1199,28 +1193,28 @@ pub struct Gateway {
     pub default_flow: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExclusiveGateway {
     #[serde(flatten)]
     pub gateway: Gateway,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ParallelGateway {
     #[serde(flatten)]
     pub gateway: Gateway,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InclusiveGateway {
     #[serde(flatten)]
     pub gateway: Gateway,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EventBasedGateway {
     #[serde(flatten)]
@@ -1231,7 +1225,7 @@ pub struct EventBasedGateway {
     pub event_gateway_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IntermediateThrowEvent {
     #[serde(flatten)]

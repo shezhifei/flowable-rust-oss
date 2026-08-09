@@ -9,3 +9,6 @@ license.workspace = true
 flowable-dmn-model = { version = "0.1.0", path = "../flowable-dmn-model" }
 roxmltree = "0.20.0"
 quick-xml = "0.39.2"
+
+[dev-dependencies]
+serde_json = "1.0.149"
