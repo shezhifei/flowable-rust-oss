@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DmnEditorDocument } from '../generated/editor-protocol';
+import type { DmnEditorDocument, FormEditorDocument } from '../generated/editor-protocol';
 import { sampleDocument } from './sampleDocument';
 import {
   loadBpmnDocument,
   loadDmnDocument,
+  loadFormDocument,
   ModelerApiError,
   saveBpmnDocument,
   saveDmnDocument,
+  saveFormDocument,
 } from './modelerApi';
 
 const dmnDocument: DmnEditorDocument = {
@@ -20,6 +22,16 @@ const dmnDocument: DmnEditorDocument = {
         decisionTable: { id: 'leaveTable', hitPolicy: 'FIRST' },
       },
     ],
+  },
+};
+
+const formDocument: FormEditorDocument = {
+  schemaVersion: '1.0',
+  model: {
+    key: 'leaveForm',
+    name: 'Leave request',
+    fields: [{ fieldType: 'BaseField', id: 'reason', type: 'text', name: 'Reason' }],
+    outcomes: [{ id: 'submit', name: 'Submit' }],
   },
 };
 
@@ -115,6 +127,47 @@ describe('modeler API client', () => {
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       '/modeler-app/rest/models/leave/editor/dmn-json',
+      expect.objectContaining({ credentials: 'same-origin' }),
+    );
+  });
+
+  it('loads a form document through the form-json endpoint', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(formDocument), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(loadFormDocument('leave/form', fetcher)).resolves.toEqual(formDocument);
+    expect(fetcher).toHaveBeenCalledWith(
+      '/modeler-app/rest/form-models/leave%2Fform/editor/form-json',
+      expect.objectContaining({ credentials: 'same-origin' }),
+    );
+  });
+
+  it('saves a form document and reloads the server-normalized document', async () => {
+    const normalized = structuredClone(formDocument);
+    normalized.model.name = 'Server normalized form';
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(normalized), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+    await expect(saveFormDocument('leave', formDocument, fetcher)).resolves.toEqual(normalized);
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      '/modeler-app/rest/form-models/leave/editor/form-json',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(formDocument) }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      '/modeler-app/rest/form-models/leave/editor/form-json',
       expect.objectContaining({ credentials: 'same-origin' }),
     );
   });
