@@ -743,6 +743,63 @@ a:focus-visible {
   font-size: 1.05rem;
 }
 
+.property-field {
+  display: grid;
+  gap: 5px;
+  margin-top: 13px;
+}
+.property-field:first-of-type {
+  margin-top: 0;
+}
+.property-label {
+  color: #98948a;
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.property-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 9px;
+  color: #4f4c45;
+  background: #f2f0e9;
+  border: 1px solid #e0dcd2;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 0.7rem;
+}
+textarea.property-input {
+  line-height: 1.5;
+  resize: vertical;
+}
+.property-input:focus {
+  background: #fff;
+  border-color: var(--signal);
+  outline: none;
+}
+.property-input.has-error {
+  background: #fdf1ec;
+  border-color: #c96f4a;
+}
+.property-error {
+  color: #b0542f;
+  font-size: 0.62rem;
+}
+.property-checkbox {
+  margin-top: 9px;
+}
+.property-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4f4c45;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+.property-checkbox input {
+  accent-color: var(--signal);
+}
+
 @media (max-height: 700px) {
   .modeler-layout {
     min-height: 540px;

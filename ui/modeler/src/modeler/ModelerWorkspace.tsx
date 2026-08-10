@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import type { FlowElementEnum } from '../generated/editor-protocol';
 import { BpmnCanvas } from './BpmnCanvas';
 import { deleteElementsCommand } from './commands';
 import { BPMN_PALETTE_MIME, createAtPointCommand, nextPaletteElementId } from './creationCommands';
@@ -9,6 +8,7 @@ import { documentElements } from './diagramModel';
 import type { CanonicalPaletteElementKind } from './elementFactory';
 import { useModelerStore } from './modelerStore';
 import { loadBpmnDocument, saveBpmnDocument } from './modelerApi';
+import { PropertiesPanel } from './PropertiesPanel';
 
 const palette = [
   ['Start', '○', 'start'],
@@ -47,7 +47,6 @@ export function ModelerWorkspace() {
   >(modelId ? { state: 'loading' } : { state: 'idle' });
   const process = document.model.processes[0];
   const elements = documentElements(document);
-  const selectedElement = elements.find((element) => element.id === selectedElementId);
 
   useEffect(() => {
     if (!modelId) return;
@@ -285,83 +284,10 @@ export function ModelerWorkspace() {
           </div>
         </section>
 
-        <aside className="properties-panel" aria-label="Element properties">
-          <div className="properties-heading">
-            <div>
-              <span className="panel-kicker">Selection</span>
-              <h1>{selectedElement?.name ?? 'Process'}</h1>
-            </div>
-            <span className="selection-glyph" aria-hidden="true">
-              {selectedElement ? elementGlyph(selectedElement) : '◎'}
-            </span>
-          </div>
-          {selectedElement ? <ElementSummary element={selectedElement} /> : <ProcessSummary />}
-        </aside>
+        <PropertiesPanel />
       </div>
     </main>
   );
-}
-
-function ElementSummary({ element }: { element: FlowElementEnum }) {
-  return (
-    <div className="property-groups">
-      <section>
-        <h2>General</h2>
-        <Property label="ID" value={element.id ?? '—'} code />
-        <Property label="Type" value={humanize(element.elementType)} />
-        <Property label="Name" value={element.name ?? '—'} />
-      </section>
-      <section>
-        <h2>Document geometry</h2>
-        <Property label="Source row" value={String(element.xmlRowNumber)} />
-        <Property label="Source column" value={String(element.xmlColumnNumber)} />
-      </section>
-      <section className="read-only-note">
-        <span>Read-only preview</span>
-        <p>
-          Property editing is introduced in M3. This panel already resolves the typed canonical
-          element.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-function ProcessSummary() {
-  return (
-    <div className="empty-properties">
-      <span>Nothing selected</span>
-      <p>Select a BPMN node to inspect its canonical JSON properties.</p>
-    </div>
-  );
-}
-
-function Property({
-  label,
-  value,
-  code = false,
-}: {
-  label: string;
-  value: string;
-  code?: boolean;
-}) {
-  return (
-    <div className="property-row">
-      <span>{label}</span>
-      <strong className={code ? 'code-value' : undefined}>{value}</strong>
-    </div>
-  );
-}
-
-function elementGlyph(element: FlowElementEnum) {
-  if (element.elementType.includes('Event')) return '○';
-  if (element.elementType.includes('Gateway')) return '◇';
-  if (element.elementType.includes('Task')) return '▢';
-  return '▣';
-}
-
-function humanize(value: string) {
-  return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function paletteClickPoint(
