@@ -1,8 +1,9 @@
+use crate::field_types::{self, FormFieldCategory};
 use crate::handler::{FormFieldEnrichContext, FormFieldHandler, default_handlers};
 use crate::models::{
     BaseFormField, ExpressionFormField, FormContainer, FormData, FormDefinition, FormDeployment,
-    FormDeploymentRequest, FormEnumValue, FormFieldModel, FormInstance, FormOption, FormOutcome,
-    FormProperty, FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult,
+    FormDeploymentRequest, FormEnumValue, FormFieldModel, FormInstance, FormModel, FormOption,
+    FormOutcome, FormProperty, FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult,
     LayoutDefinition, OptionFormField, form_instance_values_bytes,
 };
 use crate::query::{FormDefinitionQuery, FormInstanceQuery};
@@ -15,8 +16,11 @@ use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use flowable_engine::interceptor::command_executor::CommandExecutor;
 use flowable_engine::task::Task;
+use flowable_engine_common::el::{
+    Expression, MapVariableContainer, SimpleExpression, evaluate_composite_expression,
+};
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -43,8 +47,15 @@ impl FlowableFormService {
     ) -> Self {
         repository::ensure_schema(&engine.get_runtime_store());
         let mut handlers = default_handlers();
-        // 自定义 handler 覆盖默认 handler
-        handlers.extend(custom_handlers);
+        // A custom handler registered under a compatibility alias also owns
+        // that alias's canonical runtime route (for example `amount` routes
+        // through `decimal`, and `multi-line-text` through `text`).
+        for (field_type, handler) in custom_handlers {
+            if let Some(runtime_type) = field_types::runtime_handler_type(&field_type) {
+                handlers.insert(runtime_type.to_string(), Arc::clone(&handler));
+            }
+            handlers.insert(field_type, handler);
+        }
         Self { engine, handlers }
     }
 
@@ -68,7 +79,7 @@ impl FlowableFormService {
         let mut parsed_resources = request
             .resources
             .into_iter()
-            .map(parse_form_resource)
+            .map(|resource| parse_form_resource(resource, &self.handlers))
             .collect::<Result<Vec<_>, _>>()?;
         parsed_resources.sort_by(|left, right| left.resource_name.cmp(&right.resource_name));
 
@@ -556,6 +567,7 @@ struct ParsedFormDefinition {
 
 fn parse_form_resource(
     resource: crate::models::FormDeploymentResource,
+    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
 ) -> Result<ParsedFormDefinition, FlowableError> {
     if !resource.resource_name.ends_with(".form") {
         return Err(FlowableError::DeploymentValidationError(format!(
@@ -585,6 +597,20 @@ fn parse_form_resource(
     let outcome_variable_name = optional_string(object, "outcomeVariableName");
     let outcomes = parse_form_outcomes(&value)?;
     let layout = value.get("layout").cloned();
+
+    validate_deployment_form_fields(
+        &value,
+        FormModel {
+            key: key.clone(),
+            name: name.clone(),
+            description: description.clone(),
+            fields: Vec::new(),
+            outcomes: outcomes.clone().unwrap_or_default(),
+            outcome_variable_name: outcome_variable_name.clone(),
+            layout: layout.clone(),
+        },
+        handlers,
+    )?;
 
     Ok(ParsedFormDefinition {
         key,
@@ -661,16 +687,21 @@ fn parse_form_payload(
         .cloned()
         .unwrap_or_default();
 
-    let form_properties = fields
-        .iter()
-        .map(|field| parse_flat_form_property(field, values))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut form_properties = Vec::new();
+    collect_flat_form_properties(&fields, values, &mut form_properties)?;
 
     let form_fields = if fields.iter().any(|f| f.get("fieldType").is_some()) {
-        let parsed: Vec<FormFieldModel> = fields
+        let mut parsed: Vec<FormFieldModel> = fields
             .iter()
             .map(parse_form_field_model)
             .collect::<Result<Vec<_>, _>>()?;
+        let scope = MapVariableContainer::from_map(
+            values
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+        );
+        enrich_form_field_values(&mut parsed, values, &scope);
         Some(parsed)
     } else {
         None
@@ -681,6 +712,238 @@ fn parse_form_payload(
     let layout = payload.get("layout").cloned();
 
     Ok((form_properties, form_fields, outcomes, layout))
+}
+
+fn validate_deployment_form_fields(
+    payload: &Value,
+    mut model: FormModel,
+    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
+) -> Result<(), FlowableError> {
+    let fields = payload
+        .get("fields")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            FlowableError::DeploymentValidationError(
+                "[flowable-form-fields-required] form fields must be a JSON array".to_string(),
+            )
+        })?;
+    let has_typed_field = fields.iter().any(|field| field.get("fieldType").is_some());
+    if !has_typed_field {
+        return validate_legacy_deployment_fields(fields, handlers);
+    }
+
+    model.fields = fields
+        .iter()
+        .map(parse_form_field_model)
+        .collect::<Result<Vec<_>, _>>()?;
+    let issues = crate::validation::validate_form_model_with_supported_type(&model, |field_type| {
+        handlers.contains_key(&field_type.trim().to_ascii_lowercase())
+    });
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        Err(FlowableError::DeploymentValidationError(
+            issues
+                .iter()
+                .map(crate::validation::FormModelValidationIssue::stable_message)
+                .collect::<Vec<_>>()
+                .join("; "),
+        ))
+    }
+}
+
+fn validate_legacy_deployment_fields(
+    fields: &[Value],
+    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
+) -> Result<(), FlowableError> {
+    let mut ids = HashSet::new();
+    validate_legacy_fields(fields, handlers, &mut ids)
+}
+
+fn validate_legacy_fields(
+    fields: &[Value],
+    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
+    ids: &mut HashSet<String>,
+) -> Result<(), FlowableError> {
+    for field in fields {
+        let object = field.as_object().ok_or_else(|| {
+            FlowableError::DeploymentValidationError(
+                "[flowable-form-field-invalid] form fields must be JSON objects".to_string(),
+            )
+        })?;
+        let id = required_string(object, "id", "fields[]")?;
+        if !ids.insert(id.clone()) {
+            return Err(FlowableError::DeploymentValidationError(format!(
+                "[flowable-form-field-id-duplicate] duplicate form field id `{id}`"
+            )));
+        }
+        let field_type = required_string(object, "type", "fields[]")?;
+        let capability = field_types::form_field_capability(&field_type);
+        let custom_handler = handlers.contains_key(&field_type.trim().to_ascii_lowercase());
+        if capability.is_none() && !custom_handler {
+            return Err(FlowableError::DeploymentValidationError(format!(
+                "[flowable-form-field-type-unsupported] form field type `{field_type}` is not supported"
+            )));
+        }
+        if let Some(capability) = capability {
+            let explicitly_writable = object.get("writable").and_then(Value::as_bool) == Some(true);
+            let read_only = object.get("readOnly").and_then(Value::as_bool) == Some(true);
+            let required = object.get("required").and_then(Value::as_bool) == Some(true);
+            if explicitly_writable && (read_only || !capability.writable)
+                || (!capability.supports_required && required)
+            {
+                return Err(FlowableError::DeploymentValidationError(format!(
+                    "[flowable-form-field-writeability-incompatible] form field `{id}` has writeability incompatible with type `{field_type}`"
+                )));
+            }
+            if matches!(capability.category, FormFieldCategory::Option)
+                && object
+                    .get("optionsExpression")
+                    .and_then(Value::as_str)
+                    .is_some_and(|expression| !expression.trim().is_empty())
+            {
+                return Err(FlowableError::DeploymentValidationError(format!(
+                    "[flowable-form-dynamic-options-unsupported] form field `{id}` must use static options"
+                )));
+            }
+        }
+        if matches!(
+            capability.map(|value| value.category),
+            Some(FormFieldCategory::Container)
+        ) {
+            let rows = object
+                .get("fields")
+                .and_then(Value::as_array)
+                .ok_or_else(|| {
+                    FlowableError::DeploymentValidationError(
+                        "[flowable-form-field-container-invalid] form container fields must be an array"
+                            .to_string(),
+                    )
+                })?;
+            for row in rows {
+                let row = row.as_array().ok_or_else(|| {
+                    FlowableError::DeploymentValidationError(
+                        "[flowable-form-field-container-invalid] form container rows must be arrays"
+                            .to_string(),
+                    )
+                })?;
+                validate_legacy_fields(row, handlers, ids)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn collect_flat_form_properties(
+    fields: &[Value],
+    values: &BTreeMap<String, Value>,
+    properties: &mut Vec<FormProperty>,
+) -> Result<(), FlowableError> {
+    for field in fields {
+        let object = field.as_object().ok_or_else(|| {
+            FlowableError::DeploymentValidationError(
+                "Form field definitions must be JSON objects".to_string(),
+            )
+        })?;
+        let field_type = required_string(object, "type", "fields[]")?;
+        let capability = field_types::form_field_capability(&field_type);
+        let category = capability.map(|value| value.category);
+
+        if !matches!(
+            category,
+            Some(
+                FormFieldCategory::Expression
+                    | FormFieldCategory::Container
+                    | FormFieldCategory::Display
+            )
+        ) {
+            properties.push(parse_flat_form_property(field, values)?);
+        }
+
+        if matches!(category, Some(FormFieldCategory::Container)) {
+            if let Some(rows) = object.get("fields").and_then(Value::as_array) {
+                for row in rows {
+                    let nested = row.as_array().ok_or_else(|| {
+                        FlowableError::DeploymentValidationError(
+                            "Form container rows must be JSON arrays".to_string(),
+                        )
+                    })?;
+                    collect_flat_form_properties(nested, values, properties)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn enrich_form_field_values(
+    fields: &mut [FormFieldModel],
+    values: &BTreeMap<String, Value>,
+    scope: &MapVariableContainer,
+) {
+    for field in fields {
+        match field {
+            FormFieldModel::Container(container) => {
+                for row in &mut container.fields {
+                    enrich_form_field_values(row, values, scope);
+                }
+            }
+            FormFieldModel::OptionField(field) => {
+                field.base.value = values.get(&field.base.id).cloned();
+            }
+            FormFieldModel::ExpressionField(field) => {
+                field.base.value = evaluate_form_expression(&field.expression, scope);
+            }
+            FormFieldModel::BaseField(field) => {
+                if field.field_type.as_deref() == Some(field_types::HYPERLINK)
+                    && let Some(url) = field
+                        .params
+                        .as_ref()
+                        .and_then(|params| params.get("hyperlinkUrl"))
+                {
+                    field.value = evaluate_form_expression(url, scope);
+                } else {
+                    field.value = values.get(&field.id).cloned();
+                }
+            }
+        }
+    }
+}
+
+fn evaluate_form_expression(expression: &str, scope: &MapVariableContainer) -> Option<Value> {
+    let expression = expression.trim();
+    if is_single_uel_expression(expression) {
+        SimpleExpression::new(expression.to_string()).get_value(scope)
+    } else if expression.contains("${") {
+        Some(Value::String(evaluate_composite_expression(
+            expression, scope,
+        )))
+    } else if expression.is_empty() {
+        None
+    } else {
+        Some(Value::String(expression.to_string()))
+    }
+}
+
+fn is_single_uel_expression(expression: &str) -> bool {
+    let bytes = expression.as_bytes();
+    if bytes.len() < 3 || !expression.starts_with("${") {
+        return false;
+    }
+    let mut depth = 1usize;
+    for (index, byte) in bytes.iter().enumerate().skip(2) {
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return index == bytes.len() - 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn parse_form_outcomes(payload: &Value) -> Result<Option<Vec<FormOutcome>>, FlowableError> {
@@ -729,10 +992,14 @@ fn parse_flat_form_property(
             .get("readable")
             .and_then(Value::as_bool)
             .unwrap_or(true),
-        writable: object
-            .get("writable")
+        writable: !object
+            .get("readOnly")
             .and_then(Value::as_bool)
-            .unwrap_or(true),
+            .unwrap_or(false)
+            && object
+                .get("writable")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
         required: object
             .get("required")
             .and_then(Value::as_bool)
@@ -850,21 +1117,17 @@ fn parse_form_field_model(field: &Value) -> Result<FormFieldModel, FlowableError
 /// Parse common base field properties from a JSON object.
 fn parse_base_form_field(object: &Map<String, Value>) -> Result<BaseFormField, FlowableError> {
     let id = required_string(object, "id", "fields[]")?;
-    let layout = if object.get("row").is_some()
-        || object.get("col").is_some()
-        || object.get("colSpan").is_some()
-    {
-        Some(LayoutDefinition {
-            row: object.get("row").and_then(|v| v.as_i64()).map(|n| n as i32),
-            col: object.get("col").and_then(|v| v.as_i64()).map(|n| n as i32),
-            col_span: object
+    let layout = object
+        .get("layout")
+        .and_then(Value::as_object)
+        .map(|layout| LayoutDefinition {
+            row: layout.get("row").and_then(Value::as_i64).map(|n| n as i32),
+            col: layout.get("col").and_then(Value::as_i64).map(|n| n as i32),
+            col_span: layout
                 .get("colSpan")
-                .and_then(|v| v.as_i64())
+                .and_then(Value::as_i64)
                 .map(|n| n as i32),
-        })
-    } else {
-        None
-    };
+        });
 
     let params = object.get("params").and_then(|v| v.as_object()).map(|obj| {
         obj.iter()
@@ -1013,7 +1276,9 @@ fn find_task_form_key(model: &BpmnModel, task_definition_key: &str) -> Option<St
 }
 
 fn normalize_field_type(field_type: &str) -> String {
-    field_type.trim().to_ascii_lowercase()
+    field_types::runtime_handler_type(field_type)
+        .map(str::to_string)
+        .unwrap_or_else(|| field_type.trim().to_ascii_lowercase())
 }
 
 fn normalize_submitted_by(submitted_by: Option<String>) -> Option<String> {

@@ -93,20 +93,6 @@ pub fn deploy_runtime_forms(service: &FlowableFormService) -> FormDeployment {
                     })
                     .to_string(),
                 },
-                FormDeploymentResource {
-                    resource_name: "unsupported-runtime.form".to_string(),
-                    resource: json!({
-                        "key": "unsupportedRuntime",
-                        "name": "Unsupported runtime",
-                        "resourceName": "unsupported-runtime.form",
-                        "fields": [
-                            // Unknown custom type — requires explicit handler registration
-                            // (upload is a supported default type as of P65-form).
-                            { "id": "attachment", "name": "Attachment", "type": "custom_widget", "required": true }
-                        ]
-                    })
-                    .to_string(),
-                },
             ],
         })
         .unwrap()

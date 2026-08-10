@@ -6,6 +6,7 @@ use flowable_engine::error::FlowableError;
 use flowable_engine::persistence::db_session::DbSession;
 use serde_json::{Number, Value, json};
 
+use crate::field_types;
 use crate::models::FormProperty;
 
 #[cfg(test)]
@@ -370,6 +371,19 @@ impl FormFieldHandler for BooleanFieldHandler {
 
 pub struct OptionFieldHandler;
 
+impl OptionFieldHandler {
+    fn selected_value(value: &Value) -> Option<&str> {
+        match value {
+            Value::String(value) => Some(value.as_str()),
+            Value::Object(value) => value
+                .get("id")
+                .and_then(Value::as_str)
+                .or_else(|| value.get("name").and_then(Value::as_str)),
+            _ => None,
+        }
+    }
+}
+
 impl FormFieldHandler for OptionFieldHandler {
     fn supported_type(&self) -> &str {
         "enum"
@@ -395,9 +409,9 @@ impl FormFieldHandler for OptionFieldHandler {
         }
 
         // 验证值在允许的选项列表中
-        match value {
-            Value::String(s) => {
-                let trimmed = s.trim();
+        match Self::selected_value(value) {
+            Some(selected) => {
+                let trimmed = selected.trim();
                 if trimmed.is_empty() {
                     return Ok(()); // 空字符串允许（非 required 时）
                 }
@@ -418,23 +432,24 @@ impl FormFieldHandler for OptionFieldHandler {
                     )))
                 }
             }
-            other => Err(FlowableError::DeploymentValidationError(format!(
-                "Invalid value for field '{}': expected option string, got {}",
+            None => Err(FlowableError::DeploymentValidationError(format!(
+                "Invalid value for field '{}': expected option string or object with an id/name, got {}",
                 field.name.as_deref().unwrap_or(&field.id),
-                json_type_name(other)
+                json_type_name(value)
             ))),
         }
     }
 
     fn coerce(&self, field: &FormProperty, value: Value) -> Result<Value, FlowableError> {
-        match value {
-            Value::String(_) => Ok(value),
-            other => Err(FlowableError::DeploymentValidationError(format!(
-                "Invalid value for field '{}': expected option string, got {}",
-                field.name.as_deref().unwrap_or(&field.id),
-                json_type_name(&other)
-            ))),
-        }
+        Self::selected_value(&value)
+            .map(|selected| Value::String(selected.to_string()))
+            .ok_or_else(|| {
+                FlowableError::DeploymentValidationError(format!(
+                    "Invalid value for field '{}': expected option string or object with an id/name, got {}",
+                    field.name.as_deref().unwrap_or(&field.id),
+                    json_type_name(&value)
+                ))
+            })
     }
 
     fn render_metadata(&self, field: &FormProperty) -> Value {
@@ -452,6 +467,64 @@ impl FormFieldHandler for OptionFieldHandler {
             "type": "option",
             "options": options
         })
+    }
+}
+
+// ============================================================
+// IdentityFieldHandler — Flowable 6.8 "people" / "functional-group"
+// ============================================================
+
+/// Coerces the Java wire representation (`{"id": ...}`) to the identity id
+/// stored in the process variable. A bare string id is accepted for REST
+/// clients that already resolved the identity picker selection.
+pub struct IdentityFieldHandler;
+
+impl IdentityFieldHandler {
+    fn identity_id(value: &Value) -> Option<&str> {
+        match value {
+            Value::String(value) => Some(value.as_str()),
+            Value::Object(value) => value.get("id").and_then(Value::as_str),
+            _ => None,
+        }
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    }
+}
+
+impl FormFieldHandler for IdentityFieldHandler {
+    fn supported_type(&self) -> &str {
+        field_types::PEOPLE
+    }
+
+    fn validate(&self, field: &FormProperty, value: &Value) -> Result<(), FlowableError> {
+        if Self::identity_id(value).is_some() {
+            return Ok(());
+        }
+        if !field.required && matches!(value, Value::Null) {
+            return Ok(());
+        }
+        Err(FlowableError::DeploymentValidationError(format!(
+            "Invalid value for field '{}': expected an identity id or object with a non-empty id",
+            field.name.as_deref().unwrap_or(&field.id)
+        )))
+    }
+
+    fn coerce(&self, field: &FormProperty, value: Value) -> Result<Value, FlowableError> {
+        if !field.required && matches!(value, Value::Null) {
+            return Ok(Value::Null);
+        }
+        Self::identity_id(&value)
+            .map(|id| Value::String(id.to_string()))
+            .ok_or_else(|| {
+                FlowableError::DeploymentValidationError(format!(
+                    "Invalid value for field '{}': expected an identity id or object with a non-empty id",
+                    field.name.as_deref().unwrap_or(&field.id)
+                ))
+            })
+    }
+
+    fn render_metadata(&self, field: &FormProperty) -> Value {
+        json!({ "type": normalize_field_type(&field.field_type) })
     }
 }
 
@@ -656,11 +729,24 @@ pub fn default_handlers() -> BTreeMap<String, Arc<dyn FormFieldHandler>> {
     let mut map: BTreeMap<String, Arc<dyn FormFieldHandler>> = BTreeMap::new();
 
     let text_handler: Arc<dyn FormFieldHandler> = Arc::new(TextFieldHandler);
-    map.insert("string".to_string(), text_handler.clone());
-    map.insert("text".to_string(), text_handler);
+    for field_type in &[
+        "string",
+        field_types::SINGLE_LINE_TEXT,
+        field_types::MULTI_LINE_TEXT,
+    ] {
+        map.insert((*field_type).to_string(), text_handler.clone());
+    }
 
     let number_handler: Arc<dyn FormFieldHandler> = Arc::new(NumberFieldHandler);
-    for t in &["integer", "long", "double", "float", "number", "decimal"] {
+    for t in &[
+        field_types::INTEGER,
+        "long",
+        "double",
+        "float",
+        "number",
+        field_types::DECIMAL,
+        field_types::AMOUNT,
+    ] {
         map.insert(t.to_string(), number_handler.clone());
     }
 
@@ -671,12 +757,21 @@ pub fn default_handlers() -> BTreeMap<String, Arc<dyn FormFieldHandler>> {
     map.insert("boolean".to_string(), bool_handler);
 
     let option_handler: Arc<dyn FormFieldHandler> = Arc::new(OptionFieldHandler);
-    for t in &["enum", "dropdown", "radio"] {
+    for t in &[
+        "enum",
+        field_types::DROPDOWN,
+        "radio",
+        field_types::RADIO_BUTTONS,
+    ] {
         map.insert(t.to_string(), option_handler.clone());
     }
 
     let upload_handler: Arc<dyn FormFieldHandler> = Arc::new(UploadFieldHandler);
     map.insert("upload".to_string(), upload_handler);
+
+    let identity_handler: Arc<dyn FormFieldHandler> = Arc::new(IdentityFieldHandler);
+    map.insert(field_types::PEOPLE.to_string(), identity_handler.clone());
+    map.insert(field_types::FUNCTIONAL_GROUP.to_string(), identity_handler);
 
     map
 }

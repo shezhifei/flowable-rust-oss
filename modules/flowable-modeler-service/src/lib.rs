@@ -5,7 +5,7 @@ use flowable_bpmn_converter::{BpmnXMLConverter, write_bpmn_model};
 use flowable_bpmn_layout::ensure_layout;
 use flowable_dmn_converter::{parse_dmn_definition, write_dmn_definition};
 use flowable_dmn_engine::validate_editor_definition;
-use flowable_form_service::FormFieldModel;
+use flowable_form_service::validate_form_model;
 use flowable_image_generator::{generate_process_diagram_svg, svg_to_png_bytes};
 use flowable_modeler_protocol::{
     BpmnEditorDocument, DmnEditorDocument, FormEditorDocument, ProtocolVersion,
@@ -159,43 +159,19 @@ pub fn validate_form(document: &FormEditorDocument) -> ValidationResult {
             message: "form name is required".to_string(),
         });
     }
-    let mut ids = std::collections::HashSet::new();
-    validate_form_fields(&document.model.fields, &mut ids, &mut errors);
+    errors.extend(
+        validate_form_model(&document.model)
+            .into_iter()
+            .map(|issue| {
+                let message = issue.stable_message();
+                ValidationIssue {
+                    element_id: issue.element_id,
+                    line: None,
+                    message,
+                }
+            }),
+    );
     ValidationResult::from_errors(errors)
-}
-
-fn validate_form_fields(
-    fields: &[FormFieldModel],
-    ids: &mut std::collections::HashSet<String>,
-    errors: &mut Vec<ValidationIssue>,
-) {
-    for field in fields {
-        let (id, nested_rows) = match field {
-            FormFieldModel::Container(value) => (&value.base.id, Some(&value.fields)),
-            FormFieldModel::OptionField(value) => (&value.base.id, None),
-            FormFieldModel::ExpressionField(value) => (&value.base.id, None),
-            FormFieldModel::BaseField(value) => (&value.id, None),
-        };
-        if id.trim().is_empty() {
-            errors.push(ValidationIssue {
-                element_id: None,
-                line: None,
-                message: "form field id is required".to_string(),
-            });
-        } else if !ids.insert(id.clone()) {
-            errors.push(ValidationIssue {
-                element_id: Some(id.clone()),
-                line: None,
-                message: format!("duplicate form field id `{id}`"),
-            });
-        }
-
-        if let Some(rows) = nested_rows {
-            for row in rows {
-                validate_form_fields(row, ids, errors);
-            }
-        }
-    }
 }
 
 fn require_v1(version: ProtocolVersion) -> Result<(), ModelerServiceError> {

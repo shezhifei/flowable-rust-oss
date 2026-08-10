@@ -91,7 +91,7 @@ fn form_validation_reports_all_nested_duplicate_and_required_field_errors() {
         fields: vec![
             FormFieldModel::BaseField(duplicate.clone()),
             FormFieldModel::Container(FormContainer {
-                base: base_field("container", "container"),
+                base: non_writable_field("container", "container"),
                 fields: vec![vec![
                     FormFieldModel::BaseField(duplicate),
                     FormFieldModel::BaseField(base_field("", "text")),
@@ -143,7 +143,7 @@ fn representative_forms() -> Vec<FormModel> {
         form(
             "expression",
             vec![FormFieldModel::ExpressionField(ExpressionFormField {
-                base: base_field("manager", "expression"),
+                base: non_writable_field("manager", "expression"),
                 expression: "${managerName}".into(),
             })],
         ),
@@ -152,7 +152,7 @@ fn representative_forms() -> Vec<FormModel> {
             name: "Container form".into(),
             description: Some("Nested form projection".into()),
             fields: vec![FormFieldModel::Container(FormContainer {
-                base: base_field("details", "container"),
+                base: non_writable_field("details", "container"),
                 fields: vec![vec![FormFieldModel::BaseField(base_field(
                     "notes",
                     "multi-line-text",
@@ -200,4 +200,73 @@ fn base_field(id: &str, field_type: &str) -> BaseFormField {
         date_pattern: None,
         enum_values: Vec::new(),
     }
+}
+
+#[test]
+fn form_validation_reports_stable_recursive_contract_errors_before_save() {
+    let mut invalid_layout = base_field("layout", "text");
+    invalid_layout.layout = Some(LayoutDefinition {
+        row: Some(-1),
+        col: Some(0),
+        col_span: Some(0),
+    });
+    let document = FormEditorDocument::new(FormModel {
+        key: "invalid-contract".into(),
+        name: "Invalid contract".into(),
+        description: None,
+        fields: vec![
+            FormFieldModel::BaseField(BaseFormField {
+                field_type: Some("dropdown".into()),
+                ..base_field("wrongVariant", "text")
+            }),
+            FormFieldModel::OptionField(OptionFormField {
+                base: base_field("badOptions", "radio-buttons"),
+                option_type: None,
+                has_empty_value: false,
+                options: vec![FormOption {
+                    id: String::new(),
+                    name: String::new(),
+                }],
+                options_expression: Some("${dynamicOptions}".into()),
+            }),
+            FormFieldModel::ExpressionField(ExpressionFormField {
+                base: base_field("badExpression", "expression"),
+                expression: String::new(),
+            }),
+            FormFieldModel::Container(FormContainer {
+                base: non_writable_field("nested", "container"),
+                fields: vec![vec![FormFieldModel::BaseField(invalid_layout)]],
+            }),
+        ],
+        outcomes: Vec::new(),
+        outcome_variable_name: None,
+        layout: None,
+    });
+
+    let result = validate_form(&document);
+    assert!(!result.valid);
+    for code in [
+        "flowable-form-field-variant-incompatible",
+        "flowable-form-field-options-invalid",
+        "flowable-form-dynamic-options-unsupported",
+        "flowable-form-field-writeability-incompatible",
+        "flowable-form-field-expression-invalid",
+        "flowable-form-field-layout-invalid",
+    ] {
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|issue| issue.message.contains(code)),
+            "missing validation code {code}: {:?}",
+            result.errors
+        );
+    }
+}
+
+fn non_writable_field(id: &str, field_type: &str) -> BaseFormField {
+    let mut field = base_field(id, field_type);
+    field.writable = Some(false);
+    field.read_only = Some(true);
+    field
 }
