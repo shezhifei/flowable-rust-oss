@@ -118,22 +118,62 @@ test.describe('L2 execution', () => {
 
     const completeButton = page.locator('button#form_complete_button', { hasText: 'Complete' }).first();
     await expect(completeButton).toBeVisible();
+    // Wait for the complete POST to finish before trusting any list UI.
+    // Under full parallelism a bare click races: the subsequent hash navigation
+    // can land on an empty loading shell, making `toHaveCount(0)` a false green.
+    const completeResponse = page.waitForResponse(
+      (response) => {
+        if (response.request().method() !== 'POST' && response.request().method() !== 'PUT') {
+          return false;
+        }
+        const url = response.url();
+        // Form complete (POST /task-forms/:id) or action complete (PUT /tasks/:id/action/complete).
+        return (
+          url.includes(`/app/rest/task-forms/${taskId}`) ||
+          url.includes(`/app/rest/tasks/${taskId}/action/complete`)
+        );
+      },
+      { timeout: 15_000 },
+    );
     await completeButton.click();
+    const completed = await completeResponse;
+    expect(completed.status(), await completed.text()).toBe(200);
 
-    // --- The task is gone from the open list (force a full reload: hash-only
-    //     goto inside the Angular app does not re-route reliably) ---
+    // --- REST backstop first (source of truth): open query empties, then the
+    //     process is recorded as finished. UI list is checked after. ---
+    await expect
+      .poll(
+        async () => {
+          const res = await page.request.post(`${BASE_URL}/app/rest/query/tasks`, {
+            data: { text: taskName, state: 'open', size: 5 },
+          });
+          if (res.status() !== 200) return -1;
+          const body = (await res.json()) as { data: unknown[] };
+          return body.data.length;
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(0);
+
+    await expect
+      .poll(
+        async () => {
+          const historic = await engineGetJson<{ total: number }>(
+            page,
+            `/history/historic-process-instances?processDefinitionKey=${encodeURIComponent(processKey)}&finished=true`,
+          );
+          if (historic.status !== 200) return -1;
+          return historic.body.total;
+        },
+        { timeout: 15_000 },
+      )
+      .toBeGreaterThanOrEqual(1);
+
     await page.goto('about:blank');
     await page.goto('/workflow/#/tasks');
-    // An empty open list renders the "no tasks" placeholder; the list itself
-    // stays hidden, so only assert the completed task is absent.
+    // Wait for the task list shell to settle before asserting absence: the
+    // empty loading state also has zero matching rows.
+    await expect(page.locator('.apps-wrapper, .main-content-wrapper, ul.full-list').first()).toBeVisible();
     await expect(page.locator('ul.full-list li', { hasText: taskName })).toHaveCount(0);
-
-    // --- REST backstop: the instance finished with its history recorded ---
-    const historic = await engineGetJson<{ total: number; data: Array<{ endTime?: string }> }>(
-      page,
-      `/history/historic-process-instances?processDefinitionKey=${processKey}&finished=true`,
-    );
-    expect(historic.status).toBe(200);
-    expect(historic.body.total).toBeGreaterThanOrEqual(1);
   });
 });
