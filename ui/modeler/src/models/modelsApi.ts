@@ -110,9 +110,31 @@ export async function deployDefinitionModel(
     method: 'POST',
     credentials: 'same-origin',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, resourceName, resource: source }),
+    body: JSON.stringify({
+      name,
+      resourceName,
+      resource: kind === 'form' ? deployableFormSource(source) : source,
+    }),
   });
   if (!response.ok) throw await apiError(response, `Unable to deploy '${name}'`);
+}
+
+/**
+ * The stored form source is a `FormEditorDocument` envelope; the form
+ * repository deploys only the bare Flowable form model, so unwrap on publish.
+ * Sources that are already bare (or unparseable) pass through untouched and
+ * let the server report the problem.
+ */
+function deployableFormSource(source: string): string {
+  try {
+    const parsed = JSON.parse(source) as Record<string, unknown>;
+    if (parsed && typeof parsed === 'object' && 'model' in parsed && 'schemaVersion' in parsed) {
+      return JSON.stringify(parsed.model);
+    }
+    return source;
+  } catch {
+    return source;
+  }
 }
 
 /**
@@ -196,7 +218,9 @@ export function resourceNameFor(kind: ModelKind, key: string): string {
     case 'dmn':
       return `${key}.dmn`;
     case 'form':
-      return `${key}.form.json`;
+      // The form repository only accepts `.form` resources (Java parity);
+      // `.form.json` is rejected at deploy time.
+      return `${key}.form`;
     default:
       return key;
   }

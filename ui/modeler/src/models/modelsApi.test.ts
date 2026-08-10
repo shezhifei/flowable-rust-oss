@@ -105,11 +105,39 @@ describe('models API client', () => {
     );
 
     const formFetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 201 }));
-    await deployDefinitionModel('form', 'Form', 'form.form.json', '{}', formFetcher);
+    await deployDefinitionModel('form', 'Form', 'form.form', '{}', formFetcher);
     expect(formFetcher).toHaveBeenCalledWith(
       '/form-repository/deployments',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('unwraps the FormEditorDocument envelope when publishing a form', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 201 }));
+    const editorDocument = JSON.stringify({
+      schemaVersion: '1.0',
+      model: { key: 'leave', name: 'Leave form', fields: [], outcomes: [] },
+    });
+    await deployDefinitionModel('form', 'Leave form', 'leave.form', editorDocument, fetcher);
+    const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string) as {
+      resourceName: string;
+      resource: string;
+    };
+    expect(body.resourceName).toBe('leave.form');
+    expect(JSON.parse(body.resource)).toEqual({
+      key: 'leave',
+      name: 'Leave form',
+      fields: [],
+      outcomes: [],
+    });
+
+    const bareFetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 201 }));
+    const bare = JSON.stringify({ key: 'leave', name: 'Leave form', fields: [] });
+    await deployDefinitionModel('form', 'Leave form', 'leave.form', bare, bareFetcher);
+    const bareBody = JSON.parse((bareFetcher.mock.calls[0][1] as RequestInit).body as string) as {
+      resource: string;
+    };
+    expect(bareBody.resource).toBe(bare);
   });
 });
 
@@ -140,7 +168,7 @@ describe('models API helpers', () => {
     expect(stubContentType('bpmn')).toBe('application/xml');
     expect(resourceNameFor('bpmn', 'leave')).toBe('leave.bpmn20.xml');
     expect(resourceNameFor('dmn', 'leave')).toBe('leave.dmn');
-    expect(resourceNameFor('form', 'leave')).toBe('leave.form.json');
+    expect(resourceNameFor('form', 'leave')).toBe('leave.form');
 
     expect(stubSource('form', 'leave', 'Leave')).toContain('"key": "leave"');
     expect(stubSource('bpmn', 'leave', 'Leave')).toContain('process id="leave"');
