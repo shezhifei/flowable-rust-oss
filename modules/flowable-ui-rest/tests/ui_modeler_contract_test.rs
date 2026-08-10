@@ -5,7 +5,11 @@ use axum::{
     extract::Extension,
     http::{Request, StatusCode},
 };
-use flowable_engine::{engine::process_engine::ProcessEngine, repository::model::RepositoryModel};
+use flowable_engine::{
+    engine::process_engine::ProcessEngine,
+    identity::entities::{Group, User},
+    repository::model::RepositoryModel,
+};
 use flowable_ui_rest::{
     auth::{AuthMode, UiAuthConfig},
     modeler,
@@ -332,4 +336,315 @@ async fn modeler_spa_serves_deep_links_without_shadowing_rest_routes() {
     assert_eq!(rest.status(), StatusCode::UNAUTHORIZED);
     let body = to_bytes(rest.into_body(), usize::MAX).await.unwrap();
     assert!(!String::from_utf8_lossy(&body).contains("modeler-test-shell"));
+}
+
+// ── Gap endpoints: import / editor users & groups / clone / parent-relations ──
+
+fn bpmn_upload(file_name: &str, content: &str) -> reqwest::multipart::Form {
+    reqwest::multipart::Form::new().part(
+        "file",
+        reqwest::multipart::Part::text(content.to_string()).file_name(file_name.to_string()),
+    )
+}
+
+fn save_user(engine: &Arc<ProcessEngine>, id: &str, first: Option<&str>, last: Option<&str>) {
+    engine.get_identity_service().save_user(User {
+        id: id.to_string(),
+        first_name: first.map(str::to_string),
+        last_name: last.map(str::to_string),
+        email: None,
+        password: Some("test".to_string()),
+        tenant_id: None,
+    });
+}
+
+#[tokio::test]
+async fn bpmn_import_endpoints_create_models_from_uploaded_xml() {
+    let (engine, base_url, client) = spawn("ui-modeler-import-bpmn").await;
+
+    // Java ModelsResource.importProcessModel (multipart file upload).
+    let response = client
+        .post(format!("{base_url}/modeler-app/rest/import-process-model"))
+        .multipart(bpmn_upload("leave.bpmn20.xml", BPMN))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    assert_eq!(model["key"], "leave");
+    assert_eq!(model["name"], "Leave approval");
+    assert_eq!(model["modelType"], 0);
+    assert_eq!(model["version"], 1);
+    assert_eq!(model["latestVersion"], true);
+    let imported_id = model["id"].as_str().unwrap().to_string();
+
+    // The stored source is the XML itself, readable through the editor protocol.
+    let stored = engine
+        .get_repository_service()
+        .get_repository_model_source(&imported_id)
+        .unwrap();
+    assert_eq!(String::from_utf8(stored.bytes).unwrap(), BPMN);
+    let editor = client
+        .get(format!(
+            "{base_url}/modeler-app/rest/models/{imported_id}/editor/bpmn-json"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(editor.status(), StatusCode::OK);
+
+    // Java rejects unsupported file names and unparseable XML with 400.
+    let response = client
+        .post(format!("{base_url}/modeler-app/rest/import-process-model"))
+        .multipart(bpmn_upload("leave.txt", BPMN))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = client
+        .post(format!("{base_url}/modeler-app/rest/import-process-model"))
+        .multipart(bpmn_upload("broken.bpmn", "not xml at all"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // Java ModelsResource.importProcessModelText (first-party variant: JSON body).
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/import-process-model/text"
+        ))
+        .json(&json!({ "xml": BPMN, "name": "Imported leave" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    assert_eq!(model["key"], "leave");
+    assert_eq!(model["name"], "Imported leave");
+
+    // Java ApiModelsResource.importProcessModel (`/api/editor` servlet).
+    let response = client
+        .post(format!("{base_url}/api/editor/import-process-model"))
+        .multipart(bpmn_upload("leave.bpmn", BPMN))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    assert_eq!(model["key"], "leave");
+}
+
+#[tokio::test]
+async fn decision_table_import_endpoints_create_dmn_models() {
+    let (engine, base_url, client) = spawn("ui-modeler-import-dmn").await;
+
+    // Java DecisionTableResource.importDecisionTable.
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/decision-table-models/import-decision-table"
+        ))
+        .multipart(bpmn_upload("eligibility.dmn", DMN))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    // Java: key is the first decision's id, name the DMN definition name.
+    assert_eq!(model["key"], "eligibility");
+    assert_eq!(model["name"], "Eligibility");
+    assert_eq!(model["modelType"], 4);
+    let imported_id = model["id"].as_str().unwrap().to_string();
+
+    let editor = client
+        .get(format!(
+            "{base_url}/modeler-app/rest/models/{imported_id}/editor/dmn-json"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(editor.status(), StatusCode::OK);
+    let stored = engine
+        .get_repository_service()
+        .get_repository_model_source(&imported_id)
+        .unwrap();
+    assert_eq!(String::from_utf8(stored.bytes).unwrap(), DMN);
+
+    // Java DecisionTableResource.importDecisionTableText.
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/decision-table-models/import-decision-table-text"
+        ))
+        .json(&json!({ "xml": DMN }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    assert_eq!(model["key"], "eligibility");
+
+    // Java rejects unsupported file names with 400.
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/decision-table-models/import-decision-table"
+        ))
+        .multipart(bpmn_upload("eligibility.txt", DMN))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn editor_users_and_groups_list_idm_entries_with_optional_filter() {
+    let (engine, base_url, client) = spawn("ui-modeler-editor-users").await;
+    save_user(&engine, "bob", Some("Bob"), Some("Baker"));
+    save_user(&engine, "carol", Some("Carol"), Some("Smith"));
+    engine.get_identity_service().save_group(Group {
+        id: "sales".to_string(),
+        name: "Sales".to_string(),
+        group_type: Some("assignment".to_string()),
+    });
+    engine.get_identity_service().save_group(Group {
+        id: "engineering".to_string(),
+        name: "Engineering".to_string(),
+        group_type: Some("assignment".to_string()),
+    });
+
+    let users: Value = client
+        .get(format!("{base_url}/modeler-app/rest/editor-users"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(users["size"], 2);
+    assert_eq!(users["total"], 2);
+    assert_eq!(users["start"], 0);
+    let bob = &users["data"][0];
+    assert_eq!(bob["id"], "bob");
+    assert_eq!(bob["fullName"], "Bob Baker");
+
+    let filtered: Value = client
+        .get(format!("{base_url}/modeler-app/rest/editor-users?filter=carol"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(filtered["size"], 1);
+    assert_eq!(filtered["data"][0]["id"], "carol");
+
+    // Java orders groups by name ascending and filters on the name.
+    let groups: Value = client
+        .get(format!("{base_url}/modeler-app/rest/editor-groups"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(groups["size"], 2);
+    assert_eq!(groups["data"][0]["id"], "engineering");
+    assert_eq!(groups["data"][1]["id"], "sales");
+    assert_eq!(groups["data"][1]["type"], "assignment");
+
+    let filtered: Value = client
+        .get(format!(
+            "{base_url}/modeler-app/rest/editor-groups?filter=sal"
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(filtered["size"], 1);
+    assert_eq!(filtered["data"][0]["id"], "sales");
+}
+
+#[tokio::test]
+async fn clone_copies_model_and_source_and_parent_relations_follows_java_404() {
+    let (engine, base_url, client) = spawn("ui-modeler-clone").await;
+    seed_model(
+        &engine,
+        "bpmn-model",
+        "leave.bpmn20.xml",
+        "application/xml",
+        BPMN.as_bytes().to_vec(),
+    );
+
+    // Java ModelsResource.duplicateModel with the default -copy key/name.
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/models/bpmn-model/clone"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    assert_eq!(model["key"], "bpmn-model-copy");
+    assert_eq!(model["name"], "bpmn-model (copy)");
+    assert_eq!(model["modelType"], 0);
+    let clone_id = model["id"].as_str().unwrap().to_string();
+    let clone_source = engine
+        .get_repository_service()
+        .get_repository_model_source(&clone_id)
+        .unwrap();
+    assert_eq!(String::from_utf8(clone_source.bytes).unwrap(), BPMN);
+
+    // Java rejects a duplicate key with 409.
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/models/bpmn-model/clone"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    // Explicit name/key in the body win over the defaults.
+    let response = client
+        .post(format!(
+            "{base_url}/modeler-app/rest/models/bpmn-model/clone"
+        ))
+        .json(&json!({ "name": "Leave copy", "key": "leaveCopy" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let model: Value = response.json().await.unwrap();
+    assert_eq!(model["key"], "leaveCopy");
+    assert_eq!(model["name"], "Leave copy");
+
+    // Cloning an unknown model is a 404 (Java: unknown original model).
+    let response = client
+        .post(format!("{base_url}/modeler-app/rest/models/missing/clone"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // Java ModelRelationResource.getModelRelations: 404 for unknown models,
+    // otherwise a (here always empty) ModelInformation list.
+    let response = client
+        .get(format!(
+            "{base_url}/modeler-app/rest/models/bpmn-model/parent-relations"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.json::<Value>().await.unwrap(), json!([]));
+    let response = client
+        .get(format!(
+            "{base_url}/modeler-app/rest/models/missing/parent-relations"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

@@ -4,11 +4,16 @@
 //! [`router_with_engine`] when an engine is available; [`router`] is the
 //! no-engine scaffold used by stream-A-style `ui_router()` merges.
 
+mod display_json;
 mod rest_variable;
 
 use axum::{
-    extract::{Extension, Path, Query},
-    http::StatusCode,
+    body::Bytes,
+    extract::{Extension, Multipart, Path, Query},
+    http::{
+        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
+        HeaderMap, HeaderValue, StatusCode,
+    },
     response::{IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
@@ -126,12 +131,87 @@ pub fn router() -> Router {
             "/app/rest/process-definitions/:process_definition_id/start-form",
             get(process_definition_start_form),
         )
+        // Display JSON (Java RuntimeDisplayJsonClientResource; the workflow
+        // app's process-diagram view fetches these directly)
+        .route(
+            "/app/rest/process-definitions/:process_definition_id/model-json",
+            get(display_json::process_definition_model_json),
+        )
+        .route(
+            "/app/rest/process-instances/:process_instance_id/model-json",
+            get(display_json::process_instance_model_json),
+        )
+        .route(
+            "/app/rest/process-instances/history/:process_instance_id/model-json",
+            get(display_json::process_instance_history_model_json),
+        )
+        .route(
+            "/app/rest/process-instances/debugger/:process_instance_id/model-json",
+            get(display_json::process_instance_debugger_model_json),
+        )
+        // Case display JSON (Java CaseInstanceDisplayJsonClientResource)
+        .route(
+            "/app/rest/case-definitions/:case_definition_id/model-json",
+            get(display_json::case_definition_model_json),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/model-json",
+            get(display_json::case_instance_model_json),
+        )
+        .route(
+            "/app/rest/case-instances/history/:case_instance_id/model-json",
+            get(display_json::case_instance_history_model_json),
+        )
         // Case
         .route("/app/rest/case-definitions", get(list_case_definitions))
+        .route(
+            "/app/rest/case-definitions/:case_definition_id/start-form",
+            get(case_definition_start_form),
+        )
         .route("/app/rest/case-instances", post(start_case_instance))
         .route(
             "/app/rest/case-instances/:case_instance_id",
             get(get_case_instance).delete(delete_case_instance),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/start-form",
+            get(case_instance_start_form),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/active-stages",
+            get(case_instance_active_stages),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/ended-stages",
+            get(case_instance_ended_stages),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/available-milestones",
+            get(case_instance_available_milestones),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/ended-milestones",
+            get(case_instance_ended_milestones),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/available-user-event-listeners",
+            get(case_instance_available_user_event_listeners),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/completed-user-event-listeners",
+            get(case_instance_completed_user_event_listeners),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/trigger-user-event-listener/:user_event_listener_id",
+            post(trigger_user_event_listener),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/enabled-planitem-instances",
+            get(case_instance_enabled_plan_item_instances),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/enabled-planitem-instances/:plan_item_instance_id",
+            post(start_enabled_plan_item_instance),
         )
         .route(
             "/app/rest/query/case-instances",
@@ -177,16 +257,55 @@ pub fn router() -> Router {
             get(list_task_content).post(add_task_content),
         )
         .route(
+            "/app/rest/tasks/:task_id/raw-content",
+            post(add_task_raw_content),
+        )
+        .route(
+            "/app/rest/tasks/:task_id/raw-content/text",
+            post(add_task_raw_content_text),
+        )
+        .route(
             "/app/rest/process-instances/:process_instance_id/content",
             get(list_pi_content).post(add_pi_content),
+        )
+        // Java typo-compatible alias (`/rest/processes/...` not `process-instances`)
+        .route(
+            "/app/rest/processes/:process_instance_id/content",
+            post(add_pi_content),
+        )
+        .route(
+            "/app/rest/process-instances/:process_instance_id/raw-content",
+            post(add_pi_raw_content),
+        )
+        .route(
+            "/app/rest/process-instances/:process_instance_id/raw-content/text",
+            post(add_pi_raw_content_text),
         )
         .route(
             "/app/rest/case-instances/:case_instance_id/content",
             get(list_case_content),
         )
         .route(
+            "/app/rest/case-instances/:case_instance_id/raw-content",
+            post(add_case_raw_content),
+        )
+        .route(
+            "/app/rest/case-instances/:case_instance_id/raw-content/text",
+            post(add_case_raw_content_text),
+        )
+        .route("/app/rest/content", post(add_temporary_content))
+        .route("/app/rest/content/raw", post(add_temporary_raw_content))
+        .route(
+            "/app/rest/content/raw/text",
+            post(add_temporary_raw_content_text),
+        )
+        .route(
             "/app/rest/content/:content_id",
             get(get_content).delete(delete_content),
+        )
+        .route(
+            "/app/rest/content/:content_id/raw",
+            get(get_raw_content),
         )
 }
 
@@ -1160,6 +1279,404 @@ async fn list_case_definitions(
     )))
 }
 
+/// Java `CaseDefinitionResource.getCaseDefinitionStartForm` — form model for
+/// starting a case. When no start form is configured the body is an empty
+/// shell (same shape the BPMN start-form endpoints already return).
+async fn case_definition_start_form(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_definition_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let form_key = cmmn
+        .repository_service()
+        .get_case_definition_start_form_key(&case_definition_id)
+        .map_err(|e| TaskError::from_engine(e))?;
+    Ok(Json(empty_form_model(form_key)))
+}
+
+async fn case_instance_start_form(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let case_definition_id = resolve_case_definition_id(&cmmn, &case_instance_id)?;
+    let form_key = cmmn
+        .repository_service()
+        .get_case_definition_start_form_key(&case_definition_id)
+        .map_err(|e| TaskError::from_engine(e))?;
+    Ok(Json(empty_form_model(form_key)))
+}
+
+fn empty_form_model(form_key: Option<String>) -> Value {
+    json!({
+        "id": form_key,
+        "name": null,
+        "description": null,
+        "key": form_key,
+        "version": 0,
+        "fields": [],
+        "outcomes": [],
+    })
+}
+
+fn resolve_case_definition_id(
+    cmmn: &flowable_cmmn_engine::CmmnEngine,
+    case_instance_id: &str,
+) -> Result<String, TaskError> {
+    match cmmn.runtime_service().get_case_instance(case_instance_id) {
+        Ok(instance) => Ok(instance.case_definition_id),
+        Err(_) => Ok(cmmn
+            .history_service()
+            .get_historic_case_instance(case_instance_id)
+            .map_err(|e| TaskError::from_engine(e))?
+            .case_definition_id),
+    }
+}
+
+fn java_state(state: &str) -> String {
+    state.to_ascii_lowercase()
+}
+
+fn millis(dt: DateTime<Utc>) -> i64 {
+    dt.timestamp_millis()
+}
+
+fn plan_items_by_type_and_states(
+    cmmn: &flowable_cmmn_engine::CmmnEngine,
+    case_instance_id: &str,
+    definition_type: &str,
+    states: &[&str],
+    include_ended: bool,
+) -> Result<Vec<flowable_cmmn_engine::CmmnPlanItemInstance>, TaskError> {
+    let mut query = cmmn
+        .runtime_service()
+        .create_plan_item_instance_query()
+        .case_instance_id(case_instance_id.to_string())
+        .plan_item_definition_type(definition_type.to_string());
+    if include_ended {
+        query = query.include_ended();
+    }
+    let items = query
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let wanted: Vec<String> = states.iter().map(|s| s.to_ascii_uppercase()).collect();
+    Ok(items
+        .into_iter()
+        .filter(|item| wanted.iter().any(|s| item.state.eq_ignore_ascii_case(s)))
+        .collect())
+}
+
+/// Java `FlowableCaseInstanceService.getCaseInstanceActiveStages`.
+async fn case_instance_active_stages(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let stages = plan_items_by_type_and_states(
+        &cmmn,
+        &case_instance_id,
+        "stage",
+        &["AVAILABLE", "ACTIVE"],
+        true,
+    )?;
+    let data: Vec<_> = stages
+        .into_iter()
+        .map(|p| {
+            json!({
+                "name": p.name,
+                "state": java_state(&p.state),
+                "created": millis(p.created_at),
+                "ended": p.ended_at.map(millis),
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn case_instance_ended_stages(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let stages = plan_items_by_type_and_states(
+        &cmmn,
+        &case_instance_id,
+        "stage",
+        &["TERMINATED", "COMPLETED"],
+        true,
+    )?;
+    let data: Vec<_> = stages
+        .into_iter()
+        .map(|p| {
+            json!({
+                "name": p.name,
+                "state": java_state(&p.state),
+                "created": millis(p.created_at),
+                "ended": p.ended_at.map(millis),
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn case_instance_available_milestones(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let milestones = plan_items_by_type_and_states(
+        &cmmn,
+        &case_instance_id,
+        "milestone",
+        &["AVAILABLE"],
+        false,
+    )?;
+    let data: Vec<_> = milestones
+        .into_iter()
+        .map(|p| {
+            json!({
+                "name": p.name,
+                "state": java_state(&p.state),
+                "created": millis(p.created_at),
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn case_instance_ended_milestones(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let milestones = plan_items_by_type_and_states(
+        &cmmn,
+        &case_instance_id,
+        "milestone",
+        &["TERMINATED", "COMPLETED"],
+        true,
+    )?;
+    let data: Vec<_> = milestones
+        .into_iter()
+        .map(|p| {
+            json!({
+                "name": p.name,
+                "state": java_state(&p.state),
+                "created": millis(p.created_at),
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn case_instance_available_user_event_listeners(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    // Java UserEventListenerInstanceQuery: AVAILABLE + ENABLED (not yet occurred).
+    let listeners = plan_items_by_type_and_states(
+        &cmmn,
+        &case_instance_id,
+        "eventlistener",
+        &["AVAILABLE", "ENABLED"],
+        false,
+    )?;
+    let data: Vec<_> = listeners
+        .into_iter()
+        .map(|p| {
+            json!({
+                "id": p.id,
+                "name": p.name,
+                "state": java_state(&p.state),
+                "completed": Value::Null,
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn case_instance_completed_user_event_listeners(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    let listeners = plan_items_by_type_and_states(
+        &cmmn,
+        &case_instance_id,
+        "eventlistener",
+        &["COMPLETED"],
+        true,
+    )?;
+    let data: Vec<_> = listeners
+        .into_iter()
+        .map(|p| {
+            json!({
+                "id": p.id,
+                "name": p.name,
+                "state": java_state(&p.state),
+                "completed": p.ended_at.or(p.occurred_at).map(millis),
+            })
+        })
+        .collect();
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+/// Java `completeUserEventListenerInstance` — resolve the event subscription
+/// tied to the plan item and complete it.
+async fn trigger_user_event_listener(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path((case_instance_id, user_event_listener_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    if user_event_listener_id.is_empty() {
+        return Err(TaskError::bad_request(
+            "userEventListenerId is required",
+        ));
+    }
+    // Ensure the case exists (matches Java NotFoundException path).
+    let _ = resolve_case_definition_id(&cmmn, &case_instance_id)?;
+
+    let plan_item = cmmn
+        .runtime_service()
+        .create_plan_item_instance_query()
+        .case_instance_id(case_instance_id.clone())
+        .id(user_event_listener_id.clone())
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            TaskError::not_found(format!(
+                "User event listener instance {user_event_listener_id}"
+            ))
+        })?;
+
+    let subscriptions = cmmn
+        .runtime_service()
+        .create_event_subscription_query()
+        .case_instance_id(&case_instance_id)
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    let subscription = subscriptions
+        .into_iter()
+        .find(|s| {
+            s.plan_item_instance_id.as_deref() == Some(plan_item.plan_item_id.as_str())
+                || s.plan_item_instance_id.as_deref() == Some(plan_item.id.as_str())
+                || s.activity_id.as_deref() == Some(plan_item.plan_item_definition_id.as_str())
+        })
+        .ok_or_else(|| {
+            TaskError::not_found(format!(
+                "No event subscription for user event listener {user_event_listener_id}"
+            ))
+        })?;
+
+    cmmn.runtime_service()
+        .complete_event_subscription(&subscription.id)
+        .map_err(|e| TaskError::from_engine(e))?;
+    Ok(StatusCode::OK)
+}
+
+async fn case_instance_enabled_plan_item_instances(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    // Mirror-backed ENABLED rows (milestones / non-human types).
+    let mut data: Vec<Value> = cmmn
+        .runtime_service()
+        .create_plan_item_instance_query()
+        .case_instance_id(case_instance_id.clone())
+        .state("ENABLED")
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?
+        .into_iter()
+        .map(|p| {
+            json!({
+                "id": p.id,
+                "caseDefinitionId": p.case_definition_id,
+                "caseInstanceId": p.case_instance_id,
+                "stageInstanceId": p.stage_instance_id,
+                "stage": p.plan_item_definition_type.eq_ignore_ascii_case("stage"),
+                "elementId": p.plan_item_id,
+                "planItemDefinitionId": p.plan_item_definition_id,
+                "planItemDefinitionType": p.plan_item_definition_type,
+                "name": p.name,
+                "state": java_state(&p.state),
+                "createTime": millis(p.created_at),
+            })
+        })
+        .collect();
+    // Human tasks with manual activation live in the dedicated human-task table
+    // (Rust keeps no ENABLED plan-item mirror row for them). Surface them under
+    // the same Java PlanItemInstanceRepresentation shape so the task UI can
+    // start them via start_plan_item_instance (which accepts human-task ids).
+    let enabled_tasks = cmmn
+        .runtime_service()
+        .create_human_task_query()
+        .case_instance_id(case_instance_id)
+        .state(flowable_cmmn_engine::CmmnHumanTaskState::Enabled)
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    for task in enabled_tasks {
+        data.push(json!({
+            "id": task.id,
+            "caseDefinitionId": task.case_definition_id,
+            "caseInstanceId": task.case_instance_id,
+            "stageInstanceId": task.stage_instance_id,
+            "stage": false,
+            "elementId": task.plan_item_id,
+            "planItemDefinitionId": task.task_definition_id,
+            "planItemDefinitionType": "humantask",
+            "name": task.name,
+            "state": "enabled",
+            "createTime": millis(task.activated_at),
+        }));
+    }
+    Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
+}
+
+async fn start_enabled_plan_item_instance(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path((case_instance_id, plan_item_instance_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, TaskError> {
+    let cmmn = cmmn_engine(&engine)?;
+    // Prefer the plan-item mirror; fall back to an ENABLED human task (manual
+    // activation). `start_plan_item_instance` accepts either id form.
+    let from_mirror = cmmn
+        .runtime_service()
+        .create_plan_item_instance_query()
+        .case_instance_id(case_instance_id.clone())
+        .id(plan_item_instance_id.clone())
+        .state("ENABLED")
+        .list()
+        .map_err(|e| TaskError::bad_request(e.to_string()))?
+        .into_iter()
+        .next();
+    let id = if let Some(item) = from_mirror {
+        item.id
+    } else {
+        cmmn.runtime_service()
+            .create_human_task_query()
+            .case_instance_id(case_instance_id)
+            .state(flowable_cmmn_engine::CmmnHumanTaskState::Enabled)
+            .list()
+            .map_err(|e| TaskError::bad_request(e.to_string()))?
+            .into_iter()
+            .find(|t| t.id == plan_item_instance_id)
+            .map(|t| t.id)
+            .ok_or_else(|| {
+                TaskError::not_found(format!(
+                    "No enabled planitem instance found with id {plan_item_instance_id}"
+                ))
+            })?
+    };
+    cmmn.runtime_service()
+        .start_plan_item_instance(&id)
+        .map_err(|e| TaskError::from_engine(e))?;
+    Ok(StatusCode::OK)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StartCaseBody {
@@ -1429,6 +1946,317 @@ async fn delete_content(
     svc.delete_content_item(&content_id)
         .map_err(|e| TaskError::bad_request(e.to_string()))?;
     Ok(StatusCode::OK)
+}
+
+/// Multipart file upload (`file` part) as used by Java's raw-content endpoints.
+struct RawUpload {
+    file_name: String,
+    bytes: Vec<u8>,
+    mime_type: Option<String>,
+}
+
+async fn read_raw_upload(mut multipart: Multipart) -> Result<RawUpload, TaskError> {
+    let mut file_name: Option<String> = None;
+    let mut bytes: Option<Vec<u8>> = None;
+    let mut mime_type: Option<String> = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| TaskError::bad_request(e.to_string()))?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+        file_name = field
+            .file_name()
+            .map(str::to_string)
+            .filter(|s| !s.is_empty());
+        mime_type = field.content_type().map(|m| m.to_string());
+        bytes = Some(
+            field
+                .bytes()
+                .await
+                .map_err(|e| TaskError::bad_request(e.to_string()))?
+                .to_vec(),
+        );
+    }
+    let bytes = bytes.ok_or_else(|| TaskError::bad_request("No file found in POST body"))?;
+    let file_name = file_name.unwrap_or_else(|| "upload.bin".into());
+    Ok(RawUpload {
+        file_name,
+        bytes,
+        mime_type,
+    })
+}
+
+fn create_raw_content_item(
+    engine: Arc<ProcessEngine>,
+    auth: Option<&UiAuth>,
+    upload: RawUpload,
+    task_id: Option<String>,
+    process_instance_id: Option<String>,
+    scope_id: Option<String>,
+    scope_type: Option<String>,
+) -> Result<flowable_content_service::ContentItem, TaskError> {
+    let mime = upload
+        .mime_type
+        .or_else(|| guess_mime_from_name(&upload.file_name));
+    // Content service stores payload as a UTF-8 string for the simple path;
+    // binary uploads are base64-encoded so they round-trip losslessly.
+    let content = if upload.bytes.is_empty() {
+        None
+    } else if let Ok(text) = std::str::from_utf8(&upload.bytes) {
+        Some(text.to_string())
+    } else {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+        Some(B64.encode(&upload.bytes))
+    };
+    content_service(engine)
+        .create_content_item(CreateContentItemRequest {
+            name: upload.file_name,
+            mime_type: mime,
+            description: None,
+            attachment_type: None,
+            external_url: None,
+            content,
+            task_id,
+            process_instance_id,
+            scope_type,
+            scope_id,
+            created_by: Some(effective_user_id(auth)),
+            expires_in_seconds: None,
+        })
+        .map_err(|e| TaskError::bad_request(e.to_string()))
+}
+
+fn guess_mime_from_name(name: &str) -> Option<String> {
+    let lower = name.to_ascii_lowercase();
+    let mime = if lower.ends_with(".txt") {
+        "text/plain"
+    } else if lower.ends_with(".json") {
+        "application/json"
+    } else if lower.ends_with(".pdf") {
+        "application/pdf"
+    } else if lower.ends_with(".png") {
+        "image/png"
+    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if lower.ends_with(".xml") {
+        "application/xml"
+    } else {
+        "application/octet-stream"
+    };
+    Some(mime.into())
+}
+
+fn content_json_text(item: &flowable_content_service::ContentItem) -> Result<String, TaskError> {
+    serde_json::to_string(&content_item_json(item.clone())).map_err(|e| {
+        TaskError::internal(format!("ContentItem could not be serialized: {e}"))
+    })
+}
+
+async fn add_task_raw_content(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(task_id): Path<String>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(
+        engine,
+        auth.as_ref(),
+        upload,
+        Some(task_id),
+        None,
+        None,
+        None,
+    )?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn add_task_raw_content_text(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(task_id): Path<String>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(
+        engine,
+        auth.as_ref(),
+        upload,
+        Some(task_id),
+        None,
+        None,
+        None,
+    )?;
+    Ok((StatusCode::OK, content_json_text(&item)?))
+}
+
+async fn add_pi_raw_content(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(
+        engine,
+        auth.as_ref(),
+        upload,
+        None,
+        Some(process_instance_id),
+        None,
+        None,
+    )?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn add_pi_raw_content_text(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(process_instance_id): Path<String>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(
+        engine,
+        auth.as_ref(),
+        upload,
+        None,
+        Some(process_instance_id),
+        None,
+        None,
+    )?;
+    Ok((StatusCode::OK, content_json_text(&item)?))
+}
+
+async fn add_case_raw_content(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(
+        engine,
+        auth.as_ref(),
+        upload,
+        None,
+        None,
+        Some(case_instance_id),
+        Some("cmmn".into()),
+    )?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn add_case_raw_content_text(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(
+        engine,
+        auth.as_ref(),
+        upload,
+        None,
+        None,
+        Some(case_instance_id),
+        Some("cmmn".into()),
+    )?;
+    Ok((StatusCode::OK, content_json_text(&item)?))
+}
+
+async fn add_temporary_raw_content(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(engine, auth.as_ref(), upload, None, None, None, None)?;
+    Ok(Json(content_item_json(item)))
+}
+
+async fn add_temporary_raw_content_text(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    multipart: Multipart,
+) -> Result<impl IntoResponse, TaskError> {
+    let upload = read_raw_upload(multipart).await?;
+    let item = create_raw_content_item(engine, auth.as_ref(), upload, None, None, None, None)?;
+    Ok((StatusCode::OK, content_json_text(&item)?))
+}
+
+async fn add_temporary_content(
+    auth: Option<UiAuth>,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Json(body): Json<ContentBody>,
+) -> Result<impl IntoResponse, TaskError> {
+    let name = body
+        .name
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| TaskError::bad_request("Content name is required"))?;
+    let svc = content_service(engine);
+    let item = svc
+        .create_content_item(CreateContentItemRequest {
+            name,
+            mime_type: body.mime_type,
+            description: None,
+            attachment_type: None,
+            external_url: None,
+            content: body.content,
+            task_id: None,
+            process_instance_id: None,
+            scope_type: None,
+            scope_id: None,
+            created_by: Some(effective_user_id(auth.as_ref())),
+            expires_in_seconds: None,
+        })
+        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+    Ok(Json(content_item_json(item)))
+}
+
+/// `GET /app/rest/content/:content_id/raw` — stream the stored bytes.
+async fn get_raw_content(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(content_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    let svc = content_service(engine);
+    let item = svc.get_content_item(&content_id).map_err(|e| {
+        let s = e.to_string();
+        if s.to_lowercase().contains("not found") {
+            TaskError::not_found(format!("Content {content_id}"))
+        } else {
+            TaskError::bad_request(s)
+        }
+    })?;
+    let data = svc.get_content_item_data(&content_id).map_err(|e| {
+        let s = e.to_string();
+        if s.to_lowercase().contains("not found") {
+            TaskError::not_found(format!("Content data for {content_id}"))
+        } else {
+            TaskError::bad_request(s)
+        }
+    })?;
+    let mut headers = HeaderMap::new();
+    let mime = data
+        .mime_type
+        .as_deref()
+        .or(item.mime_type.as_deref())
+        .unwrap_or("application/octet-stream");
+    if let Ok(v) = HeaderValue::from_str(mime) {
+        headers.insert(CONTENT_TYPE, v);
+    }
+    let disposition = format!(
+        "attachment; filename=\"{}\"",
+        item.name.replace('"', "_")
+    );
+    if let Ok(v) = HeaderValue::from_str(&disposition) {
+        headers.insert(CONTENT_DISPOSITION, v);
+    }
+    Ok((StatusCode::OK, headers, Bytes::from(data.content)))
 }
 
 fn content_item_json(item: flowable_content_service::ContentItem) -> Value {

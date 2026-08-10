@@ -516,6 +516,13 @@ pub fn required_access(path: &str) -> Access {
     if path.starts_with("/modeler-app/") || path == "/modeler/" {
         return Access::Privilege(ACCESS_MODELER);
     }
+    // The modeler's `/api/editor/**` endpoints are not in the Java UI security
+    // table either (Java mounts them on a separate servlet with basic auth). In
+    // this monolith they live inside `ui_router`, so without an explicit rule
+    // they would fall through to Public and be callable without a session.
+    if path.starts_with("/api/editor/") {
+        return Access::Authenticated;
+    }
 
     Access::Public
 }
@@ -873,6 +880,8 @@ mod tests {
             ("/idm-app/rest/admin/users", Access::Privilege(ACCESS_IDM)),
             ("/modeler-app/rest/models", Access::Privilege(ACCESS_MODELER)),
             ("/modeler/", Access::Privilege(ACCESS_MODELER)),
+            // Modeler `/api/editor/**` servlet surface (see the rule above).
+            ("/api/editor/import-process-model", Access::Authenticated),
             // Everything unlisted, which is how Spring's default-permit branch
             // behaves and how the static assets stay reachable before login.
             ("/scripts/app-cfg.js", Access::Public),

@@ -106,6 +106,18 @@ pub fn router_with_state(state: AdminState) -> Router {
             get(process_definition_jobs),
         )
         .route(
+            "/admin-app/rest/admin/process-definitions/:definition_id/batch-migrate",
+            post(process_definition_batch_migrate),
+        )
+        .route(
+            "/admin-app/rest/admin/process-definition-decision-tables/:definition_id",
+            get(process_definition_decision_tables),
+        )
+        .route(
+            "/admin-app/rest/admin/process-definition-form-definitions/:definition_id",
+            get(process_definition_form_definitions),
+        )
+        .route(
             "/admin-app/rest/admin/process-instances",
             post(list_process_instances),
         )
@@ -141,6 +153,14 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/admin/process-instances/:process_instance_id/migrate",
             post(process_instance_migrate),
         )
+        .route(
+            "/admin-app/rest/admin/process-instances/:process_instance_id/decision-executions",
+            get(process_instance_decision_executions),
+        )
+        .route(
+            "/admin-app/rest/admin/process-instance-content-items/:process_instance_id",
+            get(process_instance_content_items),
+        )
         .route("/admin-app/rest/admin/tasks", post(list_tasks))
         .route(
             "/admin-app/rest/admin/tasks/:task_id",
@@ -166,9 +186,20 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/admin/jobs/:job_id",
             get(get_job).delete(delete_job).post(execute_job),
         )
+        // Java `JobClientResource` path; the legacy admin frontend calls this one
+        // (`ui/legacy/admin/admin/scripts/job-controllers.js:98`).
+        .route(
+            "/admin-app/rest/admin/jobs/:job_id/stacktrace",
+            get(job_stacktrace),
+        )
+        // deprecated alias (engine-REST-style path kept for one version)
         .route(
             "/admin-app/rest/admin/jobs/:job_id/exception-stacktrace",
             get(job_stacktrace),
+        )
+        .route(
+            "/admin-app/rest/admin/move-jobs/:job_id",
+            post(move_job),
         )
         .route(
             "/admin-app/rest/admin/event-subscriptions",
@@ -225,6 +256,18 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/admin/case-definitions/:definition_id/jobs",
             get(case_definition_jobs),
         )
+        .route(
+            "/admin-app/rest/admin/case-definitions/:definition_id/model-json",
+            get(case_definition_model_json),
+        )
+        .route(
+            "/admin-app/rest/admin/case-definition-decision-tables/:definition_id",
+            get(case_definition_decision_tables),
+        )
+        .route(
+            "/admin-app/rest/admin/case-definition-form-definitions/:definition_id",
+            get(case_definition_form_definitions),
+        )
         .route("/admin-app/rest/admin/case-instances", post(list_case_instances))
         .route(
             "/admin-app/rest/admin/case-instances/:case_instance_id",
@@ -245,6 +288,22 @@ pub fn router_with_state(state: AdminState) -> Router {
         .route(
             "/admin-app/rest/admin/case-instances/:case_instance_id/jobs",
             get(case_instance_jobs),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/change-state",
+            post(case_instance_change_state),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/migrate",
+            post(case_instance_migrate),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/decision-executions",
+            get(case_instance_decision_executions),
+        )
+        .route(
+            "/admin-app/rest/admin/case-instances/:case_instance_id/model-json",
+            get(case_instance_model_json),
         )
         .route("/admin-app/rest/admin/cmmn-tasks", post(list_cmmn_tasks))
         .route(
@@ -267,6 +326,18 @@ pub fn router_with_state(state: AdminState) -> Router {
             get(cmmn_task_identity_links),
         )
         .route("/admin-app/rest/admin/cmmn-jobs", get(list_cmmn_jobs))
+        .route(
+            "/admin-app/rest/admin/cmmn-jobs/:job_id",
+            get(get_cmmn_job).delete(delete_cmmn_job).post(execute_cmmn_job),
+        )
+        .route(
+            "/admin-app/rest/admin/cmmn-jobs/:job_id/stacktrace",
+            get(cmmn_job_stacktrace),
+        )
+        .route(
+            "/admin-app/rest/admin/move-cmmn-jobs/:job_id",
+            post(move_cmmn_job),
+        )
         // ---- DMN domain ----
         .route(
             "/admin-app/rest/admin/decision-table-deployments",
@@ -287,6 +358,10 @@ pub fn router_with_state(state: AdminState) -> Router {
         .route(
             "/admin-app/rest/admin/decision-tables/:decision_table_id/editorJson",
             get(decision_table_editor_json),
+        )
+        .route(
+            "/admin-app/rest/admin/decision-tables/history",
+            get(decision_historic_executions),
         )
         .route(
             "/admin-app/rest/admin/decision-tables/history/:execution_id",
@@ -321,6 +396,26 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/admin/form-instances/:form_instance_id",
             get(get_form_instance),
         )
+        .route(
+            "/admin-app/rest/admin/form-instances/:form_instance_id/form-field-values",
+            get(form_instance_field_values),
+        )
+        .route(
+            "/admin-app/rest/admin/task-form-instance/:task_id",
+            get(task_form_instance),
+        )
+        .route(
+            "/admin-app/rest/admin/form-definition-form-instances/:form_definition_id",
+            get(form_definition_form_instances),
+        )
+        .route(
+            "/admin-app/rest/admin/process-form-instances/:process_instance_id",
+            get(process_form_instances),
+        )
+        .route(
+            "/admin-app/rest/admin/case-form-instances/:case_instance_id",
+            get(case_form_instances),
+        )
         // ---- APP domain ----
         .route(
             "/admin-app/rest/admin/app-deployments",
@@ -337,6 +432,22 @@ pub fn router_with_state(state: AdminState) -> Router {
         .route(
             "/admin-app/rest/admin/app-definitions/:definition_id",
             get(get_app_definition),
+        )
+        .route(
+            "/admin-app/rest/admin/app-definitions/:definition_id/process-definitions",
+            get(app_definition_process_definitions),
+        )
+        .route(
+            "/admin-app/rest/admin/app-definitions/:definition_id/case-definitions",
+            get(app_definition_case_definitions),
+        )
+        .route(
+            "/admin-app/rest/admin/app-definitions/:definition_id/decision-tables",
+            get(app_definition_decision_tables),
+        )
+        .route(
+            "/admin-app/rest/admin/app-definitions/:definition_id/form-definitions",
+            get(app_definition_form_definitions),
         )
         // ---- CONTENT domain ----
         .route("/admin-app/rest/admin/content-items", get(list_content_items))
@@ -760,6 +871,86 @@ async fn process_instance_migrate(
     .await
 }
 
+/// `POST /rest/admin/process-definitions/{id}/batch-migrate` (Java
+/// `ProcessDefinitionClientResource`): migration document forwarded verbatim.
+async fn process_definition_batch_migrate(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("repository/process-definitions/{definition_id}/batch-migrate"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+/// `GET /rest/admin/process-definition-decision-tables/{pdId}` (Java
+/// `DecisionTablesClientResource`): decision tables referenced by the process.
+async fn process_definition_decision_tables(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("repository/process-definitions/{definition_id}/decision-tables"),
+        &[],
+    )
+    .await
+}
+
+/// `GET /rest/admin/process-definition-form-definitions/{pdId}` (Java
+/// `FormDefinitionsClientResource`).
+async fn process_definition_form_definitions(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Process,
+        &format!("repository/process-definitions/{definition_id}/form-definitions"),
+        &[],
+    )
+    .await
+}
+
+/// `GET /rest/admin/process-instances/{id}/decision-executions` (Java
+/// `ProcessInstanceClientResource`): historic decision executions, DMN endpoint.
+async fn process_instance_decision_executions(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("instanceId".into(), process_instance_id),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        "dmn-history/historic-decision-executions",
+        &q,
+    )
+    .await
+}
+
+/// `GET /rest/admin/process-instance-content-items/{processInstanceId}` (Java
+/// `ContentItemsClientResource`), CONTENT endpoint.
+async fn process_instance_content_items(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("processInstanceId".into(), process_instance_id));
+    proxy_get(&state, EndpointType::Content, "content-service/content-items", &q).await
+}
+
 async fn list_tasks(
     State(state): State<AdminState>,
     body: Bytes,
@@ -960,6 +1151,27 @@ async fn job_stacktrace(
         EndpointType::Process,
         &format!("{base}/{job_id}/exception-stacktrace"),
         &[],
+    )
+    .await
+}
+
+/// `POST /rest/admin/move-jobs/{jobId}` (Java `JobClientResource.moveJob`):
+/// moves a timer/suspended/deadletter job back to executable via a
+/// server-constructed `{"action":"move"}` body; expects 204 from the engine.
+async fn move_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_body(
+        &state,
+        EndpointType::Process,
+        Method::POST,
+        &format!("{base}/{job_id}"),
+        Bytes::from_static(br#"{"action":"move"}"#),
+        "application/json",
+        StatusCode::NO_CONTENT,
     )
     .await
 }
@@ -1468,6 +1680,177 @@ async fn list_cmmn_jobs(
     proxy_get(&state, EndpointType::Cmmn, "cmmn-management/jobs", &q).await
 }
 
+/// `GET /rest/admin/cmmn-jobs/{jobId}` (Java `CmmnJobClientResource.getJob`).
+async fn get_cmmn_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_get(&state, EndpointType::Cmmn, &format!("{base}/{job_id}"), &[]).await
+}
+
+/// `DELETE /rest/admin/cmmn-jobs/{jobId}` (Java `CmmnJobClientResource.deleteJob`).
+async fn delete_cmmn_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_no_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::DELETE,
+        &format!("{base}/{job_id}"),
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+/// `POST /rest/admin/cmmn-jobs/{jobId}` (Java `CmmnJobClientResource.executeJob`):
+/// always targets the executable jobs collection (`jobType` is ignored), with a
+/// server-constructed `{"action":"execute"}` body; expects 204.
+async fn execute_cmmn_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("cmmn-management/jobs/{job_id}"),
+        Bytes::from_static(br#"{"action":"execute"}"#),
+        "application/json",
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+/// `POST /rest/admin/move-cmmn-jobs/{jobId}` (Java `CmmnJobClientResource.moveJob`).
+async fn move_cmmn_job(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("{base}/{job_id}"),
+        Bytes::from_static(br#"{"action":"move"}"#),
+        "application/json",
+        StatusCode::NO_CONTENT,
+    )
+    .await
+}
+
+/// `GET /rest/admin/cmmn-jobs/{jobId}/stacktrace` (Java
+/// `CmmnJobClientResource.getJobStacktrace` → engine `exception-stacktrace`).
+async fn cmmn_job_stacktrace(
+    State(state): State<AdminState>,
+    Path(job_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("{base}/{job_id}/exception-stacktrace"),
+        &[],
+    )
+    .await
+}
+
+/// `POST /rest/admin/case-instances/{id}/change-state` (Java
+/// `CaseInstanceClientResource.changeState`): body forwarded verbatim.
+async fn case_instance_change_state(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("cmmn-runtime/case-instances/{case_instance_id}/change-state"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+/// `POST /rest/admin/case-instances/{id}/migrate` (Java
+/// `CaseInstanceClientResource.migrate`): migration document forwarded verbatim.
+async fn case_instance_migrate(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+    body: Bytes,
+) -> Result<Response, AdminError> {
+    proxy_body(
+        &state,
+        EndpointType::Cmmn,
+        Method::POST,
+        &format!("cmmn-runtime/case-instances/{case_instance_id}/migrate"),
+        body,
+        "application/json",
+        StatusCode::OK,
+    )
+    .await
+}
+
+/// `GET /rest/admin/case-instances/{id}/decision-executions` (Java
+/// `CaseInstanceClientResource`): historic decision executions scoped to the
+/// case instance, DMN endpoint.
+async fn case_instance_decision_executions(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    let q = vec![
+        ("instanceId".into(), case_instance_id),
+        ("scopeType".into(), "cmmn".into()),
+        ("size".into(), "1024".into()),
+    ];
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        "dmn-history/historic-decision-executions",
+        &q,
+    )
+    .await
+}
+
+/// `GET /rest/admin/case-definition-decision-tables/{cdId}` (Java
+/// `DecisionTablesClientResource`), CMMN endpoint.
+async fn case_definition_decision_tables(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-repository/case-definitions/{definition_id}/decision-tables"),
+        &[],
+    )
+    .await
+}
+
+/// `GET /rest/admin/case-definition-form-definitions/{cdId}` (Java
+/// `FormDefinitionsClientResource`), CMMN endpoint.
+async fn case_definition_form_definitions(
+    State(state): State<AdminState>,
+    Path(definition_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        &format!("cmmn-repository/case-definitions/{definition_id}/form-definitions"),
+        &[],
+    )
+    .await
+}
+
 // ---------------------------------------------------------------------------
 // DMN / FORM / APP / CONTENT (thin proxies)
 // ---------------------------------------------------------------------------
@@ -1574,6 +1957,23 @@ async fn decision_historic_audit(
     .await
 }
 
+/// `GET /rest/admin/decision-tables/history` (Java
+/// `DecisionTableHistoricExecutionsClientResource`): list historic decision
+/// executions, all query params except `serverId` forwarded.
+async fn decision_historic_executions(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let q = query_without_server_id(&params);
+    proxy_get(
+        &state,
+        EndpointType::Dmn,
+        "dmn-history/historic-decision-executions",
+        &q,
+    )
+    .await
+}
+
 async fn list_form_deployments(
     State(state): State<AdminState>,
     Query(params): Query<HashMap<String, String>>,
@@ -1657,6 +2057,72 @@ async fn get_form_instance(
     .await
 }
 
+/// `GET /rest/admin/task-form-instance/{taskId}` (Java
+/// `FormInstanceClientResource.getTaskFormInstance`): form instance for a task.
+async fn task_form_instance(
+    State(state): State<AdminState>,
+    Path(task_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("taskId".into(), task_id));
+    proxy_get(&state, EndpointType::Form, "form/form-instances", &q).await
+}
+
+/// `GET /rest/admin/form-instances/{id}/form-field-values` (Java
+/// `FormInstanceClientResource.getFormInstanceFieldValues`; engine carries the
+/// values on `form/form-instances/{id}/values`).
+async fn form_instance_field_values(
+    State(state): State<AdminState>,
+    Path(form_instance_id): Path<String>,
+) -> Result<Response, AdminError> {
+    proxy_get(
+        &state,
+        EndpointType::Form,
+        &format!("form/form-instances/{form_instance_id}/values"),
+        &[],
+    )
+    .await
+}
+
+/// `GET /rest/admin/form-definition-form-instances/{fdId}` (Java
+/// `FormInstancesClientResource`): form instances by form definition.
+async fn form_definition_form_instances(
+    State(state): State<AdminState>,
+    Path(form_definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("formDefinitionId".into(), form_definition_id));
+    proxy_get(&state, EndpointType::Form, "form/form-instances", &q).await
+}
+
+/// `GET /rest/admin/process-form-instances/{piId}` (Java
+/// `FormInstancesClientResource`): form instances by process instance.
+async fn process_form_instances(
+    State(state): State<AdminState>,
+    Path(process_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("processInstanceId".into(), process_instance_id));
+    proxy_get(&state, EndpointType::Form, "form/form-instances", &q).await
+}
+
+/// `GET /rest/admin/case-form-instances/{ciId}` (Java
+/// `FormInstancesClientResource`): form instances by case instance, expressed
+/// as `scopeId` + `scopeType=cmmn` like the Java query body.
+async fn case_form_instances(
+    State(state): State<AdminState>,
+    Path(case_instance_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    let mut q = query_without_server_id(&params);
+    q.push(("scopeId".into(), case_instance_id));
+    q.push(("scopeType".into(), "cmmn".into()));
+    proxy_get(&state, EndpointType::Form, "form/form-instances", &q).await
+}
+
 async fn list_app_deployments(
     State(state): State<AdminState>,
     Query(params): Query<HashMap<String, String>>,
@@ -1715,6 +2181,103 @@ async fn get_app_definition(
         EndpointType::App,
         &format!("app-repository/app-definitions/{definition_id}"),
         &[],
+    )
+    .await
+}
+
+/// Java `AppDefinitionService`: an app deployment spawns child deployments per
+/// domain; the related models live in the child deployment, resolved via
+/// `?parentDeploymentId=` and then listed with `?deploymentId=`.
+async fn app_definition_related(
+    state: &AdminState,
+    params: &HashMap<String, String>,
+    endpoint: EndpointType,
+    deployments_path: &str,
+    collection_path: &str,
+) -> Result<Response, AdminError> {
+    let deployment_id = params
+        .get("deploymentId")
+        .cloned()
+        .ok_or_else(|| AdminError::bad_request("Deployment id is required"))?;
+    let deployments = proxy_get_json_value(
+        state,
+        endpoint,
+        deployments_path,
+        &[("parentDeploymentId".into(), deployment_id)],
+    )
+    .await?;
+    let child_deployment_id = deployments
+        .get("data")
+        .and_then(Value::as_array)
+        .and_then(|data| data.first())
+        .and_then(|row| row.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    match child_deployment_id {
+        Some(id) => {
+            proxy_get(state, endpoint, collection_path, &[("deploymentId".into(), id)]).await
+        }
+        // Java returns an empty result node when there is no child deployment.
+        None => Ok(Json(json!({ "size": 0, "data": [] })).into_response()),
+    }
+}
+
+async fn app_definition_process_definitions(
+    State(state): State<AdminState>,
+    Path(_definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    app_definition_related(
+        &state,
+        &params,
+        EndpointType::Process,
+        "repository/deployments",
+        "repository/process-definitions",
+    )
+    .await
+}
+
+async fn app_definition_case_definitions(
+    State(state): State<AdminState>,
+    Path(_definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    app_definition_related(
+        &state,
+        &params,
+        EndpointType::Cmmn,
+        "cmmn-repository/deployments",
+        "cmmn-repository/case-definitions",
+    )
+    .await
+}
+
+async fn app_definition_decision_tables(
+    State(state): State<AdminState>,
+    Path(_definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    app_definition_related(
+        &state,
+        &params,
+        EndpointType::Dmn,
+        "dmn-repository/deployments",
+        "dmn-repository/decision-tables",
+    )
+    .await
+}
+
+async fn app_definition_form_definitions(
+    State(state): State<AdminState>,
+    Path(_definition_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, AdminError> {
+    app_definition_related(
+        &state,
+        &params,
+        EndpointType::Form,
+        "form-repository/deployments",
+        "form-repository/form-definitions",
     )
     .await
 }
@@ -1957,6 +2520,90 @@ async fn process_instance_history_model_json(
     )))
 }
 
+// ---------------------------------------------------------------------------
+// CMMN display JSON (Java `CmmnDisplayJsonClientResource`; assembled in-process
+// from the CMMN engine when the Extension is present)
+// ---------------------------------------------------------------------------
+
+fn admin_cmmn_engine(
+    engine: &ProcessEngine,
+) -> Result<Arc<flowable_cmmn_engine::CmmnEngine>, AdminError> {
+    engine
+        .get_config()
+        .cmmn_engine
+        .clone()
+        .ok_or_else(|| AdminError::bad_request("CMMN engine is not configured on this process engine"))
+}
+
+async fn case_definition_model_json(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(definition_id): Path<String>,
+) -> Result<impl IntoResponse, AdminError> {
+    let cmmn = admin_cmmn_engine(&engine)?;
+    let definition = cmmn
+        .repository_service()
+        .get_case_definition(&definition_id)
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    // The Rust CMMN converter does not parse CMMNDI, so no graphic info is
+    // available; Java returns an empty display object in that case too.
+    Ok(Json(display_json::build_case_definition_display(
+        &definition.model,
+        &HashMap::new(),
+    )))
+}
+
+async fn case_instance_model_json(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+    Path(case_instance_id): Path<String>,
+) -> Result<impl IntoResponse, AdminError> {
+    let cmmn = admin_cmmn_engine(&engine)?;
+    // Java resolves the case definition id from the (historic) case instance.
+    let case_definition_id = match cmmn.runtime_service().get_case_instance(&case_instance_id) {
+        Ok(instance) => instance.case_definition_id,
+        Err(_) => {
+            cmmn.history_service()
+                .get_historic_case_instance(&case_instance_id)
+                .map_err(|e| AdminError::bad_request(e.to_string()))?
+                .case_definition_id
+        }
+    };
+    let definition = cmmn
+        .repository_service()
+        .get_case_definition(&case_definition_id)
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    // Java: plan item instances of the case instance drive the highlighting —
+    // completed when completed/terminated/occurred time is set, `active` →
+    // current, `available` → available; matched on planItemDefinitionId.
+    let plan_item_instances = cmmn
+        .runtime_service()
+        .create_plan_item_instance_query()
+        .case_instance_id(case_instance_id)
+        .include_ended()
+        .list()
+        .unwrap_or_default();
+    let mut completed = Vec::new();
+    let mut current = Vec::new();
+    let mut available = Vec::new();
+    for item in &plan_item_instances {
+        if item.ended_at.is_some() || item.occurred_at.is_some() {
+            completed.push(item.plan_item_definition_id.clone());
+        }
+        if item.state.eq_ignore_ascii_case("active") {
+            current.push(item.plan_item_definition_id.clone());
+        }
+        if item.state.eq_ignore_ascii_case("available") {
+            available.push(item.plan_item_definition_id.clone());
+        }
+    }
+    Ok(Json(display_json::build_case_instance_display(
+        &definition.model,
+        &HashMap::new(),
+        &completed,
+        &current,
+        &available,
+    )))
+}
+
 fn historic_activity_ids(engine: &ProcessEngine, process_instance_id: &str, only_finished: bool) -> Vec<String> {
     // Best-effort: read historic activity instances from the store if present.
     let Ok(rows) = engine
@@ -2029,10 +2676,20 @@ fn query_without_server_id(params: &HashMap<String, String>) -> Vec<(String, Str
 
 fn job_collection_path(params: &HashMap<String, String>) -> &'static str {
     match params.get("jobType").map(|s| s.as_str()) {
-        Some("timer") => "management/timer-jobs",
-        Some("suspended") => "management/suspended-jobs",
-        Some("deadletter") => "management/deadletter-jobs",
+        Some("timer") | Some("timerJob") => "management/timer-jobs",
+        Some("suspended") | Some("suspendedJob") => "management/suspended-jobs",
+        Some("deadletter") | Some("deadletterJob") => "management/deadletter-jobs",
         _ => "management/jobs",
+    }
+}
+
+/// CMMN counterpart of `job_collection_path` (Java `CmmnJobService.getJobUrl`).
+fn cmmn_job_collection_path(params: &HashMap<String, String>) -> &'static str {
+    match params.get("jobType").map(|s| s.as_str()) {
+        Some("timer") | Some("timerJob") => "cmmn-management/timer-jobs",
+        Some("suspended") | Some("suspendedJob") => "cmmn-management/suspended-jobs",
+        Some("deadletter") | Some("deadletterJob") => "cmmn-management/deadletter-jobs",
+        _ => "cmmn-management/jobs",
     }
 }
 
@@ -2097,6 +2754,21 @@ async fn proxy_get(
         )
         .await
         .map_err(AdminError::from)
+}
+
+/// `proxy_get` variant that parses the upstream JSON body (two-step lookups
+/// such as the app-definition related-model resolution).
+async fn proxy_get_json_value(
+    state: &AdminState,
+    endpoint: EndpointType,
+    path: &str,
+    query: &[(String, String)],
+) -> Result<Value, AdminError> {
+    let response = proxy_get(state, endpoint, path, query).await?;
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+    Ok(serde_json::from_slice(&bytes).unwrap_or(Value::Null))
 }
 
 async fn proxy_body(

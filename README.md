@@ -87,6 +87,39 @@ implementation (search for `Java ` citations and `P1xx` markers). Notable ones:
 | `flowable-persistence` | Storage abstraction (SQLite in-memory/file; MySQL/PostgreSQL backends) |
 | `flowable-app-*`, `flowable-form-service`, `flowable-identity-service`, `flowable-content-service`, `flowable-history-service`, `flowable-http-service`, `flowable-mail-service`, `flowable-task-service`, `flowable-variable-service`, `flowable-image-generator`, `flowable-bpmn-layout`, `flowable-cmmn-image-generator`, `flowable-dmn-image-generator`, `flowable-engine-common`, `flowable-platform-bootstrap` | Supporting services and helpers |
 
+## UI apps
+
+Four web apps ship with the server, mounted by `flowable-ui-rest` alongside the
+engine REST API:
+
+| App | Browser entry | REST surface | Frontend |
+|---|---|---|---|
+| Task | `/` | `/app/rest/**` | Legacy AngularJS bundle (`ui/legacy/task`) |
+| IDM | `/idm/` | `/idm-app/**` | Legacy AngularJS bundle (`ui/legacy/idm`) |
+| Admin | `/admin/` | `/admin-app/**` | Legacy AngularJS bundle (`ui/legacy/admin`) |
+| Modeler | `/modeler-app/` | `/modeler-app/rest/**` | Self-developed React/TypeScript (`ui/modeler`) |
+
+- The legacy bundles are served unmodified from `ui/legacy` (override with
+  `FLOWABLE_UI_STATIC_DIR`). The modeler is a from-scratch React app — no Oryx,
+  no bpmn-js — built with `cd ui/modeler && npm install && npm run build` and
+  served from `ui/modeler/dist` (override with `FLOWABLE_MODELER_STATIC_DIR`).
+  Its dependency allowlist lives in [ui/modeler/README.md](ui/modeler/README.md).
+- Sign-in mirrors the Java form login: POST `j_username`/`j_password` to
+  `/app/authentication` (session cookie, remember-me supported); `/app/logout`
+  ends the session. Accounts live in the engine identity service. No default
+  user is created: opt in at first boot with
+  `FLOWABLE_BOOTSTRAP_CREATE_DEFAULT_ADMIN=true` plus
+  `FLOWABLE_BOOTSTRAP_ADMIN_USER_ID` / `FLOWABLE_BOOTSTRAP_ADMIN_PASSWORD`.
+- `FLOWABLE_UI_AUTH_MODE=disabled` switches session enforcement off for
+  development; requests then run as `FLOWABLE_UI_DEV_USER` (default `admin`).
+- The admin app proxies engine REST calls per server-config; connection
+  defaults come from `FLOWABLE_UI_ENGINE_HOST` / `FLOWABLE_UI_ENGINE_PORT` /
+  `FLOWABLE_UI_ENGINE_USER` / `FLOWABLE_UI_ENGINE_PASSWORD`, with durable edits
+  stored at `FLOWABLE_UI_SERVER_CONFIG_PATH`.
+- Endpoint coverage against the Flowable 6.8 Java UI apps is audited in
+  `docs/plans/ui-migration-coverage.md` (sibling checkout), and the operational
+  guide is [docs/runbooks/ui-run.md](docs/runbooks/ui-run.md).
+
 ## Build and test
 
 Requires Rust **1.85 or newer** (the workspace uses edition 2024).
