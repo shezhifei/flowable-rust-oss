@@ -321,3 +321,108 @@ async fn assign_task_returns_representation() {
     let v = body_json(res).await;
     assert_eq!(v["assignee"]["id"], "admin");
 }
+
+/// Enforced deployments must act as the session user, not the
+/// `FLOWABLE_UI_DEFAULT_USER` fallback: the disabled-mode dev identity stands
+/// in for a real session here, and the queries/claims must follow it.
+#[tokio::test]
+async fn session_user_drives_task_queries_and_claims() {
+    use flowable_engine::engine::query::Query as _;
+    use flowable_ui_rest::auth::{AuthMode, UiAuthConfig};
+    use flowable_ui_rest::ui_router_with_config;
+
+    let engine = test_engine();
+    engine.get_identity_service().save_user(User {
+        id: "worker".into(),
+        first_name: Some("Case".into()),
+        last_name: Some("Worker".into()),
+        email: None,
+        password: Some("test".into()),
+        tenant_id: None,
+    });
+
+    let make_task = |name: &str, assignee: &str| {
+        let mut task = flowable_engine::task::Task::new(
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            name.to_string(),
+        );
+        task.assignee = Some(assignee.to_string());
+        engine.get_task_service().create_task(task).unwrap().id
+    };
+    let admin_task = make_task("Admin paperwork", "admin");
+    let worker_task = make_task("Worker paperwork", "worker");
+    let mut unassigned = flowable_engine::task::Task::new(
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        "Unclaimed paperwork".to_string(),
+    );
+    unassigned.assignee = None;
+    let unassigned_task = engine.get_task_service().create_task(unassigned).unwrap().id;
+
+    let config = Arc::new(UiAuthConfig {
+        mode: AuthMode::Disabled,
+        dev_user_id: "worker".to_string(),
+        ..UiAuthConfig::default()
+    });
+    let app = ui_router_with_config(config).layer(axum::Extension(Arc::clone(&engine)));
+
+    // "Assigned to me" follows the session user, not the fallback admin.
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/app/rest/query/tasks")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({ "assignment": "assignee", "size": 25 })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = res.status();
+    let body = body_json(res).await;
+    assert!(status == StatusCode::OK, "query failed: {body}");
+    let ids: Vec<&str> = body["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| t["id"].as_str())
+        .collect();
+    assert!(ids.contains(&worker_task.as_str()), "worker task listed: {ids:?}");
+    assert!(!ids.contains(&admin_task.as_str()), "admin task hidden: {ids:?}");
+
+    // Claiming takes the task for the session user.
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/app/rest/tasks/{unassigned_task}/action/claim"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let claim_status = res.status();
+    let claim_body = body_json(res).await;
+    assert!(
+        claim_status == StatusCode::OK,
+        "claim failed: {claim_body}"
+    );
+    let claimed = engine
+        .get_task_service()
+        .create_task_query()
+        .list()
+        .unwrap()
+        .into_iter()
+        .find(|t| t.id == unassigned_task)
+        .unwrap();
+    assert_eq!(claimed.assignee.as_deref(), Some("worker"));
+}

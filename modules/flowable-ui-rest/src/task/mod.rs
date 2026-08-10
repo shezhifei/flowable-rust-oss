@@ -31,8 +31,20 @@ pub use rest_variable::{
     create_rest_variable, rest_variable_value, RestVariable, RestVariableScope,
 };
 
+use crate::auth::UiAuth;
+
 fn default_user_id() -> String {
     std::env::var("FLOWABLE_UI_DEFAULT_USER").unwrap_or_else(|_| "admin".into())
+}
+
+/// The user a handler acts as: the authenticated session when the UI auth
+/// middleware ran (always the case in enforced deployments), else the
+/// development fallback used by tests that mount this router without the auth
+/// layer. Acting as a fixed "admin" regardless of session would let any
+/// authenticated user claim, start, and comment in another user's name.
+fn effective_user_id(auth: Option<&UiAuth>) -> String {
+    auth.map(|a| a.user_id().to_string())
+        .unwrap_or_else(default_user_id)
 }
 
 /// Test helper: full task router with an in-process engine extension.
@@ -362,6 +374,7 @@ struct CreateTaskBody {
 }
 
 async fn create_task(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Json(body): Json<CreateTaskBody>,
 ) -> Result<impl IntoResponse, TaskError> {
@@ -382,7 +395,7 @@ async fn create_task(
     task.assignee = Some(
         body.assignee
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| default_user_id()),
+            .unwrap_or_else(|| effective_user_id(auth.as_ref())),
     );
     let created = engine
         .get_task_service()
@@ -475,28 +488,30 @@ struct TaskQueryBody {
 }
 
 async fn query_tasks(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Json(body): Json<TaskQueryBody>,
 ) -> Result<impl IntoResponse, TaskError> {
     // "completed" historic path uses the same active query filtered by is_completed for now.
-    list_tasks_internal(&engine, body, false)
+    list_tasks_internal(&engine, body, false, effective_user_id(auth.as_ref()))
 }
 
 async fn query_historic_tasks(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Json(body): Json<TaskQueryBody>,
 ) -> Result<impl IntoResponse, TaskError> {
-    list_tasks_internal(&engine, body, true)
+    list_tasks_internal(&engine, body, true, effective_user_id(auth.as_ref()))
 }
 
 fn list_tasks_internal(
     engine: &ProcessEngine,
     body: TaskQueryBody,
     historic: bool,
+    user_id: String,
 ) -> Result<Json<ResultListDataRepresentation<TaskRepresentation>>, TaskError> {
     let page = body.page.unwrap_or(0).max(0) as usize;
     let size = body.size.unwrap_or(25).clamp(1, 1000) as usize;
-    let user_id = default_user_id();
 
     let mut q = engine.get_task_service().create_task_query();
     if let Some(pi) = body.process_instance_id.filter(|s| !s.is_empty()) {
@@ -611,10 +626,11 @@ async fn action_assign(
 }
 
 async fn action_claim(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(task_id): Path<String>,
 ) -> Result<impl IntoResponse, TaskError> {
-    let user = default_user_id();
+    let user = effective_user_id(auth.as_ref());
     engine
         .get_task_service()
         .claim_task_by_id(task_id, user)
@@ -762,6 +778,7 @@ async fn list_task_comments(
 }
 
 async fn add_task_comment(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(task_id): Path<String>,
     Json(body): Json<CommentRepresentation>,
@@ -771,6 +788,7 @@ async fn add_task_comment(
         .message
         .filter(|s| !s.is_empty())
         .ok_or_else(|| TaskError::bad_request("Comment message is required"))?;
+    let user_id = effective_user_id(auth.as_ref());
     let pi = if task.process_instance_id.is_empty() {
         None
     } else {
@@ -778,13 +796,13 @@ async fn add_task_comment(
     };
     let comment = engine
         .get_history_service()
-        .create_task_comment(&task_id, pi, &message, Some(&default_user_id()))
+        .create_task_comment(&task_id, pi, &message, Some(&user_id))
         .map_err(TaskError::from_engine)?;
     Ok(Json(CommentRepresentation {
         id: Some(comment.id),
         message: Some(comment.message),
         created: Some(comment.time.to_rfc3339()),
-        created_by: Some(resolve_user(&engine, &default_user_id())),
+        created_by: Some(resolve_user(&engine, &user_id)),
     }))
 }
 
@@ -812,6 +830,7 @@ async fn list_pi_comments(
 }
 
 async fn add_pi_comment(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(process_instance_id): Path<String>,
     Json(body): Json<CommentRepresentation>,
@@ -820,19 +839,16 @@ async fn add_pi_comment(
         .message
         .filter(|s| !s.is_empty())
         .ok_or_else(|| TaskError::bad_request("Comment message is required"))?;
+    let user_id = effective_user_id(auth.as_ref());
     let comment = engine
         .get_history_service()
-        .create_process_instance_comment(
-            &process_instance_id,
-            &message,
-            Some(&default_user_id()),
-        )
+        .create_process_instance_comment(&process_instance_id, &message, Some(&user_id))
         .map_err(TaskError::from_engine)?;
     Ok(Json(CommentRepresentation {
         id: Some(comment.id),
         message: Some(comment.message),
         created: Some(comment.time.to_rfc3339()),
-        created_by: Some(resolve_user(&engine, &default_user_id())),
+        created_by: Some(resolve_user(&engine, &user_id)),
     }))
 }
 
@@ -873,10 +889,12 @@ fn list_all_process_instances(
 }
 
 async fn start_process_instance(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Json(body): Json<StartProcessBody>,
 ) -> Result<impl IntoResponse, TaskError> {
-    let mut builder = ProcessInstanceBuilder::new().start_user_id(default_user_id());
+    let user_id = effective_user_id(auth.as_ref());
+    let mut builder = ProcessInstanceBuilder::new().start_user_id(user_id.clone());
     if let Some(id) = body.process_definition_id.filter(|s| !s.is_empty()) {
         builder = builder.process_definition_id(id);
     } else if let Some(key) = body.process_definition_key.filter(|s| !s.is_empty()) {
@@ -908,7 +926,7 @@ async fn start_process_instance(
         process_definition_id: Some(pi.process_definition_id.clone()),
         ended: pi.is_ended,
         started: pi.start_time.map(|t| t.to_rfc3339()),
-        started_by: Some(resolve_user(&engine, &default_user_id())),
+        started_by: Some(resolve_user(&engine, &user_id)),
     }))
 }
 
@@ -1279,6 +1297,7 @@ struct ContentBody {
 }
 
 async fn add_task_content(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(task_id): Path<String>,
     Json(body): Json<ContentBody>,
@@ -1300,7 +1319,7 @@ async fn add_task_content(
             process_instance_id: None,
             scope_type: None,
             scope_id: None,
-            created_by: Some(default_user_id()),
+            created_by: Some(effective_user_id(auth.as_ref())),
             expires_in_seconds: None,
         })
         .map_err(|e| TaskError::bad_request(e.to_string()))?;
@@ -1308,6 +1327,7 @@ async fn add_task_content(
 }
 
 async fn add_pi_content(
+    auth: Option<UiAuth>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(process_instance_id): Path<String>,
     Json(body): Json<ContentBody>,
@@ -1329,7 +1349,7 @@ async fn add_pi_content(
             process_instance_id: Some(process_instance_id),
             scope_type: None,
             scope_id: None,
-            created_by: Some(default_user_id()),
+            created_by: Some(effective_user_id(auth.as_ref())),
             expires_in_seconds: None,
         })
         .map_err(|e| TaskError::bad_request(e.to_string()))?;
