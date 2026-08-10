@@ -1,4 +1,4 @@
-import type { BpmnEditorDocument } from '../generated/editor-protocol';
+import type { BpmnEditorDocument, DmnEditorDocument } from '../generated/editor-protocol';
 
 type FetchLike = typeof fetch;
 
@@ -24,6 +24,39 @@ export async function loadBpmnDocument(
   return (await response.json()) as BpmnEditorDocument;
 }
 
+export async function loadDmnDocument(
+  modelId: string,
+  fetcher: FetchLike = fetch,
+): Promise<DmnEditorDocument> {
+  const response = await fetcher(dmnEditorUrl(modelId), {
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) throw await apiError(response, `Unable to load model '${modelId}'`);
+  return (await response.json()) as DmnEditorDocument;
+}
+
+export async function saveDmnDocument(
+  modelId: string,
+  document: DmnEditorDocument,
+  fetcher: FetchLike = fetch,
+): Promise<DmnEditorDocument> {
+  const response = await fetcher(dmnEditorUrl(modelId), {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(document),
+  });
+  if (!response.ok) throw await apiError(response, `Unable to save model '${modelId}'`);
+
+  // The server re-encodes JSON through the canonical Rust model and XML writer.
+  // Reading it back makes that authoritative representation the next editor state.
+  return loadDmnDocument(modelId, fetcher);
+}
+
 export async function saveBpmnDocument(
   modelId: string,
   document: BpmnEditorDocument,
@@ -47,6 +80,10 @@ export async function saveBpmnDocument(
 
 function editorUrl(modelId: string) {
   return `/modeler-app/rest/models/${encodeURIComponent(modelId)}/editor/bpmn-json`;
+}
+
+function dmnEditorUrl(modelId: string) {
+  return `/modeler-app/rest/models/${encodeURIComponent(modelId)}/editor/dmn-json`;
 }
 
 async function apiError(response: Response, fallback: string) {
