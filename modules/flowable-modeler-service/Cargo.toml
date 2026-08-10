@@ -1,0 +1,17 @@
+[package]
+name = "flowable-modeler-service"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+flowable-bpmn-converter = { path = "../flowable-bpmn-converter" }
+flowable-bpmn-layout = { path = "../flowable-bpmn-layout" }
+flowable-dmn-converter = { path = "../flowable-dmn-converter" }
+flowable-dmn-engine = { path = "../flowable-dmn-engine" }
+flowable-form-service = { path = "../flowable-form-service" }
+flowable-image-generator = { path = "../flowable-image-generator" }
+flowable-modeler-protocol = { path = "../flowable-modeler-protocol" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"

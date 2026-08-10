@@ -34,6 +34,7 @@ fn get_outgoing_flows(element: &FlowElementEnum) -> Option<&Vec<SequenceFlow>> {
         FlowElementEnum::ParallelGateway(g) => Some(&g.gateway.flow_node.outgoing_flows),
         FlowElementEnum::InclusiveGateway(g) => Some(&g.gateway.flow_node.outgoing_flows),
         FlowElementEnum::EventBasedGateway(g) => Some(&g.gateway.flow_node.outgoing_flows),
+        FlowElementEnum::ComplexGateway(g) => Some(&g.gateway.flow_node.outgoing_flows),
         FlowElementEnum::IntermediateCatchEvent(e) => Some(&e.event.flow_node.outgoing_flows),
         FlowElementEnum::IntermediateThrowEvent(e) => Some(&e.event.flow_node.outgoing_flows),
         FlowElementEnum::SubProcess(s) => Some(&s.activity.flow_node.outgoing_flows),
@@ -56,6 +57,7 @@ fn get_gateway_default_flow_id(element: &FlowElementEnum) -> Option<&str> {
         FlowElementEnum::ParallelGateway(g) => g.gateway.default_flow.as_deref(),
         FlowElementEnum::InclusiveGateway(g) => g.gateway.default_flow.as_deref(),
         FlowElementEnum::EventBasedGateway(g) => g.gateway.default_flow.as_deref(),
+        FlowElementEnum::ComplexGateway(g) => g.gateway.default_flow.as_deref(),
         _ => None,
     }
 }
@@ -141,6 +143,9 @@ fn get_element_id(element: &FlowElementEnum) -> Option<&String> {
             g.gateway.flow_node.flow_element.base_element.id.as_ref()
         }
         FlowElementEnum::EventBasedGateway(g) => {
+            g.gateway.flow_node.flow_element.base_element.id.as_ref()
+        }
+        FlowElementEnum::ComplexGateway(g) => {
             g.gateway.flow_node.flow_element.base_element.id.as_ref()
         }
         FlowElementEnum::IntermediateCatchEvent(e) => {
@@ -771,9 +776,12 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                     }
 
                     for artifact in artifacts {
-                        let flowable_bpmn_model::model::ArtifactEnum::Association(assoc) = artifact;
-                        if assoc.source_ref.as_deref() == Some(boundary_id) {
-                            return assoc.target_ref.clone();
+                        if let flowable_bpmn_model::model::ArtifactEnum::Association(assoc) =
+                            artifact
+                        {
+                            if assoc.source_ref.as_deref() == Some(boundary_id) {
+                                return assoc.target_ref.clone();
+                            }
                         }
                     }
                     for elem in flow_elements {

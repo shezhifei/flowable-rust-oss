@@ -2757,6 +2757,9 @@ fn outgoing_flows(flow_element: &FlowElementEnum) -> Option<&[SequenceFlow]> {
         FlowElementEnum::EventBasedGateway(gateway) => {
             Some(&gateway.gateway.flow_node.outgoing_flows)
         }
+        FlowElementEnum::ComplexGateway(gateway) => {
+            Some(&gateway.gateway.flow_node.outgoing_flows)
+        }
         FlowElementEnum::IntermediateCatchEvent(event) => {
             Some(&event.event.flow_node.outgoing_flows)
         }
@@ -3516,6 +3519,9 @@ fn flow_element_display_name(flow_element: &FlowElementEnum) -> Option<&str> {
             gateway.gateway.flow_node.flow_element.name.as_deref()
         }
         FlowElementEnum::EventBasedGateway(gateway) => {
+            gateway.gateway.flow_node.flow_element.name.as_deref()
+        }
+        FlowElementEnum::ComplexGateway(gateway) => {
             gateway.gateway.flow_node.flow_element.name.as_deref()
         }
         FlowElementEnum::SubProcess(sub_process) => {

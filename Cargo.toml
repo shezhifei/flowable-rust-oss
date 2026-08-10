@@ -8,6 +8,8 @@ members = [
     "modules/flowable-bpmn-model",
     "modules/flowable-bpmn-converter",
     "modules/flowable-image-generator",
+    "modules/flowable-modeler-protocol",
+    "modules/flowable-modeler-service",
     "modules/flowable-cmmn-model",
     "modules/flowable-cmmn-converter",
     "modules/flowable-cmmn-engine",

@@ -60,6 +60,9 @@ pub(crate) fn flow_element_base_element(flow_element: &FlowElementEnum) -> &Base
         FlowElementEnum::EventBasedGateway(gateway) => {
             &gateway.gateway.flow_node.flow_element.base_element
         }
+        FlowElementEnum::ComplexGateway(gateway) => {
+            &gateway.gateway.flow_node.flow_element.base_element
+        }
         FlowElementEnum::IntermediateCatchEvent(event) => {
             &event.event.flow_node.flow_element.base_element
         }

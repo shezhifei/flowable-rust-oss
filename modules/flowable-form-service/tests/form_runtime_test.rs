@@ -129,51 +129,30 @@ fn runtime_forms_resolve_bindings_submit_values_and_persist_instances() {
 }
 
 #[test]
-fn runtime_form_submission_rejects_missing_required_fields_and_unsupported_types() {
-    let (engine, service) = runtime_fixture("form-runtime-errors");
-    deploy_runtime_forms(&service);
-    let process_definition_id = deploy_runtime_process(
-        &engine,
-        "unsupportedProcess",
-        "unsupportedRuntime",
-        "expenseApproval",
-    );
-
-    let missing_required = service
-        .submit_form(FormSubmissionRequest {
-            process_definition_id: Some(process_definition_id.clone()),
-            task_id: None,
-            business_key: None,
-            outcome: None,
-            properties: Vec::new(),
-        })
-        .unwrap_err();
-
-    match missing_required {
-        FlowableError::DeploymentValidationError(message)
-        | FlowableError::ExecutionError(message)
-        | FlowableError::Generic(message) => assert!(message.contains("attachment")),
-        other => panic!("unexpected error: {other:?}"),
-    }
-
+fn deployment_rejects_unsupported_types_before_the_form_can_be_bound() {
+    let (_engine, service) = runtime_fixture("form-runtime-errors");
     let unsupported_type = service
-        .submit_form(FormSubmissionRequest {
-            process_definition_id: Some(process_definition_id),
-            task_id: None,
-            business_key: None,
-            outcome: None,
-            properties: vec![FormSubmissionProperty {
-                id: "attachment".to_string(),
-                value: json!("payload"),
+        .deploy(FormDeploymentRequest {
+            name: "Unsupported form".to_string(),
+            resources: vec![FormDeploymentResource {
+                resource_name: "unsupported-runtime.form".to_string(),
+                resource: json!({
+                    "key": "unsupportedRuntime",
+                    "name": "Unsupported runtime",
+                    "fields": [
+                        { "id": "attachment", "name": "Attachment", "type": "custom_widget", "required": true }
+                    ]
+                })
+                .to_string(),
             }],
         })
         .unwrap_err();
 
     match unsupported_type {
-        FlowableError::BadRequest(message)
-        | FlowableError::DeploymentValidationError(message)
-        | FlowableError::ExecutionError(message)
-        | FlowableError::Generic(message) => assert!(message.contains("Unsupported")),
+        FlowableError::DeploymentValidationError(message) => {
+            assert!(message.contains("flowable-form-field-type-unsupported"));
+            assert!(message.contains("custom_widget"));
+        }
         other => panic!("unexpected error: {other:?}"),
     }
 }

@@ -279,6 +279,9 @@ pub fn flow_element_execution_listeners(flow_element: &FlowElementEnum) -> &[Flo
         FlowElementEnum::EventBasedGateway(g) => {
             &g.gateway.flow_node.flow_element.execution_listeners
         }
+        FlowElementEnum::ComplexGateway(g) => {
+            &g.gateway.flow_node.flow_element.execution_listeners
+        }
         FlowElementEnum::IntermediateCatchEvent(e) => {
             &e.event.flow_node.flow_element.execution_listeners
         }

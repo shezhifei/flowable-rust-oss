@@ -1,3 +1,4 @@
+mod editor;
 mod error;
 pub mod feel;
 mod history;
@@ -6,6 +7,13 @@ mod repository;
 mod runtime;
 mod store;
 
+pub use editor::{
+    DmnEditorCapabilities, EDITOR_COLLECT_OPERATORS, EDITOR_CREATABLE_HIT_POLICIES,
+    EDITOR_INPUT_UNARY_TEST_FORMS, EDITOR_OUTPUT_EXPRESSION_FUNCTIONS,
+    EDITOR_OUTPUT_EXPRESSION_OPERATORS, EDITOR_ROUND_TRIP_HIT_POLICIES, EDITOR_VALUE_TYPE_REFS,
+    editor_capabilities, evaluate_editor_expression, validate_editor_definition,
+    validate_editor_expression,
+};
 pub use error::DmnError;
 pub use history::{DmnExecutionHistoryQuery, DmnHistoryService};
 pub use models::{

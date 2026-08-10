@@ -87,10 +87,7 @@ fn complete_with_form_definition_writes_variables_instance_and_outcome() {
     assert_eq!(instance.task_id.as_deref(), Some(task.id.as_str()));
     assert_eq!(instance.outcome.as_deref(), Some("approve"));
     assert_eq!(instance.values.get("approved"), Some(&json!(true)));
-    assert_eq!(
-        instance.submitted_by.as_deref(),
-        Some("admin")
-    );
+    assert_eq!(instance.submitted_by.as_deref(), Some("admin"));
 
     // Task completed
     assert!(
@@ -123,79 +120,34 @@ fn complete_with_form_definition_writes_variables_instance_and_outcome() {
 }
 
 #[test]
-fn complete_with_form_rolls_back_on_unsupported_field_type() {
-    let (engine, service) = runtime_fixture("form-complete-rollback-type");
-    deploy_runtime_forms(&service);
-    // Use unsupported form as task form
-    let _process_definition_id = deploy_runtime_process(
-        &engine,
-        "formCompleteUnsupported",
-        "travelRequest",
-        "unsupportedRuntime",
-    );
-
-    // Start without form (direct start) so we only exercise task form complete.
-    let process_instance = engine
-        .get_runtime_service()
-        .start_process_instance_by_key("formCompleteUnsupported")
-        .unwrap();
-
-    let task = engine
-        .get_task_service()
-        .get_tasks_by_process_instance_id(process_instance.id.clone())
-        .unwrap()
-        .pop()
-        .expect("task");
-
-    let form_definition_id = service
-        .create_form_definition_query()
-        .key("unsupportedRuntime")
-        .list()
-        .unwrap()
-        .into_iter()
-        .max_by_key(|d| d.version)
-        .unwrap()
-        .id;
-
-    let mut variables = HashMap::new();
-    variables.insert("attachment".into(), json!("payload"));
-
+fn unsupported_field_type_is_rejected_before_task_binding() {
+    let (_engine, service) = runtime_fixture("form-complete-rollback-type");
     let err = service
-        .complete_task_with_form_definition(
-            task.id.clone(),
-            form_definition_id,
-            None,
-            variables,
-            false,
-            HashMap::new(),
-            None,
-        )
+        .deploy(FormDeploymentRequest {
+            name: "Unsupported form".into(),
+            resources: vec![FormDeploymentResource {
+                resource_name: "unsupported-runtime.form".into(),
+                resource: json!({
+                    "key": "unsupportedRuntime",
+                    "name": "Unsupported runtime",
+                    "fields": [
+                        { "id": "attachment", "name": "Attachment", "type": "custom_widget", "required": true }
+                    ]
+                })
+                .to_string(),
+            }],
+        })
         .unwrap_err();
 
     match err {
-        FlowableError::BadRequest(msg) | FlowableError::DeploymentValidationError(msg) => {
-            assert!(msg.contains("Unsupported"), "msg={msg}");
+        FlowableError::DeploymentValidationError(msg) => {
+            assert!(
+                msg.contains("flowable-form-field-type-unsupported"),
+                "msg={msg}"
+            );
         }
-        other => panic!("expected BadRequest for unsupported type, got {other:?}"),
+        other => panic!("expected deployment validation error, got {other:?}"),
     }
-
-    // Task still open — no partial complete
-    let tasks = engine
-        .get_task_service()
-        .get_tasks_by_process_instance_id(process_instance.id.clone())
-        .unwrap();
-    assert_eq!(tasks.len(), 1);
-    assert_eq!(tasks[0].id, task.id);
-
-    // No form instance
-    assert!(
-        service
-            .create_form_instance_query()
-            .task_id(task.id)
-            .list()
-            .unwrap()
-            .is_empty()
-    );
 }
 
 #[test]

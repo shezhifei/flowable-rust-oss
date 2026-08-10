@@ -145,6 +145,13 @@ pub(crate) fn flow_element_id(flow_element: &FlowElementEnum) -> Option<&str> {
             .base_element
             .id
             .as_deref(),
+        FlowElementEnum::ComplexGateway(gateway) => gateway
+            .gateway
+            .flow_node
+            .flow_element
+            .base_element
+            .id
+            .as_deref(),
         FlowElementEnum::IntermediateCatchEvent(event) => event
             .event
             .flow_node
@@ -226,6 +233,7 @@ pub(crate) fn flow_element_type(flow_element: &FlowElementEnum) -> &'static str 
         FlowElementEnum::ParallelGateway(_) => "ParallelGateway",
         FlowElementEnum::InclusiveGateway(_) => "InclusiveGateway",
         FlowElementEnum::EventBasedGateway(_) => "EventBasedGateway",
+        FlowElementEnum::ComplexGateway(_) => "ComplexGateway",
         FlowElementEnum::IntermediateCatchEvent(_) => "IntermediateCatchEvent",
         FlowElementEnum::IntermediateThrowEvent(_) => "IntermediateThrowEvent",
         FlowElementEnum::SubProcess(_) => "SubProcess",

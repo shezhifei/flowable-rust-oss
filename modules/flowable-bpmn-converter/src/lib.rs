@@ -15,6 +15,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+mod writer;
+
+pub use writer::{BpmnXmlWriteError, BpmnXmlWriter, write_bpmn_model};
+
 fn parse_comma_separated_id_list(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -58,7 +62,9 @@ fn convert_data_object_value(raw: &str, data_type: Option<&str>) -> Value {
         // Java DateDataObject stores a Date; we keep the ISO-8601 text so runtime
         // can round-trip without a Date type in serde_json.
         Some("datetime") | Some("date") => Value::String(raw.to_string()),
-        Some("json") => serde_json::from_str(trimmed).unwrap_or_else(|_| Value::String(raw.to_string())),
+        Some("json") => {
+            serde_json::from_str(trimmed).unwrap_or_else(|_| Value::String(raw.to_string()))
+        }
         _ => Value::String(raw.to_string()),
     }
 }
@@ -200,6 +206,11 @@ impl BpmnXMLConverter {
     fn normalize_canonical_contract_value(value: &mut Value) {
         match value {
             Value::Object(map) => {
+                map.remove("elementType");
+                map.remove("eventDefinitionType");
+                map.remove("subProcessType");
+                map.remove("artifactType");
+                map.remove("errorRef");
                 map.remove("isForCompensation");
                 if matches!(map.get("artifactMap"), Some(Value::Object(entries)) if entries.is_empty())
                 {
@@ -481,10 +492,13 @@ impl BpmnXMLConverter {
                             inner_e,
                             &process_namespaces,
                         );
-                    } else if local_name == "association" {
-                        let assoc =
-                            self.parse_association(inner_e, reader, false, &process_namespaces);
-                        process.associations.push(assoc);
+                    } else if let Some(artifact) =
+                        self.parse_artifact(inner_e, reader, false, &process_namespaces)
+                    {
+                        if let ArtifactEnum::Association(association) = &artifact {
+                            process.associations.push(association.clone());
+                        }
+                        process.artifacts.push(artifact);
                     } else if let Some(elem) =
                         self.parse_flow_element(inner_e, reader, model, false)
                     {
@@ -503,10 +517,13 @@ impl BpmnXMLConverter {
                         process
                             .flow_elements
                             .push(FlowElementEnum::ValuedDataObject(obj));
-                    } else if local_name == "association" {
-                        let assoc =
-                            self.parse_association(inner_e, reader, true, &process_namespaces);
-                        process.associations.push(assoc);
+                    } else if let Some(artifact) =
+                        self.parse_artifact(inner_e, reader, true, &process_namespaces)
+                    {
+                        if let ArtifactEnum::Association(association) = &artifact {
+                            process.associations.push(association.clone());
+                        }
+                        process.artifacts.push(artifact);
                     } else if let Some(elem) = self.parse_flow_element(inner_e, reader, model, true)
                     {
                         process.flow_elements.push(elem);
@@ -971,10 +988,8 @@ impl BpmnXMLConverter {
                             self.get_local_name_bytes(inner_e.local_name().as_ref(), reader);
                         if inner_name_str == ELEMENT_DATA_VALUE {
                             let raw = self.read_element_text(reader, inner_e.name());
-                            obj.value = Some(convert_data_object_value(
-                                &raw,
-                                obj.data_type.as_deref(),
-                            ));
+                            obj.value =
+                                Some(convert_data_object_value(&raw, obj.data_type.as_deref()));
                         } else if inner_name_str == "extensionElements" {
                             self.parse_extensions_into_valued_data_object(
                                 reader,
@@ -1018,10 +1033,7 @@ impl BpmnXMLConverter {
                         self.parse_generic_extension_element(e, reader, &namespaces, is_empty);
                     if local_name == "value" {
                         let raw = ext.element_text.unwrap_or_default();
-                        obj.value = Some(convert_data_object_value(
-                            &raw,
-                            obj.data_type.as_deref(),
-                        ));
+                        obj.value = Some(convert_data_object_value(&raw, obj.data_type.as_deref()));
                         continue;
                     }
                     obj.base_element
@@ -1875,11 +1887,8 @@ impl BpmnXMLConverter {
                 // Java SendTaskParseHandler.java:54-56 — warn (not fail) when the
                 // sendTask has no `type` and is not the webservice form. The webservice
                 // form itself is rejected at deployment validation (P105 deviation).
-                let is_webservice = send_task
-                    .service_task
-                    .implementation_type
-                    .as_deref()
-                    == Some("webservice");
+                let is_webservice =
+                    send_task.service_task.implementation_type.as_deref() == Some("webservice");
                 if !is_webservice
                     && send_task
                         .service_task
@@ -2141,6 +2150,28 @@ impl BpmnXMLConverter {
                     );
                 }
                 FlowElementEnum::EventBasedGateway(gateway)
+            }
+            n if n == ELEMENT_GATEWAY_COMPLEX => {
+                let mut gateway = ComplexGateway::default();
+                gateway
+                    .gateway
+                    .flow_node
+                    .flow_element
+                    .base_element
+                    .xml_row_number = row;
+                gateway
+                    .gateway
+                    .flow_node
+                    .flow_element
+                    .base_element
+                    .xml_column_number = col;
+                self.parse_common_flow_node_attributes(e, reader, &mut gateway.gateway.flow_node);
+                self.parse_gateway_attributes(e, reader, &mut gateway.gateway);
+                self.ensure_id(&mut gateway.gateway.flow_node.flow_element.base_element.id);
+                if !is_empty {
+                    self.parse_complex_gateway_children(reader, &mut gateway, n, model);
+                }
+                FlowElementEnum::ComplexGateway(gateway)
             }
             n if n == ELEMENT_CALL_ACTIVITY => {
                 let mut call_activity = CallActivity::default();
@@ -4423,9 +4454,9 @@ impl BpmnXMLConverter {
                                 _ => {}
                             }
                         }
-                        event.event_definitions.push(
-                            EventDefinitionEnum::VariableListenerEventDefinition(def),
-                        );
+                        event
+                            .event_definitions
+                            .push(EventDefinitionEnum::VariableListenerEventDefinition(def));
                         if !is_empty {
                             let _ = self.read_element_text(reader, e.name());
                         }
@@ -4878,8 +4909,7 @@ impl BpmnXMLConverter {
                                 let Ok(attr) = attr else {
                                     continue;
                                 };
-                                let attr_key =
-                                    self.get_local_name_bytes(attr.key.as_ref(), reader);
+                                let attr_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
                                 if attr_key == "endDate" {
                                     let value = attr
                                         .decode_and_unescape_value(reader.decoder())
@@ -4947,8 +4977,10 @@ impl BpmnXMLConverter {
                             Some(self.parse_multi_instance_loop_characteristics(e, reader, false));
                     } else if local_name == "extensionElements" {
                         self.parse_extensions_into_sub_process(reader, sub_process, e, &namespaces);
-                    } else if local_name == "association" {
-                        let _ = self.parse_association(e, reader, false, &namespaces);
+                    } else if let Some(artifact) =
+                        self.parse_artifact(e, reader, false, &namespaces)
+                    {
+                        sub_process.artifacts.push(artifact);
                     } else if let Some(elem) = self.parse_flow_element(e, reader, model, false) {
                         sub_process.flow_elements.push(elem);
                     }
@@ -4967,8 +4999,9 @@ impl BpmnXMLConverter {
                         // Start branch already handled the non-empty form.
                         sub_process.activity.loop_characteristics =
                             Some(self.parse_multi_instance_loop_characteristics(e, reader, true));
-                    } else if local_name == "association" {
-                        let _ = self.parse_association(e, reader, true, &namespaces);
+                    } else if let Some(artifact) = self.parse_artifact(e, reader, true, &namespaces)
+                    {
+                        sub_process.artifacts.push(artifact);
                     } else if let Some(elem) = self.parse_flow_element(e, reader, model, true) {
                         sub_process.flow_elements.push(elem);
                     }
@@ -5084,6 +5117,52 @@ impl BpmnXMLConverter {
                             .push(self.parse_execution_listener(e, reader, false));
                     } else if local_name == "extensionElements" {
                         self.parse_extension_elements_base(reader, element, &model.namespaces);
+                    }
+                }
+                Ok(XmlEvent::End(ref e)) => {
+                    let local_name = self.get_local_name_bytes(e.local_name().as_ref(), reader);
+                    if local_name == parent_tag {
+                        break;
+                    }
+                }
+                Ok(XmlEvent::Eof) => break,
+                _ => {}
+            }
+            buf.clear();
+        }
+    }
+
+    fn parse_complex_gateway_children(
+        &self,
+        reader: &mut Reader<&[u8]>,
+        gateway: &mut ComplexGateway,
+        parent_tag: &str,
+        model: &mut BpmnModel,
+    ) {
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(XmlEvent::Start(ref e)) => {
+                    let local_name = self.get_local_name_bytes(e.local_name().as_ref(), reader);
+                    if local_name == ELEMENT_DOCUMENTATION {
+                        gateway.gateway.flow_node.flow_element.documentation =
+                            Some(self.read_element_text(reader, e.name()));
+                    } else if local_name == "activationCondition" {
+                        gateway.activation_condition =
+                            Some(self.read_element_text(reader, e.name()));
+                    } else if local_name == ELEMENT_EXECUTION_LISTENER {
+                        gateway
+                            .gateway
+                            .flow_node
+                            .flow_element
+                            .execution_listeners
+                            .push(self.parse_execution_listener(e, reader, false));
+                    } else if local_name == "extensionElements" {
+                        self.parse_extension_elements_base(
+                            reader,
+                            &mut gateway.gateway.flow_node.flow_element,
+                            &model.namespaces,
+                        );
                     }
                 }
                 Ok(XmlEvent::End(ref e)) => {
@@ -5580,6 +5659,8 @@ impl BpmnXMLConverter {
         let mut map = IndexMap::new();
         self.populate_element_map(&process.flow_elements, &mut map, &process.data_objects, 0);
         process.flow_element_map = map;
+        process.artifact_map =
+            self.populate_artifact_map(&process.artifacts, &process.flow_elements, 0);
     }
 
     fn populate_sub_process_maps_recursive(&self, element: &mut FlowElementEnum, depth: usize) {
@@ -5597,6 +5678,61 @@ impl BpmnXMLConverter {
             let mut map = IndexMap::new();
             self.populate_element_map(&sub_proc.flow_elements, &mut map, &[], depth + 1);
             sub_proc.flow_element_map = map;
+            sub_proc.artifact_map =
+                self.populate_artifact_map(&sub_proc.artifacts, &sub_proc.flow_elements, depth + 1);
+        }
+    }
+
+    fn populate_artifact_map(
+        &self,
+        artifacts: &[ArtifactEnum],
+        flow_elements: &[FlowElementEnum],
+        depth: usize,
+    ) -> IndexMap<String, ArtifactEnum> {
+        let mut map = IndexMap::new();
+        self.insert_artifacts(artifacts, &mut map);
+        self.insert_nested_artifacts(flow_elements, &mut map, depth);
+        map
+    }
+
+    fn insert_artifacts(
+        &self,
+        artifacts: &[ArtifactEnum],
+        map: &mut IndexMap<String, ArtifactEnum>,
+    ) {
+        for artifact in artifacts {
+            let id = match artifact {
+                ArtifactEnum::Association(value) => value.base_element.id.as_ref(),
+                ArtifactEnum::TextAnnotation(value) => value.base_element.id.as_ref(),
+                ArtifactEnum::Group(value) => value.base_element.id.as_ref(),
+            };
+            if let Some(id) = id {
+                map.insert(id.clone(), artifact.clone());
+            }
+        }
+    }
+
+    fn insert_nested_artifacts(
+        &self,
+        flow_elements: &[FlowElementEnum],
+        map: &mut IndexMap<String, ArtifactEnum>,
+        depth: usize,
+    ) {
+        if depth >= MAX_XML_NESTING_DEPTH {
+            return;
+        }
+        for element in flow_elements {
+            let sub_process = match element {
+                FlowElementEnum::SubProcess(value) => Some(value),
+                FlowElementEnum::Transaction(value) => Some(&value.sub_process),
+                FlowElementEnum::EventSubProcess(value) => Some(&value.sub_process),
+                FlowElementEnum::AdhocSubProcess(value) => Some(&value.sub_process),
+                _ => None,
+            };
+            if let Some(sub_process) = sub_process {
+                self.insert_artifacts(&sub_process.artifacts, map);
+                self.insert_nested_artifacts(&sub_process.flow_elements, map, depth + 1);
+            }
         }
     }
 
@@ -5644,7 +5780,9 @@ impl BpmnXMLConverter {
         match element {
             FlowElementEnum::UserTask(e) => Some(&mut e.task.activity.flow_node),
             FlowElementEnum::ServiceTask(e) => Some(&mut e.task.activity.flow_node),
-            FlowElementEnum::CaseServiceTask(e) => Some(&mut e.service_task.task.activity.flow_node),
+            FlowElementEnum::CaseServiceTask(e) => {
+                Some(&mut e.service_task.task.activity.flow_node)
+            }
             FlowElementEnum::SendTask(e) => Some(&mut e.service_task.task.activity.flow_node),
             FlowElementEnum::ScriptTask(e) => Some(&mut e.task.activity.flow_node),
             FlowElementEnum::ManualTask(e) => Some(&mut e.task.activity.flow_node),
@@ -5656,6 +5794,7 @@ impl BpmnXMLConverter {
             FlowElementEnum::ParallelGateway(e) => Some(&mut e.gateway.flow_node),
             FlowElementEnum::InclusiveGateway(e) => Some(&mut e.gateway.flow_node),
             FlowElementEnum::EventBasedGateway(e) => Some(&mut e.gateway.flow_node),
+            FlowElementEnum::ComplexGateway(e) => Some(&mut e.gateway.flow_node),
             FlowElementEnum::IntermediateCatchEvent(e) => Some(&mut e.event.flow_node),
             FlowElementEnum::IntermediateThrowEvent(e) => Some(&mut e.event.flow_node),
             FlowElementEnum::BoundaryEvent(e) => Some(&mut e.event.flow_node),
@@ -5767,6 +5906,9 @@ impl BpmnXMLConverter {
             FlowElementEnum::EventBasedGateway(e) => {
                 e.gateway.flow_node.flow_element.base_element.id.clone()
             }
+            FlowElementEnum::ComplexGateway(e) => {
+                e.gateway.flow_node.flow_element.base_element.id.clone()
+            }
             FlowElementEnum::IntermediateCatchEvent(e) => {
                 e.event.flow_node.flow_element.base_element.id.clone()
             }
@@ -5850,19 +5992,45 @@ impl BpmnXMLConverter {
         }
     }
 
+    fn parse_artifact(
+        &self,
+        e: &BytesStart,
+        reader: &mut Reader<&[u8]>,
+        is_empty: bool,
+        namespaces: &IndexMap<String, String>,
+    ) -> Option<ArtifactEnum> {
+        let local_name = self.get_local_name_bytes(e.local_name().as_ref(), reader);
+        match local_name.as_str() {
+            "association" => Some(ArtifactEnum::Association(
+                self.parse_association(e, reader, is_empty, namespaces),
+            )),
+            ELEMENT_TEXT_ANNOTATION => Some(ArtifactEnum::TextAnnotation(
+                self.parse_text_annotation(e, reader, is_empty, namespaces),
+            )),
+            ELEMENT_GROUP => Some(ArtifactEnum::Group(
+                self.parse_group(e, reader, is_empty, namespaces),
+            )),
+            _ => None,
+        }
+    }
+
     fn parse_association(
         &self,
         e: &BytesStart,
         reader: &mut Reader<&[u8]>,
         is_empty: bool,
-        _namespaces: &IndexMap<String, String>,
+        namespaces: &IndexMap<String, String>,
     ) -> Association {
-        let mut association = Association {
-            base_element: BaseElement::default(),
-            source_ref: None,
-            target_ref: None,
-        };
+        let mut association = Association::default();
+        let offset = reader.buffer_position();
+        let (row, col) = self.get_position(reader, offset as usize);
+        association.base_element.xml_row_number = row;
+        association.base_element.xml_column_number = col;
         for attr in e.attributes().flatten() {
+            let key = reader
+                .decoder()
+                .decode(attr.key.as_ref())
+                .unwrap_or_default();
             let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
             let value = attr
                 .decode_and_unescape_value(reader.decoder())
@@ -5871,19 +6039,97 @@ impl BpmnXMLConverter {
                 ATTRIBUTE_ID => association.base_element.id = Some(value.into_owned()),
                 "sourceRef" => association.source_ref = Some(value.into_owned()),
                 "targetRef" => association.target_ref = Some(value.into_owned()),
-                _ => {}
+                "associationDirection" => {
+                    association.association_direction = Some(
+                        match value.as_ref().to_ascii_uppercase().as_str() {
+                            "ONE" => "ONE",
+                            "BOTH" => "BOTH",
+                            "NONE" => "NONE",
+                            _ => value.as_ref(),
+                        }
+                        .to_string(),
+                    )
+                }
+                _ => self.store_artifact_attribute(
+                    &mut association.base_element,
+                    key.as_ref(),
+                    local_key,
+                    value.into_owned(),
+                    namespaces,
+                ),
             }
         }
         self.ensure_id(&mut association.base_element.id);
 
         if !is_empty {
+            self.parse_artifact_extension_children(
+                reader,
+                &mut association.base_element,
+                "association",
+                namespaces,
+            );
+        }
+
+        association
+    }
+
+    fn parse_text_annotation(
+        &self,
+        e: &BytesStart,
+        reader: &mut Reader<&[u8]>,
+        is_empty: bool,
+        namespaces: &IndexMap<String, String>,
+    ) -> TextAnnotation {
+        let mut annotation = TextAnnotation::default();
+        let offset = reader.buffer_position();
+        let (row, col) = self.get_position(reader, offset as usize);
+        annotation.base_element.xml_row_number = row;
+        annotation.base_element.xml_column_number = col;
+        for attr in e.attributes().flatten() {
+            let key = reader
+                .decoder()
+                .decode(attr.key.as_ref())
+                .unwrap_or_default();
+            let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
+            let value = attr
+                .decode_and_unescape_value(reader.decoder())
+                .unwrap_or_default();
+            match local_key.as_str() {
+                ATTRIBUTE_ID => annotation.base_element.id = Some(value.into_owned()),
+                "textFormat" => annotation.text_format = Some(value.into_owned()),
+                _ => self.store_artifact_attribute(
+                    &mut annotation.base_element,
+                    key.as_ref(),
+                    local_key,
+                    value.into_owned(),
+                    namespaces,
+                ),
+            }
+        }
+        self.ensure_id(&mut annotation.base_element.id);
+
+        if !is_empty {
             let mut buf = Vec::new();
             loop {
                 match reader.read_event_into(&mut buf) {
+                    Ok(XmlEvent::Start(ref inner_e)) => {
+                        let inner_name =
+                            self.get_local_name_bytes(inner_e.local_name().as_ref(), reader);
+                        if inner_name == "text" {
+                            annotation.text = Some(self.read_element_text(reader, inner_e.name()));
+                        } else if inner_name == "extensionElements" {
+                            self.parse_generic_extension_elements_into_base_element(
+                                reader,
+                                &mut annotation.base_element,
+                                inner_e,
+                                namespaces,
+                            );
+                        }
+                    }
                     Ok(XmlEvent::End(ref inner_e)) => {
                         let inner_name =
                             self.get_local_name_bytes(inner_e.local_name().as_ref(), reader);
-                        if inner_name == "association" {
+                        if inner_name == ELEMENT_TEXT_ANNOTATION {
                             break;
                         }
                     }
@@ -5894,7 +6140,113 @@ impl BpmnXMLConverter {
             }
         }
 
-        association
+        annotation
+    }
+
+    fn parse_group(
+        &self,
+        e: &BytesStart,
+        reader: &mut Reader<&[u8]>,
+        is_empty: bool,
+        namespaces: &IndexMap<String, String>,
+    ) -> Group {
+        let mut group = Group::default();
+        let offset = reader.buffer_position();
+        let (row, col) = self.get_position(reader, offset as usize);
+        group.base_element.xml_row_number = row;
+        group.base_element.xml_column_number = col;
+        for attr in e.attributes().flatten() {
+            let key = reader
+                .decoder()
+                .decode(attr.key.as_ref())
+                .unwrap_or_default();
+            let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
+            let value = attr
+                .decode_and_unescape_value(reader.decoder())
+                .unwrap_or_default();
+            match local_key.as_str() {
+                ATTRIBUTE_ID => group.base_element.id = Some(value.into_owned()),
+                "categoryValueRef" => group.category_value_ref = Some(value.into_owned()),
+                _ => self.store_artifact_attribute(
+                    &mut group.base_element,
+                    key.as_ref(),
+                    local_key,
+                    value.into_owned(),
+                    namespaces,
+                ),
+            }
+        }
+        self.ensure_id(&mut group.base_element.id);
+
+        if !is_empty {
+            self.parse_artifact_extension_children(
+                reader,
+                &mut group.base_element,
+                ELEMENT_GROUP,
+                namespaces,
+            );
+        }
+        group
+    }
+
+    fn parse_artifact_extension_children(
+        &self,
+        reader: &mut Reader<&[u8]>,
+        base_element: &mut BaseElement,
+        parent_tag: &str,
+        namespaces: &IndexMap<String, String>,
+    ) {
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(XmlEvent::Start(ref inner_e)) => {
+                    let inner_name =
+                        self.get_local_name_bytes(inner_e.local_name().as_ref(), reader);
+                    if inner_name == "extensionElements" {
+                        self.parse_generic_extension_elements_into_base_element(
+                            reader,
+                            base_element,
+                            inner_e,
+                            namespaces,
+                        );
+                    }
+                }
+                Ok(XmlEvent::End(ref inner_e)) => {
+                    let inner_name =
+                        self.get_local_name_bytes(inner_e.local_name().as_ref(), reader);
+                    if inner_name == parent_tag {
+                        break;
+                    }
+                }
+                Ok(XmlEvent::Eof) => break,
+                _ => {}
+            }
+            buf.clear();
+        }
+    }
+
+    fn store_artifact_attribute(
+        &self,
+        base_element: &mut BaseElement,
+        qualified_name: &str,
+        local_name: String,
+        value: String,
+        namespaces: &IndexMap<String, String>,
+    ) {
+        let mut attribute = ExtensionAttribute {
+            name: Some(local_name.clone()),
+            value: Some(value),
+            ..ExtensionAttribute::default()
+        };
+        if let Some((prefix, _)) = qualified_name.split_once(':') {
+            attribute.namespace_prefix = Some(prefix.to_string());
+            attribute.namespace = namespaces.get(prefix).cloned();
+        }
+        base_element
+            .attributes
+            .entry(local_name)
+            .or_default()
+            .push(attribute);
     }
 
     fn parse_common_activity_attributes(

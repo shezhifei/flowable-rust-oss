@@ -183,7 +183,8 @@ fn render_node(svg: &mut String, node: &NodeLayout, include_metadata_attributes:
         DiagramNodeKind::ExclusiveGateway
         | DiagramNodeKind::ParallelGateway
         | DiagramNodeKind::InclusiveGateway
-        | DiagramNodeKind::EventBasedGateway => {
+        | DiagramNodeKind::EventBasedGateway
+        | DiagramNodeKind::ComplexGateway => {
             render_gateway(svg, node, include_metadata_attributes, highlighted)
         }
         DiagramNodeKind::Task
@@ -485,6 +486,7 @@ fn gateway_class_name(kind: &DiagramNodeKind) -> &'static str {
         DiagramNodeKind::ParallelGateway => "parallel-gateway",
         DiagramNodeKind::InclusiveGateway => "inclusive-gateway",
         DiagramNodeKind::EventBasedGateway => "event-based-gateway",
+        DiagramNodeKind::ComplexGateway => "complex-gateway",
         _ => "gateway",
     }
 }
@@ -495,6 +497,7 @@ fn gateway_symbol(kind: &DiagramNodeKind) -> &'static str {
         DiagramNodeKind::ParallelGateway => "+",
         DiagramNodeKind::InclusiveGateway => "O",
         DiagramNodeKind::EventBasedGateway => "E",
+        DiagramNodeKind::ComplexGateway => "*",
         _ => "",
     }
 }

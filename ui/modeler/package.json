@@ -1,0 +1,46 @@
+{
+  "name": "@flowable/modeler-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:e2e": "tsc -b && vite build --mode e2e",
+    "preview": "vite preview",
+    "schema:rust": "cargo run --manifest-path ../../Cargo.toml -p flowable-modeler-protocol --bin export_schema -- ../../docs/plans/modeler-editor-protocol.schema.json",
+    "generate:types": "npm run schema:rust && json2ts -i ../../docs/plans/modeler-editor-protocol.schema.json -o src/generated/editor-protocol.ts && prettier --write src/generated/editor-protocol.ts",
+    "generate:render-fixtures": "cargo run --manifest-path ../../Cargo.toml -p flowable-modeler-service --bin export_bpmn_render_fixtures -- e2e/fixtures",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run generate:render-fixtures && npm run build:e2e && playwright test"
+  },
+  "dependencies": {
+    "dayjs": "1.11.21",
+    "immer": "11.1.16",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "7.18.2",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.2",
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.10.13",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "6.0.0",
+    "eslint": "9.39.2",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-plugin-react-refresh": "0.4.24",
+    "json-schema-to-typescript": "15.0.4",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.56.1",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

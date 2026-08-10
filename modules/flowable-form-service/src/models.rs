@@ -1,5 +1,7 @@
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,7 +45,7 @@ fn default_active() -> Option<bool> {
     Some(true)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FormEnumValue {
     pub id: String,
@@ -51,7 +53,7 @@ pub struct FormEnumValue {
 }
 
 /// A single option item (e.g., for dropdown, radio, checkbox).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FormOption {
     pub id: String,
@@ -59,7 +61,7 @@ pub struct FormOption {
 }
 
 /// Layout definition for a form field.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutDefinition {
     pub row: Option<i32>,
@@ -68,7 +70,7 @@ pub struct LayoutDefinition {
 }
 
 /// Base form field containing all common properties.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseFormField {
     pub id: String,
@@ -89,7 +91,7 @@ pub struct BaseFormField {
 }
 
 /// Option-based form field (dropdown, radio, checkbox).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionFormField {
     #[serde(flatten)]
@@ -103,7 +105,7 @@ pub struct OptionFormField {
 }
 
 /// Expression-driven form field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionFormField {
     #[serde(flatten)]
@@ -112,7 +114,7 @@ pub struct ExpressionFormField {
 }
 
 /// Container form field that can hold nested fields in a 2D row structure.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FormContainer {
     #[serde(flatten)]
@@ -122,7 +124,7 @@ pub struct FormContainer {
 }
 
 /// A form outcome (submit button / result option).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FormOutcome {
     pub id: Option<String>,
@@ -136,6 +138,61 @@ pub enum FormFieldModel {
     OptionField(OptionFormField),
     ExpressionField(ExpressionFormField),
     BaseField(BaseFormField),
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+#[schemars(tag = "fieldType")]
+enum FormFieldModelSchema {
+    Container {
+        #[schemars(flatten)]
+        field: FormContainer,
+    },
+    #[schemars(rename = "OptionFormField")]
+    OptionField {
+        #[schemars(flatten)]
+        field: OptionFormField,
+    },
+    #[schemars(rename = "ExpressionFormField")]
+    ExpressionField {
+        #[schemars(flatten)]
+        field: ExpressionFormField,
+    },
+    BaseField {
+        #[schemars(flatten)]
+        field: BaseFormField,
+    },
+}
+
+impl JsonSchema for FormFieldModel {
+    fn schema_name() -> Cow<'static, str> {
+        "FormFieldModel".into()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        FormFieldModelSchema::json_schema(generator)
+    }
+}
+
+/// Editable Flowable form document persisted by the modeler repository.
+///
+/// Runtime/deployment metadata belongs to [`FormDefinition`]; the modeler
+/// projection intentionally contains only author-owned form semantics.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FormModel {
+    pub key: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<FormFieldModel>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outcomes: Vec<FormOutcome>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome_variable_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout: Option<Value>,
 }
 
 impl serde::Serialize for FormFieldModel {

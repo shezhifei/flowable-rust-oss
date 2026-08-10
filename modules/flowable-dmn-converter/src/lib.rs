@@ -8,6 +8,10 @@ use roxmltree::{Document, Node, ParsingOptions};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
+mod writer;
+
+pub use writer::{DmnXmlWriter, write_dmn_definition};
+
 /// Maximum XML element nesting depth accepted (M3): bounds converter
 /// recursion over decisions / decision tables / expressions.
 ///
@@ -91,16 +95,18 @@ fn reject_deep_nesting(xml: &str) -> Result<(), DmnConverterError> {
             Ok(XmlEvent::Eof) => return Ok(()),
             Ok(_) => {}
             Err(error) => {
-                return Err(DmnConverterError::InvalidXml(format!("malformed XML: {error}")));
+                return Err(DmnConverterError::InvalidXml(format!(
+                    "malformed XML: {error}"
+                )));
             }
         }
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DmnConverterError {
     InvalidXml(String),
+    Serialization(String),
     MissingAttribute {
         element: String,
         attribute: &'static str,
@@ -122,6 +128,7 @@ impl Display for DmnConverterError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidXml(message) => write!(f, "invalid DMN XML: {message}"),
+            Self::Serialization(message) => write!(f, "failed to serialize DMN XML: {message}"),
             Self::MissingAttribute { element, attribute } => {
                 write!(f, "missing required attribute `{attribute}` on `{element}`")
             }
