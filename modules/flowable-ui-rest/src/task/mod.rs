@@ -237,6 +237,23 @@ pub fn router() -> Router {
             "/app/rest/debugger/variables/:execution_id",
             get(debugger_variables),
         )
+        .route(
+            "/app/rest/debugger/breakpoints/:execution_id/continue",
+            put(debugger_continue_execution),
+        )
+        .route(
+            "/app/rest/debugger/evaluate/expression/:execution_id",
+            post(debugger_evaluate_expression),
+        )
+        .route(
+            "/app/rest/debugger/evaluate/:script_language/:execution_id",
+            post(debugger_evaluate_script),
+        )
+        // 4.x → 6.x migration helper (returns empty; no legacy apps to migrate)
+        .route(
+            "/app/rest/migrate/app-definitions",
+            get(list_migrate_app_definitions),
+        )
         // Workflow users/groups
         .route("/app/rest/workflow-users", get(workflow_users))
         .route("/app/rest/workflow-groups", get(workflow_groups))
@@ -2287,14 +2304,70 @@ async fn debugger_allowed() -> Json<bool> {
     Json(debugger_enabled())
 }
 
-async fn list_breakpoints() -> Result<impl IntoResponse, TaskError> {
-    if !debugger_enabled() {
-        return Err(TaskError::bad_request(
+fn require_debugger() -> Result<(), TaskError> {
+    if debugger_enabled() {
+        Ok(())
+    } else {
+        Err(TaskError::bad_request(
             "property flowable.experimental.debugger.enabled is not enabled",
-        ));
+        ))
     }
+}
+
+async fn list_breakpoints() -> Result<impl IntoResponse, TaskError> {
+    require_debugger()?;
     // In-memory breakpoints live in a process-local static.
     Ok(Json(DEBUG_BREAKPOINTS.lock().unwrap().clone()))
+}
+
+/// Java `DebuggerResource.continueExecution` — remove breakpoints for the
+/// execution so the process can proceed. The Rust engine has no debugger
+/// runtime; this only updates the in-memory breakpoint list the UI shows.
+async fn debugger_continue_execution(
+    Path(execution_id): Path<String>,
+) -> Result<impl IntoResponse, TaskError> {
+    require_debugger()?;
+    let mut breakpoints = DEBUG_BREAKPOINTS.lock().unwrap();
+    breakpoints.retain(|bp| {
+        bp.get("executionId")
+            .and_then(|v| v.as_str())
+            .map(|id| id != execution_id)
+            .unwrap_or(true)
+    });
+    Ok(StatusCode::OK)
+}
+
+/// Java `DebuggerResource.evaluateExpression` — experimental; without a
+/// debugger runtime we return a fixed placeholder string so the UI call path
+/// does not 404.
+async fn debugger_evaluate_expression(
+    Path(_execution_id): Path<String>,
+    body: String,
+) -> Result<impl IntoResponse, TaskError> {
+    require_debugger()?;
+    if body.trim().is_empty() {
+        return Err(TaskError::bad_request("expression is required"));
+    }
+    Ok((StatusCode::OK, "null".to_string()))
+}
+
+/// Java `DebuggerResource.evaluateScript` — experimental no-op when the gate
+/// is open (engine has no script debugger).
+async fn debugger_evaluate_script(
+    Path((_script_language, _execution_id)): Path<(String, String)>,
+    body: String,
+) -> Result<impl IntoResponse, TaskError> {
+    require_debugger()?;
+    if body.trim().is_empty() {
+        return Err(TaskError::bad_request("script is required"));
+    }
+    Ok(StatusCode::OK)
+}
+
+/// Java `MigrateAppDefinitionsResource.migrateAppDefinitions` — returns a
+/// status string. There are no 4.x app definitions to migrate in this stack.
+async fn list_migrate_app_definitions() -> impl IntoResponse {
+    (StatusCode::OK, "No app definitions to migrate")
 }
 
 async fn add_breakpoint(Json(body): Json<Value>) -> Result<impl IntoResponse, TaskError> {
