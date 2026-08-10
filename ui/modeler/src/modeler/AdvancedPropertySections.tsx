@@ -77,26 +77,26 @@ const EXECUTION_LISTENER_EVENTS = [
   ['take', 'take'],
 ] as const;
 
-export function supportsMultiInstance(element: FlowElementEnum): boolean {
+function supportsMultiInstance(element: FlowElementEnum): boolean {
   return MULTI_INSTANCE_TYPES.has(element.elementType) && 'loopCharacteristics' in element;
 }
 
-export function supportsExecutionListeners(element: FlowElementEnum): boolean {
+function supportsExecutionListeners(element: FlowElementEnum): boolean {
   return EXECUTION_LISTENER_TYPES.has(element.elementType) && 'executionListeners' in element;
 }
 
-export function supportsTaskListeners(element: FlowElementEnum): boolean {
+function supportsTaskListeners(element: FlowElementEnum): boolean {
   return element.elementType === 'userTask' && 'taskListeners' in element;
 }
 
-export function supportsFieldInjection(element: FlowElementEnum): boolean {
+function supportsFieldInjection(element: FlowElementEnum): boolean {
   return (
     (element.elementType === 'serviceTask' || element.elementType === 'callActivity') &&
     'fieldExtensions' in element
   );
 }
 
-export function supportsCallActivity(element: FlowElementEnum): boolean {
+function supportsCallActivity(element: FlowElementEnum): boolean {
   return element.elementType === 'callActivity';
 }
 
@@ -112,8 +112,8 @@ function asActivity(element: FlowElementEnum): ActivityLike {
 }
 
 export function MultiInstanceSection({ element }: { element: FlowElementEnum }) {
-  if (!supportsMultiInstance(element)) return null;
   const execute = useModelerStore((state) => state.execute);
+  if (!supportsMultiInstance(element)) return null;
   const elementId = element.id ?? '';
   const activity = asActivity(element);
   const loop = activity.loopCharacteristics ?? null;
@@ -208,11 +208,10 @@ export function MultiInstanceSection({ element }: { element: FlowElementEnum }) 
 
 export function ListenersSection({ element }: { element: FlowElementEnum }) {
   const execute = useModelerStore((state) => state.execute);
-  const elementId = element.id ?? '';
   const showTask = supportsTaskListeners(element);
   const showExecution = supportsExecutionListeners(element);
   if (!showTask && !showExecution) return null;
-
+  const elementId = element.id ?? '';
   const activity = asActivity(element);
   const taskListeners: FlowableListener[] = showTask ? (activity.taskListeners ?? []) : [];
   const executionListeners: FlowableListener[] = showExecution
@@ -343,8 +342,8 @@ function ListenerList({
 }
 
 export function FieldInjectionSection({ element }: { element: FlowElementEnum }) {
-  if (!supportsFieldInjection(element)) return null;
   const execute = useModelerStore((state) => state.execute);
+  if (!supportsFieldInjection(element)) return null;
   const elementId = element.id ?? '';
   const fields: FieldExtension[] = asActivity(element).fieldExtensions ?? [];
 
@@ -429,8 +428,8 @@ export function FieldInjectionSection({ element }: { element: FlowElementEnum })
 }
 
 export function CallActivitySection({ element }: { element: FlowElementEnum }) {
-  if (!supportsCallActivity(element) || element.elementType !== 'callActivity') return null;
   const execute = useModelerStore((state) => state.execute);
+  if (!supportsCallActivity(element) || element.elementType !== 'callActivity') return null;
   const elementId = element.id ?? '';
   const inParameters = element.inParameters ?? [];
   const outParameters = element.outParameters ?? [];
@@ -668,6 +667,7 @@ export function EventReferenceSection({
   document: BpmnEditorDocument;
   element: FlowElementEnum;
 }) {
+  const execute = useModelerStore((state) => state.execute);
   if (!('eventDefinitions' in element)) return null;
   const definitions = (element.eventDefinitions ?? []) as EventDefinitionEnum[];
   const signalDefinition = definitions.find(
@@ -686,7 +686,6 @@ export function EventReferenceSection({
     element.elementType === 'intermediateThrowEvent';
   if (!isEventElement && !signalDefinition && !messageDefinition) return null;
 
-  const execute = useModelerStore((state) => state.execute);
   const elementId = element.id ?? '';
   const signals = document.model.signals ?? [];
   const messages = document.model.messages ?? [];

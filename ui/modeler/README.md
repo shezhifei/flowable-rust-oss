@@ -24,29 +24,31 @@ Set `FLOWABLE_MODELER_STATIC_DIR` to override that location in packaged deployme
 directory is absent, REST routes remain mounted and static Modeler routes are omitted rather than
 falling back to source files.
 
-## BPMN renderer foundation
+## Surface map
 
-The current M1 renderer is a first-party React/SVG implementation:
+| Route | Surface |
+| ----- | ------- |
+| `/modeler-app/` | Model repository list (create / delete / import / publish) |
+| `/modeler-app/models/:id/bpmn` | BPMN process editor |
+| `/modeler-app/models/:id/dmn` | DMN decision table editor |
+| `/modeler-app/models/:id/form` | Form designer |
+
+The reserved BPMN model id `sample` keeps the offline demo document and does not hit the REST
+persistence endpoints.
+
+## BPMN editor
 
 - `src/modeler/modelerStore.ts` owns the versioned document, selection, pan, and zoom state through
   Zustand + Immer.
 - `src/modeler/diagramModel.ts` traverses every process and nested subprocess without inventing a
   second frontend model.
-- `src/modeler/BpmnCanvas.tsx` renders pools, lanes, sequence/message/association flows, data
-  stores, and BPMN DI transforms in separate SVG layers.
-- `src/modeler/BpmnElement.tsx` renders the task, event, gateway, subprocess, call-activity, and
-  data-object families from their generated discriminated unions.
-
-The renderer covers the canonical task families, event definitions, all five gateway kinds,
-embedded/event/adhoc subprocesses, transactions, call activities, pools and lanes, data objects and
-stores, text annotations, groups, sequence/message flows, and directed associations. A complex
-gateway remains a first-class protocol and rendering type; deployment validation rejects it with
-`flowable-complex-gateway-not-supported` until the Rust engine implements its execution semantics.
-
-`POST /modeler-app/rest/editor/layout` preserves existing BPMN DI and deterministically fills only
-missing shape bounds and edge waypoints, including nested subprocess elements and artifacts. The
-canvas Fit action derives its viewport from every rendered shape and waypoint without changing
-canonical model coordinates.
+- `src/modeler/BpmnCanvas.tsx` / `BpmnElement.tsx` render pools, lanes, flows, data, and the full
+  element family from the generated protocol unions.
+- Interaction commands cover move, create, delete, connect, clipboard, transform, ownership, and
+  replacement.
+- Properties panel (C3): General / Execution / Assignment / Form & scheduling / Implementation /
+  Condition, plus phase-two groups for multi-instance, task/execution listeners, signal & message
+  definitions and refs, field injection, and call-activity parameters.
 
 The C1 screenshot gate is generated from the same 20 representative XML round-trip fixtures used by
 the Rust converter tests. `npm run generate:render-fixtures` refreshes the ignored browser JSON
@@ -60,24 +62,30 @@ npm run test:e2e
 
 Production builds do not expose the fixture harness.
 
-The M2 command boundary is now active for node movement. Document mutations are captured as Immer
-forward/inverse patches in `src/modeler/commands.ts`; one drag creates one history entry, adjusts
-attached boundary-event geometry and connected DI endpoints, and supports button or keyboard
-undo/redo. The property panel remains read-only until M3. Node selection, wheel/button zoom,
-drag-to-pan, node dragging, and the typed property summary are covered by Chromium acceptance
-tests.
+## DMN decision table editor
 
-Palette clicks now create canonical start-event, user-task, exclusive-gateway, subprocess, and data
-object variants with synchronized list/map/DI state. Delete/Backspace and the toolbar delete action
-remove the selected node together with attached boundary events, connected flows, lane references,
-and DI metadata in one reversible command.
+`src/dmn/` owns the decision-table document store, FEEL subset validation, hit-policy editing, and
+the undoable grid UI. Persistence uses `/modeler-app/rest/models/:id/editor/dmn-json`.
+
+## Form designer
+
+`src/form/` owns the form document store, the Flowable 6.8 wire-type palette (19 types; boolean is
+the checkbox), recursive containers, outcomes, preview mode, and client-side validation that mirrors
+the Rust form boundary codes. Persistence uses
+`/modeler-app/rest/form-models/:id/editor/form-json` (PUT then GET).
+
+## Model repository
+
+`src/models/` lists `/repository/models`, creates stubs for BPMN/DMN/form, deletes, imports source
+files, and publishes through `/repository/deployments` (BPMN multipart) or the DMN/form repository
+deployment endpoints. BPMN rows request `/modeler-app/rest/models/:id/thumbnail`.
 
 ## Architecture boundaries
 
 - The frontend never parses or emits BPMN or DMN XML.
 - Generated protocol types live in `src/generated/` and must not be hand-edited.
-- Editor state is the single source of truth. Future mutations enter the store as commands so undo
-  and redo remain deterministic.
+- Editor state is the single source of truth. Mutations enter the store as commands so undo and redo
+  remain deterministic.
 - Server validation is authoritative; client validation exists for immediate editing feedback.
 - BPMN rendering and interaction use React and native SVG. Third-party graph-editing kernels are
   prohibited.
@@ -85,21 +93,24 @@ and DI metadata in one reversible command.
 ## Dependency allowlist
 
 Production dependencies are deliberately narrow. Adding a package requires documenting its purpose
-here before changing `package.json`.
+here before changing `package.json`. This table is reconciled with `package.json` dependencies and
+devDependencies (versions are pinned there).
 
-| Package family                         | Purpose                        | Status           |
-| -------------------------------------- | ------------------------------ | ---------------- |
-| `react`, `react-dom`                   | UI runtime                     | Allowed          |
-| `react-router-dom`                     | `/modeler-app` route ownership | Allowed          |
-| `zustand`                              | Editor state store             | Allowed          |
-| `immer`                                | Immutable command application  | Allowed          |
-| `dayjs`                                | Date display and editing       | Allowed          |
-| `vite`, `typescript`                   | Build and strict type checking | Development only |
-| `vitest`                               | Unit and protocol tests        | Development only |
-| `@playwright/test`                     | Browser acceptance tests       | Development only |
-| `json-schema-to-typescript`            | Rust schema to TypeScript      | Development only |
-| `eslint` and official/plugin ecosystem | Static analysis                | Development only |
-| `prettier`                             | Deterministic formatting       | Development only |
+| Package family                         | Purpose                        | Status           | package.json |
+| -------------------------------------- | ------------------------------ | ---------------- | ------------ |
+| `react`, `react-dom`                   | UI runtime                     | Allowed          | 18.3.x       |
+| `react-router-dom`                     | `/modeler-app` route ownership | Allowed          | 7.x          |
+| `zustand`                              | Editor state store             | Allowed          | 5.x          |
+| `immer`                                | Immutable command application  | Allowed          | 11.x         |
+| `dayjs`                                | Date display and editing       | Allowed          | 1.11.x       |
+| `vite`, `@vitejs/plugin-react`         | Build                          | Development only | 8.x / 6.x    |
+| `typescript`                           | Strict type checking           | Development only | 5.9.x        |
+| `vitest`                               | Unit and protocol tests        | Development only | 4.x          |
+| `@playwright/test`                     | Browser acceptance tests       | Development only | 1.62.x       |
+| `json-schema-to-typescript`            | Rust schema to TypeScript      | Development only | 15.x         |
+| `eslint` and official/plugin ecosystem | Static analysis                | Development only | 9.x          |
+| `prettier`                             | Deterministic formatting       | Development only | 3.x          |
+| `@types/*`                             | Type definitions               | Development only | pinned       |
 
 Explicitly prohibited editor kernels include Oryx, bpmn-js, dmn-js, mxGraph, JointJS, GoJS, and
 similar graph/canvas frameworks. Utility packages are not implicitly allowed by this list.

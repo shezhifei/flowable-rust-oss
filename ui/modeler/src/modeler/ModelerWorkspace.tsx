@@ -58,10 +58,7 @@ export function ModelerWorkspace() {
   const canPersist = isPersistableModelId(modelId);
 
   useEffect(() => {
-    if (!isPersistableModelId(modelId)) {
-      setPersistence({ state: 'idle' });
-      return;
-    }
+    if (!isPersistableModelId(modelId)) return;
     let active = true;
     void loadBpmnDocument(modelId)
       .then((loaded) => {

@@ -37,7 +37,8 @@ test.describe('representative BPMN renderer fixtures', () => {
       const document = JSON.parse(
         readFileSync(join(fixtureDirectory, fixture), 'utf8'),
       ) as RenderFixture;
-      await page.goto('./');
+      // Harness is mounted on the BPMN workspace; sample id stays offline.
+      await page.goto('./models/sample/bpmn');
       await page.evaluate((nextDocument) => {
         const harness = (window as ModelerTestWindow).__FLOWABLE_MODELER_TEST__;
         if (!harness) throw new Error('Modeler E2E harness is unavailable');

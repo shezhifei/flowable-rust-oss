@@ -87,8 +87,8 @@ test('lists models and navigates into a newly created form editor', async ({ pag
 
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Models' })).toBeVisible();
-  await expect(page.getByRole('table', { name: undefined })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Leave process' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Model list table' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Leave process', exact: true })).toBeVisible();
   await expect(page.getByText('BPMN', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '+ Form' }).click();

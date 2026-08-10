@@ -206,11 +206,11 @@ export function updateEventDefinitionRefCommand(
         );
       }
       const definitions = (element.eventDefinitions ??= []);
-      let definition = definitions.find(
+      const existing = definitions.find(
         (candidate) => candidate.eventDefinitionType === definitionType,
-      ) as Draft<EventDefinitionEnum> | undefined;
-      if (!definition) {
-        definition = {
+      );
+      if (!existing) {
+        definitions.push({
           eventDefinitionType: definitionType,
           id: `${elementId}_${definitionType}`,
           attributes: {},
@@ -218,10 +218,9 @@ export function updateEventDefinitionRefCommand(
           xmlColumnNumber: 0,
           xmlRowNumber: 0,
           [field]: ref,
-        } as Draft<EventDefinitionEnum>;
-        definitions.push(definition);
+        } as Draft<EventDefinitionEnum>);
       } else {
-        (definition as Draft<Record<string, unknown>>)[field] = ref;
+        Object.assign(existing, { [field]: ref });
       }
       normalizeModelInvariants(document);
     },
