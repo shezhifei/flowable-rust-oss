@@ -72,64 +72,46 @@ fn unknown_wire_type_roundtrips_losslessly_but_is_rejected_for_save() {
 }
 
 #[test]
-fn deployment_rejects_dynamic_options_and_writable_display_fields_up_front() {
-    let (_engine, service) = runtime_fixture("form-6-8-deployment-validation");
-    let dynamic = service
-        .deploy(FormDeploymentRequest {
-            name: "Dynamic options".into(),
-            resources: vec![FormDeploymentResource {
-                resource_name: "dynamic.form".into(),
-                resource: json!({
-                    "key": "dynamic",
-                    "name": "Dynamic",
-                    "fields": [{
-                        "fieldType": "OptionFormField",
-                        "id": "choice",
-                        "type": "dropdown",
-                        "writable": true,
-                        "optionsExpression": "${choices}"
-                    }]
-                })
-                .to_string(),
-            }],
-        })
-        .unwrap_err();
+fn the_boundary_validator_rejects_dynamic_options_and_writable_display_fields() {
+    // These checks belong to the modeler boundary: deployment is lenient like
+    // Java 6.8, so the validator is what stops an unusable definition early.
+    let dynamic: FormModel = serde_json::from_value(json!({
+        "key": "dynamic",
+        "name": "Dynamic",
+        "fields": [{
+            "fieldType": "OptionFormField",
+            "id": "choice",
+            "type": "dropdown",
+            "writable": true,
+            "optionsExpression": "${choices}"
+        }]
+    }))
+    .unwrap();
+    let issues = validate_form_model(&dynamic);
     assert!(
-        dynamic
-            .to_string()
-            .contains("flowable-form-dynamic-options-unsupported")
+        issues
+            .iter()
+            .any(|issue| issue.code == "flowable-form-dynamic-options-unsupported"),
+        "expected a dynamic-options issue, got {issues:?}"
     );
 
-    let writable_display = service
-        .deploy(FormDeploymentRequest {
-            name: "Writable display".into(),
-            resources: vec![FormDeploymentResource {
-                resource_name: "display.form".into(),
-                resource: json!({
-                    "key": "display",
-                    "name": "Display",
-                    "fields": [{
-                        "fieldType": "BaseField",
-                        "id": "heading",
-                        "type": "headline",
-                        "writable": true
-                    }]
-                })
-                .to_string(),
-            }],
-        })
-        .unwrap_err();
+    let writable_display: FormModel = serde_json::from_value(json!({
+        "key": "display",
+        "name": "Display",
+        "fields": [{
+            "fieldType": "BaseField",
+            "id": "heading",
+            "type": "headline",
+            "writable": true
+        }]
+    }))
+    .unwrap();
+    let issues = validate_form_model(&writable_display);
     assert!(
-        writable_display
-            .to_string()
-            .contains("flowable-form-field-writeability-incompatible")
-    );
-    assert!(
-        service
-            .create_form_definition_query()
-            .list()
-            .unwrap()
-            .is_empty()
+        issues
+            .iter()
+            .any(|issue| issue.code == "flowable-form-field-writeability-incompatible"),
+        "expected a writeability issue, got {issues:?}"
     );
 }
 

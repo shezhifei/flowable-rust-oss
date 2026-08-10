@@ -1,9 +1,8 @@
 mod test_support;
 
-use flowable_engine::error::FlowableError;
 use flowable_form_service::{
-    FormDeploymentRequest, FormDeploymentResource, FormSubmissionProperty, FormSubmissionRequest,
-    FormSubmissionResult,
+    FormDeploymentRequest, FormDeploymentResource, FormModel, FormSubmissionProperty,
+    FormSubmissionRequest, FormSubmissionResult, validate_form_model,
 };
 use serde_json::{Value, json};
 use test_support::{deploy_runtime_forms, deploy_runtime_process, runtime_fixture};
@@ -129,32 +128,36 @@ fn runtime_forms_resolve_bindings_submit_values_and_persist_instances() {
 }
 
 #[test]
-fn deployment_rejects_unsupported_types_before_the_form_can_be_bound() {
+fn deployment_accepts_unsupported_types_and_the_boundary_validator_flags_them() {
     let (_engine, service) = runtime_fixture("form-runtime-errors");
-    let unsupported_type = service
+    // Java 6.8 parses field types generically at deployment time and defers
+    // rejection to runtime, so a vendor type must deploy cleanly. Strict type
+    // validation lives at the modeler boundary, not on the deployment path.
+    let resource = json!({
+        "key": "unsupportedRuntime",
+        "name": "Unsupported runtime",
+        "fields": [
+            { "fieldType": "BaseField", "id": "attachment", "name": "Attachment", "type": "custom_widget", "required": true }
+        ]
+    });
+    service
         .deploy(FormDeploymentRequest {
             name: "Unsupported form".to_string(),
             resources: vec![FormDeploymentResource {
                 resource_name: "unsupported-runtime.form".to_string(),
-                resource: json!({
-                    "key": "unsupportedRuntime",
-                    "name": "Unsupported runtime",
-                    "fields": [
-                        { "id": "attachment", "name": "Attachment", "type": "custom_widget", "required": true }
-                    ]
-                })
-                .to_string(),
+                resource: resource.clone().to_string(),
             }],
         })
-        .unwrap_err();
+        .unwrap();
 
-    match unsupported_type {
-        FlowableError::DeploymentValidationError(message) => {
-            assert!(message.contains("flowable-form-field-type-unsupported"));
-            assert!(message.contains("custom_widget"));
-        }
-        other => panic!("unexpected error: {other:?}"),
-    }
+    let model: FormModel = serde_json::from_value(resource).unwrap();
+    let issues = validate_form_model(&model);
+    assert_eq!(issues.len(), 1);
+    assert_eq!(
+        issues[0].code,
+        "flowable-form-field-type-unsupported",
+        "the modeler boundary must still reject the vendor type"
+    );
 }
 
 #[test]

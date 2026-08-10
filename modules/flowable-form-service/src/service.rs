@@ -2,7 +2,7 @@ use crate::field_types::{self, FormFieldCategory};
 use crate::handler::{FormFieldEnrichContext, FormFieldHandler, default_handlers};
 use crate::models::{
     BaseFormField, ExpressionFormField, FormContainer, FormData, FormDefinition, FormDeployment,
-    FormDeploymentRequest, FormEnumValue, FormFieldModel, FormInstance, FormModel, FormOption,
+    FormDeploymentRequest, FormEnumValue, FormFieldModel, FormInstance, FormOption,
     FormOutcome, FormProperty, FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult,
     LayoutDefinition, OptionFormField, form_instance_values_bytes,
 };
@@ -20,7 +20,7 @@ use flowable_engine_common::el::{
     Expression, MapVariableContainer, SimpleExpression, evaluate_composite_expression,
 };
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -79,7 +79,7 @@ impl FlowableFormService {
         let mut parsed_resources = request
             .resources
             .into_iter()
-            .map(|resource| parse_form_resource(resource, &self.handlers))
+            .map(parse_form_resource)
             .collect::<Result<Vec<_>, _>>()?;
         parsed_resources.sort_by(|left, right| left.resource_name.cmp(&right.resource_name));
 
@@ -567,7 +567,6 @@ struct ParsedFormDefinition {
 
 fn parse_form_resource(
     resource: crate::models::FormDeploymentResource,
-    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
 ) -> Result<ParsedFormDefinition, FlowableError> {
     if !resource.resource_name.ends_with(".form") {
         return Err(FlowableError::DeploymentValidationError(format!(
@@ -598,19 +597,10 @@ fn parse_form_resource(
     let outcomes = parse_form_outcomes(&value)?;
     let layout = value.get("layout").cloned();
 
-    validate_deployment_form_fields(
-        &value,
-        FormModel {
-            key: key.clone(),
-            name: name.clone(),
-            description: description.clone(),
-            fields: Vec::new(),
-            outcomes: outcomes.clone().unwrap_or_default(),
-            outcome_variable_name: outcome_variable_name.clone(),
-            layout: layout.clone(),
-        },
-        handlers,
-    )?;
+    // Deployment is deliberately lenient about field types: Java 6.8 parses
+    // them generically and defers rejection to runtime, so vendor types must
+    // deploy cleanly here. Strict contract validation lives at the modeler
+    // boundary (`validate_form_model`).
 
     Ok(ParsedFormDefinition {
         key,
@@ -712,126 +702,6 @@ fn parse_form_payload(
     let layout = payload.get("layout").cloned();
 
     Ok((form_properties, form_fields, outcomes, layout))
-}
-
-fn validate_deployment_form_fields(
-    payload: &Value,
-    mut model: FormModel,
-    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
-) -> Result<(), FlowableError> {
-    let fields = payload
-        .get("fields")
-        .and_then(Value::as_array)
-        .ok_or_else(|| {
-            FlowableError::DeploymentValidationError(
-                "[flowable-form-fields-required] form fields must be a JSON array".to_string(),
-            )
-        })?;
-    let has_typed_field = fields.iter().any(|field| field.get("fieldType").is_some());
-    if !has_typed_field {
-        return validate_legacy_deployment_fields(fields, handlers);
-    }
-
-    model.fields = fields
-        .iter()
-        .map(parse_form_field_model)
-        .collect::<Result<Vec<_>, _>>()?;
-    let issues = crate::validation::validate_form_model_with_supported_type(&model, |field_type| {
-        handlers.contains_key(&field_type.trim().to_ascii_lowercase())
-    });
-    if issues.is_empty() {
-        Ok(())
-    } else {
-        Err(FlowableError::DeploymentValidationError(
-            issues
-                .iter()
-                .map(crate::validation::FormModelValidationIssue::stable_message)
-                .collect::<Vec<_>>()
-                .join("; "),
-        ))
-    }
-}
-
-fn validate_legacy_deployment_fields(
-    fields: &[Value],
-    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
-) -> Result<(), FlowableError> {
-    let mut ids = HashSet::new();
-    validate_legacy_fields(fields, handlers, &mut ids)
-}
-
-fn validate_legacy_fields(
-    fields: &[Value],
-    handlers: &BTreeMap<String, Arc<dyn FormFieldHandler>>,
-    ids: &mut HashSet<String>,
-) -> Result<(), FlowableError> {
-    for field in fields {
-        let object = field.as_object().ok_or_else(|| {
-            FlowableError::DeploymentValidationError(
-                "[flowable-form-field-invalid] form fields must be JSON objects".to_string(),
-            )
-        })?;
-        let id = required_string(object, "id", "fields[]")?;
-        if !ids.insert(id.clone()) {
-            return Err(FlowableError::DeploymentValidationError(format!(
-                "[flowable-form-field-id-duplicate] duplicate form field id `{id}`"
-            )));
-        }
-        let field_type = required_string(object, "type", "fields[]")?;
-        let capability = field_types::form_field_capability(&field_type);
-        let custom_handler = handlers.contains_key(&field_type.trim().to_ascii_lowercase());
-        if capability.is_none() && !custom_handler {
-            return Err(FlowableError::DeploymentValidationError(format!(
-                "[flowable-form-field-type-unsupported] form field type `{field_type}` is not supported"
-            )));
-        }
-        if let Some(capability) = capability {
-            let explicitly_writable = object.get("writable").and_then(Value::as_bool) == Some(true);
-            let read_only = object.get("readOnly").and_then(Value::as_bool) == Some(true);
-            let required = object.get("required").and_then(Value::as_bool) == Some(true);
-            if explicitly_writable && (read_only || !capability.writable)
-                || (!capability.supports_required && required)
-            {
-                return Err(FlowableError::DeploymentValidationError(format!(
-                    "[flowable-form-field-writeability-incompatible] form field `{id}` has writeability incompatible with type `{field_type}`"
-                )));
-            }
-            if matches!(capability.category, FormFieldCategory::Option)
-                && object
-                    .get("optionsExpression")
-                    .and_then(Value::as_str)
-                    .is_some_and(|expression| !expression.trim().is_empty())
-            {
-                return Err(FlowableError::DeploymentValidationError(format!(
-                    "[flowable-form-dynamic-options-unsupported] form field `{id}` must use static options"
-                )));
-            }
-        }
-        if matches!(
-            capability.map(|value| value.category),
-            Some(FormFieldCategory::Container)
-        ) {
-            let rows = object
-                .get("fields")
-                .and_then(Value::as_array)
-                .ok_or_else(|| {
-                    FlowableError::DeploymentValidationError(
-                        "[flowable-form-field-container-invalid] form container fields must be an array"
-                            .to_string(),
-                    )
-                })?;
-            for row in rows {
-                let row = row.as_array().ok_or_else(|| {
-                    FlowableError::DeploymentValidationError(
-                        "[flowable-form-field-container-invalid] form container rows must be arrays"
-                            .to_string(),
-                    )
-                })?;
-                validate_legacy_fields(row, handlers, ids)?;
-            }
-        }
-    }
-    Ok(())
 }
 
 fn collect_flat_form_properties(
