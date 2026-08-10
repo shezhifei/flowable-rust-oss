@@ -8,7 +8,6 @@ interface BpmnElementProps {
   labelBounds?: GraphicInfo;
   selected: boolean;
   dragOffset?: { x: number; y: number };
-  onSelect: (id: string) => void;
   onDragStart: (id: string, event: ReactPointerEvent<SVGGElement>) => void;
 }
 
@@ -53,12 +52,10 @@ export function BpmnElement({
   labelBounds,
   selected,
   dragOffset,
-  onSelect,
   onDragStart,
 }: BpmnElementProps) {
   const id = element.id ?? element.elementType;
   const className = `diagram-element element-${element.elementType}${selected ? ' is-selected' : ''}`;
-  const handleSelect = () => onSelect(id);
   const handlePointerDown = (event: ReactPointerEvent<SVGGElement>) => onDragStart(id, event);
   const transform = dragOffset ? `translate(${dragOffset.x} ${dragOffset.y})` : undefined;
 
@@ -68,7 +65,6 @@ export function BpmnElement({
         className={className}
         data-element-id={id}
         transform={transform}
-        onClick={handleSelect}
         onPointerDown={handlePointerDown}
       >
         <rect
@@ -100,7 +96,6 @@ export function BpmnElement({
         className={className}
         data-element-id={id}
         transform={transform}
-        onClick={handleSelect}
         onPointerDown={handlePointerDown}
       >
         <circle
@@ -147,7 +142,6 @@ export function BpmnElement({
         className={className}
         data-element-id={id}
         transform={transform}
-        onClick={handleSelect}
         onPointerDown={handlePointerDown}
       >
         <path
@@ -172,7 +166,6 @@ export function BpmnElement({
         className={className}
         data-element-id={id}
         transform={transform}
-        onClick={handleSelect}
         onPointerDown={handlePointerDown}
       >
         <rect
@@ -219,7 +212,6 @@ export function BpmnElement({
         className={className}
         data-element-id={id}
         transform={transform}
-        onClick={handleSelect}
         onPointerDown={handlePointerDown}
       >
         <rect
@@ -245,7 +237,6 @@ export function BpmnElement({
       className={className}
       data-element-id={id}
       transform={transform}
-      onClick={handleSelect}
       onPointerDown={handlePointerDown}
     >
       <path

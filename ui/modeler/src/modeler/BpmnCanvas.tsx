@@ -2,6 +2,8 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEve
 
 import type {
   ArtifactEnum,
+  BpmnEditorDocument,
+  BpmnModel,
   FlowElementEnum,
   GraphicInfo,
   MessageFlow,
@@ -9,22 +11,65 @@ import type {
 import { BpmnElement } from './BpmnElement';
 import { moveElementCommand } from './commands';
 import { documentArtifacts, documentElements } from './diagramModel';
-import { useModelerStore } from './modelerStore';
+import { marqueeElementIds, normalizeRect, type Point, type Rect } from './geometry';
+import { useModelerStore, type EditorTool } from './modelerStore';
 
 const CANVAS_WIDTH = 1400;
 const CANVAS_HEIGHT = 620;
+const MIN_MARQUEE_DRAG = 3;
 
-export function BpmnCanvas() {
-  const document = useModelerStore((state) => state.document);
-  const viewport = useModelerStore((state) => state.viewport);
-  const selectedElementId = useModelerStore((state) => state.selectedElementId);
+interface CanvasClientBounds {
+  height: number;
+  left: number;
+  top: number;
+  width: number;
+}
+
+interface ViewportTransform {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+interface MarqueeDrag {
+  clientStart: Point;
+  modelStart: Point;
+}
+
+interface CanvasRenderState {
+  document: BpmnEditorDocument;
+  selectedElementIds: string[];
+  tool: EditorTool;
+  viewport: ViewportTransform;
+}
+
+interface BpmnCanvasProps {
+  /** Optional controlled rendering state for read-only previews and deterministic rendering tests. */
+  renderState?: CanvasRenderState;
+}
+
+export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
+  const storeDocument = useModelerStore((state) => state.document);
+  const storeViewport = useModelerStore((state) => state.viewport);
+  const storeTool = useModelerStore((state) => state.tool);
+  const storeSelectedElementIds = useModelerStore((state) => state.selectedElementIds);
+  const document = renderState?.document ?? storeDocument;
+  const viewport = renderState?.viewport ?? storeViewport;
+  const tool = renderState?.tool ?? storeTool;
+  const selectedElementIds = renderState?.selectedElementIds ?? storeSelectedElementIds;
   const selectElement = useModelerStore((state) => state.selectElement);
+  const selectElements = useModelerStore((state) => state.selectElements);
   const panBy = useModelerStore((state) => state.panBy);
   const zoomBy = useModelerStore((state) => state.zoomBy);
   const execute = useModelerStore((state) => state.execute);
-  const dragOrigin = useRef<{ x: number; y: number } | null>(null);
+  const panOrigin = useRef<Point | null>(null);
+  const marqueeDrag = useRef<MarqueeDrag | null>(null);
   const elementDrag = useRef<{ elementId: string; x: number; y: number } | null>(null);
-  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{
+    elementId: string;
+    offset: Point;
+  } | null>(null);
+  const [marquee, setMarquee] = useState<Rect | null>(null);
 
   const elements = documentElements(document);
   const artifacts = documentArtifacts(document);
@@ -33,56 +78,144 @@ export function BpmnCanvas() {
   const associations = artifacts.filter(isAssociation);
   const annotations = artifacts.filter(isTextAnnotation);
   const groups = artifacts.filter(isGroup);
+  const selectedIds = new Set(selectedElementIds);
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (event.button !== 0) return;
-    if (event.target instanceof Element && event.target.closest('.diagram-element')) return;
-    dragOrigin.current = { x: event.clientX, y: event.clientY };
+    if (isPanGesture(tool, event.button)) {
+      event.preventDefault();
+      panOrigin.current = clientPoint(event);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+    if (tool !== 'pointer' || event.button !== 0) return;
+
+    const elementId = elementIdFromTarget(event.target);
+    if (elementId) {
+      selectElement(elementId, isAdditiveSelection(event));
+      return;
+    }
+
+    const clientStart = clientPoint(event);
+    const modelStart = clientPointToModel(
+      clientStart,
+      event.currentTarget.getBoundingClientRect(),
+      viewport,
+    );
+    marqueeDrag.current = { clientStart, modelStart };
+    setMarquee({ ...modelStart, width: 0, height: 0 });
+    selectElements([]);
     event.currentTarget.setPointerCapture(event.pointerId);
-    if (event.target === event.currentTarget) selectElement(null);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (elementDrag.current) {
-      setDragOffset({
-        x: (event.clientX - elementDrag.current.x) / viewport.zoom,
-        y: (event.clientY - elementDrag.current.y) / viewport.zoom,
-      });
+      const delta = clientDeltaToModel(
+        {
+          x: event.clientX - elementDrag.current.x,
+          y: event.clientY - elementDrag.current.y,
+        },
+        event.currentTarget.getBoundingClientRect(),
+        viewport.zoom,
+      );
+      setDragPreview({ elementId: elementDrag.current.elementId, offset: delta });
       return;
     }
-    if (!dragOrigin.current) return;
-    const deltaX = event.clientX - dragOrigin.current.x;
-    const deltaY = event.clientY - dragOrigin.current.y;
-    dragOrigin.current = { x: event.clientX, y: event.clientY };
-    panBy(deltaX, deltaY);
+    if (panOrigin.current) {
+      const next = clientPoint(event);
+      const delta = clientDeltaToCanvas(
+        { x: next.x - panOrigin.current.x, y: next.y - panOrigin.current.y },
+        event.currentTarget.getBoundingClientRect(),
+      );
+      panOrigin.current = next;
+      panBy(delta.x, delta.y);
+      return;
+    }
+    if (marqueeDrag.current) {
+      const point = clientPointToModel(
+        clientPoint(event),
+        event.currentTarget.getBoundingClientRect(),
+        viewport,
+      );
+      setMarquee({
+        x: marqueeDrag.current.modelStart.x,
+        y: marqueeDrag.current.modelStart.y,
+        width: point.x - marqueeDrag.current.modelStart.x,
+        height: point.y - marqueeDrag.current.modelStart.y,
+      });
+    }
   };
 
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (elementDrag.current) {
-      const finalOffset = {
-        x: (event.clientX - elementDrag.current.x) / viewport.zoom,
-        y: (event.clientY - elementDrag.current.y) / viewport.zoom,
-      };
+      const finalOffset = clientDeltaToModel(
+        {
+          x: event.clientX - elementDrag.current.x,
+          y: event.clientY - elementDrag.current.y,
+        },
+        event.currentTarget.getBoundingClientRect(),
+        viewport.zoom,
+      );
       if (finalOffset.x !== 0 || finalOffset.y !== 0) {
         execute(moveElementCommand(elementDrag.current.elementId, finalOffset.x, finalOffset.y));
       }
       elementDrag.current = null;
-      setDragOffset(null);
+      setDragPreview(null);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
       return;
     }
-    dragOrigin.current = null;
+    if (marqueeDrag.current) {
+      const clientEnd = clientPoint(event);
+      const distance = Math.hypot(
+        clientEnd.x - marqueeDrag.current.clientStart.x,
+        clientEnd.y - marqueeDrag.current.clientStart.y,
+      );
+      if (distance >= MIN_MARQUEE_DRAG) {
+        const modelEnd = clientPointToModel(
+          clientEnd,
+          event.currentTarget.getBoundingClientRect(),
+          viewport,
+        );
+        selectElements(
+          marqueeElementIds(
+            {
+              x: marqueeDrag.current.modelStart.x,
+              y: marqueeDrag.current.modelStart.y,
+              width: modelEnd.x - marqueeDrag.current.modelStart.x,
+              height: modelEnd.y - marqueeDrag.current.modelStart.y,
+            },
+            selectableElementBounds(document),
+            'contains',
+          ),
+        );
+      }
+    }
+    panOrigin.current = null;
+    marqueeDrag.current = null;
+    setMarquee(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
+    elementDrag.current = null;
+    panOrigin.current = null;
+    marqueeDrag.current = null;
+    setDragPreview(null);
+    setMarquee(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
 
   const handleElementDragStart = (elementId: string, event: ReactPointerEvent<SVGGElement>) => {
-    if (event.button !== 0) return;
+    if (tool !== 'pointer' || event.button !== 0) return;
     event.stopPropagation();
-    selectElement(elementId);
+    const additive = isAdditiveSelection(event);
+    selectElement(elementId, additive);
+    if (additive) return;
     elementDrag.current = { elementId, x: event.clientX, y: event.clientY };
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
   };
@@ -95,14 +228,14 @@ export function BpmnCanvas() {
   return (
     <div className="canvas-viewport" data-testid="canvas-viewport">
       <svg
-        className="bpmn-canvas"
+        className={`bpmn-canvas tool-${tool}`}
         viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
         role="application"
         aria-label="BPMN process canvas"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onWheel={handleWheel}
       >
         <defs>
@@ -144,23 +277,39 @@ export function BpmnCanvas() {
           </filter>
         </defs>
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}>
-          <PoolAndLanes />
+          <PoolAndLanes model={document.model} selectedIds={selectedIds} />
           <g className="group-layer">
             {groups.map((group) => (
-              <GroupShape key={group.id ?? group.categoryValueRef ?? 'group'} group={group} />
+              <GroupShape
+                key={group.id ?? group.categoryValueRef ?? 'group'}
+                group={group}
+                model={document.model}
+                selected={Boolean(group.id && selectedIds.has(group.id))}
+              />
             ))}
           </g>
           <g className="flow-layer">
             {flows.map((flow) => (
-              <FlowPath key={flow.id ?? `${flow.sourceRef}-${flow.targetRef}`} flow={flow} />
+              <FlowPath
+                key={flow.id ?? `${flow.sourceRef}-${flow.targetRef}`}
+                flow={flow}
+                model={document.model}
+                selected={Boolean(flow.id && selectedIds.has(flow.id))}
+              />
             ))}
             {Object.values(document.model.messageFlows).map((flow) => (
-              <MessageFlowPath key={flow.id ?? `${flow.sourceRef}-${flow.targetRef}`} flow={flow} />
+              <MessageFlowPath
+                key={flow.id ?? `${flow.sourceRef}-${flow.targetRef}`}
+                flow={flow}
+                model={document.model}
+              />
             ))}
             {associations.map((association) => (
               <AssociationPath
                 key={association.id ?? `${association.sourceRef}-${association.targetRef}`}
                 association={association}
+                model={document.model}
+                selected={Boolean(association.id && selectedIds.has(association.id))}
               />
             ))}
           </g>
@@ -169,10 +318,12 @@ export function BpmnCanvas() {
               <TextAnnotationShape
                 key={annotation.id ?? annotation.text ?? 'annotation'}
                 annotation={annotation}
+                model={document.model}
+                selected={Boolean(annotation.id && selectedIds.has(annotation.id))}
               />
             ))}
           </g>
-          <DataStores />
+          <DataStores model={document.model} selectedIds={selectedIds} />
           <g className="node-layer">
             {nodes.map((element) => {
               const id = element.id;
@@ -184,14 +335,14 @@ export function BpmnCanvas() {
                   element={element}
                   bounds={bounds}
                   labelBounds={document.model.labelLocationMap[id]}
-                  selected={selectedElementId === id}
-                  dragOffset={selectedElementId === id ? (dragOffset ?? undefined) : undefined}
-                  onSelect={selectElement}
+                  selected={selectedIds.has(id)}
+                  dragOffset={dragPreview?.elementId === id ? dragPreview.offset : undefined}
                   onDragStart={handleElementDragStart}
                 />
               );
             })}
           </g>
+          {marquee ? <MarqueeRect rect={marquee} /> : null}
         </g>
       </svg>
       <div className="canvas-coordinate" aria-hidden="true">
@@ -201,8 +352,13 @@ export function BpmnCanvas() {
   );
 }
 
-function PoolAndLanes() {
-  const model = useModelerStore((state) => state.document.model);
+function PoolAndLanes({
+  model,
+  selectedIds,
+}: {
+  model: BpmnModel;
+  selectedIds: ReadonlySet<string>;
+}) {
   return (
     <g className="pool-layer">
       {model.pools.map((pool) => {
@@ -210,7 +366,11 @@ function PoolAndLanes() {
         const bounds = model.locationMap[pool.id];
         if (!bounds) return null;
         return (
-          <g key={pool.id} className="pool-shape" data-element-id={pool.id}>
+          <g
+            key={pool.id}
+            className={`pool-shape${selectedIds.has(pool.id) ? ' is-selected' : ''}`}
+            data-element-id={pool.id}
+          >
             <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} />
             <line
               x1={bounds.x + 40}
@@ -234,7 +394,11 @@ function PoolAndLanes() {
           const bounds = model.locationMap[lane.id];
           if (!bounds) return null;
           return (
-            <g key={lane.id} className="lane-shape" data-element-id={lane.id}>
+            <g
+              key={lane.id}
+              className={`lane-shape${selectedIds.has(lane.id) ? ' is-selected' : ''}`}
+              data-element-id={lane.id}
+            >
               <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} />
               <text
                 transform={`translate(${bounds.x + 22} ${bounds.y + bounds.height / 2}) rotate(-90)`}
@@ -249,8 +413,13 @@ function PoolAndLanes() {
   );
 }
 
-function DataStores() {
-  const model = useModelerStore((state) => state.document.model);
+function DataStores({
+  model,
+  selectedIds,
+}: {
+  model: BpmnModel;
+  selectedIds: ReadonlySet<string>;
+}) {
   return (
     <g className="data-store-layer">
       {Object.values(model.dataStores).map((store) => {
@@ -259,7 +428,11 @@ function DataStores() {
         if (!bounds) return null;
         const centerX = bounds.x + bounds.width / 2;
         return (
-          <g key={store.id} className="data-store-shape" data-element-id={store.id}>
+          <g
+            key={store.id}
+            className={`data-store-shape${selectedIds.has(store.id) ? ' is-selected' : ''}`}
+            data-element-id={store.id}
+          >
             <path
               d={`M ${bounds.x} ${bounds.y + 7} C ${bounds.x} ${bounds.y - 2}, ${bounds.x + bounds.width} ${bounds.y - 2}, ${bounds.x + bounds.width} ${bounds.y + 7} v ${bounds.height - 14} C ${bounds.x + bounds.width} ${bounds.y + bounds.height + 2}, ${bounds.x} ${bounds.y + bounds.height + 2}, ${bounds.x} ${bounds.y + bounds.height - 7} Z`}
             />
@@ -274,13 +447,20 @@ function DataStores() {
   );
 }
 
-function GroupShape({ group }: { group: Extract<ArtifactEnum, { artifactType: 'group' }> }) {
-  const model = useModelerStore((state) => state.document.model);
+function GroupShape({
+  group,
+  model,
+  selected,
+}: {
+  group: Extract<ArtifactEnum, { artifactType: 'group' }>;
+  model: BpmnModel;
+  selected: boolean;
+}) {
   if (!group.id) return null;
   const bounds = model.locationMap[group.id];
   if (!bounds) return null;
   return (
-    <g className="group-shape" data-element-id={group.id}>
+    <g className={`group-shape${selected ? ' is-selected' : ''}`} data-element-id={group.id}>
       <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} rx={12} />
       {group.categoryValueRef ? (
         <text x={bounds.x + 12} y={bounds.y + 18}>
@@ -293,16 +473,22 @@ function GroupShape({ group }: { group: Extract<ArtifactEnum, { artifactType: 'g
 
 function TextAnnotationShape({
   annotation,
+  model,
+  selected,
 }: {
   annotation: Extract<ArtifactEnum, { artifactType: 'textAnnotation' }>;
+  model: BpmnModel;
+  selected: boolean;
 }) {
-  const model = useModelerStore((state) => state.document.model);
   if (!annotation.id) return null;
   const bounds = model.locationMap[annotation.id];
   if (!bounds) return null;
   const lines = wrapAnnotation(annotation.text ?? '', Math.max(8, Math.floor(bounds.width / 7)));
   return (
-    <g className="text-annotation" data-element-id={annotation.id}>
+    <g
+      className={`text-annotation${selected ? ' is-selected' : ''}`}
+      data-element-id={annotation.id}
+    >
       <path
         d={`M ${bounds.x + 12} ${bounds.y} H ${bounds.x} V ${bounds.y + bounds.height} H ${bounds.x + 12}`}
       />
@@ -328,15 +514,23 @@ function wrapAnnotation(text: string, maxCharacters: number) {
   return lines.length ? lines : [''];
 }
 
-function FlowPath({ flow }: { flow: Extract<FlowElementEnum, { elementType: 'sequenceFlow' }> }) {
-  const model = useModelerStore((state) => state.document.model);
+function FlowPath({
+  flow,
+  model,
+  selected,
+}: {
+  flow: Extract<FlowElementEnum, { elementType: 'sequenceFlow' }>;
+  model: BpmnModel;
+  selected: boolean;
+}) {
   if (!flow.id) return null;
   const points = resolveWaypoints(flow, model.flowLocationMap[flow.id], model.locationMap);
   if (points.length < 2) return null;
   const label = model.labelLocationMap[flow.id];
   return (
-    <g className="sequence-flow" data-element-id={flow.id}>
-      <path d={polylinePath(points)} markerEnd="url(#sequence-arrow)" />
+    <g className={`sequence-flow${selected ? ' is-selected' : ''}`} data-element-id={flow.id}>
+      <path className="flow-hit-target" d={polylinePath(points)} />
+      <path className="flow-visual" d={polylinePath(points)} markerEnd="url(#sequence-arrow)" />
       {flow.conditionExpression ? (
         <path className="condition-marker" d={conditionMarker(points[0])} />
       ) : null}
@@ -353,8 +547,7 @@ function FlowPath({ flow }: { flow: Extract<FlowElementEnum, { elementType: 'seq
   );
 }
 
-function MessageFlowPath({ flow }: { flow: MessageFlow }) {
-  const model = useModelerStore((state) => state.document.model);
+function MessageFlowPath({ flow, model }: { flow: MessageFlow; model: BpmnModel }) {
   if (!flow.id) return null;
   const points = resolveWaypoints(flow, model.flowLocationMap[flow.id], model.locationMap);
   if (points.length < 2) return null;
@@ -363,10 +556,13 @@ function MessageFlowPath({ flow }: { flow: MessageFlow }) {
 
 function AssociationPath({
   association,
+  model,
+  selected,
 }: {
   association: Extract<ArtifactEnum, { artifactType: 'association' }>;
+  model: BpmnModel;
+  selected: boolean;
 }) {
-  const model = useModelerStore((state) => state.document.model);
   if (!association.id) return null;
   const points = resolveWaypoints(
     association,
@@ -376,16 +572,132 @@ function AssociationPath({
   if (points.length < 2) return null;
   const direction = association.associationDirection?.toLowerCase();
   return (
-    <path
-      className="association-flow"
-      d={polylinePath(points)}
-      markerStart={direction === 'both' ? 'url(#association-arrow)' : undefined}
-      markerEnd={
-        direction === 'one' || direction === 'both' ? 'url(#association-arrow)' : undefined
-      }
+    <g
+      className={`association-flow${selected ? ' is-selected' : ''}`}
+      data-element-id={association.id}
+    >
+      <path className="flow-hit-target" d={polylinePath(points)} />
+      <path
+        className="flow-visual"
+        d={polylinePath(points)}
+        markerStart={direction === 'both' ? 'url(#association-arrow)' : undefined}
+        markerEnd={
+          direction === 'one' || direction === 'both' ? 'url(#association-arrow)' : undefined
+        }
+      />
+    </g>
+  );
+}
+
+function MarqueeRect({ rect }: { rect: Rect }) {
+  const normalized = normalizeRect(rect);
+  return (
+    <rect
+      className="selection-marquee"
+      x={normalized.x}
+      y={normalized.y}
+      width={normalized.width}
+      height={normalized.height}
     />
   );
 }
+
+function clientPointToModel(
+  client: Point,
+  canvas: CanvasClientBounds,
+  viewport: ViewportTransform,
+): Point {
+  const canvasPoint = clientPointToCanvas(client, canvas);
+  return {
+    x: (canvasPoint.x - viewport.x) / viewport.zoom,
+    y: (canvasPoint.y - viewport.y) / viewport.zoom,
+  };
+}
+
+function clientDeltaToCanvas(
+  delta: Point,
+  canvas: Pick<CanvasClientBounds, 'height' | 'width'>,
+): Point {
+  return {
+    x: delta.x * (CANVAS_WIDTH / nonZeroDimension(canvas.width)),
+    y: delta.y * (CANVAS_HEIGHT / nonZeroDimension(canvas.height)),
+  };
+}
+
+function clientDeltaToModel(
+  delta: Point,
+  canvas: Pick<CanvasClientBounds, 'height' | 'width'>,
+  zoom: number,
+): Point {
+  const canvasDelta = clientDeltaToCanvas(delta, canvas);
+  return { x: canvasDelta.x / zoom, y: canvasDelta.y / zoom };
+}
+
+function isAdditiveSelection(modifiers: { ctrlKey: boolean; metaKey: boolean }): boolean {
+  return modifiers.ctrlKey || modifiers.metaKey;
+}
+
+function isPanGesture(tool: EditorTool, button: number): boolean {
+  return tool === 'hand' ? button === 0 || button === 1 : button === 1;
+}
+
+function selectableElementBounds(document: BpmnEditorDocument): Record<string, Rect> {
+  const bounds: Record<string, Rect> = {};
+  for (const [id, location] of Object.entries(document.model.locationMap)) {
+    bounds[id] = rectOf(location);
+  }
+  for (const [id, waypoints] of Object.entries(document.model.flowLocationMap)) {
+    if (waypoints.length === 0) continue;
+    const xs = waypoints.map((point) => point.x);
+    const ys = waypoints.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    bounds[id] = {
+      x: minX,
+      y: minY,
+      width: Math.max(...xs) - minX,
+      height: Math.max(...ys) - minY,
+    };
+  }
+  return bounds;
+}
+
+function clientPointToCanvas(client: Point, canvas: CanvasClientBounds): Point {
+  return {
+    x: (client.x - canvas.left) * (CANVAS_WIDTH / nonZeroDimension(canvas.width)),
+    y: (client.y - canvas.top) * (CANVAS_HEIGHT / nonZeroDimension(canvas.height)),
+  };
+}
+
+function clientPoint(event: { clientX: number; clientY: number }): Point {
+  return { x: event.clientX, y: event.clientY };
+}
+
+function elementIdFromTarget(target: EventTarget): string | undefined {
+  return target instanceof Element
+    ? (target.closest<SVGElement>('[data-element-id]')?.dataset.elementId ?? undefined)
+    : undefined;
+}
+
+function rectOf(bounds: GraphicInfo): Rect {
+  return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+}
+
+function nonZeroDimension(value: number): number {
+  return value > 0 ? value : 1;
+}
+
+// These pure functions remain colocated with their sole event consumer because the C2
+// ownership boundary permits no additional production module in this change.
+// eslint-disable-next-line react-refresh/only-export-components
+export const canvasSelectionGeometry = {
+  clientDeltaToCanvas,
+  clientDeltaToModel,
+  clientPointToModel,
+  isAdditiveSelection,
+  isPanGesture,
+  selectableElementBounds,
+};
 
 function resolveWaypoints(
   flow: { sourceRef?: string | null; targetRef?: string | null; waypoints?: GraphicInfo[] },

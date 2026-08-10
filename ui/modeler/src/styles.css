@@ -52,6 +52,26 @@ a:focus-visible {
   border-bottom: 1px solid #050607;
   box-shadow: 0 2px 12px rgb(0 0 0 / 18%);
 }
+
+.modeler-notice {
+  position: fixed;
+  z-index: 20;
+  top: 76px;
+  left: 50%;
+  padding: 9px 14px;
+  border: 1px solid #6ea56b;
+  border-radius: 7px;
+  background: #f4fff1;
+  color: #244622;
+  box-shadow: 0 8px 22px rgb(21 25 28 / 14%);
+  transform: translateX(-50%);
+}
+
+.modeler-notice.is-error {
+  border-color: #c25c4a;
+  background: #fff3ef;
+  color: #732718;
+}
 .wordmark {
   display: inline-flex;
   align-items: center;
@@ -269,13 +289,10 @@ a:focus-visible {
   position: relative;
   min-height: 0;
   overflow: hidden;
-  cursor: grab;
+  cursor: default;
   background-color: var(--canvas);
   background-image: radial-gradient(#bdb9ae 1px, transparent 1px);
   background-size: 20px 20px;
-}
-.canvas-viewport:active {
-  cursor: grabbing;
 }
 .bpmn-canvas {
   display: block;
@@ -284,6 +301,12 @@ a:focus-visible {
   min-height: 510px;
   touch-action: none;
   user-select: none;
+}
+.bpmn-canvas.tool-hand {
+  cursor: grab;
+}
+.bpmn-canvas.tool-hand:active {
+  cursor: grabbing;
 }
 .canvas-coordinate {
   position: absolute;
@@ -325,6 +348,7 @@ a:focus-visible {
   fill-opacity: 0.48;
   stroke: #87847b;
   stroke-width: 1.4;
+  pointer-events: visibleStroke;
 }
 .pool-shape line {
   stroke: #87847b;
@@ -335,23 +359,26 @@ a:focus-visible {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.06em;
+  cursor: pointer;
 }
 .lane-shape rect {
   fill: #fff;
   fill-opacity: 0.16;
   stroke: #aaa69c;
   stroke-width: 1;
+  pointer-events: visibleStroke;
 }
 .lane-shape text {
   fill: #858178;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  cursor: pointer;
 }
 
-.sequence-flow path,
+.sequence-flow .flow-visual,
 .message-flow,
-.association-flow {
+.association-flow .flow-visual {
   fill: none;
   stroke: #56534c;
   stroke-linecap: round;
@@ -374,8 +401,14 @@ a:focus-visible {
 .message-flow {
   stroke-dasharray: 8 5;
 }
-.association-flow {
+.association-flow .flow-visual {
   stroke-dasharray: 2 5;
+}
+.flow-hit-target {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
 }
 .association-marker {
   fill: none;
@@ -391,7 +424,7 @@ a:focus-visible {
 }
 
 .group-shape {
-  pointer-events: none;
+  cursor: pointer;
 }
 .group-shape rect {
   fill: #d9ff43;
@@ -399,6 +432,7 @@ a:focus-visible {
   stroke: #8e8a80;
   stroke-dasharray: 7 5;
   stroke-width: 1.2;
+  pointer-events: visibleStroke;
 }
 .group-shape text {
   fill: #8b877d;
@@ -406,7 +440,7 @@ a:focus-visible {
   letter-spacing: 0.06em;
 }
 .text-annotation {
-  pointer-events: none;
+  cursor: pointer;
 }
 .text-annotation path {
   fill: none;
@@ -437,6 +471,27 @@ a:focus-visible {
   stroke: var(--signal);
   stroke-width: 2.5;
   filter: url('#selection-glow');
+}
+.sequence-flow.is-selected .flow-visual,
+.association-flow.is-selected .flow-visual,
+.text-annotation.is-selected path,
+.group-shape.is-selected rect,
+.pool-shape.is-selected rect,
+.pool-shape.is-selected line,
+.lane-shape.is-selected rect,
+.data-store-shape.is-selected path,
+.data-store-shape.is-selected ellipse {
+  stroke: var(--signal);
+  stroke-width: 2.5;
+  filter: url('#selection-glow');
+}
+.selection-marquee {
+  fill: rgb(255 92 53 / 10%);
+  stroke: var(--signal);
+  stroke-dasharray: 6 4;
+  stroke-width: 1.5;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
 }
 .task-surface {
   rx: 9px;

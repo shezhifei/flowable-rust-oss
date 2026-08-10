@@ -1,10 +1,12 @@
 import type { Draft } from 'immer';
 
 import type {
+  ArtifactEnum,
   BpmnEditorDocument,
   FlowElementEnum,
   GraphicInfo,
 } from '../generated/editor-protocol';
+import { normalizeModelInvariants, valuedDataObjectFromElement } from './modelInvariants';
 
 export interface ModelerCommand {
   label: string;
@@ -20,11 +22,15 @@ export function createElementCommand(
     apply(document) {
       const process = document.model.processes[0];
       if (!process || !element.id) return;
-      process.flowElements ??= [];
-      process.flowElementMap ??= {};
-      process.flowElements.push(element);
-      process.flowElementMap[element.id] = element;
+      if (element.elementType === 'valuedDataObject') {
+        process.dataObjects ??= [];
+        process.dataObjects.push(valuedDataObjectFromElement(element));
+      } else {
+        process.flowElements ??= [];
+        process.flowElements.push(element);
+      }
       document.model.locationMap[element.id] = bounds;
+      normalizeModelInvariants(document);
     },
   };
 }
@@ -68,6 +74,7 @@ export function deleteElementsCommand(elementIds: string[]): ModelerCommand {
         process.dataObjects = (process.dataObjects ?? []).filter(
           (dataObject) => !dataObject.id || !ids.has(dataObject.id),
         );
+        removeNestedDataObjects(process.flowElements ?? [], ids);
         for (const lane of process.lanes ?? []) {
           lane.flowReferences = lane.flowReferences.filter((id) => !ids.has(id));
         }
@@ -83,14 +90,97 @@ export function deleteElementsCommand(elementIds: string[]): ModelerCommand {
           delete document.model.messageFlows[id];
         }
       }
+      const artifacts = allArtifacts(document);
+      let foundConnectedAssociation = true;
+      while (foundConnectedAssociation) {
+        foundConnectedAssociation = false;
+        for (const artifact of artifacts) {
+          if (
+            artifact.artifactType === 'association' &&
+            artifact.id &&
+            !ids.has(artifact.id) &&
+            ((artifact.sourceRef && ids.has(artifact.sourceRef)) ||
+              (artifact.targetRef && ids.has(artifact.targetRef)))
+          ) {
+            ids.add(artifact.id);
+            foundConnectedAssociation = true;
+          }
+        }
+      }
+      document.model.globalArtifacts = document.model.globalArtifacts.filter(
+        (artifact) => !shouldDeleteArtifact(artifact, ids),
+      );
+      for (const process of document.model.processes) {
+        removeArtifacts(process.artifacts ?? [], process.flowElements ?? [], ids);
+      }
       for (const id of ids) {
         delete document.model.locationMap[id];
         delete document.model.labelLocationMap[id];
         delete document.model.flowLocationMap[id];
         delete document.model.edgeMap[id];
       }
+      normalizeModelInvariants(document);
     },
   };
+}
+
+function allArtifacts(document: Draft<BpmnEditorDocument>): Draft<ArtifactEnum>[] {
+  return [
+    ...document.model.globalArtifacts,
+    ...document.model.processes.flatMap((process) => [
+      ...(process.artifacts ?? []),
+      ...nestedArtifacts(process.flowElements ?? []),
+    ]),
+  ];
+}
+
+function nestedArtifacts(elements: Draft<FlowElementEnum>[]): Draft<ArtifactEnum>[] {
+  return elements.flatMap((element) => {
+    const nested = nestedElements(element);
+    const artifacts = nestedOwnerArtifacts(element);
+    return artifacts ? [...artifacts, ...nestedArtifacts(nested)] : [];
+  });
+}
+
+function nestedOwnerArtifacts(element: Draft<FlowElementEnum>): Draft<ArtifactEnum>[] | undefined {
+  switch (element.elementType) {
+    case 'subProcess':
+    case 'transaction':
+    case 'eventSubProcess':
+    case 'adhocSubProcess':
+      return element.artifacts;
+    default:
+      return undefined;
+  }
+}
+
+function removeArtifacts(
+  artifacts: Draft<ArtifactEnum>[],
+  elements: Draft<FlowElementEnum>[],
+  ids: Set<string>,
+) {
+  for (let index = artifacts.length - 1; index >= 0; index -= 1) {
+    const artifact = artifacts[index];
+    if (artifact && shouldDeleteArtifact(artifact, ids)) artifacts.splice(index, 1);
+  }
+  for (const element of elements) {
+    const nested = nestedElements(element);
+    const nestedArtifacts = nestedOwnerArtifacts(element);
+    if (nestedArtifacts) removeArtifacts(nestedArtifacts, nested, ids);
+  }
+}
+
+function shouldDeleteArtifact(artifact: Draft<ArtifactEnum>, ids: Set<string>) {
+  return (
+    (artifact.id !== undefined && artifact.id !== null && ids.has(artifact.id)) ||
+    (artifact.artifactType === 'association' &&
+      ((artifact.sourceRef !== undefined &&
+        artifact.sourceRef !== null &&
+        ids.has(artifact.sourceRef)) ||
+        (artifact.targetRef !== undefined &&
+          artifact.targetRef !== null &&
+          ids.has(artifact.targetRef))))
+  );
 }
 
 function collectElements(elements: Draft<FlowElementEnum>[]): Draft<FlowElementEnum>[] {
@@ -98,9 +188,50 @@ function collectElements(elements: Draft<FlowElementEnum>[]): Draft<FlowElementE
 }
 
 function collectDescendantIds(element: Draft<FlowElementEnum>, ids: Set<string>) {
+  const nestedDataObjects = nestedOwnerDataObjects(element);
+  for (const dataObject of nestedDataObjects ?? []) {
+    if (dataObject.id) ids.add(dataObject.id);
+  }
+  for (const artifact of nestedOwnerArtifacts(element) ?? []) {
+    if (artifact.id) ids.add(artifact.id);
+  }
   for (const child of nestedElements(element)) {
     if (child.id) ids.add(child.id);
     collectDescendantIds(child, ids);
+  }
+}
+
+function removeNestedDataObjects(elements: Draft<FlowElementEnum>[], ids: Set<string>) {
+  for (const element of elements) {
+    const dataObjects = nestedOwnerDataObjects(element);
+    if (dataObjects) {
+      const retained = dataObjects.filter(
+        (dataObject) => !dataObject.id || !ids.has(dataObject.id),
+      );
+      switch (element.elementType) {
+        case 'subProcess':
+        case 'transaction':
+        case 'eventSubProcess':
+        case 'adhocSubProcess':
+          element.dataObjects = retained;
+          break;
+        default:
+          break;
+      }
+    }
+    removeNestedDataObjects(nestedElements(element), ids);
+  }
+}
+
+function nestedOwnerDataObjects(element: Draft<FlowElementEnum>) {
+  switch (element.elementType) {
+    case 'subProcess':
+    case 'transaction':
+    case 'eventSubProcess':
+    case 'adhocSubProcess':
+      return element.dataObjects;
+    default:
+      return undefined;
   }
 }
 
@@ -160,6 +291,7 @@ export function moveElementCommand(
       for (const flow of Object.values(model.messageFlows)) {
         updateFlowEndpoints(flow, elementId, model.flowLocationMap[flow.id ?? ''], deltaX, deltaY);
       }
+      normalizeModelInvariants(document);
     },
   };
 }

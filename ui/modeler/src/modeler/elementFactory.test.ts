@@ -51,6 +51,41 @@ describe('palette element factory', () => {
     expect(state.document.model.locationMap['created-task']).toBeUndefined();
   });
 
+  it('stores a created data object in the canonical data-object collection', () => {
+    useModelerStore.getState().setDocument(structuredClone(sampleDocument));
+    const element = createPaletteElement('data', 'created-data');
+    useModelerStore.getState().execute(
+      createElementCommand(element, {
+        x: 500,
+        y: 260,
+        width: 46,
+        height: 62,
+        rotation: 0,
+        expanded: true,
+        xmlRowNumber: 0,
+        xmlColumnNumber: 0,
+      }),
+    );
+
+    let state = useModelerStore.getState();
+    const process = state.document.model.processes[0];
+    expect(process?.dataObjects?.map((dataObject) => dataObject.id)).toContain('created-data');
+    expect(process?.flowElements?.map((flowElement) => flowElement.id)).not.toContain(
+      'created-data',
+    );
+    expect(process?.flowElementMap?.['created-data']).toMatchObject({
+      elementType: 'valuedDataObject',
+      id: 'created-data',
+    });
+    expect(state.document.model.locationMap['created-data']).toMatchObject({ x: 500, y: 260 });
+
+    state.undo();
+    state = useModelerStore.getState();
+    expect(state.document.model.processes[0]?.dataObjects).toEqual([]);
+    expect(state.document.model.processes[0]?.flowElementMap?.['created-data']).toBeUndefined();
+    expect(state.document.model.locationMap['created-data']).toBeUndefined();
+  });
+
   it('deletes connected flows and attached boundary geometry in one reversible command', () => {
     useModelerStore.getState().setDocument(structuredClone(sampleDocument));
     useModelerStore.getState().execute(deleteElementsCommand(['review']));
@@ -73,5 +108,26 @@ describe('palette element factory', () => {
     expect(restoredIds).toContain('reviewTimer');
     expect(restoredIds).toContain('requestFlow');
     expect(restoredIds).toContain('decisionFlow');
+  });
+
+  it('deletes associations whose endpoint is deleted and restores them on undo', () => {
+    useModelerStore.getState().setDocument(structuredClone(sampleDocument));
+    useModelerStore.getState().execute(deleteElementsCommand(['decision']));
+
+    let state = useModelerStore.getState();
+    expect(
+      state.document.model.processes[0]?.artifacts?.map((artifact) => artifact.id),
+    ).not.toContain('approvalLink');
+    expect(state.document.model.processes[0]?.artifactMap?.approvalLink).toBeUndefined();
+    expect(state.document.model.flowLocationMap.approvalLink).toBeUndefined();
+
+    state.undo();
+    state = useModelerStore.getState();
+    expect(state.document.model.processes[0]?.artifacts?.map((artifact) => artifact.id)).toContain(
+      'approvalLink',
+    );
+    expect(state.document.model.processes[0]?.artifactMap?.approvalLink).toMatchObject({
+      artifactType: 'association',
+    });
   });
 });

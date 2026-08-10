@@ -27,9 +27,13 @@ interface HistoryEntry {
   inversePatches: Patch[];
 }
 
+export type EditorTool = 'pointer' | 'hand' | 'connect';
+
 interface ModelerState {
   document: BpmnEditorDocument;
   viewport: ViewportState;
+  tool: EditorTool;
+  selectedElementIds: string[];
   selectedElementId: string | null;
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
@@ -37,7 +41,9 @@ interface ModelerState {
   execute: (command: ModelerCommand) => void;
   undo: () => void;
   redo: () => void;
-  selectElement: (elementId: string | null) => void;
+  selectElement: (elementId: string | null, additive?: boolean) => void;
+  selectElements: (elementIds: string[]) => void;
+  setTool: (tool: EditorTool) => void;
   panBy: (deltaX: number, deltaY: number) => void;
   zoomBy: (factor: number) => void;
   fitToModel: () => void;
@@ -48,6 +54,7 @@ declare global {
   interface Window {
     __FLOWABLE_MODELER_TEST__?: {
       setDocument: (document: BpmnEditorDocument) => void;
+      getDocument: () => BpmnEditorDocument;
     };
   }
 }
@@ -57,11 +64,19 @@ const initialViewport: ViewportState = { x: 16, y: 18, zoom: 0.82 };
 export const useModelerStore = create<ModelerState>((set, get) => ({
   document: sampleDocument,
   viewport: { ...initialViewport },
+  tool: 'pointer',
+  selectedElementIds: ['review'],
   selectedElementId: 'review',
   undoStack: [],
   redoStack: [],
   setDocument: (document) =>
-    set({ document, selectedElementId: null, undoStack: [], redoStack: [] }),
+    set({
+      document,
+      selectedElementIds: [],
+      selectedElementId: null,
+      undoStack: [],
+      redoStack: [],
+    }),
   execute: (command) => {
     const state = get();
     const [document, patches, inversePatches] = produceWithPatches(state.document, command.apply);
@@ -93,7 +108,23 @@ export const useModelerStore = create<ModelerState>((set, get) => ({
       redoStack: state.redoStack.slice(0, -1),
     });
   },
-  selectElement: (selectedElementId) => set({ selectedElementId }),
+  selectElement: (elementId, additive = false) =>
+    set((state) => {
+      if (!elementId) return { selectedElementIds: [], selectedElementId: null };
+      if (!additive) return { selectedElementIds: [elementId], selectedElementId: elementId };
+      const selected = state.selectedElementIds.includes(elementId)
+        ? state.selectedElementIds.filter((id) => id !== elementId)
+        : [...state.selectedElementIds, elementId];
+      return {
+        selectedElementIds: selected,
+        selectedElementId: selected.at(-1) ?? null,
+      };
+    }),
+  selectElements: (elementIds) => {
+    const selectedElementIds = [...new Set(elementIds)];
+    set({ selectedElementIds, selectedElementId: selectedElementIds.at(-1) ?? null });
+  },
+  setTool: (tool) => set({ tool }),
   panBy: (deltaX, deltaY) =>
     set((state) => ({
       viewport: { ...state.viewport, x: state.viewport.x + deltaX, y: state.viewport.y + deltaY },
@@ -138,6 +169,7 @@ if (import.meta.env.MODE === 'e2e' && typeof window !== 'undefined') {
       useModelerStore.getState().setDocument(document);
       useModelerStore.getState().fitToModel();
     },
+    getDocument: () => useModelerStore.getState().document,
   };
 }
 

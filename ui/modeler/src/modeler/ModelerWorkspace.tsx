@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 
 import type { FlowElementEnum } from '../generated/editor-protocol';
 import { BpmnCanvas } from './BpmnCanvas';
@@ -10,6 +11,7 @@ import {
   type PaletteElementKind,
 } from './elementFactory';
 import { useModelerStore } from './modelerStore';
+import { loadBpmnDocument, saveBpmnDocument } from './modelerApi';
 
 const palette = [
   ['Event', '○', 'event'],
@@ -20,9 +22,13 @@ const palette = [
 ] as const;
 
 export function ModelerWorkspace() {
+  const { modelId } = useParams<{ modelId: string }>();
   const document = useModelerStore((state) => state.document);
   const viewport = useModelerStore((state) => state.viewport);
+  const tool = useModelerStore((state) => state.tool);
+  const selectedElementIds = useModelerStore((state) => state.selectedElementIds);
   const selectedElementId = useModelerStore((state) => state.selectedElementId);
+  const setTool = useModelerStore((state) => state.setTool);
   const zoomBy = useModelerStore((state) => state.zoomBy);
   const fitToModel = useModelerStore((state) => state.fitToModel);
   const undoStack = useModelerStore((state) => state.undoStack);
@@ -31,9 +37,37 @@ export function ModelerWorkspace() {
   const redo = useModelerStore((state) => state.redo);
   const execute = useModelerStore((state) => state.execute);
   const selectElement = useModelerStore((state) => state.selectElement);
+  const setDocument = useModelerStore((state) => state.setDocument);
+  const [persistence, setPersistence] = useState<
+    | { state: 'idle' }
+    | { state: 'loading' | 'saving' }
+    | { state: 'saved'; message: string }
+    | { state: 'error'; message: string }
+  >(modelId ? { state: 'loading' } : { state: 'idle' });
   const process = document.model.processes[0];
   const elements = documentElements(document);
   const selectedElement = elements.find((element) => element.id === selectedElementId);
+
+  useEffect(() => {
+    if (!modelId) return;
+    let active = true;
+    void loadBpmnDocument(modelId)
+      .then((loaded) => {
+        if (!active) return;
+        setDocument(loaded);
+        setPersistence({ state: 'idle' });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setPersistence({
+          state: 'error',
+          message: error instanceof Error ? error.message : 'Unable to load this model',
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [modelId, setDocument]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -45,9 +79,9 @@ export function ModelerWorkspace() {
       ) {
         return;
       }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedElementId) {
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedElementIds.length) {
         event.preventDefault();
-        execute(deleteElementsCommand([selectedElementId]));
+        execute(deleteElementsCommand(selectedElementIds));
         selectElement(null);
         return;
       }
@@ -63,7 +97,7 @@ export function ModelerWorkspace() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [execute, redo, selectElement, selectedElementId, undo]);
+  }, [execute, redo, selectElement, selectedElementIds, undo]);
 
   const createElement = (kind: PaletteElementKind) => {
     const id = nextElementId(elements, kind);
@@ -82,6 +116,21 @@ export function ModelerWorkspace() {
       }),
     );
     selectElement(id);
+  };
+
+  const save = async () => {
+    if (!modelId || persistence.state === 'saving') return;
+    setPersistence({ state: 'saving' });
+    try {
+      const normalized = await saveBpmnDocument(modelId, useModelerStore.getState().document);
+      setDocument(normalized);
+      setPersistence({ state: 'saved', message: 'Saved and reloaded from the server' });
+    } catch (error) {
+      setPersistence({
+        state: 'error',
+        message: error instanceof Error ? error.message : 'Unable to save this model',
+      });
+    }
   };
 
   return (
@@ -104,6 +153,16 @@ export function ModelerWorkspace() {
           </span>
         </div>
         <div className="topbar-actions">
+          {modelId ? (
+            <button
+              type="button"
+              className="quiet-button"
+              disabled={persistence.state === 'loading' || persistence.state === 'saving'}
+              onClick={() => void save()}
+            >
+              {persistence.state === 'saving' ? 'Saving…' : 'Save'}
+            </button>
+          ) : null}
           <button type="button" className="quiet-button">
             Validate
           </button>
@@ -115,6 +174,17 @@ export function ModelerWorkspace() {
           </button>
         </div>
       </header>
+
+      {persistence.state === 'error' ? (
+        <div className="modeler-notice is-error" role="alert">
+          {persistence.message}
+        </div>
+      ) : null}
+      {persistence.state === 'saved' ? (
+        <div className="modeler-notice" role="status">
+          {persistence.message}
+        </div>
+      ) : null}
 
       <div className="modeler-layout">
         <aside className="palette-panel" aria-label="BPMN element palette">
@@ -140,10 +210,20 @@ export function ModelerWorkspace() {
         <section className="canvas-workspace" aria-label="Process editor workspace">
           <div className="canvas-toolbar" role="toolbar" aria-label="Canvas controls">
             <div className="tool-cluster">
-              <button type="button" aria-label="Pointer tool" className="is-active">
+              <button
+                type="button"
+                aria-label="Pointer tool"
+                className={tool === 'pointer' ? 'is-active' : undefined}
+                onClick={() => setTool('pointer')}
+              >
                 ↖
               </button>
-              <button type="button" aria-label="Hand tool">
+              <button
+                type="button"
+                aria-label="Hand tool"
+                className={tool === 'hand' ? 'is-active' : undefined}
+                onClick={() => setTool('hand')}
+              >
                 ✥
               </button>
               <span className="tool-divider" />
@@ -168,10 +248,10 @@ export function ModelerWorkspace() {
               <button
                 type="button"
                 aria-label="Delete selection"
-                disabled={!selectedElementId}
+                disabled={selectedElementIds.length === 0}
                 onClick={() => {
-                  if (!selectedElementId) return;
-                  execute(deleteElementsCommand([selectedElementId]));
+                  if (!selectedElementIds.length) return;
+                  execute(deleteElementsCommand(selectedElementIds));
                   selectElement(null);
                 }}
               >
