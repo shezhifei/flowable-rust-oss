@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useStore } from 'zustand';
 
 import { loadDmnDocument, saveDmnDocument } from '../../modeler/modelerApi';
@@ -142,6 +142,9 @@ function DmnWorkspaceBody({
           </span>
         </div>
         <div className="topbar-actions">
+          <Link className="quiet-button" to="/">
+            Back to list
+          </Link>
           <button
             type="button"
             className="quiet-button"

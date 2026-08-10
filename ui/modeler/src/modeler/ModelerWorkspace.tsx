@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { BpmnCanvas } from './BpmnCanvas';
 import { deleteElementsCommand } from './commands';
@@ -19,6 +19,14 @@ const palette = [
   ['Timer boundary', '◷', 'boundaryTimer'],
   ['Data', '⌑', 'data'],
 ] as const;
+
+/**
+ * Real repository model ids load and save through the editor endpoint.
+ * The reserved `sample` id keeps the in-memory demo document offline.
+ */
+function isPersistableModelId(modelId: string | undefined): modelId is string {
+  return Boolean(modelId && modelId !== 'sample');
+}
 
 export function ModelerWorkspace() {
   const { modelId } = useParams<{ modelId: string }>();
@@ -44,12 +52,16 @@ export function ModelerWorkspace() {
     | { state: 'loading' | 'saving' }
     | { state: 'saved'; message: string }
     | { state: 'error'; message: string }
-  >(modelId ? { state: 'loading' } : { state: 'idle' });
+  >(isPersistableModelId(modelId) ? { state: 'loading' } : { state: 'idle' });
   const process = document.model.processes[0];
   const elements = documentElements(document);
+  const canPersist = isPersistableModelId(modelId);
 
   useEffect(() => {
-    if (!modelId) return;
+    if (!isPersistableModelId(modelId)) {
+      setPersistence({ state: 'idle' });
+      return;
+    }
     let active = true;
     void loadBpmnDocument(modelId)
       .then((loaded) => {
@@ -114,7 +126,7 @@ export function ModelerWorkspace() {
   };
 
   const save = async () => {
-    if (!modelId || persistence.state === 'saving') return;
+    if (!canPersist || !modelId || persistence.state === 'saving') return;
     setPersistence({ state: 'saving' });
     try {
       const normalized = await saveBpmnDocument(modelId, useModelerStore.getState().document);
@@ -148,7 +160,10 @@ export function ModelerWorkspace() {
           </span>
         </div>
         <div className="topbar-actions">
-          {modelId ? (
+          <Link className="quiet-button" to="/">
+            Back to list
+          </Link>
+          {canPersist ? (
             <button
               type="button"
               className="quiet-button"

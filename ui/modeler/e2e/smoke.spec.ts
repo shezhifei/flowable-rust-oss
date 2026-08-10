@@ -1,12 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 test('renders and navigates the typed BPMN canvas at the mounted base path', async ({ page }) => {
-  await page.goto('./');
+  // Home is the model repository; the offline sample process lives under /models/sample/bpmn.
+  await page.goto('./models/sample/bpmn');
 
   await expect(page).toHaveTitle('Flowable Modeler');
   await expect(page.getByRole('application', { name: 'BPMN process canvas' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Review request' })).toBeVisible();
   await expect(page.getByText('Protocol 1.0')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to list' })).toBeVisible();
   await expect(page.locator('[data-element-id="review"]')).toHaveClass(/is-selected/);
 
   const review = page.locator('[data-element-id="review"]');
