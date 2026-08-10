@@ -1,0 +1,15 @@
+{
+  "name": "flowable-ui-e2e-integration",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Full-stack integration e2e: real flowable-rest server, real frontends, enforced auth.",
+  "scripts": {
+    "assets": "node scripts/assets.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "typescript": "^5.9.2"
+  }
+}
