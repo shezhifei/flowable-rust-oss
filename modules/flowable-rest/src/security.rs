@@ -73,12 +73,30 @@ fn client_failure_key(req: &Request) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
+/// Middleware state: the engine API's own auth config plus the UI auth config
+/// needed to resolve remember-me cookies.
+#[derive(Debug, Clone)]
+pub struct RestSecurityState {
+    pub auth: RestAuthConfig,
+    pub ui_auth: Arc<flowable_ui_rest::auth::UiAuthConfig>,
+}
+
+impl RestSecurityState {
+    pub fn from_auth_config(auth: RestAuthConfig) -> Self {
+        Self {
+            auth,
+            ui_auth: Arc::new(flowable_ui_rest::auth::UiAuthConfig::from_env()),
+        }
+    }
+}
+
 pub async fn auth_middleware(
-    State(auth): State<Arc<RestAuthConfig>>,
+    State(state): State<Arc<RestSecurityState>>,
     Extension(engine): Extension<Arc<ProcessEngine>>,
     req: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
+    let auth = &state.auth;
     if !auth.mode.is_enforced() {
         return Ok(next.run(req).await);
     }
@@ -90,6 +108,22 @@ pub async fn auth_middleware(
         .unwrap_or("");
 
     if !auth_header.starts_with("Basic ") {
+        // SSO with the UI surface: the static bundles and the engine API share
+        // one origin in this stack, and the first-party modeler's repository
+        // page calls engine endpoints with the session cookie instead of Basic
+        // credentials. A presented UI session authenticates the request with
+        // the same strength as a password check (the cookie was issued by one).
+        if let Some(scope) =
+            flowable_ui_rest::auth::scope_from_cookie_headers(&engine, &state.ui_auth, req.headers())
+        {
+            if requires_admin(req.method(), req.uri().path()) && !auth.is_admin_user(&scope.user_id)
+            {
+                return Err(ApiError::Forbidden(
+                    "Admin privileges required for this operation".to_string(),
+                ));
+            }
+            return Ok(next.run(req).await);
+        }
         return Err(ApiError::Unauthorized);
     }
 

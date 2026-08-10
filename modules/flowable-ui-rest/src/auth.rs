@@ -242,6 +242,26 @@ pub fn load_scope(engine: &Arc<ProcessEngine>, user_id: &str) -> Option<Security
     })
 }
 
+/// Resolves the session carried by a request's remember-me cookie, without
+/// rolling or clearing it. Returns `None` when no valid session is present.
+///
+/// Shared with the engine REST surface (`flowable-rest`), which accepts the UI
+/// cookie as an alternative to HTTP Basic: in this stack the static bundles and
+/// the engine API share one origin, and the first-party modeler's repository
+/// page calls the engine endpoints with `credentials: 'same-origin'`. A cookie
+/// whose series resolves but whose value does not match is treated as theft by
+/// `resolve_token`, which deletes the row — the same side effect the UI
+/// middleware has.
+pub fn scope_from_cookie_headers(
+    engine: &Arc<ProcessEngine>,
+    config: &UiAuthConfig,
+    headers: &HeaderMap,
+) -> Option<SecurityScope> {
+    let cookie_raw = cookie_from_headers(headers, COOKIE_NAME)?;
+    let token = resolve_token(engine, config, &cookie_raw).ok()?;
+    load_scope(engine, token.user_id.as_deref()?)
+}
+
 // ── Cookie codec ──
 
 /// Encodes `series:tokenValue` the way Java's `AbstractRememberMeServices`

@@ -6524,7 +6524,9 @@ async fn run_server_with_components(
 
     let api_routes = if config.security.auth.mode.is_enforced() {
         api_routes.layer(middleware::from_fn_with_state(
-            Arc::new(config.security.auth.clone()),
+            Arc::new(security::RestSecurityState::from_auth_config(
+                config.security.auth.clone(),
+            )),
             security::auth_middleware,
         ))
     } else {

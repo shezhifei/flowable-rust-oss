@@ -374,3 +374,101 @@ async fn metrics_requires_authentication_when_auth_enforced() {
         .unwrap();
     assert!(auth.status().is_success());
 }
+
+/// SSO between the UI surface and the engine API: a valid UI session cookie
+/// (`FLOWABLE_REMEMBER_ME`, issued by `POST /app/authentication`) authenticates
+/// engine REST requests, because the static bundles and the engine API share
+/// one origin in this stack and the first-party modeler calls the engine
+/// endpoints with `credentials: 'same-origin'`.
+#[tokio::test]
+async fn ui_session_cookie_authenticates_engine_requests() {
+    let mut config = base_config();
+    config.security.auth = RestAuthConfig {
+        mode: RestAuthMode::Basic,
+        admin_users: vec!["cookie-admin".to_string()],
+    };
+    config.security.admin_seed = RestAdminSeedConfig {
+        enabled: true,
+        user_id: "cookie-admin".to_string(),
+        password: "cookie-secret".to_string(),
+        first_name: None,
+        last_name: None,
+        email: None,
+    };
+
+    let (engine, base_url, client) = spawn_server("rest-ui-cookie-sso", config).await;
+    engine
+        .get_identity_service()
+        .save_user(flowable_engine::identity::entities::User {
+            id: "cookie-worker".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("worker-secret".to_string()),
+            tenant_id: None,
+        });
+
+    // Sanity: no credentials at all is still rejected.
+    let anonymous = client
+        .get(format!("{}/repository/models", base_url))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(anonymous.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let login = client
+        .post(format!("{}/app/authentication", base_url))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body("j_username=cookie-admin&j_password=cookie-secret")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login.status(), reqwest::StatusCode::OK);
+    let cookie = login
+        .headers()
+        .get("set-cookie")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(';').next().unwrap().to_string())
+        .expect("login must set the session cookie");
+
+    // The cookie alone authenticates engine reads.
+    let read = client
+        .get(format!("{}/repository/models", base_url))
+        .header("Cookie", &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(read.status(), reqwest::StatusCode::OK);
+
+    // Admin-gated writes pass for the admin user: a 404 on the missing
+    // deployment proves the request cleared the gate and reached the handler.
+    let admin_write = client
+        .delete(format!("{}/repository/deployments/missing", base_url))
+        .header("Cookie", &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(admin_write.status(), reqwest::StatusCode::NOT_FOUND);
+
+    // A non-admin session is authenticated but still blocked from admin paths.
+    let worker_login = client
+        .post(format!("{}/app/authentication", base_url))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body("j_username=cookie-worker&j_password=worker-secret")
+        .send()
+        .await
+        .unwrap();
+    let worker_cookie = worker_login
+        .headers()
+        .get("set-cookie")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(';').next().unwrap().to_string())
+        .expect("login must set the session cookie");
+    let worker_write = client
+        .delete(format!("{}/repository/deployments/missing", base_url))
+        .header("Cookie", &worker_cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(worker_write.status(), reqwest::StatusCode::FORBIDDEN);
+}
