@@ -24,16 +24,17 @@ for (const app of ['idm', 'admin', 'task']) {
 }
 
 const modelerDist = join(repoRoot, 'ui', 'modeler', 'dist');
-if (!existsSync(join(modelerDist, 'index.html'))) {
-  console.log('[assets] ui/modeler/dist missing; building the modeler bundle');
-  const result = spawnSync('npm', ['run', 'build'], {
-    cwd: join(repoRoot, 'ui', 'modeler'),
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
-  if (result.status !== 0 || !existsSync(join(modelerDist, 'index.html'))) {
-    throw new Error('Modeler build failed; cannot assemble integration assets');
-  }
+// Always rebuild: the server serves dist verbatim, so a stale bundle would
+// silently test yesterday's frontend. Vite builds fast enough for a per-run
+// gate, and correctness beats caching here.
+console.log('[assets] building the modeler bundle (ui/modeler/dist)');
+const result = spawnSync('npm', ['run', 'build'], {
+  cwd: join(repoRoot, 'ui', 'modeler'),
+  stdio: 'inherit',
+  shell: process.platform === 'win32',
+});
+if (result.status !== 0 || !existsSync(join(modelerDist, 'index.html'))) {
+  throw new Error('Modeler build failed; cannot assemble integration assets');
 }
 
 console.log(`[assets] legacy root: ${legacyRoot}`);

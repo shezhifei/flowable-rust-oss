@@ -119,7 +119,7 @@ describe('models API client', () => {
       model: { key: 'leave', name: 'Leave form', fields: [], outcomes: [] },
     });
     await deployDefinitionModel('form', 'Leave form', 'leave.form', editorDocument, fetcher);
-    const body = JSON.parse((fetcher.mock.calls[0][1] as RequestInit).body as string) as {
+    const body = JSON.parse((fetcher.mock.calls[0]![1] as RequestInit).body as string) as {
       resourceName: string;
       resource: string;
     };
@@ -134,7 +134,7 @@ describe('models API client', () => {
     const bareFetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 201 }));
     const bare = JSON.stringify({ key: 'leave', name: 'Leave form', fields: [] });
     await deployDefinitionModel('form', 'Leave form', 'leave.form', bare, bareFetcher);
-    const bareBody = JSON.parse((bareFetcher.mock.calls[0][1] as RequestInit).body as string) as {
+    const bareBody = JSON.parse((bareFetcher.mock.calls[0]![1] as RequestInit).body as string) as {
       resource: string;
     };
     expect(bareBody.resource).toBe(bare);
