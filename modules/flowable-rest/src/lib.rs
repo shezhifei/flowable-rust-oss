@@ -6553,6 +6553,7 @@ async fn run_server_with_components(
         // `rest_jmx_native_contract_test` pins at 401.
         // `ui_surface_wiring_test::unknown_paths_stay_behind_the_api_auth_layer`
         // guards this.
+        // Stream B fills `admin`/`task` modules inside `ui_router()`.
         .merge(flowable_ui_rest::ui_router())
         .merge(api_routes)
         .layer(Extension(directory_read_state))

@@ -12,3 +12,8 @@ target/
 GroundTruth_*.json
 !/modules/flowable-bpmn-converter/tests/resources/ground_truth/
 !/modules/flowable-bpmn-converter/tests/resources/ground_truth/**
+
+# UI admin ServerConfig runtime store
+data/ui-admin-server-configs.json
+modules/flowable-ui-rest/data/
+./data/
