@@ -33,15 +33,19 @@ test('saves canonical JSON through the UI boundary and survives a browser reload
 
   await page.goto('./models/e2e-leave/bpmn');
   await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Task', exact: true }).click();
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toBeVisible();
+  await page.getByRole('button', { name: 'User task', exact: true }).click();
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toBeVisible();
 
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Saved and reloaded from the server', { exact: true })).toBeVisible();
   expect(putCount).toBe(1);
-  await expect(page.getByText('Server-normalized leave process')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Server-normalized leave process' }),
+  ).toBeVisible();
 
   await page.reload();
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toBeVisible();
-  await expect(page.getByText('Server-normalized leave process')).toBeVisible();
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Server-normalized leave process' }),
+  ).toBeVisible();
 });

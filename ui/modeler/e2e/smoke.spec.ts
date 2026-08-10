@@ -40,16 +40,16 @@ test('renders and navigates the typed BPMN canvas at the mounted base path', asy
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(page.getByLabel('Zoom level')).toHaveText('90%');
 
-  await page.getByRole('button', { name: 'Task', exact: true }).click();
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toBeVisible();
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toHaveClass(/is-selected/);
+  await page.getByRole('button', { name: 'User task', exact: true }).click();
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toBeVisible();
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toHaveClass(/is-selected/);
   await expect(page.getByRole('heading', { name: 'User task' })).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toHaveCount(0);
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Redo' }).click();
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toBeVisible();
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toBeVisible();
   await page.keyboard.press('Delete');
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toHaveCount(0);
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toHaveCount(0);
   await page.keyboard.press('Control+z');
-  await expect(page.locator('[data-element-id="modeler-task-1"]')).toBeVisible();
+  await expect(page.locator('[data-element-id="modeler-userTask-1"]')).toBeVisible();
 });
