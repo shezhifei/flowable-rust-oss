@@ -426,3 +426,36 @@ async fn session_user_drives_task_queries_and_claims() {
         .unwrap();
     assert_eq!(claimed.assignee.as_deref(), Some("worker"));
 }
+
+/// Java flowable-ui-task `AccountResource.getAccount`: the workflow app reads
+/// the current user before issuing any task query, so this endpoint must exist
+/// and describe the session user.
+#[tokio::test]
+async fn account_returns_the_session_user() {
+    use flowable_ui_rest::auth::{AuthMode, UiAuthConfig};
+    use flowable_ui_rest::ui_router_with_config;
+
+    let engine = test_engine();
+    let config = Arc::new(UiAuthConfig {
+        mode: AuthMode::Disabled,
+        dev_user_id: "admin".to_string(),
+        ..UiAuthConfig::default()
+    });
+    let app = ui_router_with_config(config).layer(axum::Extension(Arc::clone(&engine)));
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/app/rest/account")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = body_json(res).await;
+    assert_eq!(body["id"], "admin");
+    assert_eq!(body["fullName"], "Test Admin");
+    assert!(body["groups"].is_array());
+    assert!(body["privileges"].is_array());
+}

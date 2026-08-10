@@ -57,6 +57,9 @@ pub fn router_with_engine(engine: Arc<ProcessEngine>) -> Router {
 pub fn router() -> Router {
     Router::new()
         .route("/app/rest/health", get(health))
+        // Account (Java flowable-ui-task AccountResource; the workflow app
+        // bootstraps its filters and assignment logic off this representation)
+        .route("/app/rest/account", get(account))
         // Tasks
         .route("/app/rest/tasks", post(create_task))
         .route(
@@ -361,6 +364,50 @@ fn resolve_user(engine: &ProcessEngine, id: &str) -> UserRepresentation {
 
 async fn health(Extension(_engine): Extension<Arc<ProcessEngine>>) -> Json<Value> {
     Json(json!({ "status": "ok", "app": "task", "engine": true }))
+}
+
+/// `GET /app/rest/account` — Java flowable-ui-task `AccountResource.getAccount`.
+///
+/// The workflow app resolves the current user here before issuing any task
+/// query (`data.assignee = account.id`), so without this route the task list
+/// never loads in enforced mode. Shape mirrors the idm app's account
+/// representation: user fields plus group memberships and effective privilege
+/// names.
+async fn account(
+    auth: UiAuth,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+) -> Result<Json<Value>, TaskError> {
+    let identity = engine.get_identity_service();
+    let user = identity
+        .find_user_by_id(auth.user_id())
+        .ok_or_else(|| TaskError::not_found("Account not found".to_string()))?;
+    let full_name = format!(
+        "{} {}",
+        user.first_name.clone().unwrap_or_default(),
+        user.last_name.clone().unwrap_or_default()
+    );
+    let groups: Vec<Value> = identity
+        .get_groups_by_user(&user.id)
+        .into_iter()
+        .map(|group| json!({ "id": group.id, "name": group.name, "type": group.group_type }))
+        .collect();
+    let mut privileges: Vec<String> = identity
+        .get_privileges_for_user(&user.id)
+        .into_iter()
+        .map(|privilege| privilege.name)
+        .collect();
+    privileges.sort();
+    privileges.dedup();
+    Ok(Json(json!({
+        "id": user.id,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "fullName": full_name,
+        "tenantId": user.tenant_id,
+        "groups": groups,
+        "privileges": privileges,
+    })))
 }
 
 #[derive(Debug, Deserialize)]
