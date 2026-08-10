@@ -287,6 +287,10 @@ fn element_meta(
             let (id, name) = fe_meta(&e.gateway.flow_node.flow_element);
             (id, name, "EventBasedGateway", None)
         }
+        FlowElementEnum::ComplexGateway(e) => {
+            let (id, name) = fe_meta(&e.gateway.flow_node.flow_element);
+            (id, name, "ComplexGateway", None)
+        }
         FlowElementEnum::BoundaryEvent(e) => {
             let (id, name) = fe_meta(&e.event.flow_node.flow_element);
             (id, name, "BoundaryEvent", None)

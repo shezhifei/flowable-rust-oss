@@ -12,6 +12,7 @@ const EXCLUSIVE_GATEWAY_SINGLE_CONDITION: &str =
     "flowable-exclusive-gateway-condition-not-allowed-on-single-seq-flow";
 const EXCLUSIVE_GATEWAY_DEFAULT_CONDITION: &str =
     "flowable-exclusive-gateway-condition-on-seq-flow";
+const COMPLEX_GATEWAY_UNSUPPORTED: &str = "flowable-complex-gateway-not-supported";
 const START_EVENT_MULTIPLE_FOUND: &str = "flowable-start-event-multiple-found";
 const START_EVENT_INVALID_DEFINITION: &str = "flowable-start-event-invalid-event-definition";
 const SUBPROCESS_MULTIPLE_START_EVENTS: &str = "flowable-subprocess-multiple-start-event";
@@ -109,6 +110,20 @@ fn validate_container(
         match element {
             FlowElementEnum::SequenceFlow(sequence_flow) => {
                 validate_sequence_flow(sequence_flow, &element_ids, process_id, errors);
+            }
+            FlowElementEnum::ComplexGateway(gateway) => {
+                errors.push(StructuralValidationError::new(
+                    COMPLEX_GATEWAY_UNSUPPORTED,
+                    process_id,
+                    gateway
+                        .gateway
+                        .flow_node
+                        .flow_element
+                        .base_element
+                        .id
+                        .as_deref(),
+                    "Complex gateway execution is not supported by this engine",
+                ));
             }
             FlowElementEnum::ExclusiveGateway(gateway) => {
                 let gateway_id = gateway
@@ -422,6 +437,9 @@ fn flow_element_base(element: &FlowElementEnum) -> Option<&BaseElement> {
             &value.gateway.flow_node.flow_element.base_element
         }
         FlowElementEnum::EventBasedGateway(value) => {
+            &value.gateway.flow_node.flow_element.base_element
+        }
+        FlowElementEnum::ComplexGateway(value) => {
             &value.gateway.flow_node.flow_element.base_element
         }
         FlowElementEnum::IntermediateCatchEvent(value) => {

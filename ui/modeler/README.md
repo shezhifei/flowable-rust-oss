@@ -11,6 +11,7 @@ npm run dev
 npm run lint
 npm test
 npm run generate:types
+npm run generate:render-fixtures
 npm run build
 npm run test:e2e
 ```
@@ -35,6 +36,29 @@ The current M1 renderer is a first-party React/SVG implementation:
   stores, and BPMN DI transforms in separate SVG layers.
 - `src/modeler/BpmnElement.tsx` renders the task, event, gateway, subprocess, call-activity, and
   data-object families from their generated discriminated unions.
+
+The renderer covers the canonical task families, event definitions, all five gateway kinds,
+embedded/event/adhoc subprocesses, transactions, call activities, pools and lanes, data objects and
+stores, text annotations, groups, sequence/message flows, and directed associations. A complex
+gateway remains a first-class protocol and rendering type; deployment validation rejects it with
+`flowable-complex-gateway-not-supported` until the Rust engine implements its execution semantics.
+
+`POST /modeler-app/rest/editor/layout` preserves existing BPMN DI and deterministically fills only
+missing shape bounds and edge waypoints, including nested subprocess elements and artifacts. The
+canvas Fit action derives its viewport from every rendered shape and waypoint without changing
+canonical model coordinates.
+
+The C1 screenshot gate is generated from the same 20 representative XML round-trip fixtures used by
+the Rust converter tests. `npm run generate:render-fixtures` refreshes the ignored browser JSON
+inputs; `npm run test:e2e` regenerates them, builds the E2E-only fixture harness, and compares all 20
+Windows Chromium images strictly. To intentionally accept a reviewed renderer change, run:
+
+```powershell
+npx playwright test e2e/render-fixtures.spec.ts --update-snapshots
+npm run test:e2e
+```
+
+Production builds do not expose the fixture harness.
 
 The M2 command boundary is now active for node movement. Document mutations are captured as Immer
 forward/inverse patches in `src/modeler/commands.ts`; one drag creates one history entry, adjusts

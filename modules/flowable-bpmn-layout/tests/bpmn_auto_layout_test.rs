@@ -1,7 +1,9 @@
 use flowable_bpmn_converter::BpmnXMLConverter;
 use flowable_bpmn_layout::{
     BpmnAutoLayout, BpmnAutoLayoutOptions, BpmnLayoutError, DiagramNodeKind, LayoutDirection,
+    ensure_layout,
 };
+use flowable_bpmn_model::GraphicInfo;
 
 fn parse_model(xml: &str) -> flowable_bpmn_model::BpmnModel {
     BpmnXMLConverter::new().convert_to_bpmn_model(xml)
@@ -546,5 +548,53 @@ fn auto_layout_is_deterministic() {
             (a.x, a.y),
             (b.x, b.y)
         );
+    }
+}
+
+#[test]
+fn ensure_layout_preserves_existing_di_and_fills_nested_gaps() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="process" isExecutable="true">
+    <startEvent id="start" />
+    <subProcess id="subprocess">
+      <userTask id="firstNestedTask" />
+      <userTask id="secondNestedTask" />
+      <sequenceFlow id="nestedFlow" sourceRef="firstNestedTask" targetRef="secondNestedTask" />
+    </subProcess>
+    <endEvent id="end" />
+    <sequenceFlow id="toSubprocess" sourceRef="start" targetRef="subprocess" />
+    <sequenceFlow id="toEnd" sourceRef="subprocess" targetRef="end" />
+  </process>
+</definitions>"#;
+    let mut model = parse_model(xml);
+    model.location_map.insert(
+        "start".to_string(),
+        GraphicInfo {
+            x: 17.0,
+            y: 29.0,
+            width: 42.0,
+            height: 42.0,
+            ..GraphicInfo::default()
+        },
+    );
+
+    ensure_layout(&mut model).expect("partial DI should be completed");
+
+    assert_eq!(model.location_map["start"].x, 17.0);
+    assert_eq!(model.location_map["start"].y, 29.0);
+    for id in ["subprocess", "end", "firstNestedTask", "secondNestedTask"] {
+        let bounds = model
+            .location_map
+            .get(id)
+            .unwrap_or_else(|| panic!("missing completed DI for {id}"));
+        assert!(bounds.width > 0.0 && bounds.height > 0.0);
+    }
+    let subprocess = &model.location_map["subprocess"];
+    for id in ["firstNestedTask", "secondNestedTask"] {
+        let child = &model.location_map[id];
+        assert!(child.x >= subprocess.x && child.y >= subprocess.y);
+        assert!(child.x + child.width <= subprocess.x + subprocess.width + 0.1);
+        assert!(child.y + child.height <= subprocess.y + subprocess.height + 0.1);
     }
 }

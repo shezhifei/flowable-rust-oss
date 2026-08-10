@@ -59,6 +59,30 @@ describe('modeler store', () => {
     expect(state.redoStack).toHaveLength(0);
     expect(state.document.model.locationMap.review).toMatchObject({ x: 354, y: 235 });
   });
+
+  it('fits every DI bound into the canvas while preserving model coordinates', () => {
+    const document = structuredClone(sampleDocument);
+    document.model.locationMap.farDataObject = {
+      x: 32,
+      y: 1068,
+      width: 50,
+      height: 50,
+      rotation: 0,
+      expanded: true,
+      xmlRowNumber: 0,
+      xmlColumnNumber: 0,
+    };
+    useModelerStore.getState().setDocument(document);
+    useModelerStore.getState().fitToModel();
+
+    const { viewport } = useModelerStore.getState();
+    expect(viewport.zoom).toBeLessThan(0.6);
+    expect(viewport.y + 72 * viewport.zoom).toBeGreaterThanOrEqual(41.9);
+    expect(viewport.y + 1118 * viewport.zoom).toBeLessThanOrEqual(578.1);
+    expect(required(useModelerStore.getState().document.model.locationMap.farDataObject).y).toBe(
+      1068,
+    );
+  });
 });
 
 function required<T>(value: T | undefined): T {

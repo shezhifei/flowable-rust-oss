@@ -32,6 +32,7 @@ pub enum DiagramNodeKind {
     ParallelGateway,
     InclusiveGateway,
     EventBasedGateway,
+    ComplexGateway,
     CallActivity,
     SubProcess,
     Transaction,

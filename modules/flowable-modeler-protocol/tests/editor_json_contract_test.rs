@@ -1,6 +1,7 @@
 use flowable_bpmn_model::{
-    BoundaryEvent, BpmnModel, ExclusiveGateway, FlowElementEnum, Process, ServiceTask, StartEvent,
-    SubProcess, Task, UserTask,
+    ArtifactEnum, Association, BoundaryEvent, BpmnModel, ComplexGateway, ExclusiveGateway,
+    FlowElementEnum, Group, Process, ServiceTask, StartEvent, SubProcess, Task, TextAnnotation,
+    UserTask,
 };
 use flowable_form_service::{BaseFormField, FormFieldModel};
 use flowable_modeler_protocol::{BpmnEditorDocument, ProtocolVersion, editor_protocol_schema_json};
@@ -13,6 +14,7 @@ fn bpmn_element_discriminators_preserve_concrete_variants() {
         FlowElementEnum::ServiceTask(ServiceTask::default()),
         FlowElementEnum::StartEvent(StartEvent::default()),
         FlowElementEnum::ExclusiveGateway(ExclusiveGateway::default()),
+        FlowElementEnum::ComplexGateway(ComplexGateway::default()),
         FlowElementEnum::BoundaryEvent(BoundaryEvent::default()),
         FlowElementEnum::SubProcess(SubProcess::default()),
     ];
@@ -39,6 +41,7 @@ fn bpmn_element_discriminators_preserve_concrete_variants() {
             "serviceTask",
             "startEvent",
             "exclusiveGateway",
+            "complexGateway",
             "boundaryEvent",
             "subProcess",
         ]
@@ -51,8 +54,32 @@ fn bpmn_element_discriminators_preserve_concrete_variants() {
     assert!(matches!(decoded[2], FlowElementEnum::ServiceTask(_)));
     assert!(matches!(decoded[3], FlowElementEnum::StartEvent(_)));
     assert!(matches!(decoded[4], FlowElementEnum::ExclusiveGateway(_)));
-    assert!(matches!(decoded[5], FlowElementEnum::BoundaryEvent(_)));
-    assert!(matches!(decoded[6], FlowElementEnum::SubProcess(_)));
+    assert!(matches!(decoded[5], FlowElementEnum::ComplexGateway(_)));
+    assert!(matches!(decoded[6], FlowElementEnum::BoundaryEvent(_)));
+    assert!(matches!(decoded[7], FlowElementEnum::SubProcess(_)));
+}
+
+#[test]
+fn bpmn_artifact_discriminators_preserve_every_editable_variant() {
+    let artifacts = vec![
+        ArtifactEnum::Association(Association::default()),
+        ArtifactEnum::TextAnnotation(TextAnnotation::default()),
+        ArtifactEnum::Group(Group::default()),
+    ];
+
+    let json = serde_json::to_value(&artifacts).unwrap();
+    let encoded_types = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|artifact| artifact["artifactType"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(encoded_types, ["association", "textAnnotation", "group"]);
+
+    let decoded: Vec<ArtifactEnum> = serde_json::from_value(json).unwrap();
+    assert!(matches!(decoded[0], ArtifactEnum::Association(_)));
+    assert!(matches!(decoded[1], ArtifactEnum::TextAnnotation(_)));
+    assert!(matches!(decoded[2], ArtifactEnum::Group(_)));
 }
 
 #[test]
@@ -100,6 +127,9 @@ fn generated_schema_contains_all_editor_roots_and_discriminators() {
     assert!(schema.contains("DmnEditorDocument"));
     assert!(schema.contains("FormEditorDocument"));
     assert!(schema.contains("elementType"));
+    assert!(schema.contains("artifactType"));
+    assert!(schema.contains("complexGateway"));
+    assert!(schema.contains("textAnnotation"));
     assert!(schema.contains("eventDefinitionType"));
     assert!(schema.contains("fieldType"));
     assert!(schema.contains("OptionFormField"));

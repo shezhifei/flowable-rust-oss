@@ -327,7 +327,8 @@ impl BpmnAutoLayout {
             }),
             FlowElementEnum::CaseServiceTask(task) => Some(NodeDescriptor {
                 id: required_id(
-                    task.service_task.task
+                    task.service_task
+                        .task
                         .activity
                         .flow_node
                         .flow_element
@@ -337,12 +338,20 @@ impl BpmnAutoLayout {
                     "serviceTask",
                 )?,
                 kind: DiagramNodeKind::ServiceTask,
-                name: task.service_task.task.activity.flow_node.flow_element.name.clone(),
+                name: task
+                    .service_task
+                    .task
+                    .activity
+                    .flow_node
+                    .flow_element
+                    .name
+                    .clone(),
                 source_index,
             }),
             FlowElementEnum::SendTask(task) => Some(NodeDescriptor {
                 id: required_id(
-                    task.service_task.task
+                    task.service_task
+                        .task
                         .activity
                         .flow_node
                         .flow_element
@@ -352,7 +361,14 @@ impl BpmnAutoLayout {
                     "sendTask",
                 )?,
                 kind: DiagramNodeKind::ServiceTask,
-                name: task.service_task.task.activity.flow_node.flow_element.name.clone(),
+                name: task
+                    .service_task
+                    .task
+                    .activity
+                    .flow_node
+                    .flow_element
+                    .name
+                    .clone(),
                 source_index,
             }),
             FlowElementEnum::ScriptTask(task) => Some(NodeDescriptor {
@@ -508,6 +524,21 @@ impl BpmnAutoLayout {
                     "eventBasedGateway",
                 )?,
                 kind: DiagramNodeKind::EventBasedGateway,
+                name: gateway.gateway.flow_node.flow_element.name.clone(),
+                source_index,
+            }),
+            FlowElementEnum::ComplexGateway(gateway) => Some(NodeDescriptor {
+                id: required_id(
+                    gateway
+                        .gateway
+                        .flow_node
+                        .flow_element
+                        .base_element
+                        .id
+                        .as_ref(),
+                    "complexGateway",
+                )?,
+                kind: DiagramNodeKind::ComplexGateway,
                 name: gateway.gateway.flow_node.flow_element.name.clone(),
                 source_index,
             }),
@@ -771,8 +802,9 @@ impl BpmnAutoLayout {
                 acc.push(assoc.clone());
             }
             for artifact in &model.global_artifacts {
-                let ArtifactEnum::Association(assoc) = artifact;
-                acc.push(assoc.clone());
+                if let ArtifactEnum::Association(assoc) = artifact {
+                    acc.push(assoc.clone());
+                }
             }
         };
         let mut associations = Vec::new();
@@ -1019,7 +1051,8 @@ fn node_size(kind: &DiagramNodeKind) -> (f64, f64) {
         DiagramNodeKind::ExclusiveGateway
         | DiagramNodeKind::ParallelGateway
         | DiagramNodeKind::InclusiveGateway
-        | DiagramNodeKind::EventBasedGateway => (GATEWAY_SIZE, GATEWAY_SIZE),
+        | DiagramNodeKind::EventBasedGateway
+        | DiagramNodeKind::ComplexGateway => (GATEWAY_SIZE, GATEWAY_SIZE),
         DiagramNodeKind::Task
         | DiagramNodeKind::UserTask
         | DiagramNodeKind::ServiceTask

@@ -8,7 +8,7 @@ import type {
 } from '../generated/editor-protocol';
 import { BpmnElement } from './BpmnElement';
 import { moveElementCommand } from './commands';
-import { documentElements } from './diagramModel';
+import { documentArtifacts, documentElements } from './diagramModel';
 import { useModelerStore } from './modelerStore';
 
 const CANVAS_WIDTH = 1400;
@@ -27,8 +27,12 @@ export function BpmnCanvas() {
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
 
   const elements = documentElements(document);
+  const artifacts = documentArtifacts(document);
   const nodes = elements.filter(isNode);
   const flows = elements.filter(isSequenceFlow);
+  const associations = artifacts.filter(isAssociation);
+  const annotations = artifacts.filter(isTextAnnotation);
+  const groups = artifacts.filter(isGroup);
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
@@ -124,12 +128,28 @@ export function BpmnCanvas() {
           >
             <path className="message-marker" d="M 0 0 L 10 5 L 0 10 Z" />
           </marker>
+          <marker
+            id="association-arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path className="association-marker" d="M 1 1 L 9 5 L 1 9" />
+          </marker>
           <filter id="selection-glow" x="-40%" y="-40%" width="180%" height="180%">
             <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#ff5c35" floodOpacity="0.34" />
           </filter>
         </defs>
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}>
           <PoolAndLanes />
+          <g className="group-layer">
+            {groups.map((group) => (
+              <GroupShape key={group.id ?? group.categoryValueRef ?? 'group'} group={group} />
+            ))}
+          </g>
           <g className="flow-layer">
             {flows.map((flow) => (
               <FlowPath key={flow.id ?? `${flow.sourceRef}-${flow.targetRef}`} flow={flow} />
@@ -137,13 +157,18 @@ export function BpmnCanvas() {
             {Object.values(document.model.messageFlows).map((flow) => (
               <MessageFlowPath key={flow.id ?? `${flow.sourceRef}-${flow.targetRef}`} flow={flow} />
             ))}
-            {[
-              ...document.model.globalArtifacts,
-              ...document.model.processes.flatMap((process) => process.artifacts ?? []),
-            ].map((association) => (
+            {associations.map((association) => (
               <AssociationPath
                 key={association.id ?? `${association.sourceRef}-${association.targetRef}`}
                 association={association}
+              />
+            ))}
+          </g>
+          <g className="annotation-layer">
+            {annotations.map((annotation) => (
+              <TextAnnotationShape
+                key={annotation.id ?? annotation.text ?? 'annotation'}
+                annotation={annotation}
               />
             ))}
           </g>
@@ -249,6 +274,60 @@ function DataStores() {
   );
 }
 
+function GroupShape({ group }: { group: Extract<ArtifactEnum, { artifactType: 'group' }> }) {
+  const model = useModelerStore((state) => state.document.model);
+  if (!group.id) return null;
+  const bounds = model.locationMap[group.id];
+  if (!bounds) return null;
+  return (
+    <g className="group-shape" data-element-id={group.id}>
+      <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} rx={12} />
+      {group.categoryValueRef ? (
+        <text x={bounds.x + 12} y={bounds.y + 18}>
+          {group.categoryValueRef}
+        </text>
+      ) : null}
+    </g>
+  );
+}
+
+function TextAnnotationShape({
+  annotation,
+}: {
+  annotation: Extract<ArtifactEnum, { artifactType: 'textAnnotation' }>;
+}) {
+  const model = useModelerStore((state) => state.document.model);
+  if (!annotation.id) return null;
+  const bounds = model.locationMap[annotation.id];
+  if (!bounds) return null;
+  const lines = wrapAnnotation(annotation.text ?? '', Math.max(8, Math.floor(bounds.width / 7)));
+  return (
+    <g className="text-annotation" data-element-id={annotation.id}>
+      <path
+        d={`M ${bounds.x + 12} ${bounds.y} H ${bounds.x} V ${bounds.y + bounds.height} H ${bounds.x + 12}`}
+      />
+      <text x={bounds.x + 18} y={bounds.y + 17}>
+        {lines.map((line, index) => (
+          <tspan key={`${line}-${index}`} x={bounds.x + 18} dy={index === 0 ? 0 : 15}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+}
+
+function wrapAnnotation(text: string, maxCharacters: number) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  for (const word of words) {
+    const current = lines.at(-1);
+    if (!current || current.length + word.length + 1 > maxCharacters) lines.push(word);
+    else lines[lines.length - 1] = `${current} ${word}`;
+  }
+  return lines.length ? lines : [''];
+}
+
 function FlowPath({ flow }: { flow: Extract<FlowElementEnum, { elementType: 'sequenceFlow' }> }) {
   const model = useModelerStore((state) => state.document.model);
   if (!flow.id) return null;
@@ -282,7 +361,11 @@ function MessageFlowPath({ flow }: { flow: MessageFlow }) {
   return <path className="message-flow" d={polylinePath(points)} markerEnd="url(#message-arrow)" />;
 }
 
-function AssociationPath({ association }: { association: ArtifactEnum }) {
+function AssociationPath({
+  association,
+}: {
+  association: Extract<ArtifactEnum, { artifactType: 'association' }>;
+}) {
   const model = useModelerStore((state) => state.document.model);
   if (!association.id) return null;
   const points = resolveWaypoints(
@@ -291,7 +374,17 @@ function AssociationPath({ association }: { association: ArtifactEnum }) {
     model.locationMap,
   );
   if (points.length < 2) return null;
-  return <path className="association-flow" d={polylinePath(points)} />;
+  const direction = association.associationDirection?.toLowerCase();
+  return (
+    <path
+      className="association-flow"
+      d={polylinePath(points)}
+      markerStart={direction === 'both' ? 'url(#association-arrow)' : undefined}
+      markerEnd={
+        direction === 'one' || direction === 'both' ? 'url(#association-arrow)' : undefined
+      }
+    />
+  );
 }
 
 function resolveWaypoints(
@@ -335,4 +428,22 @@ function isNode(
   element: FlowElementEnum,
 ): element is Exclude<FlowElementEnum, { elementType: 'sequenceFlow' }> {
   return element.elementType !== 'sequenceFlow';
+}
+
+function isAssociation(
+  artifact: ArtifactEnum,
+): artifact is Extract<ArtifactEnum, { artifactType: 'association' }> {
+  return artifact.artifactType === 'association';
+}
+
+function isTextAnnotation(
+  artifact: ArtifactEnum,
+): artifact is Extract<ArtifactEnum, { artifactType: 'textAnnotation' }> {
+  return artifact.artifactType === 'textAnnotation';
+}
+
+function isGroup(
+  artifact: ArtifactEnum,
+): artifact is Extract<ArtifactEnum, { artifactType: 'group' }> {
+  return artifact.artifactType === 'group';
 }

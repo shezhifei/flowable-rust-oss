@@ -37,6 +37,7 @@ const gatewayTypes = new Set<FlowElementEnum['elementType']>([
   'parallelGateway',
   'inclusiveGateway',
   'eventBasedGateway',
+  'complexGateway',
 ]);
 
 const subprocessTypes = new Set<FlowElementEnum['elementType']>([
@@ -439,6 +440,14 @@ function GatewayGlyph({ type, x, y, size }: { type: string; x: number; y: number
       <path
         className="gateway-glyph"
         d={`M ${x} ${y - size} l ${size * 0.95} ${size * 0.7} l -${size * 0.36} ${size * 1.12} h -${size * 1.18} l -${size * 0.36} -${size * 1.12} Z`}
+      />
+    );
+  }
+  if (type === 'complexGateway') {
+    return (
+      <path
+        className="gateway-glyph"
+        d={`M ${x - size} ${y} h ${size * 2} M ${x} ${y - size} v ${size * 2} M ${x - size * 0.72} ${y - size * 0.72} l ${size * 1.44} ${size * 1.44} M ${x + size * 0.72} ${y - size * 0.72} l -${size * 1.44} ${size * 1.44}`}
       />
     );
   }

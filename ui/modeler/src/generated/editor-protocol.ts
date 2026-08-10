@@ -5,10 +5,19 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
-export type ArtifactEnum = Association & {
-  artifactType: 'association';
-  [k: string]: unknown;
-};
+export type ArtifactEnum =
+  | (Association & {
+      artifactType: 'association';
+      [k: string]: unknown;
+    })
+  | (TextAnnotation & {
+      artifactType: 'textAnnotation';
+      [k: string]: unknown;
+    })
+  | (Group & {
+      artifactType: 'group';
+      [k: string]: unknown;
+    });
 export type FlowElementEnum =
   | (SequenceFlow & {
       elementType: 'sequenceFlow';
@@ -72,6 +81,10 @@ export type FlowElementEnum =
     })
   | (EventBasedGateway & {
       elementType: 'eventBasedGateway';
+      [k: string]: unknown;
+    })
+  | (ComplexGateway & {
+      elementType: 'complexGateway';
       [k: string]: unknown;
     })
   | (IntermediateCatchEvent & {
@@ -383,6 +396,7 @@ export interface Escalation {
   [k: string]: unknown;
 }
 export interface Association {
+  associationDirection?: string | null;
   attributes: {
     [k: string]: ExtensionAttribute[];
   };
@@ -392,6 +406,33 @@ export interface Association {
   id?: string | null;
   sourceRef?: string | null;
   targetRef?: string | null;
+  xmlColumnNumber: number;
+  xmlRowNumber: number;
+  [k: string]: unknown;
+}
+export interface TextAnnotation {
+  attributes: {
+    [k: string]: ExtensionAttribute[];
+  };
+  extensionElements: {
+    [k: string]: ExtensionElement[];
+  };
+  id?: string | null;
+  text?: string | null;
+  textFormat?: string | null;
+  xmlColumnNumber: number;
+  xmlRowNumber: number;
+  [k: string]: unknown;
+}
+export interface Group {
+  attributes: {
+    [k: string]: ExtensionAttribute[];
+  };
+  categoryValueRef?: string | null;
+  extensionElements: {
+    [k: string]: ExtensionElement[];
+  };
+  id?: string | null;
   xmlColumnNumber: number;
   xmlRowNumber: number;
   [k: string]: unknown;
@@ -1528,6 +1569,31 @@ export interface EventBasedGateway {
   id?: string | null;
   incomingFlows: SequenceFlow[];
   instantiate?: boolean | null;
+  name?: string | null;
+  notExclusive: boolean;
+  outgoingFlows: SequenceFlow[];
+  xmlColumnNumber: number;
+  xmlRowNumber: number;
+  [k: string]: unknown;
+}
+export interface ComplexGateway {
+  activationCondition?: string | null;
+  asynchronous: boolean;
+  asynchronousLeave: boolean;
+  asynchronousLeaveExclusive: boolean;
+  asynchronousLeaveNotExclusive: boolean;
+  attributes: {
+    [k: string]: ExtensionAttribute[];
+  };
+  defaultFlow?: string | null;
+  documentation?: string | null;
+  exclusive: boolean;
+  executionListeners: FlowableListener[];
+  extensionElements: {
+    [k: string]: ExtensionElement[];
+  };
+  id?: string | null;
+  incomingFlows: SequenceFlow[];
   name?: string | null;
   notExclusive: boolean;
   outgoingFlows: SequenceFlow[];

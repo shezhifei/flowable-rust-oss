@@ -111,6 +111,25 @@ fn rejects_multiple_none_starts_and_invalid_start_event_definitions() {
 }
 
 #[test]
+fn rejects_complex_gateway_deployment_until_execution_semantics_are_supported() {
+    let message = deploy_error(
+        r#"
+        <startEvent id="start"/>
+        <sequenceFlow id="toGateway" sourceRef="start" targetRef="gateway"/>
+        <complexGateway id="gateway">
+          <activationCondition><![CDATA[${arrivals >= 2}]]></activationCondition>
+        </complexGateway>
+        <sequenceFlow id="toEnd" sourceRef="gateway" targetRef="end"/>
+        <endEvent id="end"/>"#,
+    );
+
+    assert!(
+        message.contains("flowable-complex-gateway-not-supported"),
+        "{message}"
+    );
+}
+
+#[test]
 fn accepts_structurally_valid_process() {
     let engine = ProcessEngine::new("default".to_string());
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>

@@ -231,6 +231,44 @@
               "type": "object"
             }
           ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/TextAnnotation"
+            },
+            {
+              "properties": {
+                "artifactType": {
+                  "const": "textAnnotation",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifactType"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/Group"
+            },
+            {
+              "properties": {
+                "artifactType": {
+                  "const": "group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifactType"
+              ],
+              "type": "object"
+            }
+          ]
         }
       ]
     },
@@ -291,6 +329,12 @@
     },
     "Association": {
       "properties": {
+        "associationDirection": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "attributes": {
           "additionalProperties": {
             "items": {
@@ -1689,6 +1733,118 @@
         "xmlColumnNumber",
         "extensionElements",
         "attributes"
+      ],
+      "type": "object"
+    },
+    "ComplexGateway": {
+      "properties": {
+        "activationCondition": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "asynchronous": {
+          "type": "boolean"
+        },
+        "asynchronousLeave": {
+          "type": "boolean"
+        },
+        "asynchronousLeaveExclusive": {
+          "type": "boolean"
+        },
+        "asynchronousLeaveNotExclusive": {
+          "type": "boolean"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/ExtensionAttribute"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "defaultFlow": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "documentation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exclusive": {
+          "type": "boolean"
+        },
+        "executionListeners": {
+          "items": {
+            "$ref": "#/$defs/FlowableListener"
+          },
+          "type": "array"
+        },
+        "extensionElements": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/ExtensionElement"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "incomingFlows": {
+          "items": {
+            "$ref": "#/$defs/SequenceFlow"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notExclusive": {
+          "type": "boolean"
+        },
+        "outgoingFlows": {
+          "items": {
+            "$ref": "#/$defs/SequenceFlow"
+          },
+          "type": "array"
+        },
+        "xmlColumnNumber": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "xmlRowNumber": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "xmlRowNumber",
+        "xmlColumnNumber",
+        "extensionElements",
+        "attributes",
+        "executionListeners",
+        "asynchronous",
+        "asynchronousLeave",
+        "notExclusive",
+        "asynchronousLeaveNotExclusive",
+        "exclusive",
+        "asynchronousLeaveExclusive",
+        "incomingFlows",
+        "outgoingFlows"
       ],
       "type": "object"
     },
@@ -3492,6 +3648,25 @@
         {
           "allOf": [
             {
+              "$ref": "#/$defs/ComplexGateway"
+            },
+            {
+              "properties": {
+                "elementType": {
+                  "const": "complexGateway",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "elementType"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
               "$ref": "#/$defs/IntermediateCatchEvent"
             },
             {
@@ -4449,6 +4624,55 @@
         "xmlRowNumber",
         "xmlColumnNumber",
         "rotation"
+      ],
+      "type": "object"
+    },
+    "Group": {
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/ExtensionAttribute"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "categoryValueRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensionElements": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/ExtensionElement"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "xmlColumnNumber": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "xmlRowNumber": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "xmlRowNumber",
+        "xmlColumnNumber",
+        "extensionElements",
+        "attributes"
       ],
       "type": "object"
     },
@@ -7902,6 +8126,61 @@
         "terminateMultiInstance": {
           "default": false,
           "type": "boolean"
+        },
+        "xmlColumnNumber": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "xmlRowNumber": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "xmlRowNumber",
+        "xmlColumnNumber",
+        "extensionElements",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "TextAnnotation": {
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/ExtensionAttribute"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "extensionElements": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/ExtensionElement"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "textFormat": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "xmlColumnNumber": {
           "format": "int32",

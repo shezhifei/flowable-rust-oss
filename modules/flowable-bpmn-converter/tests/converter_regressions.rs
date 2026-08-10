@@ -28,10 +28,8 @@ fn field_extension_accepts_string_value_child_element() {
 
     let model = BpmnXMLConverter::new().convert_to_bpmn_model(xml);
     let process = model.main_process.expect("main process");
-    let FlowElementEnum::ServiceTask(task) = process
-        .flow_element_map
-        .get("svc")
-        .expect("service task")
+    let FlowElementEnum::ServiceTask(task) =
+        process.flow_element_map.get("svc").expect("service task")
     else {
         panic!("svc should be a service task");
     };
@@ -63,10 +61,6 @@ fn field_extension_accepts_string_value_child_element() {
     );
 }
 
-fn is_absent_or_empty_array(value: &Value) -> bool {
-    value.is_null() || matches!(value, Value::Array(items) if items.is_empty())
-}
-
 #[test]
 fn serializes_canonical_compensation_flag() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -89,7 +83,7 @@ fn serializes_canonical_compensation_flag() {
 }
 
 #[test]
-fn ignores_process_and_subprocess_associations_in_artifacts() {
+fn preserves_process_and_subprocess_artifacts() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
   <process id="process" isExecutable="true">
@@ -112,15 +106,32 @@ fn ignores_process_and_subprocess_associations_in_artifacts() {
     let model = converter.convert_to_bpmn_model(xml);
     let json = converter.to_canonical_contract_value(&model);
 
+    let process_artifacts = json["mainProcess"]["artifacts"].as_array().unwrap();
+    assert_eq!(process_artifacts.len(), 2);
     assert!(
-        is_absent_or_empty_array(&json["mainProcess"]["artifacts"]),
-        "process artifacts should not contain parsed associations"
+        process_artifacts
+            .iter()
+            .any(|artifact| artifact["id"] == "annotation1")
     );
     assert!(
-        is_absent_or_empty_array(
-            &json["mainProcess"]["flowElementMap"]["subprocess1"]["artifacts"]
-        ),
-        "subprocess artifacts should not contain parsed associations"
+        process_artifacts
+            .iter()
+            .any(|artifact| artifact["id"] == "association1")
+    );
+
+    let subprocess_artifacts = json["mainProcess"]["flowElementMap"]["subprocess1"]["artifacts"]
+        .as_array()
+        .unwrap();
+    assert_eq!(subprocess_artifacts.len(), 2);
+    assert!(
+        subprocess_artifacts
+            .iter()
+            .any(|artifact| artifact["id"] == "annotation2")
+    );
+    assert!(
+        subprocess_artifacts
+            .iter()
+            .any(|artifact| artifact["id"] == "association2")
     );
 }
 

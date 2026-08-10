@@ -24,7 +24,7 @@ export function ModelerWorkspace() {
   const viewport = useModelerStore((state) => state.viewport);
   const selectedElementId = useModelerStore((state) => state.selectedElementId);
   const zoomBy = useModelerStore((state) => state.zoomBy);
-  const resetViewport = useModelerStore((state) => state.resetViewport);
+  const fitToModel = useModelerStore((state) => state.fitToModel);
   const undoStack = useModelerStore((state) => state.undoStack);
   const redoStack = useModelerStore((state) => state.redoStack);
   const undo = useModelerStore((state) => state.undo);
@@ -186,7 +186,7 @@ export function ModelerWorkspace() {
               <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.1)}>
                 +
               </button>
-              <button type="button" onClick={resetViewport}>
+              <button type="button" onClick={fitToModel}>
                 Fit
               </button>
             </div>

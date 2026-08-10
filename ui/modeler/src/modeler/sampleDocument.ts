@@ -1,4 +1,5 @@
 import type {
+  ArtifactEnum,
   BpmnEditorDocument,
   FlowElementEnum,
   GraphicInfo,
@@ -89,9 +90,10 @@ const elements: FlowElementEnum[] = [
     taskCompleterVariableName: null,
   },
   {
-    elementType: 'exclusiveGateway',
+    elementType: 'complexGateway',
     ...flowNode('decision', 'Approved?'),
     defaultFlow: 'reworkFlow',
+    activationCondition: '${approvedCount >= 2}',
   },
   {
     elementType: 'serviceTask',
@@ -151,6 +153,27 @@ const elements: FlowElementEnum[] = [
   sequence('completeFlow', 'notify', 'end'),
 ];
 
+const artifacts: ArtifactEnum[] = [
+  {
+    artifactType: 'textAnnotation',
+    ...baseElement('approvalNote'),
+    text: 'Two approvals are required',
+    textFormat: 'text/plain',
+  },
+  {
+    artifactType: 'group',
+    ...baseElement('approvalGroup'),
+    categoryValueRef: 'approvalCategory',
+  },
+  {
+    artifactType: 'association',
+    ...baseElement('approvalLink'),
+    sourceRef: 'approvalNote',
+    targetRef: 'decision',
+    associationDirection: 'One',
+  },
+];
+
 const location = (x: number, y: number, width: number, height: number): GraphicInfo => ({
   x,
   y,
@@ -199,8 +222,10 @@ export const sampleDocument: BpmnEditorDocument = {
             .filter((element) => element.id)
             .map((element) => [element.id as string, element]),
         ),
-        artifacts: [],
-        artifactMap: {},
+        artifacts,
+        artifactMap: Object.fromEntries(
+          artifacts.map((artifact) => [artifact.id as string, artifact]),
+        ),
       },
     ],
     locationMap: {
@@ -213,6 +238,8 @@ export const sampleDocument: BpmnEditorDocument = {
       notify: location(744, 352, 164, 100),
       end: location(1032, 381, 46, 46),
       reviewTimer: location(410, 214, 34, 34),
+      approvalNote: location(452, 82, 180, 54),
+      approvalGroup: location(282, 112, 370, 158),
     },
     labelLocationMap: {
       start: location(145, 214, 96, 24),
@@ -230,6 +257,7 @@ export const sampleDocument: BpmnEditorDocument = {
         waypoint(744, 402),
       ],
       completeFlow: [waypoint(908, 402), waypoint(1032, 402)],
+      approvalLink: [waypoint(542, 136), waypoint(587, 153)],
     },
     edgeMap: {},
     signals: [],

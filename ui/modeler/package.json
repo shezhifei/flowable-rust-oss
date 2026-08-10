@@ -6,15 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:e2e": "tsc -b && vite build --mode e2e",
     "preview": "vite preview",
     "schema:rust": "cargo run --manifest-path ../../Cargo.toml -p flowable-modeler-protocol --bin export_schema -- ../../docs/plans/modeler-editor-protocol.schema.json",
     "generate:types": "npm run schema:rust && json2ts -i ../../docs/plans/modeler-editor-protocol.schema.json -o src/generated/editor-protocol.ts && prettier --write src/generated/editor-protocol.ts",
+    "generate:render-fixtures": "cargo run --manifest-path ../../Cargo.toml -p flowable-modeler-service --bin export_bpmn_render_fixtures -- e2e/fixtures",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run generate:render-fixtures && npm run build:e2e && playwright test"
   },
   "dependencies": {
     "dayjs": "1.11.21",

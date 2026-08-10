@@ -377,10 +377,46 @@ a:focus-visible {
 .association-flow {
   stroke-dasharray: 2 5;
 }
+.association-marker {
+  fill: none;
+  stroke: #56534c;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
 .message-marker {
   fill: var(--canvas);
   stroke: #56534c;
   stroke-width: 1;
+}
+
+.group-shape {
+  pointer-events: none;
+}
+.group-shape rect {
+  fill: #d9ff43;
+  fill-opacity: 0.035;
+  stroke: #8e8a80;
+  stroke-dasharray: 7 5;
+  stroke-width: 1.2;
+}
+.group-shape text {
+  fill: #8b877d;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.text-annotation {
+  pointer-events: none;
+}
+.text-annotation path {
+  fill: none;
+  stroke: #56534c;
+  stroke-linecap: square;
+  stroke-width: 1.4;
+}
+.text-annotation text {
+  fill: #55524b;
+  font-size: 11px;
 }
 
 .diagram-element {

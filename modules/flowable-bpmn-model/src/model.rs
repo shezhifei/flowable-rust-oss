@@ -562,19 +562,43 @@ pub struct Resource {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Association {
     #[serde(flatten)]
     pub base_element: BaseElement,
     pub source_ref: Option<String>,
     pub target_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub association_direction: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TextAnnotation {
+    #[serde(flatten)]
+    pub base_element: BaseElement,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_format: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Group {
+    #[serde(flatten)]
+    pub base_element: BaseElement,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_value_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "artifactType", rename_all = "camelCase")]
 pub enum ArtifactEnum {
     Association(Association),
+    TextAnnotation(TextAnnotation),
+    Group(Group),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -767,6 +791,7 @@ pub enum FlowElementEnum {
     ParallelGateway(ParallelGateway),
     InclusiveGateway(InclusiveGateway),
     EventBasedGateway(EventBasedGateway),
+    ComplexGateway(ComplexGateway),
     IntermediateCatchEvent(IntermediateCatchEvent),
     IntermediateThrowEvent(IntermediateThrowEvent),
     SubProcess(SubProcess),
@@ -1223,6 +1248,15 @@ pub struct EventBasedGateway {
     pub instantiate: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_gateway_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ComplexGateway {
+    #[serde(flatten)]
+    pub gateway: Gateway,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activation_condition: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]

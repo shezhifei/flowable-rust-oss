@@ -239,8 +239,14 @@ fn write_process(writer: &mut Writer<Vec<u8>>, process: &Process) -> Result<(), 
             write_flow_element(writer, element)?;
         }
     }
-    for association in &process.associations {
-        write_association(writer, association)?;
+    if process.artifacts.is_empty() {
+        for association in &process.associations {
+            write_association(writer, association)?;
+        }
+    } else {
+        for artifact in &process.artifacts {
+            write_artifact(writer, artifact)?;
+        }
     }
     emit(writer, XmlEvent::End(BytesEnd::new("process")))
 }
@@ -307,6 +313,7 @@ fn write_flow_element(
         FlowElementEnum::EventBasedGateway(v) => {
             write_gateway(writer, "eventBasedGateway", &v.gateway)
         }
+        FlowElementEnum::ComplexGateway(v) => write_complex_gateway(writer, v),
         FlowElementEnum::SubProcess(v) => write_subprocess(writer, "subProcess", v, None, |_| {}),
         FlowElementEnum::Transaction(v) => {
             write_subprocess(writer, "transaction", &v.sub_process, None, |_| {})
@@ -825,7 +832,28 @@ fn write_subprocess<F: FnOnce(&mut BytesStart<'_>)>(
             write_flow_element(writer, child)?;
         }
     }
+    for artifact in &value.artifacts {
+        write_artifact(writer, artifact)?;
+    }
     emit(writer, XmlEvent::End(BytesEnd::new(name)))
+}
+
+fn write_complex_gateway(
+    writer: &mut Writer<Vec<u8>>,
+    value: &ComplexGateway,
+) -> Result<(), BpmnXmlWriteError> {
+    let mut node = flow_node_start("complexGateway", &value.gateway.flow_node);
+    push_opt(&mut node, "default", value.gateway.default_flow.as_deref());
+    emit(writer, XmlEvent::Start(node))?;
+    write_flow_body(writer, &value.gateway.flow_node.flow_element)?;
+    if let Some(condition) = &value.activation_condition {
+        let mut condition_node = BytesStart::new("activationCondition");
+        condition_node.push_attribute(("xsi:type", "tFormalExpression"));
+        emit(writer, XmlEvent::Start(condition_node))?;
+        emit(writer, XmlEvent::CData(BytesCData::new(condition)))?;
+        emit(writer, XmlEvent::End(BytesEnd::new("activationCondition")))?;
+    }
+    emit(writer, XmlEvent::End(BytesEnd::new("complexGateway")))
 }
 
 fn write_call_activity(
@@ -913,7 +941,89 @@ fn write_association(
     push_base(&mut node, &value.base_element);
     push_opt(&mut node, "sourceRef", value.source_ref.as_deref());
     push_opt(&mut node, "targetRef", value.target_ref.as_deref());
-    emit(writer, XmlEvent::Empty(node))
+    push_opt(
+        &mut node,
+        "associationDirection",
+        value
+            .association_direction
+            .as_deref()
+            .map(association_direction_xml),
+    );
+    write_artifact_node(writer, node, &value.base_element, None)
+}
+
+fn association_direction_xml(value: &str) -> &str {
+    if value.eq_ignore_ascii_case("one") {
+        "One"
+    } else if value.eq_ignore_ascii_case("both") {
+        "Both"
+    } else if value.eq_ignore_ascii_case("none") {
+        "None"
+    } else {
+        value
+    }
+}
+
+fn write_artifact(
+    writer: &mut Writer<Vec<u8>>,
+    artifact: &ArtifactEnum,
+) -> Result<(), BpmnXmlWriteError> {
+    match artifact {
+        ArtifactEnum::Association(value) => write_association(writer, value),
+        ArtifactEnum::TextAnnotation(value) => write_text_annotation(writer, value),
+        ArtifactEnum::Group(value) => write_group(writer, value),
+    }
+}
+
+fn write_text_annotation(
+    writer: &mut Writer<Vec<u8>>,
+    value: &TextAnnotation,
+) -> Result<(), BpmnXmlWriteError> {
+    let mut node = BytesStart::new("textAnnotation");
+    push_base(&mut node, &value.base_element);
+    push_opt(&mut node, "textFormat", value.text_format.as_deref());
+    write_artifact_node(writer, node, &value.base_element, value.text.as_deref())
+}
+
+fn write_group(writer: &mut Writer<Vec<u8>>, value: &Group) -> Result<(), BpmnXmlWriteError> {
+    let mut node = BytesStart::new("group");
+    push_base(&mut node, &value.base_element);
+    push_opt(
+        &mut node,
+        "categoryValueRef",
+        value.category_value_ref.as_deref(),
+    );
+    write_artifact_node(writer, node, &value.base_element, None)
+}
+
+fn write_artifact_node(
+    writer: &mut Writer<Vec<u8>>,
+    node: BytesStart<'_>,
+    base_element: &BaseElement,
+    text: Option<&str>,
+) -> Result<(), BpmnXmlWriteError> {
+    let has_extensions = !base_element.extension_elements.is_empty();
+    if text.is_none() && !has_extensions {
+        return emit(writer, XmlEvent::Empty(node));
+    }
+    let name = String::from_utf8_lossy(node.local_name().as_ref()).into_owned();
+    emit(writer, XmlEvent::Start(node))?;
+    if let Some(text) = text {
+        text_element(writer, "text", text)?;
+    }
+    write_extensions(
+        writer,
+        base_element,
+        &[],
+        &[],
+        &[],
+        &[],
+        &[],
+        &[],
+        None,
+        &[],
+    )?;
+    emit(writer, XmlEvent::End(BytesEnd::new(name)))
 }
 
 fn write_activity_body(
