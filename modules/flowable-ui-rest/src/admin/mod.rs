@@ -21,6 +21,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::auth::UiAuth;
+
 pub use proxy::{ProxyClient, ProxyError};
 pub use server_config::{
     EndpointType, ServerConfig, ServerConfigRepresentation, ServerConfigStore,
@@ -63,6 +65,9 @@ pub fn router_with_state(state: AdminState) -> Router {
     Router::new()
         // Health probe (B0)
         .route("/admin-app/rest/health", get(health))
+        // Current session user (the admin app resolves the account before
+        // loading any server config)
+        .route("/admin-app/rest/account", get(account))
         // ServerConfig CRUD
         .route("/admin-app/rest/server-configs", get(list_server_configs))
         .route(
@@ -357,6 +362,50 @@ pub fn router_with_state(state: AdminState) -> Router {
 
 async fn health() -> impl IntoResponse {
     Json(json!({ "status": "ok", "app": "admin" }))
+}
+
+/// `GET /admin-app/rest/account` — Java flowable-ui-admin
+/// `AccountResource.getAccount`.
+///
+/// The admin app resolves the current user here on startup and only loads the
+/// server configs on success, so without this route the whole admin UI stays
+/// inert in enforced mode. Same shape as the task app's account: user fields
+/// plus group memberships and effective privilege names.
+async fn account(
+    auth: UiAuth,
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+) -> Result<Json<Value>, AdminError> {
+    let identity = engine.get_identity_service();
+    let user = identity
+        .find_user_by_id(auth.user_id())
+        .ok_or_else(|| AdminError::not_found("Account not found".to_string()))?;
+    let full_name = format!(
+        "{} {}",
+        user.first_name.clone().unwrap_or_default(),
+        user.last_name.clone().unwrap_or_default()
+    );
+    let groups: Vec<Value> = identity
+        .get_groups_by_user(&user.id)
+        .into_iter()
+        .map(|group| json!({ "id": group.id, "name": group.name, "type": group.group_type }))
+        .collect();
+    let mut privileges: Vec<String> = identity
+        .get_privileges_for_user(&user.id)
+        .into_iter()
+        .map(|privilege| privilege.name)
+        .collect();
+    privileges.sort();
+    privileges.dedup();
+    Ok(Json(json!({
+        "id": user.id,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "fullName": full_name,
+        "tenantId": user.tenant_id,
+        "groups": groups,
+        "privileges": privileges,
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -2128,6 +2177,13 @@ impl AdminError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
+    }
+
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::NOT_FOUND,
             message: message.into(),
         }
     }

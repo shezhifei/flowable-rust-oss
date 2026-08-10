@@ -341,6 +341,49 @@ async fn process_definition_model_json_with_engine() {
     );
 }
 
+/// Java flowable-ui-admin `AccountResource.getAccount`: the admin app resolves
+/// the session user on startup and only loads the server configs on success,
+/// so this endpoint must exist and describe the session user.
+#[tokio::test]
+async fn account_returns_the_session_user() {
+    use flowable_engine::engine::process_engine::ProcessEngine;
+    use flowable_engine::identity::entities::User;
+    use flowable_ui_rest::auth::{AuthMode, UiAuthConfig};
+    use flowable_ui_rest::ui_router_with_config;
+
+    let engine = Arc::new(ProcessEngine::new("ui-admin-account".into()));
+    engine.get_identity_service().save_user(User {
+        id: "admin".into(),
+        first_name: Some("Test".into()),
+        last_name: Some("Admin".into()),
+        email: Some("admin@example.com".into()),
+        password: Some("test".into()),
+        tenant_id: None,
+    });
+    let config = Arc::new(UiAuthConfig {
+        mode: AuthMode::Disabled,
+        dev_user_id: "admin".to_string(),
+        ..UiAuthConfig::default()
+    });
+    let app = ui_router_with_config(config).layer(axum::Extension(Arc::clone(&engine)));
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/admin-app/rest/account")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = body_json(res).await;
+    assert_eq!(body["id"], "admin");
+    assert_eq!(body["fullName"], "Test Admin");
+    assert!(body["groups"].is_array());
+    assert!(body["privileges"].is_array());
+}
+
 // silence unused import if representation used only in types
 #[allow(dead_code)]
 fn _type_use(_: ServerConfigRepresentation) {}
