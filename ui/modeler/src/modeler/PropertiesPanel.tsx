@@ -1,6 +1,14 @@
 import { useState } from 'react';
 
 import type { BpmnEditorDocument, FlowElementEnum } from '../generated/editor-protocol';
+import {
+  CallActivitySection,
+  EventReferenceSection,
+  FieldInjectionSection,
+  GlobalDefinitionsSection,
+  ListenersSection,
+  MultiInstanceSection,
+} from './AdvancedPropertySections';
 import { documentElements } from './diagramModel';
 import { useModelerStore } from './modelerStore';
 import {
@@ -138,6 +146,7 @@ function ProcessProperties({ document }: { document: BpmnEditorDocument }) {
             }
           />
         </section>
+        <GlobalDefinitionsSection document={document} />
       </div>
     </aside>
   );
@@ -314,6 +323,12 @@ function ElementProperties({
             />
           </section>
         ) : null}
+
+        <MultiInstanceSection element={element} />
+        <ListenersSection element={element} />
+        <FieldInjectionSection element={element} />
+        <CallActivitySection element={element} />
+        <EventReferenceSection document={document} element={element} />
       </div>
     </aside>
   );

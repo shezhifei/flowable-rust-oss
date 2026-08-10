@@ -1,6 +1,16 @@
 import type { Draft } from 'immer';
 
-import type { ArtifactEnum, FlowElementEnum } from '../generated/editor-protocol';
+import type {
+  ArtifactEnum,
+  EventDefinitionEnum,
+  FieldExtension,
+  FlowableListener,
+  FlowElementEnum,
+  IOParameter,
+  Message,
+  MultiInstanceLoopCharacteristics,
+  Signal,
+} from '../generated/editor-protocol';
 import type { ModelerCommand } from './commands';
 import { locateCanonicalElement, normalizeModelInvariants } from './modelInvariants';
 import { collectModelIds, validateElementId } from './propertyValidation';
@@ -138,6 +148,160 @@ export function updateProcessPropertiesCommand(properties: ProcessPropertyUpdate
       if (properties.documentation !== undefined) process.documentation = properties.documentation;
       normalizeModelInvariants(document);
     },
+  };
+}
+
+/** Replaces the document-level signal definitions (process/event refs pick from this list). */
+export function updateModelSignalsCommand(signals: Signal[]): ModelerCommand {
+  return {
+    label: 'Edit signal definitions',
+    apply(document) {
+      document.model.signals = signals;
+      normalizeModelInvariants(document);
+    },
+  };
+}
+
+/** Replaces the document-level message definitions. */
+export function updateModelMessagesCommand(messages: Message[]): ModelerCommand {
+  return {
+    label: 'Edit message definitions',
+    apply(document) {
+      document.model.messages = messages;
+      normalizeModelInvariants(document);
+    },
+  };
+}
+
+/**
+ * Sets signalRef or messageRef on the first matching event definition of an
+ * event element. Creates a definition entry when none exists yet so the panel
+ * can seed a reference without a separate create step.
+ */
+export function updateEventDefinitionRefCommand(
+  elementId: string,
+  definitionType: 'signalEventDefinition' | 'messageEventDefinition',
+  ref: string | null,
+): ModelerCommand {
+  const field = definitionType === 'signalEventDefinition' ? 'signalRef' : 'messageRef';
+  return {
+    label: `Edit ${field} on ${elementId}`,
+    apply(document) {
+      const located = locateCanonicalElement(document, elementId);
+      if (!located) {
+        throw new PropertyCommandError(
+          'missing-element',
+          elementId,
+          `${elementId} is not part of this document`,
+        );
+      }
+      const element = located.element as Draft<FlowElementEnum> & {
+        eventDefinitions?: Draft<EventDefinitionEnum>[];
+      };
+      if (!('eventDefinitions' in element)) {
+        throw new PropertyCommandError(
+          'missing-element',
+          elementId,
+          `${elementId} does not carry event definitions`,
+        );
+      }
+      const definitions = (element.eventDefinitions ??= []);
+      let definition = definitions.find(
+        (candidate) => candidate.eventDefinitionType === definitionType,
+      ) as Draft<EventDefinitionEnum> | undefined;
+      if (!definition) {
+        definition = {
+          eventDefinitionType: definitionType,
+          id: `${elementId}_${definitionType}`,
+          attributes: {},
+          extensionElements: {},
+          xmlColumnNumber: 0,
+          xmlRowNumber: 0,
+          [field]: ref,
+        } as Draft<EventDefinitionEnum>;
+        definitions.push(definition);
+      } else {
+        (definition as Draft<Record<string, unknown>>)[field] = ref;
+      }
+      normalizeModelInvariants(document);
+    },
+  };
+}
+
+/** Empty multi-instance characteristics used when enabling the MI group. */
+export function createEmptyLoopCharacteristics(
+  sequential = false,
+): MultiInstanceLoopCharacteristics {
+  return {
+    attributes: {},
+    extensionElements: {},
+    sequential,
+    noWaitStatesAsyncLeave: false,
+    collectionString: null,
+    elementVariable: null,
+    completionCondition: null,
+    loopCardinality: null,
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+export function createEmptyListener(event: string): FlowableListener {
+  return {
+    attributes: {},
+    extensionElements: {},
+    event,
+    implementation: '',
+    implementationType: 'class',
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+export function createEmptyFieldExtension(): FieldExtension {
+  return {
+    attributes: {},
+    extensionElements: {},
+    fieldName: '',
+    stringValue: null,
+    expression: null,
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+export function createEmptyIOParameter(): IOParameter {
+  return {
+    attributes: {},
+    extensionElements: {},
+    source: '',
+    target: '',
+    transient: false,
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+export function createEmptySignal(id: string): Signal {
+  return {
+    attributes: {},
+    extensionElements: {},
+    id,
+    name: id,
+    scope: 'global',
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+export function createEmptyMessage(id: string): Message {
+  return {
+    attributes: {},
+    extensionElements: {},
+    id,
+    name: id,
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
   };
 }
 

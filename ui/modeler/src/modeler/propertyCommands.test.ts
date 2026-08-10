@@ -2,8 +2,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useModelerStore } from './modelerStore';
 import {
+  createEmptyFieldExtension,
+  createEmptyIOParameter,
+  createEmptyListener,
+  createEmptyLoopCharacteristics,
+  createEmptyMessage,
+  createEmptySignal,
   renameElementIdCommand,
   updateElementPropertiesCommand,
+  updateEventDefinitionRefCommand,
+  updateModelMessagesCommand,
+  updateModelSignalsCommand,
   updateProcessPropertiesCommand,
 } from './propertyCommands';
 import { sampleDocument } from './sampleDocument';
@@ -196,5 +205,187 @@ describe('process property updates', () => {
       expect.objectContaining({ code: 'duplicate-element-id' }),
     );
     expect(state().undoStack).toHaveLength(0);
+  });
+});
+
+describe('phase-2 advanced property commands', () => {
+  beforeEach(resetStore);
+
+  it('writes multi-instance characteristics through the command stack', () => {
+    const loop = createEmptyLoopCharacteristics(true);
+    loop.collectionString = '${assignees}';
+    loop.elementVariable = 'assignee';
+    loop.completionCondition = '${nrOfCompletedInstances == 1}';
+    state().execute(
+      updateElementPropertiesCommand(
+        'review',
+        { loopCharacteristics: loop },
+        'Enable multi-instance',
+      ),
+    );
+
+    expect(flowElement('review')).toMatchObject({
+      loopCharacteristics: {
+        sequential: true,
+        collectionString: '${assignees}',
+        elementVariable: 'assignee',
+        completionCondition: '${nrOfCompletedInstances == 1}',
+      },
+    });
+    state().undo();
+    expect(flowElement('review')).toMatchObject({ loopCharacteristics: null });
+  });
+
+  it('writes task and execution listeners', () => {
+    const taskListener = createEmptyListener('create');
+    taskListener.implementationType = 'class';
+    taskListener.implementation = 'org.flowable.TaskListener';
+    state().execute(
+      updateElementPropertiesCommand('review', { taskListeners: [taskListener] }, 'Add task listener'),
+    );
+    expect(flowElement('review')).toMatchObject({
+      taskListeners: [
+        {
+          event: 'create',
+          implementationType: 'class',
+          implementation: 'org.flowable.TaskListener',
+        },
+      ],
+    });
+
+    const executionListener = createEmptyListener('start');
+    executionListener.implementationType = 'expression';
+    executionListener.implementation = '${logExecution}';
+    state().execute(
+      updateElementPropertiesCommand(
+        'notify',
+        { executionListeners: [executionListener] },
+        'Add execution listener',
+      ),
+    );
+    expect(flowElement('notify')).toMatchObject({
+      executionListeners: [
+        {
+          event: 'start',
+          implementationType: 'expression',
+          implementation: '${logExecution}',
+        },
+      ],
+    });
+  });
+
+  it('writes service task field injection entries', () => {
+    const field = createEmptyFieldExtension();
+    field.fieldName = 'endpoint';
+    field.stringValue = 'https://example.test';
+    state().execute(
+      updateElementPropertiesCommand('notify', { fieldExtensions: [field] }, 'Add field'),
+    );
+    expect(flowElement('notify')).toMatchObject({
+      fieldExtensions: [{ fieldName: 'endpoint', stringValue: 'https://example.test' }],
+    });
+    state().undo();
+    expect(flowElement('notify')).toMatchObject({ fieldExtensions: [] });
+  });
+
+  it('writes call activity calledElement and in/out parameters', () => {
+    // Seed a call activity into the sample document for this case.
+    const document = structuredClone(sampleDocument);
+    const process = document.model.processes[0]!;
+    const callActivity = {
+      elementType: 'callActivity' as const,
+      id: 'childCall',
+      name: 'Call child',
+      documentation: null,
+      xmlRowNumber: 0,
+      xmlColumnNumber: 0,
+      extensionElements: {},
+      attributes: {},
+      executionListeners: [],
+      asynchronous: false,
+      asynchronousLeave: false,
+      notExclusive: false,
+      asynchronousLeaveNotExclusive: false,
+      exclusive: true,
+      asynchronousLeaveExclusive: false,
+      incomingFlows: [],
+      outgoingFlows: [],
+      failedJobRetryTimeCycleValue: null,
+      defaultFlow: null,
+      isForCompensation: false,
+      forCompensation: false,
+      loopCharacteristics: null,
+      dataInputAssociations: [],
+      dataOutputAssociations: [],
+      mapExceptions: [],
+      boundaryEvents: [],
+      fieldExtensions: [],
+      calledElement: null,
+      calledElementType: null,
+      calledElementBinding: null,
+      businessKey: null,
+      inheritBusinessKey: false,
+      inheritVariables: false,
+      sameDeployment: true,
+      fallbackToDefaultTenant: null,
+      processInstanceName: null,
+      processInstanceIdVariableName: null,
+      completeAsync: false,
+      useLocalScopeForOutParameters: false,
+      inParameters: [],
+      outParameters: [],
+    };
+    process.flowElements = [...(process.flowElements ?? []), callActivity];
+    process.flowElementMap = {
+      ...(process.flowElementMap ?? {}),
+      childCall: callActivity,
+    };
+    state().setDocument(document);
+
+    const inParameter = createEmptyIOParameter();
+    inParameter.source = 'parentVar';
+    inParameter.target = 'childVar';
+    state().execute(
+      updateElementPropertiesCommand(
+        'childCall',
+        {
+          calledElement: 'childProcess',
+          inParameters: [inParameter],
+          outParameters: [],
+        },
+        'Edit call activity',
+      ),
+    );
+    expect(flowElement('childCall')).toMatchObject({
+      calledElement: 'childProcess',
+      inParameters: [{ source: 'parentVar', target: 'childVar' }],
+    });
+  });
+
+  it('manages document signal/message definitions and event refs', () => {
+    state().execute(updateModelSignalsCommand([createEmptySignal('escalationSignal')]));
+    expect(state().document.model.signals).toEqual([
+      expect.objectContaining({ id: 'escalationSignal', name: 'escalationSignal' }),
+    ]);
+
+    state().execute(updateModelMessagesCommand([createEmptyMessage('startMessage')]));
+    expect(state().document.model.messages).toEqual([
+      expect.objectContaining({ id: 'startMessage', name: 'startMessage' }),
+    ]);
+
+    state().execute(
+      updateEventDefinitionRefCommand('start', 'messageEventDefinition', 'startMessage'),
+    );
+    const start = flowElement('start');
+    if (start.elementType !== 'startEvent') throw new Error('expected start event');
+    expect(start.eventDefinitions).toEqual([
+      expect.objectContaining({
+        eventDefinitionType: 'messageEventDefinition',
+        messageRef: 'startMessage',
+      }),
+    ]);
+
+    state().undo();
+    expect(flowElement('start')).toMatchObject({ eventDefinitions: [] });
   });
 });

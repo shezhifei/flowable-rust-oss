@@ -72,6 +72,27 @@ describe('properties panel element groups', () => {
     expect(html).not.toContain('data-property="asynchronous"');
   });
 
+  it('renders multi-instance and listener groups for a user task', () => {
+    const html = renderPanel(['review']);
+    expect(html).toContain('data-property-group="multi-instance"');
+    expect(html).toContain('data-property="multiInstanceEnabled"');
+    expect(html).toContain('data-property-group="task-listeners"');
+    expect(html).toContain('data-property-group="execution-listeners"');
+  });
+
+  it('renders field injection for a service task', () => {
+    const html = renderPanel(['notify']);
+    expect(html).toContain('data-property-group="field-injection"');
+  });
+
+  it('renders global signal and message definition editors for the process', () => {
+    const html = renderPanel();
+    expect(html).toContain('data-property-group="signals"');
+    expect(html).toContain('data-property-group="messages"');
+    expect(html).toContain('+ Add signal');
+    expect(html).toContain('+ Add message');
+  });
+
   it('reflects the document it is given for the selected element', () => {
     const document = structuredClone(sampleDocument);
     const review = document.model.processes[0]?.flowElements?.find(

@@ -1464,6 +1464,21 @@ textarea.property-input {
     #efece3 8px
   );
 }
+
+/* Advanced property list editors (listeners, fields, parameters, definitions) */
+
+.advanced-row {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #f6f4ed;
+  border: 1px solid #e6e2d7;
+  border-radius: 3px;
+}
+.advanced-row .quiet-action {
+  justify-self: start;
+}
 .model-kind-badge {
   display: inline-block;
   padding: 3px 8px;
