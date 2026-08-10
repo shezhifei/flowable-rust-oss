@@ -1,3 +1,4 @@
+use crate::config::DatabaseKind;
 use crate::entity::{Entity, EntityType};
 use crate::entity_cache::EntityCache;
 use crate::error::PersistenceError;
@@ -37,6 +38,16 @@ enum PendingOperation {
         entity_type: EntityType,
         operations: Vec<(StatementId, DbParams)>,
     },
+}
+
+/// Metadata for one table column, as reported by the backend's catalog:
+/// `PRAGMA table_info` on SQLite, `information_schema.columns` elsewhere.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnInfo {
+    pub name: String,
+    pub data_type: String,
+    pub nullable: bool,
+    pub primary_key: bool,
 }
 
 pub struct DbSession {
@@ -398,6 +409,72 @@ impl DbSession {
 
     pub fn dialect(&self) -> &dyn crate::dialect::SqlDialect {
         self.catalog.dialect()
+    }
+
+    /// Column metadata for `table`, dispatched by backend: SQLite via
+    /// `PRAGMA table_info`, Postgres/MySQL via `information_schema.columns`.
+    /// The in-memory backend answers raw queries with empty results, matching
+    /// how it already treats the `PRAGMA` callers this replaces.
+    pub fn table_columns(&mut self, table: &str) -> Result<Vec<ColumnInfo>, PersistenceError> {
+        match self.dialect().database_kind() {
+            DatabaseKind::Memory | DatabaseKind::Sqlite => {
+                let rows = self.select_raw(RenderedStatement::new(
+                    format!("PRAGMA table_info({table})"),
+                    DbParams::new(),
+                ))?;
+                Ok(rows
+                    .iter()
+                    .map(|row| ColumnInfo {
+                        name: row.get_text("name").unwrap_or_default(),
+                        data_type: row.get_text("type").unwrap_or_default(),
+                        nullable: row.get_integer("notnull").unwrap_or(0) == 0,
+                        primary_key: row.get_integer("pk").unwrap_or(0) != 0,
+                    })
+                    .collect())
+            }
+            DatabaseKind::Postgres => self.information_schema_columns(table, "current_schema()"),
+            DatabaseKind::Mysql => self.information_schema_columns(table, "DATABASE()"),
+        }
+    }
+
+    fn information_schema_columns(
+        &mut self,
+        table: &str,
+        schema_expr: &str,
+    ) -> Result<Vec<ColumnInfo>, PersistenceError> {
+        let placeholder = self.dialect().placeholder(0);
+        let sql = format!(
+            "SELECT c.column_name, c.data_type, c.is_nullable, \
+             EXISTS ( \
+                 SELECT 1 FROM information_schema.table_constraints tc \
+                 JOIN information_schema.key_column_usage kcu \
+                   ON tc.constraint_name = kcu.constraint_name \
+                  AND tc.table_schema = kcu.table_schema \
+                  AND tc.table_name = kcu.table_name \
+                 WHERE tc.constraint_type = 'PRIMARY KEY' \
+                   AND tc.table_schema = {schema_expr} \
+                   AND tc.table_name = c.table_name \
+                   AND kcu.column_name = c.column_name \
+             ) AS is_primary_key \
+             FROM information_schema.columns c \
+             WHERE c.table_schema = {schema_expr} AND c.table_name = {placeholder} \
+             ORDER BY c.ordinal_position"
+        );
+        let mut params = DbParams::new();
+        params.push(table);
+        let rows = self.select_raw(RenderedStatement::new(sql, params))?;
+        Ok(rows
+            .iter()
+            .map(|row| ColumnInfo {
+                name: row.get_text("column_name").unwrap_or_default(),
+                data_type: row.get_text("data_type").unwrap_or_default(),
+                nullable: row.get_text("is_nullable").as_deref() == Some("YES"),
+                // Postgres reports EXISTS as bool, MySQL as 1/0.
+                primary_key: row
+                    .get_boolean("is_primary_key")
+                    .unwrap_or_else(|| row.get_integer("is_primary_key").unwrap_or(0) != 0),
+            })
+            .collect())
     }
 
     pub fn json_insert(

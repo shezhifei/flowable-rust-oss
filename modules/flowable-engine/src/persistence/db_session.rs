@@ -2,7 +2,7 @@ use crate::persistence::storage_error::StorageError;
 pub use flowable_persistence::DbRow;
 use flowable_persistence::statement::RenderedStatement;
 pub use flowable_persistence::value::{DbParams, DbValue};
-use flowable_persistence::{DbSession as InnerDbSession, SqlDialect};
+use flowable_persistence::{ColumnInfo, DbSession as InnerDbSession, SqlDialect};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -1093,6 +1093,13 @@ impl DbSession {
             .inner
             .select_raw(RenderedStatement::new(translated, params))?;
         Ok(rows)
+    }
+
+    /// Column metadata for `table`, dispatched by backend; see
+    /// `flowable_persistence::DbSession::table_columns`.
+    pub fn table_columns(&mut self, table: &str) -> Result<Vec<ColumnInfo>, StorageError> {
+        self.ensure_open()?;
+        Ok(self.inner.table_columns(table)?)
     }
 
     pub fn raw_query_one(

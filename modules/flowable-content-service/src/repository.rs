@@ -9,79 +9,106 @@ const CONTENT_ITEM_DATA_TABLE: &str = "m14_content_item_data";
 pub fn ensure_schema(store: &RuntimeStore) {
     let mut session = store.db_store().create_session().unwrap();
 
+    let id = session.dialect().varchar_type(255);
+    let short = session.dialect().varchar_type(255);
+    let text = session.dialect().text_type();
+    let blob = session.dialect().blob_type();
+    let big = session.dialect().bigint_type();
+
     // execute_raw_sql 只能处理单条语句，逐条执行 DDL
     session
         .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {CONTENT_ITEMS_TABLE} (id TEXT PRIMARY KEY, data TEXT NOT NULL, name TEXT NOT NULL, mime_type TEXT, task_id TEXT, process_instance_id TEXT, scope_type TEXT, scope_id TEXT, field TEXT, tenant_id TEXT, created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, expires_at INTEGER)"
+            "CREATE TABLE IF NOT EXISTS {CONTENT_ITEMS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, name {short} NOT NULL, mime_type {short}, task_id {short}, process_instance_id {short}, scope_type {short}, scope_id {short}, field {short}, tenant_id {short}, created_by {short}, created_at {big} NOT NULL, updated_at {big} NOT NULL, expires_at {big})"
         ))
         .unwrap();
     session
         .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {CONTENT_ITEM_DATA_TABLE} (content_item_id TEXT PRIMARY KEY, payload BLOB NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS {CONTENT_ITEM_DATA_TABLE} (content_item_id {id} PRIMARY KEY, payload {blob} NOT NULL)"
         ))
         .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_name ON {CONTENT_ITEMS_TABLE} (name)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_mime_type ON {CONTENT_ITEMS_TABLE} (mime_type)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_task_id ON {CONTENT_ITEMS_TABLE} (task_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_process_instance_id ON {CONTENT_ITEMS_TABLE} (process_instance_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_scope ON {CONTENT_ITEMS_TABLE} (scope_type, scope_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_created_by ON {CONTENT_ITEMS_TABLE} (created_by)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_created_at ON {CONTENT_ITEMS_TABLE} (created_at)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_expires_at ON {CONTENT_ITEMS_TABLE} (expires_at)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_field ON {CONTENT_ITEMS_TABLE} (field)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_content_items_tenant_id ON {CONTENT_ITEMS_TABLE} (tenant_id)"
-        ))
-        .unwrap();
+
+    create_index(&mut session, "idx_content_items_name", CONTENT_ITEMS_TABLE, "name");
+    create_index(
+        &mut session,
+        "idx_content_items_mime_type",
+        CONTENT_ITEMS_TABLE,
+        "mime_type",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_task_id",
+        CONTENT_ITEMS_TABLE,
+        "task_id",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_process_instance_id",
+        CONTENT_ITEMS_TABLE,
+        "process_instance_id",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_scope",
+        CONTENT_ITEMS_TABLE,
+        "scope_type, scope_id",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_created_by",
+        CONTENT_ITEMS_TABLE,
+        "created_by",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_created_at",
+        CONTENT_ITEMS_TABLE,
+        "created_at",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_expires_at",
+        CONTENT_ITEMS_TABLE,
+        "expires_at",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_field",
+        CONTENT_ITEMS_TABLE,
+        "field",
+    );
+    create_index(
+        &mut session,
+        "idx_content_items_tenant_id",
+        CONTENT_ITEMS_TABLE,
+        "tenant_id",
+    );
 
     migrate_content_item_columns(&mut session);
 
     session.flush_and_commit().unwrap();
 }
 
+/// MySQL 8.0 没有 CREATE INDEX IF NOT EXISTS，重复索引按成功处理（对齐 engine db_store.rs）。
+fn create_index(session: &mut DbSession, name: &str, table: &str, columns: &str) {
+    let sql = session.dialect().create_index_if_not_exists(name, table, columns);
+    if let Err(error) = session.execute_raw_sql(&sql) {
+        let message = error.to_string();
+        if message.contains("1061")
+            || message.contains("Duplicate key name")
+            || message.contains("already exists")
+        {
+            return;
+        }
+        panic!("index DDL failed: {error} | SQL: {sql}");
+    }
+}
+
 fn migrate_content_item_columns(session: &mut DbSession) {
-    let pragma_sql = format!("PRAGMA table_info({CONTENT_ITEMS_TABLE})");
-    let columns = session.raw_query(&pragma_sql, DbParams::new()).unwrap();
-    let column_names: std::collections::BTreeSet<String> = columns
-        .iter()
-        .filter_map(|row| row.get_text("name"))
+    let column_names: std::collections::BTreeSet<String> = session
+        .table_columns(CONTENT_ITEMS_TABLE)
+        .unwrap()
+        .into_iter()
+        .map(|column| column.name)
         .collect();
 
     for (column, ddl_type) in [("field", "TEXT"), ("tenant_id", "TEXT")] {

@@ -24,7 +24,7 @@ pub use adapters::sqlx_executor::{
     SqlxExecutor, SqlxExecutorFactory, dialect_for, shared_runtime,
 };
 pub use config::{DatabaseConfig, DatabaseKind, SchemaMode};
-pub use db_session::{DbSession, FilterOp};
+pub use db_session::{ColumnInfo, DbSession, FilterOp};
 pub use db_session_factory::DbSessionFactory;
 pub use dialect::{MemoryDialect, MysqlDialect, PostgresDialect, SqlDialect, SqliteDialect};
 pub use entity::app_definition::{AppDefinitionDataManager, AppDefinitionEntity};

@@ -12,122 +12,159 @@ const FORM_INSTANCES_TABLE: &str = "m40_form_instances";
 pub(crate) fn ensure_schema(store: &RuntimeStore) {
     let mut session = store.db_store().create_session().unwrap();
 
+    let id = session.dialect().varchar_type(255);
+    let short = session.dialect().varchar_type(255);
+    let text = session.dialect().text_type();
+    let int = session.dialect().integer_type();
+    let big = session.dialect().bigint_type();
+
     // execute_raw_sql 只能处理单条语句，逐条执行 DDL
     session
         .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {FORM_DEPLOYMENTS_TABLE} (id TEXT PRIMARY KEY, data TEXT NOT NULL, name TEXT NOT NULL, deployed_at INTEGER NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS {FORM_DEPLOYMENTS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, name {short} NOT NULL, deployed_at {big} NOT NULL)"
         ))
         .unwrap();
     session
         .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_deployments_name ON {FORM_DEPLOYMENTS_TABLE} (name)"
+            "CREATE TABLE IF NOT EXISTS {FORM_DEFINITIONS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, deployment_id {short} NOT NULL, form_key {short} NOT NULL, name {short} NOT NULL, version {int} NOT NULL, resource_name {short} NOT NULL, active {int} NOT NULL DEFAULT 1)"
         ))
         .unwrap();
     session
         .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_deployments_deployed_at ON {FORM_DEPLOYMENTS_TABLE} (deployed_at)"
+            "CREATE TABLE IF NOT EXISTS {FORM_INSTANCES_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, form_definition_id {short} NOT NULL, form_definition_key {short} NOT NULL, process_definition_id {short}, process_instance_id {short}, task_id {short}, scope_type {short} NOT NULL, scope_id {short} NOT NULL, scope_definition_id {short}, submitted_at {big} NOT NULL, submitted_by {short}, tenant_id {short}, form_values_id {short})"
         ))
         .unwrap();
 
-    session
-        .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {FORM_DEFINITIONS_TABLE} (id TEXT PRIMARY KEY, data TEXT NOT NULL, deployment_id TEXT NOT NULL, form_key TEXT NOT NULL, name TEXT NOT NULL, version INTEGER NOT NULL, resource_name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_definitions_key ON {FORM_DEFINITIONS_TABLE} (form_key)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_definitions_deployment_id ON {FORM_DEFINITIONS_TABLE} (deployment_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_definitions_name ON {FORM_DEFINITIONS_TABLE} (name)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_definitions_resource_name ON {FORM_DEFINITIONS_TABLE} (resource_name)"
-        ))
-        .unwrap();
-
-    session
-        .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {FORM_INSTANCES_TABLE} (id TEXT PRIMARY KEY, data TEXT NOT NULL, form_definition_id TEXT NOT NULL, form_definition_key TEXT NOT NULL, process_definition_id TEXT, process_instance_id TEXT, task_id TEXT, scope_type TEXT NOT NULL, scope_id TEXT NOT NULL, scope_definition_id TEXT, submitted_at INTEGER NOT NULL, submitted_by TEXT, tenant_id TEXT, form_values_id TEXT)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_definition_id ON {FORM_INSTANCES_TABLE} (form_definition_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_definition_key ON {FORM_INSTANCES_TABLE} (form_definition_key)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_process_definition_id ON {FORM_INSTANCES_TABLE} (process_definition_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_process_instance_id ON {FORM_INSTANCES_TABLE} (process_instance_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_task_id ON {FORM_INSTANCES_TABLE} (task_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_scope ON {FORM_INSTANCES_TABLE} (scope_type, scope_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_scope_definition_id ON {FORM_INSTANCES_TABLE} (scope_definition_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_tenant_id ON {FORM_INSTANCES_TABLE} (tenant_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_form_values_id ON {FORM_INSTANCES_TABLE} (form_values_id)"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_submitted_at ON {FORM_INSTANCES_TABLE} (submitted_at)"
-        ))
-        .unwrap();
+    create_index(
+        &mut session,
+        "idx_form_deployments_name",
+        FORM_DEPLOYMENTS_TABLE,
+        "name",
+    );
+    create_index(
+        &mut session,
+        "idx_form_deployments_deployed_at",
+        FORM_DEPLOYMENTS_TABLE,
+        "deployed_at",
+    );
+    create_index(
+        &mut session,
+        "idx_form_definitions_key",
+        FORM_DEFINITIONS_TABLE,
+        "form_key",
+    );
+    create_index(
+        &mut session,
+        "idx_form_definitions_deployment_id",
+        FORM_DEFINITIONS_TABLE,
+        "deployment_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_definitions_name",
+        FORM_DEFINITIONS_TABLE,
+        "name",
+    );
+    create_index(
+        &mut session,
+        "idx_form_definitions_resource_name",
+        FORM_DEFINITIONS_TABLE,
+        "resource_name",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_definition_id",
+        FORM_INSTANCES_TABLE,
+        "form_definition_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_definition_key",
+        FORM_INSTANCES_TABLE,
+        "form_definition_key",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_process_definition_id",
+        FORM_INSTANCES_TABLE,
+        "process_definition_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_process_instance_id",
+        FORM_INSTANCES_TABLE,
+        "process_instance_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_task_id",
+        FORM_INSTANCES_TABLE,
+        "task_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_scope",
+        FORM_INSTANCES_TABLE,
+        "scope_type, scope_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_scope_definition_id",
+        FORM_INSTANCES_TABLE,
+        "scope_definition_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_tenant_id",
+        FORM_INSTANCES_TABLE,
+        "tenant_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_form_values_id",
+        FORM_INSTANCES_TABLE,
+        "form_values_id",
+    );
+    create_index(
+        &mut session,
+        "idx_form_instances_submitted_at",
+        FORM_INSTANCES_TABLE,
+        "submitted_at",
+    );
 
     migrate_form_instance_columns(&mut session);
 
-    session
-        .execute_raw_sql(&format!(
-            "CREATE INDEX IF NOT EXISTS idx_form_instances_submitted_by ON {FORM_INSTANCES_TABLE} (submitted_by)"
-        ))
-        .unwrap();
+    create_index(
+        &mut session,
+        "idx_form_instances_submitted_by",
+        FORM_INSTANCES_TABLE,
+        "submitted_by",
+    );
 
     session.flush_and_commit().unwrap();
 }
 
+/// MySQL 8.0 没有 CREATE INDEX IF NOT EXISTS，重复索引按成功处理（对齐 engine db_store.rs）。
+fn create_index(session: &mut DbSession, name: &str, table: &str, columns: &str) {
+    let sql = session.dialect().create_index_if_not_exists(name, table, columns);
+    if let Err(error) = session.execute_raw_sql(&sql) {
+        let message = error.to_string();
+        if message.contains("1061")
+            || message.contains("Duplicate key name")
+            || message.contains("already exists")
+        {
+            return;
+        }
+        panic!("index DDL failed: {error} | SQL: {sql}");
+    }
+}
+
 fn migrate_form_instance_columns(session: &mut DbSession) {
-    let pragma_sql = format!("PRAGMA table_info({FORM_INSTANCES_TABLE})");
-    let columns = session.raw_query(&pragma_sql, DbParams::new()).unwrap();
-    let column_names: std::collections::BTreeSet<String> = columns
-        .iter()
-        .filter_map(|row| row.get_text("name"))
+    let column_names: std::collections::BTreeSet<String> = session
+        .table_columns(FORM_INSTANCES_TABLE)
+        .unwrap()
+        .into_iter()
+        .map(|column| column.name)
         .collect();
 
     for (column, ddl_type) in [

@@ -8,26 +8,24 @@
 //! panicked in bootstrap, and a server built off-runtime panicked on first use.
 //!
 //! That bridge is fixed, and the UI surface now serves over Postgres — see
-//! `flowable-ui-rest`'s `ui_postgres_smoke_test`. The *whole* server does not yet,
-//! which is why the case below is `#[ignore]`d rather than deleted: it is one
-//! `cargo test` away from being the check that `flowable-rest` runs on Postgres,
-//! and it names what is still in the way.
+//! `flowable-ui-rest`'s `ui_postgres_smoke_test`.
 //!
-//! What is in the way is unrelated to the bridge and predates it:
-//! `run_server_with_components` constructs `FlowableFormService`, whose
-//! constructor calls `repository::ensure_schema` unconditionally, and that issues
-//! `PRAGMA table_info(...)` — SQLite-only syntax — then `unwrap()`s the result
-//! (`flowable-form-service/src/repository.rs:127`). Postgres rejects it and the
-//! server dies during construction, before it can serve anything. `PRAGMA` also
-//! appears in the content service, the engine's schema and historical-migration
-//! code, and the management route, so making the engine API portable is a
-//! cross-crate job rather than a one-line fix.
+//! One further blocker predated the bridge: `run_server_with_components`
+//! constructs `FlowableFormService`, whose constructor calls
+//! `repository::ensure_schema` unconditionally, and that issued
+//! `PRAGMA table_info(...)` — SQLite-only syntax — then `unwrap()`ed the
+//! result. Postgres rejected it and the server died during construction,
+//! before it could serve anything. `PRAGMA` also appeared in the content
+//! service, the engine's schema and historical-migration code, and the
+//! management route. Column-metadata lookups now go through
+//! `flowable_persistence::DbSession::table_columns`, which dispatches per
+//! backend (`PRAGMA table_info` on SQLite, `information_schema.columns` on
+//! Postgres/MySQL), so the whole server boots on Postgres.
 //!
 //! Skips when Postgres is unreachable, so a default `cargo test` still passes.
 //!
 //! ```powershell
-//! cargo test -p flowable-rest --features postgres --test postgres_server_boot_test \
-//!     -- --ignored
+//! cargo test -p flowable-rest --features postgres --test postgres_server_boot_test
 //! ```
 
 #![cfg(feature = "postgres")]
@@ -57,10 +55,11 @@ fn postgres_config() -> ProcessEngineConfiguration {
 
 /// The engine is built *inside* the runtime here, exactly as `main` does under
 /// `#[tokio::main]`, then served and queried over HTTP. Every step used to panic
-/// in the runtime bridge; that part now works, and what remains is the
-/// form-service `PRAGMA` described above.
-#[ignore = "blocked on SQLite-only PRAGMA in flowable-form-service ensure_schema; \
-            see this file's header"]
+/// in the runtime bridge; that part now works, and the form-service `PRAGMA`
+/// described above is now dispatched per backend instead.
+///
+/// Skips (passes) when Postgres is unreachable, so a default `cargo test` run
+/// without a live instance still succeeds.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_server_boots_and_serves_a_request_against_postgres() {
     let engine = match ProcessEngine::build_with_config(

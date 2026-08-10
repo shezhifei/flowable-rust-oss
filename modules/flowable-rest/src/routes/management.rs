@@ -2377,24 +2377,18 @@ fn table_columns(
     let mut session = runtime_store
         .create_session()
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
-    let sql = format!("PRAGMA table_info({table_name})");
-    let rows = session
-        .raw_query(&sql, DbParams::new())
+    let columns = session
+        .table_columns(table_name)
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
-    let mut columns = Vec::new();
-    for row in rows {
-        let name = row.get_text("name").unwrap_or_default();
-        let column_type = row.get_text("type").unwrap_or_default();
-        let not_null = row.get_integer("notnull").unwrap_or(0);
-        let primary_key = row.get_integer("pk").unwrap_or(0);
-        columns.push(TableColumnResponse {
-            name,
-            column_type,
-            nullable: not_null == 0,
-            primary_key: primary_key != 0,
-        });
-    }
-    Ok(columns)
+    Ok(columns
+        .into_iter()
+        .map(|column| TableColumnResponse {
+            name: column.name,
+            column_type: column.data_type,
+            nullable: column.nullable,
+            primary_key: column.primary_key,
+        })
+        .collect())
 }
 
 fn db_value_to_json(v: &DbValue) -> Value {

@@ -25,35 +25,14 @@ fn legacy_column_exists(
     table: &str,
     column: &str,
 ) -> Result<bool, StorageError> {
-    let rows = match session.dialect().database_kind() {
-        DatabaseKind::Memory => return Ok(true),
-        DatabaseKind::Sqlite => {
-            session.raw_query(&format!("PRAGMA table_info({table})"), DbParams::new())?
-        }
-        DatabaseKind::Postgres => {
-            let mut params = DbParams::new();
-            params.push(table);
-            params.push(column);
-            session.raw_query(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?",
-                params,
-            )?
-        }
-        DatabaseKind::Mysql => {
-            let mut params = DbParams::new();
-            params.push(table);
-            params.push(column);
-            session.raw_query(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?",
-                params,
-            )?
-        }
-    };
-
-    Ok(rows.iter().any(|row| {
-        row.get_text("name").as_deref() == Some(column)
-            || row.get_text("column_name").as_deref() == Some(column)
-    }))
+    // The in-memory backend keeps no catalog; legacy columns are assumed present.
+    if matches!(session.dialect().database_kind(), DatabaseKind::Memory) {
+        return Ok(true);
+    }
+    Ok(session
+        .table_columns(table)?
+        .iter()
+        .any(|info| info.name == column))
 }
 
 /// Test-only re-export of the bootstrap migration used when a legacy
