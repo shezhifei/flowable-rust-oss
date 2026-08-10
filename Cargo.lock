@@ -1017,6 +1017,7 @@ dependencies = [
  "flowable-bpmn-converter",
  "flowable-bpmn-layout",
  "flowable-dmn-converter",
+ "flowable-dmn-engine",
  "flowable-form-service",
  "flowable-image-generator",
  "flowable-modeler-protocol",

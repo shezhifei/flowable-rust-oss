@@ -4,6 +4,7 @@
 use flowable_bpmn_converter::{BpmnXMLConverter, write_bpmn_model};
 use flowable_bpmn_layout::ensure_layout;
 use flowable_dmn_converter::{parse_dmn_definition, write_dmn_definition};
+use flowable_dmn_engine::validate_editor_definition;
 use flowable_form_service::FormFieldModel;
 use flowable_image_generator::{generate_process_diagram_svg, svg_to_png_bytes};
 use flowable_modeler_protocol::{
@@ -124,7 +125,9 @@ pub fn encode_dmn_xml(document: &DmnEditorDocument) -> Result<String, ModelerSer
 }
 
 pub fn validate_dmn(document: &DmnEditorDocument) -> ValidationResult {
-    encode_dmn_xml(document)
+    require_v1(document.schema_version)
+        .and_then(|_| validate_editor_definition(&document.model).map_err(error))
+        .and_then(|_| encode_dmn_xml(document).map(|_| ()))
         .map(|_| ValidationResult::valid())
         .unwrap_or_else(|e| ValidationResult::invalid(e.to_string()))
 }

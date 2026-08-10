@@ -91,20 +91,7 @@ impl DmnRepositoryService {
     }
 
     pub fn deploy(&self, mut request: DmnDeploymentRequest) -> Result<DmnDeployment, DmnError> {
-        // P82c: COLLECT+aggregation structural checks (multi-output, typeRef=number)
-        // must run before output typeRef coercion so Java-aligned messages surface
-        // instead of generic "incompatible value" from coerce_deployment_output_value.
-        // Value-level numeric checks stay in validate_collect_operator after coercion
-        // so string numbers (e.g. "1.5") can still be normalized to JSON numbers.
-        // Java RuleEngineExecutorImpl.java:323-331 (runtime); Rust deploy-time.
-        for resource in &request.resources {
-            for decision in &resource.model.decisions {
-                validate_collect_operator_structure(decision)?;
-            }
-        }
-        normalize_input_type_refs(&mut request)?;
-        normalize_output_type_refs(&mut request)?;
-        validate_deployment_request(&request)?;
+        validate_and_normalize_deployment_request(&mut request)?;
 
         let deployment_id = format!("dmn-deployment:{}", Uuid::new_v4());
         let deployed_at = Utc::now();
@@ -543,6 +530,29 @@ impl DmnRepositoryService {
             decision_key
         )))
     }
+}
+
+/// Run every side-effect-free deployment gate and normalize the owned request
+/// exactly as [`DmnRepositoryService::deploy`] does before persistence begins.
+/// Kept crate-visible so the editor boundary can validate canonical models
+/// without creating an in-memory database or writing deployment state.
+pub(crate) fn validate_and_normalize_deployment_request(
+    request: &mut DmnDeploymentRequest,
+) -> Result<(), DmnError> {
+    // P82c: COLLECT+aggregation structural checks (multi-output, typeRef=number)
+    // must run before output typeRef coercion so Java-aligned messages surface
+    // instead of generic "incompatible value" from coerce_deployment_output_value.
+    // Value-level numeric checks stay in validate_collect_operator after coercion
+    // so string numbers (e.g. "1.5") can still be normalized to JSON numbers.
+    // Java RuleEngineExecutorImpl.java:323-331 (runtime); Rust deploy-time.
+    for resource in &request.resources {
+        for decision in &resource.model.decisions {
+            validate_collect_operator_structure(decision)?;
+        }
+    }
+    normalize_input_type_refs(request)?;
+    normalize_output_type_refs(request)?;
+    validate_deployment_request(request)
 }
 
 fn normalize_input_type_refs(request: &mut DmnDeploymentRequest) -> Result<(), DmnError> {

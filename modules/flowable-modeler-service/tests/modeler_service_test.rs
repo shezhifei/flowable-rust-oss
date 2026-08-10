@@ -11,6 +11,8 @@ use serde_json::json;
 
 const BPMN: &str = r#"<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="https://flowable.org/test"><process id="leave" isExecutable="true"><startEvent id="start"/><userTask id="review"/><endEvent id="end"/><sequenceFlow id="f1" sourceRef="start" targetRef="review"/><sequenceFlow id="f2" sourceRef="review" targetRef="end"/></process></definitions>"#;
 const DMN: &str = r#"<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="definitions" name="Eligibility" namespace="https://flowable.org/test"><decision id="decision" name="Eligibility"><decisionTable id="table" hitPolicy="FIRST"><input id="input"><inputExpression id="expression" typeRef="integer"><text>age</text></inputExpression></input><output id="output" name="result" typeRef="string"/><rule id="adult"><inputEntry id="adult-input"><text>&gt;= 18</text></inputEntry><outputEntry id="adult-output"><text>"adult"</text></outputEntry></rule></decisionTable></decision></definitions>"#;
+const DMN_UNSUPPORTED_UNARY: &str = r#"<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="definitions" name="Invalid unary" namespace="https://flowable.org/test"><decision id="decision" name="Invalid unary"><decisionTable id="table" hitPolicy="FIRST"><input id="input"><inputExpression id="expression" typeRef="string"><text>value</text></inputExpression></input><output id="output" name="result" typeRef="string"/><rule id="rule"><inputEntry id="rule-input"><text>starts with("missing-placeholder")</text></inputEntry><outputEntry id="rule-output"><text>"invalid"</text></outputEntry></rule></decisionTable></decision></definitions>"#;
+const DMN_INVALID_COLLECT_TYPE: &str = r#"<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="definitions" name="Invalid collect" namespace="https://flowable.org/test"><decision id="decision" name="Invalid collect"><decisionTable id="table" hitPolicy="COLLECT" aggregation="COUNT"><input id="input"><inputExpression id="expression" typeRef="integer"><text>age</text></inputExpression></input><output id="output" name="result" typeRef="string"/><rule id="rule"><inputEntry id="rule-input"><text>-</text></inputEntry><outputEntry id="rule-output"><text>"one"</text></outputEntry></rule></decisionTable></decision></definitions>"#;
 
 #[test]
 fn bpmn_boundary_produces_valid_xml_layout_and_png() {
@@ -36,6 +38,36 @@ fn dmn_boundary_roundtrips_editor_json_and_xml() {
             .unwrap()
             .model,
         document.model
+    );
+}
+
+#[test]
+fn dmn_validation_rejects_unsupported_unary_tests_before_persistence() {
+    let document = decode_dmn_xml(DMN_UNSUPPORTED_UNARY).unwrap();
+
+    let result = validate_dmn(&document);
+
+    assert!(!result.valid);
+    assert_eq!(result.errors.len(), 1);
+    assert_eq!(
+        result.errors[0].message,
+        "Unsupported DMN unary test: unsupported string function unary test \
+         'starts with(\"missing-placeholder\")'; only contains(?, \"literal\"), starts with(?, \
+         \"literal\"), ends with(?, \"literal\"), and matches(?, \"regex\") are supported"
+    );
+}
+
+#[test]
+fn dmn_validation_rejects_collect_output_type_mismatches() {
+    let document = decode_dmn_xml(DMN_INVALID_COLLECT_TYPE).unwrap();
+
+    let result = validate_dmn(&document);
+
+    assert!(!result.valid);
+    assert_eq!(result.errors.len(), 1);
+    assert_eq!(
+        result.errors[0].message,
+        "HitPolicy: COLLECT has aggregation: Count needs output type number"
     );
 }
 
