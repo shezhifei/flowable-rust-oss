@@ -25,3 +25,4 @@ GroundTruth_*.json
 data/ui-admin-server-configs.json
 modules/flowable-ui-rest/data/
 ./data/
+**/data/ui-admin-server-configs.json
