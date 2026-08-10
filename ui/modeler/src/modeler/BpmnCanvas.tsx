@@ -1,4 +1,10 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react';
+import {
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent,
+} from 'react';
 
 import type {
   ArtifactEnum,
@@ -9,10 +15,25 @@ import type {
   MessageFlow,
 } from '../generated/editor-protocol';
 import { BpmnElement } from './BpmnElement';
-import { moveElementCommand } from './commands';
+import {
+  BPMN_PALETTE_MIME,
+  createAtPointCommand,
+  moveAndReparentElementsCommand,
+  nextPaletteElementId,
+} from './creationCommands';
 import { documentArtifacts, documentElements } from './diagramModel';
-import { marqueeElementIds, normalizeRect, type Point, type Rect } from './geometry';
+import type { CanonicalPaletteElementKind } from './elementFactory';
+import {
+  alignmentGuideCandidates,
+  marqueeElementIds,
+  normalizeRect,
+  snapPointToGrid,
+  type AlignmentGuideCandidate,
+  type Point,
+  type Rect,
+} from './geometry';
 import { useModelerStore, type EditorTool } from './modelerStore';
+import { resizeElementCommand } from './transformCommands';
 
 const CANVAS_WIDTH = 1400;
 const CANVAS_HEIGHT = 620;
@@ -34,6 +55,19 @@ interface ViewportTransform {
 interface MarqueeDrag {
   clientStart: Point;
   modelStart: Point;
+}
+
+interface ElementDrag {
+  clientStart: Point;
+  elementIds: string[];
+  primaryId: string;
+}
+
+interface ResizeDrag {
+  clientStart: Point;
+  elementId: string;
+  height: number;
+  width: number;
 }
 
 interface CanvasRenderState {
@@ -64,10 +98,17 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
   const execute = useModelerStore((state) => state.execute);
   const panOrigin = useRef<Point | null>(null);
   const marqueeDrag = useRef<MarqueeDrag | null>(null);
-  const elementDrag = useRef<{ elementId: string; x: number; y: number } | null>(null);
+  const elementDrag = useRef<ElementDrag | null>(null);
+  const resizeDrag = useRef<ResizeDrag | null>(null);
   const [dragPreview, setDragPreview] = useState<{
-    elementId: string;
+    elementIds: string[];
     offset: Point;
+  } | null>(null);
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuideCandidate[]>([]);
+  const [resizePreview, setResizePreview] = useState<{
+    elementId: string;
+    height: number;
+    width: number;
   } | null>(null);
   const [marquee, setMarquee] = useState<Rect | null>(null);
 
@@ -79,6 +120,9 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
   const annotations = artifacts.filter(isTextAnnotation);
   const groups = artifacts.filter(isGroup);
   const selectedIds = new Set(selectedElementIds);
+  const resizeTargetId = [...selectedElementIds]
+    .reverse()
+    .find((elementId) => isResizableElement(document, elementId));
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (isPanGesture(tool, event.button)) {
@@ -91,7 +135,19 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
 
     const elementId = elementIdFromTarget(event.target);
     if (elementId) {
-      selectElement(elementId, isAdditiveSelection(event));
+      const additive = isAdditiveSelection(event);
+      if (additive) {
+        selectElement(elementId, true);
+        return;
+      }
+      const dragIds = selectedIds.has(elementId) ? selectedElementIds : [elementId];
+      if (!selectedIds.has(elementId)) selectElement(elementId);
+      elementDrag.current = {
+        clientStart: clientPoint(event),
+        elementIds: dragIds,
+        primaryId: elementId,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
 
@@ -108,16 +164,45 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (elementDrag.current) {
+    if (resizeDrag.current) {
       const delta = clientDeltaToModel(
         {
-          x: event.clientX - elementDrag.current.x,
-          y: event.clientY - elementDrag.current.y,
+          x: event.clientX - resizeDrag.current.clientStart.x,
+          y: event.clientY - resizeDrag.current.clientStart.y,
         },
         event.currentTarget.getBoundingClientRect(),
         viewport.zoom,
       );
-      setDragPreview({ elementId: elementDrag.current.elementId, offset: delta });
+      setResizePreview({
+        elementId: resizeDrag.current.elementId,
+        width: Math.max(10, snapPointToGrid({ x: resizeDrag.current.width + delta.x, y: 0 }).x),
+        height: Math.max(
+          10,
+          snapPointToGrid({ x: 0, y: resizeDrag.current.height + delta.y }).y,
+        ),
+      });
+      return;
+    }
+    if (elementDrag.current) {
+      const delta = snapPointToGrid(
+        clientDeltaToModel(
+          {
+            x: event.clientX - elementDrag.current.clientStart.x,
+            y: event.clientY - elementDrag.current.clientStart.y,
+          },
+          event.currentTarget.getBoundingClientRect(),
+          viewport.zoom,
+        ),
+      );
+      setDragPreview({ elementIds: elementDrag.current.elementIds, offset: delta });
+      setAlignmentGuides(
+        dragAlignmentGuides(
+          document,
+          elementDrag.current.primaryId,
+          elementDrag.current.elementIds,
+          delta,
+        ),
+      );
       return;
     }
     if (panOrigin.current) {
@@ -146,20 +231,41 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
   };
 
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (resizeDrag.current) {
+      const preview = resizePreview;
+      if (preview) {
+        execute(resizeElementCommand(preview.elementId, preview.width, preview.height));
+      }
+      resizeDrag.current = null;
+      setResizePreview(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
     if (elementDrag.current) {
-      const finalOffset = clientDeltaToModel(
-        {
-          x: event.clientX - elementDrag.current.x,
-          y: event.clientY - elementDrag.current.y,
-        },
-        event.currentTarget.getBoundingClientRect(),
-        viewport.zoom,
+      const finalOffset = snapPointToGrid(
+        clientDeltaToModel(
+          {
+            x: event.clientX - elementDrag.current.clientStart.x,
+            y: event.clientY - elementDrag.current.clientStart.y,
+          },
+          event.currentTarget.getBoundingClientRect(),
+          viewport.zoom,
+        ),
       );
       if (finalOffset.x !== 0 || finalOffset.y !== 0) {
-        execute(moveElementCommand(elementDrag.current.elementId, finalOffset.x, finalOffset.y));
+        execute(
+          moveAndReparentElementsCommand(
+            elementDrag.current.elementIds,
+            finalOffset.x,
+            finalOffset.y,
+          ),
+        );
       }
       elementDrag.current = null;
       setDragPreview(null);
+      setAlignmentGuides([]);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -201,9 +307,12 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
 
   const handlePointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
     elementDrag.current = null;
+    resizeDrag.current = null;
     panOrigin.current = null;
     marqueeDrag.current = null;
     setDragPreview(null);
+    setAlignmentGuides([]);
+    setResizePreview(null);
     setMarquee(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -214,15 +323,58 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
     if (tool !== 'pointer' || event.button !== 0) return;
     event.stopPropagation();
     const additive = isAdditiveSelection(event);
-    selectElement(elementId, additive);
-    if (additive) return;
-    elementDrag.current = { elementId, x: event.clientX, y: event.clientY };
+    if (additive) {
+      selectElement(elementId, true);
+      return;
+    }
+    const dragIds = selectedIds.has(elementId) ? selectedElementIds : [elementId];
+    if (!selectedIds.has(elementId)) selectElement(elementId);
+    elementDrag.current = {
+      clientStart: clientPoint(event),
+      elementIds: dragIds,
+      primaryId: elementId,
+    };
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
+  };
+
+  const handlePaletteDrop = (event: ReactDragEvent<SVGSVGElement>) => {
+    const kind = paletteKind(event.dataTransfer.getData(BPMN_PALETTE_MIME));
+    if (!kind) return;
+    event.preventDefault();
+    const point = clientPointToModel(
+      clientPoint(event),
+      event.currentTarget.getBoundingClientRect(),
+      viewport,
+    );
+    const elementId = nextPaletteElementId(document, kind);
+    execute(createAtPointCommand(kind, elementId, point));
+    if (useModelerStore.getState().document.model.locationMap[elementId]) {
+      selectElement(elementId);
+      useModelerStore.getState().setTool('pointer');
+    }
   };
 
   const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
     zoomBy(event.deltaY < 0 ? 1.1 : 0.9);
+  };
+
+  const handleResizeStart = (
+    elementId: string,
+    bounds: GraphicInfo,
+    event: ReactPointerEvent<SVGRectElement>,
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    resizeDrag.current = {
+      clientStart: clientPoint(event),
+      elementId,
+      height: bounds.height,
+      width: bounds.width,
+    };
+    setResizePreview({ elementId, height: bounds.height, width: bounds.width });
+    event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
   };
 
   return (
@@ -236,6 +388,10 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes(BPMN_PALETTE_MIME)) event.preventDefault();
+        }}
+        onDrop={handlePaletteDrop}
         onWheel={handleWheel}
       >
         <defs>
@@ -336,12 +492,21 @@ export function BpmnCanvas({ renderState }: BpmnCanvasProps = {}) {
                   bounds={bounds}
                   labelBounds={document.model.labelLocationMap[id]}
                   selected={selectedIds.has(id)}
-                  dragOffset={dragPreview?.elementId === id ? dragPreview.offset : undefined}
+                  dragOffset={dragPreview?.elementIds.includes(id) ? dragPreview.offset : undefined}
                   onDragStart={handleElementDragStart}
                 />
               );
             })}
           </g>
+          <AlignmentGuides guides={alignmentGuides} />
+          {resizeTargetId && document.model.locationMap[resizeTargetId] ? (
+            <ResizeOverlay
+              bounds={document.model.locationMap[resizeTargetId]}
+              elementId={resizeTargetId}
+              preview={resizePreview?.elementId === resizeTargetId ? resizePreview : undefined}
+              onResizeStart={handleResizeStart}
+            />
+          ) : null}
           {marquee ? <MarqueeRect rect={marquee} /> : null}
         </g>
       </svg>
@@ -602,6 +767,79 @@ function MarqueeRect({ rect }: { rect: Rect }) {
   );
 }
 
+function AlignmentGuides({ guides }: { guides: AlignmentGuideCandidate[] }) {
+  const xGuide = guides.find((guide) => guide.axis === 'x');
+  const yGuide = guides.find((guide) => guide.axis === 'y');
+  if (!xGuide && !yGuide) return null;
+  return (
+    <g className="alignment-guides" aria-hidden="true">
+      {xGuide ? <line x1={xGuide.value} y1={-10000} x2={xGuide.value} y2={10000} /> : null}
+      {yGuide ? <line x1={-10000} y1={yGuide.value} x2={10000} y2={yGuide.value} /> : null}
+    </g>
+  );
+}
+
+function ResizeOverlay({
+  bounds,
+  elementId,
+  onResizeStart,
+  preview,
+}: {
+  bounds: GraphicInfo;
+  elementId: string;
+  onResizeStart: (
+    elementId: string,
+    bounds: GraphicInfo,
+    event: ReactPointerEvent<SVGRectElement>,
+  ) => void;
+  preview?: { height: number; width: number };
+}) {
+  const width = preview?.width ?? bounds.width;
+  const height = preview?.height ?? bounds.height;
+  return (
+    <g className="resize-overlay" data-resize-element-id={elementId}>
+      <rect className="resize-outline" x={bounds.x} y={bounds.y} width={width} height={height} />
+      <rect
+        className="resize-handle"
+        x={bounds.x + width - 6}
+        y={bounds.y + height - 6}
+        width={12}
+        height={12}
+        rx={2}
+        role="button"
+        aria-label={`Resize ${elementId}`}
+        onPointerDown={(event) => onResizeStart(elementId, bounds, event)}
+      />
+    </g>
+  );
+}
+
+function dragAlignmentGuides(
+  document: BpmnEditorDocument,
+  primaryId: string,
+  movingIds: readonly string[],
+  offset: Point,
+) {
+  const primary = document.model.locationMap[primaryId];
+  if (!primary) return [];
+  const excluded = new Set(movingIds);
+  const candidates = Object.fromEntries(
+    Object.entries(document.model.locationMap)
+      .filter(([id]) => !excluded.has(id))
+      .map(([id, bounds]) => [id, rectOf(bounds)]),
+  );
+  return alignmentGuideCandidates(
+    {
+      x: primary.x + offset.x,
+      y: primary.y + offset.y,
+      width: primary.width,
+      height: primary.height,
+    },
+    candidates,
+    5,
+  );
+}
+
 function clientPointToModel(
   client: Point,
   canvas: CanvasClientBounds,
@@ -685,6 +923,45 @@ function rectOf(bounds: GraphicInfo): Rect {
 
 function nonZeroDimension(value: number): number {
   return value > 0 ? value : 1;
+}
+
+const paletteKinds = new Set<CanonicalPaletteElementKind>([
+  'start',
+  'end',
+  'userTask',
+  'exclusiveGateway',
+  'subprocess',
+  'boundaryTimer',
+  'data',
+]);
+
+function paletteKind(value: string): CanonicalPaletteElementKind | null {
+  return paletteKinds.has(value as CanonicalPaletteElementKind)
+    ? (value as CanonicalPaletteElementKind)
+    : null;
+}
+
+const resizableFlowTypes = new Set<FlowElementEnum['elementType']>([
+  'subProcess',
+  'transaction',
+  'eventSubProcess',
+  'adhocSubProcess',
+]);
+
+function isResizableElement(document: BpmnEditorDocument, elementId: string): boolean {
+  const flowElement = documentElements(document).find((element) => element.id === elementId);
+  if (flowElement && resizableFlowTypes.has(flowElement.elementType)) return true;
+  if (document.model.pools.some((pool) => pool.id === elementId)) return true;
+  if (
+    document.model.processes.some((process) =>
+      process.lanes?.some((lane) => lane.id === elementId),
+    )
+  ) {
+    return true;
+  }
+  return documentArtifacts(document).some(
+    (artifact) => artifact.id === elementId && artifact.artifactType === 'group',
+  );
 }
 
 // These pure functions remain colocated with their sole event consumer because the C2

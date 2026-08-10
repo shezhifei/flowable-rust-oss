@@ -3,21 +3,20 @@ import { useParams } from 'react-router-dom';
 
 import type { FlowElementEnum } from '../generated/editor-protocol';
 import { BpmnCanvas } from './BpmnCanvas';
-import { createElementCommand, deleteElementsCommand } from './commands';
+import { deleteElementsCommand } from './commands';
+import { BPMN_PALETTE_MIME, createAtPointCommand, nextPaletteElementId } from './creationCommands';
 import { documentElements } from './diagramModel';
-import {
-  createPaletteElement,
-  defaultElementSize,
-  type PaletteElementKind,
-} from './elementFactory';
+import type { CanonicalPaletteElementKind } from './elementFactory';
 import { useModelerStore } from './modelerStore';
 import { loadBpmnDocument, saveBpmnDocument } from './modelerApi';
 
 const palette = [
-  ['Event', '○', 'event'],
-  ['Task', '▢', 'task'],
-  ['Gateway', '◇', 'gateway'],
+  ['Start', '○', 'start'],
+  ['End', '◉', 'end'],
+  ['User task', '▢', 'userTask'],
+  ['Gateway', '◇', 'exclusiveGateway'],
   ['Subprocess', '▣', 'subprocess'],
+  ['Timer boundary', '◷', 'boundaryTimer'],
   ['Data', '⌑', 'data'],
 ] as const;
 
@@ -38,6 +37,8 @@ export function ModelerWorkspace() {
   const execute = useModelerStore((state) => state.execute);
   const selectElement = useModelerStore((state) => state.selectElement);
   const setDocument = useModelerStore((state) => state.setDocument);
+  const copySelection = useModelerStore((state) => state.copySelection);
+  const pasteClipboard = useModelerStore((state) => state.pasteClipboard);
   const [persistence, setPersistence] = useState<
     | { state: 'idle' }
     | { state: 'loading' | 'saving' }
@@ -86,7 +87,13 @@ export function ModelerWorkspace() {
         return;
       }
       if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.key.toLowerCase() === 'z') {
+      if (event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        copySelection();
+      } else if (event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        pasteClipboard();
+      } else if (event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (event.shiftKey) redo();
         else undo();
@@ -97,25 +104,14 @@ export function ModelerWorkspace() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [execute, redo, selectElement, selectedElementIds, undo]);
+  }, [copySelection, execute, pasteClipboard, redo, selectElement, selectedElementIds, undo]);
 
-  const createElement = (kind: PaletteElementKind) => {
-    const id = nextElementId(elements, kind);
-    const element = createPaletteElement(kind, id);
-    const size = defaultElementSize(kind);
+  const createElement = (kind: CanonicalPaletteElementKind) => {
+    const id = nextPaletteElementId(document, kind);
     const creationIndex = elements.filter((item) => item.id?.startsWith(`modeler-${kind}`)).length;
-    execute(
-      createElementCommand(element, {
-        x: 220 + (creationIndex % 4) * 190,
-        y: 260 + Math.floor(creationIndex / 4) * 140,
-        ...size,
-        rotation: 0,
-        expanded: true,
-        xmlRowNumber: 0,
-        xmlColumnNumber: 0,
-      }),
-    );
-    selectElement(id);
+    const point = paletteClickPoint(document, kind, creationIndex, selectedElementId);
+    execute(createAtPointCommand(kind, id, point));
+    if (useModelerStore.getState().document.model.locationMap[id]) selectElement(id);
   };
 
   const save = async () => {
@@ -195,6 +191,12 @@ export function ModelerWorkspace() {
                 key={label}
                 type="button"
                 title={`Create ${label.toLowerCase()}`}
+                draggable
+                data-palette-kind={kind}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'copy';
+                  event.dataTransfer.setData(BPMN_PALETTE_MIME, kind);
+                }}
                 onClick={() => createElement(kind)}
               >
                 <span aria-hidden="true">{glyph}</span>
@@ -203,7 +205,7 @@ export function ModelerWorkspace() {
             ))}
           </div>
           <div className="palette-hint">
-            Click to create. Drag-to-place is the next interaction increment.
+            Click for a guided placement, or drag an element onto the canvas.
           </div>
         </aside>
 
@@ -362,9 +364,27 @@ function humanize(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
 }
 
-function nextElementId(elements: FlowElementEnum[], kind: PaletteElementKind) {
-  const existing = new Set(elements.flatMap((element) => (element.id ? [element.id] : [])));
-  let suffix = 1;
-  while (existing.has(`modeler-${kind}-${suffix}`)) suffix += 1;
-  return `modeler-${kind}-${suffix}`;
+function paletteClickPoint(
+  document: ReturnType<typeof useModelerStore.getState>['document'],
+  kind: CanonicalPaletteElementKind,
+  creationIndex: number,
+  selectedElementId: string | null,
+) {
+  if (kind === 'boundaryTimer' && selectedElementId) {
+    const selectedBounds = document.model.locationMap[selectedElementId];
+    if (selectedBounds) {
+      return {
+        x: selectedBounds.x + selectedBounds.width,
+        y: selectedBounds.y + selectedBounds.height / 2,
+      };
+    }
+  }
+  const pool = document.model.pools
+    .map((candidate) => (candidate.id ? document.model.locationMap[candidate.id] : undefined))
+    .find((bounds) => bounds !== undefined);
+  const origin = pool ? { x: pool.x + 120, y: pool.y + 100 } : { x: 240, y: 220 };
+  return {
+    x: origin.x + (creationIndex % 4) * 170,
+    y: origin.y + Math.floor(creationIndex / 4) * 120,
+  };
 }

@@ -2,6 +2,11 @@ import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'imm
 import { create } from 'zustand';
 
 import type { BpmnEditorDocument } from '../generated/editor-protocol';
+import {
+  copySelection as createClipboardSlice,
+  pasteClipboardCommand,
+  type BpmnClipboardSlice,
+} from './clipboardCommands';
 import type { ModelerCommand } from './commands';
 import { sampleDocument } from './sampleDocument';
 
@@ -35,6 +40,7 @@ interface ModelerState {
   tool: EditorTool;
   selectedElementIds: string[];
   selectedElementId: string | null;
+  clipboard: BpmnClipboardSlice | null;
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
   setDocument: (document: BpmnEditorDocument) => void;
@@ -44,6 +50,8 @@ interface ModelerState {
   selectElement: (elementId: string | null, additive?: boolean) => void;
   selectElements: (elementIds: string[]) => void;
   setTool: (tool: EditorTool) => void;
+  copySelection: () => void;
+  pasteClipboard: () => void;
   panBy: (deltaX: number, deltaY: number) => void;
   zoomBy: (factor: number) => void;
   fitToModel: () => void;
@@ -67,6 +75,7 @@ export const useModelerStore = create<ModelerState>((set, get) => ({
   tool: 'pointer',
   selectedElementIds: ['review'],
   selectedElementId: 'review',
+  clipboard: null,
   undoStack: [],
   redoStack: [],
   setDocument: (document) =>
@@ -125,6 +134,16 @@ export const useModelerStore = create<ModelerState>((set, get) => ({
     set({ selectedElementIds, selectedElementId: selectedElementIds.at(-1) ?? null });
   },
   setTool: (tool) => set({ tool }),
+  copySelection: () => {
+    const state = get();
+    const clipboard = createClipboardSlice(state.document, state.selectedElementIds);
+    if (clipboard) set({ clipboard });
+  },
+  pasteClipboard: () => {
+    const clipboard = get().clipboard;
+    if (!clipboard) return;
+    get().execute(pasteClipboardCommand(clipboard));
+  },
   panBy: (deltaX, deltaY) =>
     set((state) => ({
       viewport: { ...state.viewport, x: state.viewport.x + deltaX, y: state.viewport.y + deltaY },

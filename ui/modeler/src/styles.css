@@ -206,6 +206,14 @@ a:focus-visible {
   cursor: pointer;
   font-size: 0.59rem;
 }
+
+.palette-list button[draggable='true'] {
+  cursor: grab;
+}
+
+.palette-list button[draggable='true']:active {
+  cursor: grabbing;
+}
 .palette-list button:hover {
   color: var(--ink);
   background: #f1efe7;
@@ -491,6 +499,38 @@ a:focus-visible {
   stroke-dasharray: 6 4;
   stroke-width: 1.5;
   pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.alignment-guides {
+  pointer-events: none;
+}
+
+.alignment-guides line {
+  stroke: #ff5c35;
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.resize-overlay {
+  pointer-events: none;
+}
+
+.resize-outline {
+  fill: none;
+  stroke: #ff5c35;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.resize-handle {
+  fill: #fffaf5;
+  stroke: #ff5c35;
+  stroke-width: 2;
+  cursor: nwse-resize;
+  pointer-events: all;
   vector-effect: non-scaling-stroke;
 }
 .task-surface {

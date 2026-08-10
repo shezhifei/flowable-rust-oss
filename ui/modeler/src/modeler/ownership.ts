@@ -125,6 +125,11 @@ function resolveProcessAtPoint(
     .sort((left, right) => left.area - right.area);
   if (poolMatches[0]) return poolMatches[0].process;
 
+  const hasPositionedProcessPool = document.model.pools.some((pool) =>
+    Boolean(pool.processRef && pool.id && document.model.locationMap[pool.id]),
+  );
+  if (hasPositionedProcessPool) return null;
+
   if (document.model.processes.length === 1) return document.model.processes[0] ?? null;
   const processWithContainedSubprocess = document.model.processes.find(
     (process) => deepestSubprocessOwner(document, process, point) !== process,

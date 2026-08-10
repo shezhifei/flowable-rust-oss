@@ -13,7 +13,7 @@ import {
   defaultElementSize,
   type CanonicalPaletteElementKind,
 } from './elementFactory';
-import type { Point } from './geometry';
+import { snapToGrid, type Point } from './geometry';
 import {
   locateCanonicalElement,
   normalizeModelInvariants,
@@ -27,12 +27,15 @@ import {
   resolveDropOwner,
   type DropOwnerResolution,
 } from './ownership';
+import { moveElementsCommand } from './transformCommands';
 
 type NestedOwnerElement =
   | Extract<FlowElementEnum, { elementType: 'subProcess' }>
   | Extract<FlowElementEnum, { elementType: 'transaction' }>
   | Extract<FlowElementEnum, { elementType: 'eventSubProcess' }>
   | Extract<FlowElementEnum, { elementType: 'adhocSubProcess' }>;
+
+export const BPMN_PALETTE_MIME = 'application/x-flowable-modeler-palette';
 
 export function createAtPointCommand(
   kind: CanonicalPaletteElementKind,
@@ -73,6 +76,69 @@ export function createAtPointCommand(
       normalizeModelInvariants(document);
     },
   };
+}
+
+export function nextPaletteElementId(
+  document: BpmnEditorDocument,
+  kind: CanonicalPaletteElementKind,
+  prefix = 'modeler',
+): string {
+  let suffix = 1;
+  while (hasCanonicalId(document, `${prefix}-${kind}-${suffix}`)) suffix += 1;
+  return `${prefix}-${kind}-${suffix}`;
+}
+
+/**
+ * Completes a pointer move as one history entry. Ownership and lane changes are
+ * validated at the final snapped center before any DI is translated, so an
+ * illegal cross-container gesture cannot leave geometry outside its owner.
+ */
+export function moveAndReparentElementsCommand(
+  elementIds: readonly string[],
+  deltaX: number,
+  deltaY: number,
+): ModelerCommand {
+  return {
+    label: `Move ${elementIds.length} element${elementIds.length === 1 ? '' : 's'}`,
+    apply(document) {
+      const snappedDelta = { x: snapToGrid(deltaX), y: snapToGrid(deltaY) };
+      if (snappedDelta.x === 0 && snappedDelta.y === 0) return;
+
+      const ownershipMoves: Array<{ elementId: string; point: Point }> = [];
+      for (const elementId of [...new Set(elementIds)]) {
+        const located = locateCanonicalElement(document, elementId);
+        const bounds = document.model.locationMap[elementId];
+        if (!located || !bounds) continue;
+        const point = {
+          x: bounds.x + bounds.width / 2 + snappedDelta.x,
+          y: bounds.y + bounds.height / 2 + snappedDelta.y,
+        };
+        if (!canReparentElementAtPoint(document, elementId, point)) return;
+        ownershipMoves.push({ elementId, point });
+      }
+
+      for (const move of ownershipMoves) {
+        reparentElementCommand(move.elementId, move.point).apply(document);
+      }
+      moveElementsCommand(elementIds, snappedDelta.x, snappedDelta.y).apply(document);
+    },
+  };
+}
+
+export function canReparentElementAtPoint(
+  document: Draft<BpmnEditorDocument>,
+  elementId: string,
+  dropPoint: Point,
+): boolean {
+  const located = locateCanonicalElement(document, elementId);
+  const target = resolveDropOwner(document, dropPoint);
+  if (!located || !target) return false;
+  if (located.owner === target.owner) return true;
+  if (located.kind === 'dataObject') return true;
+  const sourceProcess = processForOwner(document, located.owner);
+  return Boolean(
+    sourceProcess && canChangeCanonicalOwner(located.element, located.owner, target, sourceProcess),
+  );
 }
 
 export function reparentElementCommand(elementId: string, dropPoint: Point): ModelerCommand {

@@ -83,6 +83,25 @@ describe('modeler store', () => {
       1068,
     );
   });
+
+  it('copies and pastes the current selection as one reversible history entry', () => {
+    useModelerStore.getState().selectElements(['review', 'decision']);
+    useModelerStore.getState().copySelection();
+    expect(useModelerStore.getState().clipboard?.elements.map((element) => element.id)).toEqual([
+      'review',
+      'decision',
+      'decisionFlow',
+    ]);
+
+    useModelerStore.getState().pasteClipboard();
+    let state = useModelerStore.getState();
+    expect(state.undoStack.at(-1)?.label).toBe('Paste 3 elements');
+    expect(state.document.model.processes[0]?.flowElementMap?.['review-copy-1']).toBeDefined();
+
+    state.undo();
+    state = useModelerStore.getState();
+    expect(state.document.model.processes[0]?.flowElementMap?.['review-copy-1']).toBeUndefined();
+  });
 });
 
 function required<T>(value: T | undefined): T {

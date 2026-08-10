@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { createAtPointCommand, reparentElementCommand } from './creationCommands';
+import {
+  createAtPointCommand,
+  moveAndReparentElementsCommand,
+  nextPaletteElementId,
+  reparentElementCommand,
+} from './creationCommands';
 import { createPaletteElement } from './elementFactory';
 import { locateCanonicalElement } from './modelInvariants';
 import { useModelerStore } from './modelerStore';
@@ -74,6 +79,16 @@ describe('ownership-aware creation commands', () => {
     });
     expect(state.document.model.processes[1]?.lanes?.[0]?.flowReferences).toContain('second-end');
     expect(state.document.model.processes[0]?.flowElementMap?.['second-end']).toBeUndefined();
+  });
+
+  it('allocates collision-free canonical palette ids', () => {
+    useModelerStore
+      .getState()
+      .execute(createAtPointCommand('start', 'modeler-start-1', { x: 240, y: 180 }));
+
+    expect(nextPaletteElementId(useModelerStore.getState().document, 'start')).toBe(
+      'modeler-start-2',
+    );
   });
 
   it('attaches a timer boundary to the nearest activity border and host lane', () => {
@@ -161,6 +176,40 @@ describe('ownership-aware creation commands', () => {
     expect(
       useModelerStore.getState().document.model.processes[0]?.lanes?.[1]?.flowReferences,
     ).toContain('review');
+  });
+
+  it('moves and reparents in one history entry using the final snapped center', () => {
+    const document = structuredClone(sampleDocument);
+    const process = required(document.model.processes[0]);
+    process.flowElements?.push(createPaletteElement('userTask', 'loose-task'));
+    document.model.locationMap['loose-task'] = bounds(300, 150, 156, 100);
+    useModelerStore.getState().setDocument(document);
+
+    useModelerStore
+      .getState()
+      .execute(moveAndReparentElementsCommand(['loose-task'], 400, 200));
+
+    let state = useModelerStore.getState();
+    expect(state.undoStack).toHaveLength(1);
+    expect(state.document.model.locationMap['loose-task']).toMatchObject({ x: 700, y: 350 });
+    expect(state.document.model.processes[0]?.lanes?.[1]?.flowReferences).toContain('loose-task');
+
+    state.undo();
+    state = useModelerStore.getState();
+    expect(state.document.model.locationMap['loose-task']).toMatchObject({ x: 300, y: 150 });
+    expect(state.document.model.processes[0]?.lanes?.[1]?.flowReferences).not.toContain(
+      'loose-task',
+    );
+  });
+
+  it('rejects a move whose final center escapes every positioned pool', () => {
+    useModelerStore
+      .getState()
+      .execute(moveAndReparentElementsCommand(['review'], -1000, -1000));
+
+    const state = useModelerStore.getState();
+    expect(state.undoStack).toHaveLength(0);
+    expect(state.document.model.locationMap.review).toMatchObject({ x: 304, y: 135 });
   });
 
   it('refuses a cross-process reparent that would strand connected sequence flows', () => {
