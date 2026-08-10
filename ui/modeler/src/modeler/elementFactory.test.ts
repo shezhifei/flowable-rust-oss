@@ -8,11 +8,13 @@ import { sampleDocument } from './sampleDocument';
 describe('palette element factory', () => {
   it('creates canonical discriminated elements for every initial palette family', () => {
     const cases: Array<[PaletteElementKind, string]> = [
-      ['event', 'startEvent'],
-      ['task', 'userTask'],
-      ['gateway', 'exclusiveGateway'],
+      ['start', 'startEvent'],
+      ['end', 'endEvent'],
+      ['userTask', 'userTask'],
+      ['exclusiveGateway', 'exclusiveGateway'],
       ['subprocess', 'subProcess'],
       ['data', 'valuedDataObject'],
+      ['boundaryTimer', 'boundaryEvent'],
     ];
 
     for (const [kind, expectedType] of cases) {
@@ -20,6 +22,28 @@ describe('palette element factory', () => {
       expect(element.elementType).toBe(expectedType);
       expect(element.id).toBe(`created-${kind}`);
     }
+  });
+
+  it('keeps the initial coarse palette aliases compatible', () => {
+    expect(createPaletteElement('event', 'legacy-event').elementType).toBe('startEvent');
+    expect(createPaletteElement('task', 'legacy-task').elementType).toBe('userTask');
+    expect(createPaletteElement('gateway', 'legacy-gateway').elementType).toBe('exclusiveGateway');
+  });
+
+  it('creates an interrupting timer boundary event ready for host attachment', () => {
+    const element = createPaletteElement('boundaryTimer', 'timer');
+    if (element.elementType !== 'boundaryEvent') throw new Error('expected a boundary event');
+
+    expect(element).toMatchObject({
+      attachedToRefId: null,
+      cancelActivity: true,
+      eventDefinitions: [
+        {
+          eventDefinitionType: 'timerEventDefinition',
+          id: 'timerDefinition',
+        },
+      ],
+    });
   });
 
   it('adds flow/list/map/DI state atomically and removes it on undo', () => {
