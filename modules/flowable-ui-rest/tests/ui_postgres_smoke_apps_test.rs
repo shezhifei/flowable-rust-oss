@@ -17,11 +17,11 @@
 //!   trip through Postgres. What does touch the engine is the admin proxy: it
 //!   decrypts the stored password, builds Basic auth, and reads engine REST. The
 //!   pg case below therefore points the proxy at a minimal engine-REST responder
-//!   backed by the *same Postgres engine* (a full `flowable-rest` server over
-//!   Postgres is still blocked by the SQLite-only `PRAGMA table_info` calls, the
-//!   known E2 decision point), so `list_deployments` is exercised end to end
-//!   against real pg rows. Password encryption at rest is covered by a separate
-//!   case that needs no database at all.
+//!   backed by the *same Postgres engine*, so `list_deployments` is exercised
+//!   end to end against real pg rows. (The full `flowable-rest` server also
+//!   boots on Postgres — see `flowable-rest`'s `postgres_server_boot_test`.)
+//!   Password encryption at rest is covered by a separate case that needs no
+//!   database at all.
 //! - **task** — the aggregation read path (`POST /app/rest/query/tasks`) over a
 //!   deployment + started instance on the pg engine, including the
 //!   delete-on-complete transition.

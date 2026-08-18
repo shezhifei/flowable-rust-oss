@@ -76,18 +76,17 @@ siblings, see `flowable-platform-bootstrap`). PostgreSQL/MySQL contract suites
 follow [multi-db-test.md](multi-db-test.md)
 (`FLOWABLE_TEST_POSTGRES_URL` / `FLOWABLE_TEST_MYSQL_URL`):
 
+- Whole-server PostgreSQL boot:
+  `cargo test -p flowable-rest --features postgres --test postgres_server_boot_test`
+  (skips gracefully without a reachable database). Column metadata goes through
+  `DbSession::table_columns` (SQLite `PRAGMA table_info`, Postgres/MySQL
+  `information_schema.columns`).
 - UI-level PostgreSQL smoke tests:
-  `cargo test -p flowable-ui-rest --features postgres` (skips gracefully
-  without a reachable database).
+  `cargo test -p flowable-ui-rest --features postgres` (idm 4 + admin/task/modeler
+  5; skips gracefully without a reachable database).
 - MySQL: feature plumbing is in place but **unverified** — no local instance
   during the migration; trigger with `FLOWABLE_TEST_MYSQL_URL` +
   `--features mysql`.
-- Known limitation: booting the *whole* server on PostgreSQL is currently
-  blocked by SQLite-specific `PRAGMA table_info` calls in form-service and
-  friends (see the header comment of
-  `modules/flowable-ui-rest/tests/postgres_server_boot_test.rs`). The UI
-  migration scope is therefore the SQLite default backend plus per-surface
-  PostgreSQL smoke coverage.
 
 ## 6. Known deliberate deviations
 
