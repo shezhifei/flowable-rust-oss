@@ -714,6 +714,13 @@ fn write_event_definition(
         EventDefinitionEnum::TimerEventDefinition(v) => {
             let mut node = BytesStart::new("timerEventDefinition");
             push_base(&mut node, &v.base_element);
+            // Java writes the calendar as an attribute and the parser only reads
+            // it as one; a child element here would be dropped on reparse.
+            push_opt(
+                &mut node,
+                "flowable:businessCalendarName",
+                v.calendar_name.as_deref(),
+            );
             emit(writer, XmlEvent::Start(node))?;
             if let Some(text) = &v.time_date {
                 text_element(writer, "timeDate", text)?;
@@ -727,9 +734,6 @@ fn write_event_definition(
                 emit(writer, XmlEvent::Start(cycle))?;
                 emit(writer, XmlEvent::Text(BytesText::new(text)))?;
                 emit(writer, XmlEvent::End(BytesEnd::new("timeCycle")))?;
-            }
-            if let Some(text) = &v.calendar_name {
-                text_element(writer, "flowable:businessCalendarName", text)?;
             }
             emit(writer, XmlEvent::End(BytesEnd::new("timerEventDefinition")))
         }
@@ -747,13 +751,18 @@ fn write_event_definition(
             "messageRef",
             v.message_ref.as_deref(),
         ),
-        EventDefinitionEnum::SignalEventDefinition(v) => empty_event_ref(
-            writer,
-            "signalEventDefinition",
-            &v.base_element,
-            "signalRef",
-            v.signal_ref.as_deref(),
-        ),
+        EventDefinitionEnum::SignalEventDefinition(v) => {
+            let mut node = BytesStart::new("signalEventDefinition");
+            push_base(&mut node, &v.base_element);
+            push_opt(&mut node, "signalRef", v.signal_ref.as_deref());
+            // A signal can be selected by expression instead of by reference.
+            push_opt(
+                &mut node,
+                "flowable:signalExpression",
+                v.signal_expression.as_deref(),
+            );
+            emit(writer, XmlEvent::Empty(node))
+        }
         EventDefinitionEnum::EscalationEventDefinition(v) => empty_event_ref(
             writer,
             "escalationEventDefinition",
@@ -907,6 +916,12 @@ fn write_call_activity(
         "flowable:inheritBusinessKey",
         value.inherit_business_key,
     );
+    push_true(&mut node, "flowable:completeAsync", value.complete_async);
+    // Tri-state: absent means "inherit engine default", so an explicit `false`
+    // has to survive the round-trip too.
+    if let Some(fallback) = value.fallback_to_default_tenant {
+        node.push_attribute(("flowable:fallbackToDefaultTenant", bool_text(fallback)));
+    }
     emit(writer, XmlEvent::Start(node))?;
     write_activity_body(
         writer,
