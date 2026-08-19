@@ -102,6 +102,14 @@ pub struct ServerConfiguration {
 pub struct ProcessConfiguration {
     pub engine_name: String,
     pub database_path: String,
+    /// Full backend URL (`FLOWABLE_DATABASE_URL`). When present it wins over
+    /// `database_path`, which stays the SQLite-only default.
+    #[serde(default)]
+    pub database_url: Option<String>,
+    /// Backend family derived from `database_url` (`mysql`, `postgres`,
+    /// `memory`, or `sqlite`).
+    #[serde(default)]
+    pub database_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +121,13 @@ pub struct SecurityConfiguration {
 pub struct ModuleConfiguration {
     #[serde(default)]
     pub database_path: Option<String>,
+    /// Full backend URL shared with the process engine (see
+    /// [`ProcessConfiguration::database_url`]).
+    #[serde(default)]
+    pub database_url: Option<String>,
+    /// Backend family derived from `database_url`.
+    #[serde(default)]
+    pub database_kind: Option<String>,
     /// DMN hit-policy strict mode (`DmnEngineConfiguration.strictMode`,
     /// `DmnEngineConfiguration.java:202` — default true; false tolerates
     /// UNIQUE/ANY/PRIORITY/OUTPUT_ORDER violations with validationMessage).
@@ -126,6 +141,8 @@ impl Default for ModuleConfiguration {
         // `DmnEngineConfiguration.java:202`) — derived Default would give false.
         Self {
             database_path: None,
+            database_url: None,
+            database_kind: None,
             strict_mode: true,
         }
     }
@@ -514,6 +531,8 @@ impl Default for ProcessConfiguration {
         Self {
             engine_name: "flowable-rest-engine".to_string(),
             database_path: "flowable-rest.db".to_string(),
+            database_url: None,
+            database_kind: None,
         }
     }
 }
@@ -745,7 +764,44 @@ impl PlatformConfiguration {
             &mut self.bootstrap.admin_password,
             &["FLOWABLE_BOOTSTRAP_ADMIN_PASSWORD"],
         );
+        self.apply_database_url_override();
         Ok(())
+    }
+
+    /// `FLOWABLE_DATABASE_URL` selects one production backend for the whole
+    /// platform: process, DMN, CMMN, and App engines all open the same URL.
+    /// Absent, every engine keeps its SQLite path (the default binary stays
+    /// SQLite-only).
+    fn apply_database_url_override(&mut self) {
+        let Some(url) = env::var("FLOWABLE_DATABASE_URL")
+            .ok()
+            .map(|url| url.trim().to_string())
+            .filter(|url| !url.is_empty())
+        else {
+            return;
+        };
+        let kind = kind_from_database_url(&url).to_string();
+
+        self.process.database_url = Some(url.clone());
+        self.process.database_kind = Some(kind.clone());
+        for module in [&mut self.dmn, &mut self.cmmn, &mut self.app] {
+            module.database_url = Some(url.clone());
+            module.database_kind = Some(kind.clone());
+        }
+    }
+}
+
+/// Maps a database URL scheme onto the backend family names understood by
+/// `EngineDatabaseKind` / `flowable_persistence::DatabaseKind`.
+fn kind_from_database_url(url: &str) -> &'static str {
+    if url.starts_with("mysql://") {
+        "mysql"
+    } else if url.starts_with("postgres://") || url.starts_with("postgresql://") {
+        "postgres"
+    } else if url == ":memory:" {
+        "memory"
+    } else {
+        "sqlite"
     }
 }
 

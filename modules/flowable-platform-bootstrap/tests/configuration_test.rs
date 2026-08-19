@@ -26,6 +26,19 @@ impl EnvVarGuard {
             original_value,
         }
     }
+
+    /// Removes `key` for the duration of the guard so a stray value in the
+    /// developer environment cannot mask an "absent variable" assertion.
+    fn unset(key: &'static str) -> Self {
+        let original_value = std::env::var(key).ok();
+        unsafe {
+            std::env::remove_var(key);
+        }
+        Self {
+            key,
+            original_value,
+        }
+    }
 }
 
 impl Drop for EnvVarGuard {
@@ -144,4 +157,67 @@ flowable.bootstrap.admin.password=properties-secret
         configuration.bootstrap.admin_password,
         "env-override-secret"
     );
+}
+
+#[test]
+fn database_url_mysql_scheme_selects_mysql_kind() {
+    let _environment_lock = environment_lock();
+    let _url = EnvVarGuard::set(
+        "FLOWABLE_DATABASE_URL",
+        "mysql://flowable:flowable@127.0.0.1:3306/flowable",
+    );
+    let configuration = PlatformConfiguration::load_from_sources(None).unwrap();
+    assert_eq!(
+        configuration.process.database_kind.as_deref(),
+        Some("mysql")
+    );
+    assert_eq!(
+        configuration.process.database_url.as_deref(),
+        Some("mysql://flowable:flowable@127.0.0.1:3306/flowable")
+    );
+}
+
+#[test]
+fn database_url_postgres_scheme_selects_postgres_kind() {
+    let _environment_lock = environment_lock();
+    let _url = EnvVarGuard::set(
+        "FLOWABLE_DATABASE_URL",
+        "postgres://postgres:postgres@127.0.0.1:5432/flowable",
+    );
+    let configuration = PlatformConfiguration::load_from_sources(None).unwrap();
+    assert_eq!(
+        configuration.process.database_kind.as_deref(),
+        Some("postgres")
+    );
+}
+
+#[test]
+fn database_url_shares_one_backend_across_modules() {
+    let _environment_lock = environment_lock();
+    let _url = EnvVarGuard::set(
+        "FLOWABLE_DATABASE_URL",
+        "mysql://flowable:flowable@127.0.0.1:3306/flowable",
+    );
+    let configuration = PlatformConfiguration::load_from_sources(None).unwrap();
+    for module in [
+        &configuration.dmn,
+        &configuration.cmmn,
+        &configuration.app,
+    ] {
+        assert_eq!(module.database_kind.as_deref(), Some("mysql"));
+        assert_eq!(
+            module.database_url.as_deref(),
+            Some("mysql://flowable:flowable@127.0.0.1:3306/flowable")
+        );
+    }
+}
+
+#[test]
+fn absent_database_url_keeps_sqlite_path() {
+    let _environment_lock = environment_lock();
+    let _url = EnvVarGuard::unset("FLOWABLE_DATABASE_URL");
+    let configuration = PlatformConfiguration::load_from_sources(None).unwrap();
+    assert!(configuration.process.database_url.is_none());
+    assert!(configuration.process.database_kind.is_none());
+    assert!(!configuration.process.database_path.is_empty());
 }
