@@ -29,6 +29,8 @@ pub use repository::{AppDefinitionQuery, AppDeploymentQuery, AppRepositoryServic
 pub use runtime::{AppRuntimeService, ResolvedAppCompositionQuery};
 use store::AppStore;
 
+pub use flowable_persistence::{DatabaseConfig, DatabaseKind, SchemaMode};
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -80,6 +82,15 @@ impl AppEngine {
         cache_limit: usize,
     ) -> Result<Self, AppError> {
         Self::from_store(AppStore::sqlite(path)?, catalog, Some(cache_limit))
+    }
+
+    /// Build an App engine on an explicitly configured backend (the production
+    /// `FLOWABLE_DATABASE_URL` path — MySQL/Postgres as well as SQLite).
+    pub fn from_database_config_with_catalog(
+        config: DatabaseConfig,
+        catalog: Arc<dyn DefinitionCatalog>,
+    ) -> Result<Self, AppError> {
+        Self::from_store(AppStore::from_config(config)?, catalog, None)
     }
 
     pub fn repository_service(&self) -> AppRepositoryService {

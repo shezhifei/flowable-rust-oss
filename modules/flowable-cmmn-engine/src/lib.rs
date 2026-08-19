@@ -174,6 +174,20 @@ impl CmmnEngine {
         )
     }
 
+    /// Build a CMMN engine on an explicitly configured backend (the production
+    /// `FLOWABLE_DATABASE_URL` path) with the same process integrations.
+    pub fn from_database_config_with_process_integrations(
+        config: DatabaseConfig,
+        process_task_runner: Option<Arc<dyn CmmnProcessTaskRunner>>,
+        process_instance_cleanup: Option<Arc<dyn ProcessInstanceCleanup>>,
+    ) -> Result<Self, CmmnError> {
+        Self::from_store_with_integrations(
+            CmmnStore::from_config(config)?,
+            process_task_runner,
+            process_instance_cleanup,
+        )
+    }
+
     pub fn repository_service(&self) -> CmmnRepositoryService {
         self.repository_service.clone()
     }

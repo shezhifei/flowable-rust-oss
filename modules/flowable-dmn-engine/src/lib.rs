@@ -32,6 +32,8 @@ pub use repository::{
 pub use runtime::DmnDecisionService;
 use store::DmnStore;
 
+pub use flowable_persistence::{DatabaseConfig, DatabaseKind, SchemaMode};
+
 use std::path::Path;
 
 #[derive(Clone)]
@@ -80,6 +82,15 @@ impl DmnEngineBuilder {
 
     pub fn build_sqlite(self, path: impl AsRef<Path>) -> Result<DmnEngine, DmnError> {
         DmnEngine::from_store(DmnStore::sqlite(path)?, self.strict_mode)
+    }
+
+    /// Build against an explicitly configured backend (the production
+    /// `FLOWABLE_DATABASE_URL` path — MySQL/Postgres as well as SQLite).
+    pub fn build_from_database_config(
+        self,
+        config: DatabaseConfig,
+    ) -> Result<DmnEngine, DmnError> {
+        DmnEngine::from_store(DmnStore::from_config(config)?, self.strict_mode)
     }
 }
 

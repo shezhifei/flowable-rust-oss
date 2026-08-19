@@ -4,8 +4,8 @@ use flowable_cmmn_engine::{
     CmmnProcessTaskStartRequest, CmmnProcessTaskStartResult, ProcessInstanceCleanup,
 };
 use flowable_dmn_engine::DmnEngine;
-use flowable_engine::engine::process_engine::ProcessEngine;
-use flowable_engine::engine::time_source::SystemTimeSource;
+use flowable_dmn_engine::{DatabaseConfig, DatabaseKind, SchemaMode};
+use flowable_engine::engine::process_engine::ProcessEngine;use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_engine::identity::entities::{Group, Membership, User};
 use flowable_engine::runtime::process_instance::ProcessInstanceUpdate;
 use flowable_engine::service::config::{HttpServiceRuntimeMode, ProcessEngineConfiguration};
@@ -994,7 +994,16 @@ fn build_process_engine(
         .real_client
         .default_connect_timeout_ms = http_service.default_connect_timeout_ms;
     process_engine_config.http_service.real_client.user_agent = http_service.user_agent.clone();
-    if config.database_path == ":memory:" {
+    if let Some(url) = config.database_url.as_deref() {
+        // FLOWABLE_DATABASE_URL wins over the SQLite `database_path` default.
+        process_engine_config.database.kind = match config.database_kind.as_deref() {
+            Some("mysql") => flowable_engine::service::config::EngineDatabaseKind::Mysql,
+            Some("postgres") => flowable_engine::service::config::EngineDatabaseKind::Postgres,
+            Some("memory") => flowable_engine::service::config::EngineDatabaseKind::Memory,
+            _ => flowable_engine::service::config::EngineDatabaseKind::Sqlite,
+        };
+        process_engine_config.database.url = url.to_string();
+    } else if config.database_path == ":memory:" {
         process_engine_config.database.kind =
             flowable_engine::service::config::EngineDatabaseKind::Memory;
         process_engine_config.database.url = ":memory:".to_string();
@@ -1012,6 +1021,9 @@ fn build_process_engine(
 
 fn build_dmn_engine(config: &ModuleConfiguration) -> Result<DmnEngine, PlatformBootstrapError> {
     let builder = DmnEngine::builder().strict_mode(config.strict_mode);
+    if let Some(database_config) = module_database_config(config) {
+        return Ok(builder.build_from_database_config(database_config)?);
+    }
     Ok(
         if let Some(path) = config
             .database_path
@@ -1031,6 +1043,13 @@ fn build_cmmn_engine(
     process_instance_cleanup: Option<Arc<dyn ProcessInstanceCleanup>>,
 ) -> Result<CmmnEngine, PlatformBootstrapError> {
     let process_task_runner = Some(process_task_runner);
+    if let Some(database_config) = module_database_config(config) {
+        return Ok(CmmnEngine::from_database_config_with_process_integrations(
+            database_config,
+            process_task_runner,
+            process_instance_cleanup,
+        )?);
+    }
     Ok(
         if let Some(path) = config
             .database_path
@@ -1049,6 +1068,27 @@ fn build_cmmn_engine(
             )?
         },
     )
+}
+
+/// Turns a module's `database_url` / `database_kind` (populated from
+/// `FLOWABLE_DATABASE_URL`) into the portable persistence config the DMN, CMMN,
+/// and App stores accept. `None` keeps the SQLite/in-memory constructors.
+fn module_database_config(config: &ModuleConfiguration) -> Option<DatabaseConfig> {
+    let url = config.database_url.as_deref()?;
+    Some(DatabaseConfig {
+        kind: match config.database_kind.as_deref() {
+            Some("mysql") => DatabaseKind::Mysql,
+            Some("postgres") => DatabaseKind::Postgres,
+            Some("memory") => DatabaseKind::Memory,
+            _ => DatabaseKind::Sqlite,
+        },
+        url: url.to_string(),
+        pool_size: 8,
+        schema_mode: SchemaMode::True,
+        table_prefix: None,
+        schema: None,
+        catalog: None,
+    })
 }
 
 #[derive(Default)]
@@ -1209,6 +1249,13 @@ fn build_app_engine(
         // Java: ProcessEngineConfigurationImpl.java:1608-1616 → BpmnEventRegistryEventConsumer.
         event_registry_service: FlowableEventRegistryService::with_bpmn_consumer(process_engine),
     });
+
+    if let Some(database_config) = module_database_config(config) {
+        return Ok(AppEngine::from_database_config_with_catalog(
+            database_config,
+            catalog,
+        )?);
+    }
 
     Ok(
         if let Some(path) = config
