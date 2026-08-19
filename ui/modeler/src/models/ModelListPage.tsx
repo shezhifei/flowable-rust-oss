@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
+  cloneModel,
   createModel,
   deleteModel,
   deployBpmnModel,
@@ -20,7 +21,7 @@ import {
   type RepositoryModelSummary,
 } from './modelsApi';
 
-interface ModelEntry extends RepositoryModelSummary {
+export interface ModelEntry extends RepositoryModelSummary {
   kind: ModelKind;
 }
 
@@ -92,6 +93,26 @@ export function ModelListPage() {
       await refresh();
     } catch (error) {
       reportError(error, `Unable to delete '${entry.key}'`);
+    }
+  };
+
+  /**
+   * Server-side duplicate: the stored bytes are copied verbatim and the server
+   * derives the `-copy` key and ` (copy)` name, so an empty body is enough. A
+   * duplicate key answers 409 and lands in the error notice like any other
+   * failure.
+   */
+  const duplicateModel = async (entry: ModelEntry) => {
+    setNotice(null);
+    try {
+      const clone = await cloneModel(entry.id);
+      setNotice({
+        kind: 'status',
+        message: `Cloned '${entry.name ?? entry.key}' to '${clone.key}'`,
+      });
+      await refresh();
+    } catch (error) {
+      reportError(error, `Unable to clone '${entry.key}'`);
     }
   };
 
@@ -270,24 +291,12 @@ export function ModelListPage() {
                     <td className="model-list-key">{entry.key}</td>
                     <td>{formatTimestamp(entry.lastUpdateTime)}</td>
                     <td>
-                      <span className="model-list-actions">
-                        <button
-                          type="button"
-                          className="quiet-action"
-                          disabled={entry.kind === 'unknown'}
-                          onClick={() => void publishModel(entry)}
-                        >
-                          Publish
-                        </button>
-                        <button
-                          type="button"
-                          className="quiet-action is-danger"
-                          aria-label={`Delete model ${entry.name ?? entry.key}`}
-                          onClick={() => void removeModel(entry)}
-                        >
-                          Delete
-                        </button>
-                      </span>
+                      <ModelRowActions
+                        entry={entry}
+                        onClone={() => void duplicateModel(entry)}
+                        onDelete={() => void removeModel(entry)}
+                        onPublish={() => void publishModel(entry)}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -297,6 +306,55 @@ export function ModelListPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+/**
+ * The per-row action buttons. Every label names the model because the row
+ * repeats them: three bare "Publish" buttons on a page are indistinguishable to
+ * a screen reader. Publish needs a known kind to pick a deployment endpoint;
+ * clone and delete work on the stored bytes and stay available regardless.
+ */
+export function ModelRowActions({
+  entry,
+  onClone,
+  onDelete,
+  onPublish,
+}: {
+  entry: ModelEntry;
+  onClone: () => void;
+  onDelete: () => void;
+  onPublish: () => void;
+}) {
+  const label = entry.name ?? entry.key;
+  return (
+    <span className="model-list-actions">
+      <button
+        type="button"
+        className="quiet-action"
+        aria-label={`Publish model ${label}`}
+        disabled={entry.kind === 'unknown'}
+        onClick={onPublish}
+      >
+        Publish
+      </button>
+      <button
+        type="button"
+        className="quiet-action"
+        aria-label={`Clone model ${label}`}
+        onClick={onClone}
+      >
+        Clone
+      </button>
+      <button
+        type="button"
+        className="quiet-action is-danger"
+        aria-label={`Delete model ${label}`}
+        onClick={onDelete}
+      >
+        Delete
+      </button>
+    </span>
   );
 }
 

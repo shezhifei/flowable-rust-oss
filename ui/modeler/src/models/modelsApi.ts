@@ -44,6 +44,35 @@ export async function createModel(
   return (await response.json()) as RepositoryModelSummary;
 }
 
+/**
+ * The clone endpoint lives on the modeler app rather than the repository API and
+ * answers with the Java `ModelRepresentation` shape — a different set of fields
+ * from `RepositoryModelSummary`, hence its own type. An empty body lets the
+ * server derive the `-copy` key and ` (copy)` name; a duplicate key comes back
+ * as a 409 carrying the server's message.
+ */
+export interface ClonedModel {
+  id: string;
+  name: string | null;
+  key: string;
+  version: number;
+}
+
+export async function cloneModel(
+  modelId: string,
+  body: { name?: string; key?: string } = {},
+  fetcher: FetchLike = fetch,
+): Promise<ClonedModel> {
+  const response = await fetcher(`/modeler-app/rest/models/${encodeURIComponent(modelId)}/clone`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await apiError(response, `Unable to clone model '${modelId}'`);
+  return (await response.json()) as ClonedModel;
+}
+
 export async function deleteModel(modelId: string, fetcher: FetchLike = fetch): Promise<void> {
   const response = await fetcher(`/repository/models/${encodeURIComponent(modelId)}`, {
     method: 'DELETE',

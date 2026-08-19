@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  cloneModel,
   createModel,
   deleteModel,
   deployBpmnModel,
@@ -110,6 +111,42 @@ describe('models API client', () => {
       '/form-repository/deployments',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('clones a model through the modeler clone endpoint', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'm2', name: 'Leave (copy)', key: 'leave-copy', version: 1 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(cloneModel('m1', {}, fetcher)).resolves.toMatchObject({
+      id: 'm2',
+      key: 'leave-copy',
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      '/modeler-app/rest/models/m1/clone',
+      expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+    );
+    // An empty body lets the server derive the `-copy` key and ` (copy)` name.
+    expect(JSON.parse((fetcher.mock.calls[0]![1] as RequestInit).body as string)).toEqual({});
+  });
+
+  it('surfaces the duplicate-key conflict from a clone', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ message: 'Provided model key already exists: leave-copy' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(cloneModel('m1', { key: 'leave-copy' }, fetcher)).rejects.toThrow(
+      'Provided model key already exists: leave-copy',
+    );
+    expect(JSON.parse((fetcher.mock.calls[0]![1] as RequestInit).body as string)).toEqual({
+      key: 'leave-copy',
+    });
   });
 
   it('unwraps the FormEditorDocument envelope when publishing a form', async () => {
