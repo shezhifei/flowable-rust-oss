@@ -133,7 +133,11 @@ outside it:
 
 - **MySQL / PostgreSQL backend suites** are gated on `FLOWABLE_TEST_MYSQL_URL` /
   `FLOWABLE_TEST_POSTGRES_URL`; without those they fall back to defaults rather
-  than failing. See [docs/runbooks/multi-db-test.md](docs/runbooks/multi-db-test.md).
+  than failing. The whole-server boot and UI smoke suites
+  (`--features mysql` / `--features postgres`) additionally skip and pass when
+  the database is unreachable. MySQL live smoke has never been run against a
+  real instance — the adaptation and the suites are in place, but no instance was
+  available. See [docs/runbooks/multi-db-test.md](docs/runbooks/multi-db-test.md).
 - **The 16 `#[ignore]`d tests** need something the repo cannot assume: the
   Java-vs-Rust differential fixtures require a Flowable Java checkout with a JDK
   and Maven (see [differential/README.md](differential/README.md)), and the

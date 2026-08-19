@@ -308,9 +308,10 @@ const REST_USER: &str = "rest-smoke-user";
 const REST_PASSWORD: &str = "rest-smoke-secret";
 
 /// Minimal stand-in for the engine REST API, backed by the same Postgres
-/// engine. A full `flowable-rest` server cannot boot on Postgres yet (SQLite
-/// `PRAGMA` calls, see the file header), so the responder implements exactly
-/// the one endpoint the admin proxy reads, with Basic auth checked strictly so
+/// engine. The full `flowable-rest` server does boot on Postgres
+/// (`postgres_server_boot_test`), but standing one up here would pull the whole
+/// REST layer into a test about the admin proxy, so this responder implements
+/// exactly the one endpoint the proxy reads, with Basic auth checked strictly so
 /// a wrong decrypt of the stored password fails the test.
 #[derive(Clone)]
 struct EngineRestState {

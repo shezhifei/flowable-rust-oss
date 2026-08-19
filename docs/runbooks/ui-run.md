@@ -72,21 +72,50 @@ single-binary deployment the defaults already match; overrides:
 ## 5. Database backends
 
 Default storage is SQLite (file paths via `FLOWABLE_PROCESS_DATABASE_PATH` and
-siblings, see `flowable-platform-bootstrap`). PostgreSQL/MySQL contract suites
-follow [multi-db-test.md](multi-db-test.md)
-(`FLOWABLE_TEST_POSTGRES_URL` / `FLOWABLE_TEST_MYSQL_URL`):
+siblings, see `flowable-platform-bootstrap`).
+
+To run the whole server on PostgreSQL or MySQL instead, build with the matching
+feature and point `FLOWABLE_DATABASE_URL` at the instance — one URL selects the
+backend for the process engine and the DMN/CMMN/App engines together:
+
+```powershell
+$env:FLOWABLE_DATABASE_URL = "mysql://user:pass@localhost:3306/flowable"
+cargo run -p flowable-rest --features mysql
+```
+
+```powershell
+$env:FLOWABLE_DATABASE_URL = "postgres://user:pass@localhost:5432/flowable"
+cargo run -p flowable-rest --features postgres
+```
+
+The URL scheme decides the kind (`mysql://`, `postgres://` / `postgresql://`,
+`:memory:`, otherwise SQLite). Without the variable every engine keeps its
+existing SQLite path, so the default binary is unchanged.
+
+PostgreSQL/MySQL contract suites follow [multi-db-test.md](multi-db-test.md)
+(`FLOWABLE_TEST_POSTGRES_URL` / `FLOWABLE_TEST_MYSQL_URL`). All of them skip
+gracefully — and pass — when the database is unreachable, so a default
+`cargo test` never depends on one:
 
 - Whole-server PostgreSQL boot:
-  `cargo test -p flowable-rest --features postgres --test postgres_server_boot_test`
-  (skips gracefully without a reachable database). Column metadata goes through
-  `DbSession::table_columns` (SQLite `PRAGMA table_info`, Postgres/MySQL
-  `information_schema.columns`).
+  `cargo test -p flowable-rest --features postgres --test postgres_server_boot_test`.
+  Column metadata goes through `DbSession::table_columns` (SQLite
+  `PRAGMA table_info`, Postgres/MySQL `information_schema.columns`).
 - UI-level PostgreSQL smoke tests:
   `cargo test -p flowable-ui-rest --features postgres` (idm 4 + admin/task/modeler
-  5; skips gracefully without a reachable database).
-- MySQL: feature plumbing is in place but **unverified** — no local instance
-  during the migration; trigger with `FLOWABLE_TEST_MYSQL_URL` +
-  `--features mysql`.
+  5).
+- Whole-server MySQL boot:
+  `cargo test -p flowable-rest --features mysql --test mysql_server_boot_test`.
+- UI-level MySQL smoke tests:
+  `cargo test -p flowable-ui-rest --features mysql --test ui_mysql_smoke_test`
+  (the idm 4: login, token round-trip, logout, user CRUD).
+- MySQL live smoke is **unrun** — the adaptation (bootstrap URL parsing plus the
+  `--features mysql` chain through bootstrap and ui-rest) is in place and the
+  suites exist, but no local instance was available, so they have only been
+  observed skipping. Set `FLOWABLE_TEST_MYSQL_URL` to a live instance to
+  actually exercise them. Budget ~60s for the first probe against a dead
+  address: the MySQL pool's acquire timeout is fixed in `sqlx_executor.rs` and
+  `busy_timeout_ms` does not shorten it.
 
 ## 6. Known deliberate deviations
 
