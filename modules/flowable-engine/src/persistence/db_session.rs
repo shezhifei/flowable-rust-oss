@@ -1095,6 +1095,30 @@ impl DbSession {
         Ok(rows)
     }
 
+    /// Upsert one row by primary key with an explicit column list, dispatched per
+    /// backend: SQLite `INSERT OR REPLACE`, MySQL `REPLACE INTO`, Postgres
+    /// `INSERT ... ON CONFLICT (pk) DO UPDATE`. Delegates to
+    /// [`flowable_persistence::DbSession::upsert_raw`].
+    ///
+    /// `columns` must list every column in the same order as `params`, with
+    /// `pk_column` among them. For the `id`/`data` JSON-entity shape prefer
+    /// [`Self::insert_with_extra`]; this is for the fully-projected tables (content
+    /// items, form instances) that have no `data`-plus-extras structure.
+    ///
+    /// Writing `INSERT OR REPLACE` by hand instead is a portability bug: it is a
+    /// syntax error on both MySQL and Postgres.
+    pub fn upsert_raw(
+        &mut self,
+        table: &str,
+        pk_column: &str,
+        columns: &[&str],
+        params: DbParams,
+    ) -> Result<u64, StorageError> {
+        self.ensure_open()?;
+        let result = self.inner.upsert_raw(table, pk_column, columns, params)?;
+        Ok(result.rows_affected)
+    }
+
     /// Column metadata for `table`, dispatched by backend; see
     /// `flowable_persistence::DbSession::table_columns`.
     pub fn table_columns(&mut self, table: &str) -> Result<Vec<ColumnInfo>, StorageError> {

@@ -6,6 +6,25 @@ use flowable_engine::persistence::runtime_store::RuntimeStore;
 const CONTENT_ITEMS_TABLE: &str = "m14_content_items";
 const CONTENT_ITEM_DATA_TABLE: &str = "m14_content_item_data";
 
+/// Column order of the fully-projected content-item upsert. Both insert paths
+/// push their params in exactly this order.
+const CONTENT_ITEM_COLUMNS: &[&str] = &[
+    "id",
+    "data",
+    "name",
+    "mime_type",
+    "task_id",
+    "process_instance_id",
+    "scope_type",
+    "scope_id",
+    "field",
+    "tenant_id",
+    "created_by",
+    "created_at",
+    "updated_at",
+    "expires_at",
+];
+
 pub fn ensure_schema(store: &RuntimeStore) {
     let mut session = store.db_store().create_session().unwrap();
 
@@ -146,12 +165,10 @@ pub fn insert_content_item(
     params.push(item.updated_at);
     params.push(item.expires_at);
 
-    session.execute_raw(
-        &format!(
-            "INSERT OR REPLACE INTO {CONTENT_ITEMS_TABLE}
-             (id, data, name, mime_type, task_id, process_instance_id, scope_type, scope_id, field, tenant_id, created_by, created_at, updated_at, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ),
+    session.upsert_raw(
+        CONTENT_ITEMS_TABLE,
+        "id",
+        CONTENT_ITEM_COLUMNS,
         params,
     )?;
 
@@ -159,11 +176,10 @@ pub fn insert_content_item(
         let mut blob_params = DbParams::new();
         blob_params.push(item.id.clone());
         blob_params.push(payload.to_vec());
-        session.execute_raw(
-            &format!(
-                "INSERT OR REPLACE INTO {CONTENT_ITEM_DATA_TABLE} (content_item_id, payload)
-                 VALUES (?, ?)"
-            ),
+        session.upsert_raw(
+            CONTENT_ITEM_DATA_TABLE,
+            "content_item_id",
+            &["content_item_id", "payload"],
             blob_params,
         )?;
     } else {
@@ -350,12 +366,10 @@ pub fn insert_content_item_in_session(
     params.push(item.updated_at);
     params.push(item.expires_at);
 
-    session.execute_raw(
-        &format!(
-            "INSERT OR REPLACE INTO {CONTENT_ITEMS_TABLE}
-             (id, data, name, mime_type, task_id, process_instance_id, scope_type, scope_id, field, tenant_id, created_by, created_at, updated_at, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ),
+    session.upsert_raw(
+        CONTENT_ITEMS_TABLE,
+        "id",
+        CONTENT_ITEM_COLUMNS,
         params,
     )?;
 
@@ -363,11 +377,10 @@ pub fn insert_content_item_in_session(
         let mut blob_params = DbParams::new();
         blob_params.push(item.id.clone());
         blob_params.push(payload.to_vec());
-        session.execute_raw(
-            &format!(
-                "INSERT OR REPLACE INTO {CONTENT_ITEM_DATA_TABLE} (content_item_id, payload)
-                 VALUES (?, ?)"
-            ),
+        session.upsert_raw(
+            CONTENT_ITEM_DATA_TABLE,
+            "content_item_id",
+            &["content_item_id", "payload"],
             blob_params,
         )?;
     }

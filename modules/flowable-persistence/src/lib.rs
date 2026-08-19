@@ -26,7 +26,9 @@ pub use adapters::sqlx_executor::{
 pub use config::{DatabaseConfig, DatabaseKind, SchemaMode};
 pub use db_session::{ColumnInfo, DbSession, FilterOp};
 pub use db_session_factory::DbSessionFactory;
-pub use dialect::{MemoryDialect, MysqlDialect, PostgresDialect, SqlDialect, SqliteDialect};
+pub use dialect::{
+    MemoryDialect, MysqlDialect, PostgresDialect, SqlDialect, SqliteDialect, render_upsert,
+};
 pub use entity::app_definition::{AppDefinitionDataManager, AppDefinitionEntity};
 pub use entity::app_deployment::{AppDeploymentDataManager, AppDeploymentEntity};
 pub use entity::app_deployment_resource::{

@@ -477,6 +477,29 @@ impl DbSession {
             .collect())
     }
 
+    /// Upsert one row by primary key with an explicit column list, dispatched per
+    /// backend: SQLite `INSERT OR REPLACE`, MySQL `REPLACE INTO`, Postgres
+    /// `INSERT ... ON CONFLICT (pk) DO UPDATE`.
+    ///
+    /// `columns` must list every column in the same order as `params`, with
+    /// `pk_column` among them; every other column is refreshed on conflict. For
+    /// the `ID_`/`DATA_` JSON-entity shape prefer [`Self::json_insert`] — this is
+    /// for the fully-projected tables (CMMN history, event subscriptions) whose
+    /// columns are not a two-column pair.
+    ///
+    /// Writing `INSERT OR REPLACE` by hand instead is a portability bug: it is a
+    /// syntax error on both MySQL and Postgres.
+    pub fn upsert_raw(
+        &mut self,
+        table: &str,
+        pk_column: &str,
+        columns: &[&str],
+        params: DbParams,
+    ) -> Result<ExecuteResult, PersistenceError> {
+        let sql = crate::dialect::render_upsert(self.dialect(), table, pk_column, columns);
+        self.execute_raw(RenderedStatement::new(sql, params))
+    }
+
     pub fn json_insert(
         &mut self,
         table: &str,

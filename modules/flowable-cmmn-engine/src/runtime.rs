@@ -11307,10 +11307,22 @@ fn persist_historic_case_session(
     params.push(historic_case.started_at.to_rfc3339());
     params.push(historic_case.completed_at.map(|value| value.to_rfc3339()));
     params.push(serde_json::to_string(historic_case)?);
-    session.execute_raw(RenderedStatement::new(
-        "INSERT OR REPLACE INTO ACT_CMMN_CASE_HISTORY (CASE_INSTANCE_ID_, CASE_DEFINITION_ID_, CASE_KEY_, TENANT_ID_, BUSINESS_KEY_, STATE_, STARTED_AT_, COMPLETED_AT_, DATA_) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string(),
+    session.upsert_raw(
+        "ACT_CMMN_CASE_HISTORY",
+        "CASE_INSTANCE_ID_",
+        &[
+            "CASE_INSTANCE_ID_",
+            "CASE_DEFINITION_ID_",
+            "CASE_KEY_",
+            "TENANT_ID_",
+            "BUSINESS_KEY_",
+            "STATE_",
+            "STARTED_AT_",
+            "COMPLETED_AT_",
+            "DATA_",
+        ],
         params,
-    ))?;
+    )?;
     Ok(())
 }
 
@@ -11328,10 +11340,22 @@ fn persist_historic_human_task_session(
     params.push(historic_task.activated_at.to_rfc3339());
     params.push(historic_task.completed_at.map(|value| value.to_rfc3339()));
     params.push(serde_json::to_string(historic_task)?);
-    session.execute_raw(RenderedStatement::new(
-        "INSERT OR REPLACE INTO ACT_CMMN_HUMAN_TASK_HISTORY (TASK_ID_, CASE_INSTANCE_ID_, CASE_DEFINITION_ID_, CASE_KEY_, STAGE_INSTANCE_ID_, STATE_, ACTIVATED_AT_, COMPLETED_AT_, DATA_) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string(),
+    session.upsert_raw(
+        "ACT_CMMN_HUMAN_TASK_HISTORY",
+        "TASK_ID_",
+        &[
+            "TASK_ID_",
+            "CASE_INSTANCE_ID_",
+            "CASE_DEFINITION_ID_",
+            "CASE_KEY_",
+            "STAGE_INSTANCE_ID_",
+            "STATE_",
+            "ACTIVATED_AT_",
+            "COMPLETED_AT_",
+            "DATA_",
+        ],
         params,
-    ))?;
+    )?;
     Ok(())
 }
 
@@ -11381,10 +11405,20 @@ fn persist_historic_milestone_session(
     params.push(historic_milestone.milestone_id.as_str());
     params.push(historic_milestone.time.to_rfc3339());
     params.push(serde_json::to_string(historic_milestone)?);
-    session.execute_raw(RenderedStatement::new(
-        "INSERT OR REPLACE INTO ACT_CMMN_MILESTONE_HISTORY (ID_, CASE_INSTANCE_ID_, CASE_DEFINITION_ID_, CASE_KEY_, MILESTONE_ID_, TIME_, DATA_) VALUES (?, ?, ?, ?, ?, ?, ?)".to_string(),
+    session.upsert_raw(
+        "ACT_CMMN_MILESTONE_HISTORY",
+        "ID_",
+        &[
+            "ID_",
+            "CASE_INSTANCE_ID_",
+            "CASE_DEFINITION_ID_",
+            "CASE_KEY_",
+            "MILESTONE_ID_",
+            "TIME_",
+            "DATA_",
+        ],
         params,
-    ))?;
+    )?;
     Ok(())
 }
 
@@ -11404,10 +11438,24 @@ fn persist_event_subscription_session(
     params.push(subscription.configuration.clone());
     params.push(subscription.created_at.to_rfc3339());
     params.push(serde_json::to_string(subscription)?);
-    session.execute_raw(RenderedStatement::new(
-        "INSERT OR REPLACE INTO ACT_CMMN_EVENT_SUBSCRIPTION (ID_, EVENT_TYPE_, EVENT_NAME_, ACTIVITY_ID_, CASE_INSTANCE_ID_, CASE_DEFINITION_ID_, PLAN_ITEM_INSTANCE_ID_, TENANT_ID_, CONFIGURATION_, CREATED_AT_, DATA_) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string(),
+    session.upsert_raw(
+        "ACT_CMMN_EVENT_SUBSCRIPTION",
+        "ID_",
+        &[
+            "ID_",
+            "EVENT_TYPE_",
+            "EVENT_NAME_",
+            "ACTIVITY_ID_",
+            "CASE_INSTANCE_ID_",
+            "CASE_DEFINITION_ID_",
+            "PLAN_ITEM_INSTANCE_ID_",
+            "TENANT_ID_",
+            "CONFIGURATION_",
+            "CREATED_AT_",
+            "DATA_",
+        ],
         params,
-    ))?;
+    )?;
     Ok(())
 }
 

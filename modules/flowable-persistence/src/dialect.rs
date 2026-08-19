@@ -52,6 +52,41 @@ pub trait SqlDialect: Send + Sync {
     }
 }
 
+/// Render a single-row upsert keyed on `pk_column`, dispatched per backend:
+/// SQLite `INSERT OR REPLACE`, MySQL `REPLACE INTO`, Postgres
+/// `INSERT ... ON CONFLICT (pk) DO UPDATE`.
+///
+/// `columns` is the full column list, in the same order the caller binds its
+/// parameters, and must contain `pk_column`; every other column is refreshed on
+/// conflict. [`crate::DbSession::upsert_raw`] is the only caller — it lives here
+/// so the SQL it emits is testable per backend without a database.
+pub fn render_upsert(
+    dialect: &dyn SqlDialect,
+    table: &str,
+    pk_column: &str,
+    columns: &[&str],
+) -> String {
+    let placeholders = (0..columns.len())
+        .map(|index| dialect.placeholder(index))
+        .collect::<Vec<_>>();
+    let mut sql = format!(
+        "{} {} ({}) VALUES ({})",
+        dialect.insert_or_replace_into(),
+        table,
+        columns.join(", "),
+        placeholders.join(", ")
+    );
+    if dialect.supports_on_conflict_update() {
+        let update_columns = columns
+            .iter()
+            .copied()
+            .filter(|column| !column.eq_ignore_ascii_case(pk_column))
+            .collect::<Vec<_>>();
+        sql.push_str(&dialect.on_conflict_do_update_suffix(pk_column, &update_columns));
+    }
+    sql
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryDialect;
 

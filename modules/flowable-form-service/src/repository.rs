@@ -553,14 +553,25 @@ pub fn insert_form_instance_in_session(
     params.push(form_instance.tenant_id.clone().unwrap_or_default());
     params.push(form_instance.form_values_id.clone().unwrap_or_default());
 
-    session.execute_raw(
-        &format!(
-            "INSERT OR REPLACE INTO {FORM_INSTANCES_TABLE}
-             (id, data, form_definition_id, form_definition_key, process_definition_id,
-              process_instance_id, task_id, scope_type, scope_id, scope_definition_id,
-              submitted_at, submitted_by, tenant_id, form_values_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ),
+    session.upsert_raw(
+        FORM_INSTANCES_TABLE,
+        "id",
+        &[
+            "id",
+            "data",
+            "form_definition_id",
+            "form_definition_key",
+            "process_definition_id",
+            "process_instance_id",
+            "task_id",
+            "scope_type",
+            "scope_id",
+            "scope_definition_id",
+            "submitted_at",
+            "submitted_by",
+            "tenant_id",
+            "form_values_id",
+        ],
         params,
     )?;
     Ok(())

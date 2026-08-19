@@ -3202,10 +3202,24 @@ fn persist_event_subscription_in_session(
     params.push(subscription.configuration.clone());
     params.push(subscription.created_at.to_rfc3339());
     params.push(serde_json::to_string(subscription)?);
-    session.execute_raw(RenderedStatement::new(
-        "INSERT OR REPLACE INTO ACT_CMMN_EVENT_SUBSCRIPTION (ID_, EVENT_TYPE_, EVENT_NAME_, ACTIVITY_ID_, CASE_INSTANCE_ID_, CASE_DEFINITION_ID_, PLAN_ITEM_INSTANCE_ID_, TENANT_ID_, CONFIGURATION_, CREATED_AT_, DATA_) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string(),
+    session.upsert_raw(
+        "ACT_CMMN_EVENT_SUBSCRIPTION",
+        "ID_",
+        &[
+            "ID_",
+            "EVENT_TYPE_",
+            "EVENT_NAME_",
+            "ACTIVITY_ID_",
+            "CASE_INSTANCE_ID_",
+            "CASE_DEFINITION_ID_",
+            "PLAN_ITEM_INSTANCE_ID_",
+            "TENANT_ID_",
+            "CONFIGURATION_",
+            "CREATED_AT_",
+            "DATA_",
+        ],
         params,
-    ))?;
+    )?;
     Ok(())
 }
 
