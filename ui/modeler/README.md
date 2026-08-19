@@ -48,7 +48,9 @@ persistence endpoints.
   replacement.
 - Properties panel (C3): General / Execution / Assignment / Form & scheduling / Implementation /
   Condition, plus phase-two groups for multi-instance, task/execution listeners, signal & message
-  definitions and refs, field injection, and call-activity parameters.
+  definitions and refs, field injection, call-activity parameters, timer definitions, error and
+  escalation references, and user-task / start-event form properties. Business rule tasks edit their
+  DMN decision key beside the implementation fields.
 
 The C1 screenshot gate is generated from the same 20 representative XML round-trip fixtures used by
 the Rust converter tests. `npm run generate:render-fixtures` refreshes the ignored browser JSON
