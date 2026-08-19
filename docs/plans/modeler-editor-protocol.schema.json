@@ -7669,6 +7669,13 @@
             "null"
           ]
         },
+        "formProperties": {
+          "description": "Java `StartEvent.formProperties`: a start form declared inline with\n`flowable:formProperty` rather than through a `formKey` reference.",
+          "items": {
+            "$ref": "#/$defs/FormProperty"
+          },
+          "type": "array"
+        },
         "id": {
           "type": [
             "string",

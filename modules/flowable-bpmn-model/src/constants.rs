@@ -141,7 +141,14 @@ pub const ATTRIBUTE_FORM_VARIABLE: &str = "variable";
 pub const ATTRIBUTE_FORM_DEFAULT: &str = "default";
 pub const ATTRIBUTE_FORM_DATEPATTERN: &str = "datePattern";
 pub const ATTRIBUTE_FORM_READABLE: &str = "readable";
-pub const ATTRIBUTE_FORM_WRITABLE: &str = "writeable";
+/// Java `BpmnXMLConstants.ATTRIBUTE_FORM_WRITABLE`. The XML attribute is spelled
+/// `writable`; only the model field is `writeable`. The writer already emits
+/// `writable`, so a parser matching the model spelling would drop the flag on
+/// every round-trip.
+pub const ATTRIBUTE_FORM_WRITABLE: &str = "writable";
+/// The model-side spelling, accepted on read for documents written by tools that
+/// mirrored the field name instead of the Java attribute.
+pub const ATTRIBUTE_FORM_WRITEABLE_ALIAS: &str = "writeable";
 pub const ATTRIBUTE_FORM_REQUIRED: &str = "required";
 pub const ATTRIBUTE_LISTENER_EVENT: &str = "event";
 pub const ATTRIBUTE_LISTENER_CLASS: &str = "class";

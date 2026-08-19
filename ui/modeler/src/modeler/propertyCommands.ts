@@ -8,6 +8,7 @@ import type {
   FieldExtension,
   FlowableListener,
   FlowElementEnum,
+  FormProperty,
   IOParameter,
   Message,
   MultiInstanceLoopCharacteristics,
@@ -314,6 +315,45 @@ export function updateEventDefinitionCodeCommand(
   };
 }
 
+/** Element types that carry an inline form; Java allows it on these two only. */
+const FORM_PROPERTY_TYPES = new Set<FlowElementEnum['elementType']>(['startEvent', 'userTask']);
+
+/**
+ * Replaces an element's inline form definition wholesale. The panel edits the
+ * list as a unit — add, remove and reorder are all one list write — so a single
+ * replace keeps every row change a single undo step.
+ */
+export function updateFormPropertiesCommand(
+  elementId: string,
+  next: FormProperty[],
+  label?: string,
+): ModelerCommand {
+  return {
+    label: label ?? `Edit form properties on ${elementId}`,
+    apply(document) {
+      const located = locateCanonicalElement(document, elementId);
+      if (!located) {
+        throw new PropertyCommandError(
+          'missing-element',
+          elementId,
+          `${elementId} is not part of this document`,
+        );
+      }
+      if (located.kind !== 'flowElement' || !FORM_PROPERTY_TYPES.has(located.element.elementType)) {
+        throw new PropertyCommandError(
+          'missing-element',
+          elementId,
+          `${elementId} does not carry form properties`,
+        );
+      }
+      (
+        located.element as Draft<FlowElementEnum> & { formProperties?: Draft<FormProperty>[] }
+      ).formProperties = next as Draft<FormProperty>[];
+      normalizeModelInvariants(document);
+    },
+  };
+}
+
 /** Fields a timer editor may write. Absent keys are left untouched. */
 export type TimerDefinitionFields = {
   calendarName?: string | null;
@@ -452,6 +492,31 @@ export function createEmptyEscalation(id: string): Escalation {
     extensionElements: {},
     id,
     name: id,
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+/**
+ * A new form field. `readable` and `writeable` default to true to match the BPMN
+ * defaults — the XML attributes only ever appear to turn them off — and `name`
+ * defaults to the id so a fresh row renders with a label instead of blank.
+ */
+export function createEmptyFormProperty(id: string): FormProperty {
+  return {
+    attributes: {},
+    datePattern: null,
+    defaultExpression: null,
+    expression: null,
+    extensionElements: {},
+    formValues: [],
+    id,
+    name: id,
+    readable: true,
+    required: false,
+    type: 'string',
+    variable: null,
+    writeable: true,
     xmlColumnNumber: 0,
     xmlRowNumber: 0,
   };

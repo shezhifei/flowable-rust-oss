@@ -4,6 +4,7 @@ import { useModelerStore } from './modelerStore';
 import {
   createEmptyEscalation,
   createEmptyFieldExtension,
+  createEmptyFormProperty,
   createEmptyIOParameter,
   createEmptyListener,
   createEmptyLoopCharacteristics,
@@ -13,6 +14,7 @@ import {
   updateElementPropertiesCommand,
   updateEventDefinitionCodeCommand,
   updateEventDefinitionRefCommand,
+  updateFormPropertiesCommand,
   updateModelEscalationsCommand,
   updateModelMessagesCommand,
   updateModelSignalsCommand,
@@ -544,6 +546,73 @@ describe('phase-2 advanced property commands', () => {
     ).toThrow(/does not carry event definitions/);
     expect(() =>
       state().execute(updateEventDefinitionCodeCommand('nope', 'errorEventDefinition', 'BOOM')),
+    ).toThrow(/is not part of this document/);
+  });
+});
+
+describe('form property updates', () => {
+  beforeEach(resetStore);
+
+  it('adds a form property to a user task and undoes it', () => {
+    state().execute(
+      updateFormPropertiesCommand('review', [
+        { ...createEmptyFormProperty('amount'), type: 'long', required: true },
+      ]),
+    );
+
+    const task = flowElement('review');
+    if (task.elementType !== 'userTask') throw new Error('review should be a user task');
+    expect(task.formProperties).toEqual([
+      expect.objectContaining({
+        id: 'amount',
+        name: 'amount',
+        type: 'long',
+        required: true,
+        readable: true,
+        writeable: true,
+      }),
+    ]);
+
+    state().undo();
+    const restored = flowElement('review');
+    if (restored.elementType !== 'userTask') throw new Error('review should be a user task');
+    expect(restored.formProperties).toEqual([]);
+  });
+
+  it('seeds a start form on a start event that has none', () => {
+    state().execute(
+      updateFormPropertiesCommand('start', [
+        { ...createEmptyFormProperty('requester'), variable: 'requester', writeable: false },
+      ]),
+    );
+
+    const start = flowElement('start');
+    if (start.elementType !== 'startEvent') throw new Error('start should be a start event');
+    expect(start.formProperties).toEqual([
+      expect.objectContaining({ id: 'requester', variable: 'requester', writeable: false }),
+    ]);
+  });
+
+  it('replaces the whole list so a removed row disappears', () => {
+    state().execute(
+      updateFormPropertiesCommand('review', [
+        createEmptyFormProperty('first'),
+        createEmptyFormProperty('second'),
+      ]),
+    );
+    state().execute(updateFormPropertiesCommand('review', [createEmptyFormProperty('second')]));
+
+    const task = flowElement('review');
+    if (task.elementType !== 'userTask') throw new Error('review should be a user task');
+    expect(task.formProperties?.map((property) => property.id)).toEqual(['second']);
+  });
+
+  it('refuses form property edits on elements that cannot hold a form', () => {
+    expect(() =>
+      state().execute(updateFormPropertiesCommand('notify', [createEmptyFormProperty('nope')])),
+    ).toThrow(/does not carry form properties/);
+    expect(() =>
+      state().execute(updateFormPropertiesCommand('missing', [createEmptyFormProperty('nope')])),
     ).toThrow(/is not part of this document/);
   });
 });

@@ -1219,11 +1219,13 @@ impl BpmnXMLConverter {
                 }
                 self.ensure_id(&mut start_event.event.flow_node.flow_element.base_element.id);
                 if !is_empty {
+                    let mut form_properties = Some(&mut start_event.form_properties);
                     self.parse_event_children(
                         reader,
                         &mut start_event.event,
                         &mut None,
                         &mut None,
+                        &mut form_properties,
                         e,
                         n,
                         model,
@@ -1251,6 +1253,7 @@ impl BpmnXMLConverter {
                     self.parse_event_children(
                         reader,
                         &mut end_event.event,
+                        &mut None,
                         &mut None,
                         &mut None,
                         e,
@@ -1282,6 +1285,7 @@ impl BpmnXMLConverter {
                         &mut catch_event.event,
                         &mut None,
                         &mut None,
+                        &mut None,
                         e,
                         n,
                         model,
@@ -1309,6 +1313,7 @@ impl BpmnXMLConverter {
                     self.parse_event_children(
                         reader,
                         &mut throw_event.event,
+                        &mut None,
                         &mut None,
                         &mut None,
                         e,
@@ -1364,6 +1369,7 @@ impl BpmnXMLConverter {
                         &mut boundary_event.event,
                         &mut in_params,
                         &mut out_params,
+                        &mut None,
                         e,
                         n,
                         model,
@@ -3951,7 +3957,9 @@ impl BpmnXMLConverter {
                 }
                 k if k == ATTRIBUTE_FORM_DATEPATTERN => fp.date_pattern = Some(value.into_owned()),
                 k if k == ATTRIBUTE_FORM_READABLE => fp.readable = value != ATTRIBUTE_VALUE_FALSE,
-                k if k == ATTRIBUTE_FORM_WRITABLE => fp.writeable = value != ATTRIBUTE_VALUE_FALSE,
+                k if k == ATTRIBUTE_FORM_WRITABLE || k == ATTRIBUTE_FORM_WRITEABLE_ALIAS => {
+                    fp.writeable = value != ATTRIBUTE_VALUE_FALSE
+                }
                 k if k == ATTRIBUTE_FORM_REQUIRED => fp.required = value == ATTRIBUTE_VALUE_TRUE,
                 _ => {}
             }
@@ -4243,6 +4251,7 @@ impl BpmnXMLConverter {
         event: &mut Event,
         in_parameters: &mut Option<&mut Vec<IOParameter>>,
         out_parameters: &mut Option<&mut Vec<IOParameter>>,
+        form_properties: &mut Option<&mut Vec<FormProperty>>,
         wrapper: &BytesStart,
         parent_tag: &str,
         model: &BpmnModel,
@@ -4278,6 +4287,7 @@ impl BpmnXMLConverter {
                             event,
                             in_parameters,
                             out_parameters,
+                            form_properties,
                             e,
                             &namespaces,
                         );
@@ -4405,6 +4415,7 @@ impl BpmnXMLConverter {
         event: &mut Event,
         in_parameters: &mut Option<&mut Vec<IOParameter>>,
         out_parameters: &mut Option<&mut Vec<IOParameter>>,
+        form_properties: &mut Option<&mut Vec<FormProperty>>,
         wrapper: &BytesStart,
         namespaces: &IndexMap<String, String>,
     ) {
@@ -4463,10 +4474,16 @@ impl BpmnXMLConverter {
                     } else if local_name == ELEMENT_FIELD {
                         // Field extension is not expected on base event, but in case, we add to activity/flownode if supported
                         // To be safe, skip or process. (Base event doesn't have field extensions in model typically)
+                    } else if local_name == ELEMENT_FORMPROPERTY {
+                        // Java `StartEvent` declares an inline start form here.
+                        // Events that cannot hold one pass `None`, and the
+                        // property is consumed without being stored.
+                        let property = self.parse_form_property(e, reader, is_empty);
+                        if let Some(properties) = form_properties.as_mut() {
+                            properties.push(property);
+                        }
                     } else if local_name == "customResource"
                         || local_name == "taskListener"
-                        || local_name == "formProperty"
-                        || local_name == "value"
                         || local_name == "value"
                     {
                         if !is_empty {

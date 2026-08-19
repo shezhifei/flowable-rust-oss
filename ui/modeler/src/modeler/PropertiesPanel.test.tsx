@@ -130,6 +130,59 @@ describe('properties panel element groups', () => {
     expect(html).toContain('+ Add escalation');
   });
 
+  it('renders the form properties group for a user task', () => {
+    const html = renderPanel(['review']);
+    expect(html).toContain('data-property-group="form-properties"');
+    expect(html).toContain('+ Add form property');
+  });
+
+  it('renders the form properties group for a start event', () => {
+    const html = renderPanel(['start']);
+    expect(html).toContain('data-property-group="form-properties"');
+  });
+
+  it('renders a row per existing form property', () => {
+    const document = structuredClone(sampleDocument);
+    const review = document.model.processes[0]?.flowElements?.find(
+      (element) => element.id === 'review',
+    );
+    if (!review || review.elementType !== 'userTask') throw new Error('review is missing');
+    review.formProperties = [
+      {
+        attributes: {},
+        extensionElements: {},
+        formValues: [],
+        id: 'amount',
+        name: 'Amount',
+        type: 'long',
+        variable: 'amount',
+        readable: true,
+        writeable: false,
+        required: true,
+        datePattern: null,
+        defaultExpression: null,
+        expression: null,
+        xmlColumnNumber: 0,
+        xmlRowNumber: 0,
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <PropertiesPanel panelState={{ document, selectedElementIds: ['review'] }} />,
+    );
+    expect(html).toContain('data-property="formPropertyId-0"');
+    expect(html).toContain('data-property="formPropertyType-0"');
+    expect(html).toContain('data-property="formPropertyVariable-0"');
+    expect(html).toContain('data-property="formPropertyRequired-0"');
+    expect(html).toContain('data-property="formPropertyWriteable-0"');
+    expect(html).toContain('value="Amount"');
+  });
+
+  it('omits the form properties group for a service task', () => {
+    const html = renderPanel(['notify']);
+    expect(html).not.toContain('data-property-group="form-properties"');
+  });
+
   it('reflects the document it is given for the selected element', () => {
     const document = structuredClone(sampleDocument);
     const review = document.model.processes[0]?.flowElements?.find(

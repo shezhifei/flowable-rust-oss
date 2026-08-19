@@ -528,6 +528,85 @@ fn timer_without_calendar_leaves_calendar_name_absent() {
     );
 }
 
+/// Java `StartEvent` carries `formProperties` just like `UserTask`, and the
+/// `formPropertiesProcess.bpmn` fixture declares eight of them on its start
+/// event. The Rust model dropped them on the floor: `parse_extensions_into_event`
+/// read `flowable:formProperty` only to discard it, so a start-event form
+/// definition disappeared on every parse and could never be written back.
+#[test]
+fn start_event_extension_elements_carry_form_properties() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="Examples">
+  <process id="startForm" isExecutable="true">
+    <startEvent id="start">
+      <extensionElements>
+        <flowable:formProperty id="amount" name="Amount" type="long" variable="amount"
+                               required="true" writable="false"/>
+        <flowable:formProperty id="kind" name="Kind" type="enum">
+          <flowable:value id="sick" name="Sick leave"/>
+          <flowable:value id="paid" name="Paid leave"/>
+        </flowable:formProperty>
+      </extensionElements>
+    </startEvent>
+  </process>
+</definitions>"#;
+
+    let converter = BpmnXMLConverter::new();
+    let model = converter.convert_to_bpmn_model(xml);
+    let process = model.main_process.as_ref().expect("main process");
+    let FlowElementEnum::StartEvent(start) =
+        process.flow_element_map.get("start").expect("start event")
+    else {
+        panic!("start should be a start event");
+    };
+
+    let properties = &start.form_properties;
+    assert_eq!(properties.len(), 2, "{properties:?}");
+
+    let amount = &properties[0];
+    assert_eq!(amount.base_element.id.as_deref(), Some("amount"));
+    assert_eq!(amount.name.as_deref(), Some("Amount"));
+    assert_eq!(amount.property_type.as_deref(), Some("long"));
+    assert_eq!(amount.variable.as_deref(), Some("amount"));
+    assert!(amount.required, "required=\"true\" must be honoured");
+    assert!(amount.readable, "readable defaults to true when unspecified");
+    assert!(!amount.writeable, "writable=\"false\" must be honoured");
+
+    let kind = &properties[1];
+    assert_eq!(kind.property_type.as_deref(), Some("enum"));
+    assert_eq!(
+        kind.form_values
+            .iter()
+            .map(|value| value.base_element.id.as_deref().unwrap_or_default())
+            .collect::<Vec<_>>(),
+        vec!["sick", "paid"],
+        "enum options must survive the parse"
+    );
+
+    // The writer has to emit them back, otherwise the modeler loses the form on save.
+    let xml_out = flowable_bpmn_converter::write_bpmn_model(&model).expect("write");
+    assert!(
+        xml_out.contains(r#"id="amount""#) && xml_out.contains(r#"variable="amount""#),
+        "start-event form properties must round-trip through the writer: {xml_out}"
+    );
+    let reparsed = converter.convert_to_bpmn_model(&xml_out);
+    let reparsed_process = reparsed.main_process.as_ref().expect("main process");
+    let FlowElementEnum::StartEvent(reparsed_start) = reparsed_process
+        .flow_element_map
+        .get("start")
+        .expect("start event")
+    else {
+        panic!("start should be a start event");
+    };
+    assert_eq!(reparsed_start.form_properties.len(), 2);
+    assert!(
+        !reparsed_start.form_properties[0].writeable,
+        "the writer emits writable=\"false\"; the parser must read that spelling back"
+    );
+}
+
 fn extract_start_timer_calendar_name(xml: &str) -> Option<String> {
     let converter = BpmnXMLConverter::new();
     let model = converter.convert_to_bpmn_model(xml);

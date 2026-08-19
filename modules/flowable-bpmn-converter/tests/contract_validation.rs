@@ -929,7 +929,7 @@ fn should_ignore_field(path: &str, key: &str, current_id: Option<&str>) -> bool 
         return true;
     }
 
-    if key == "doNotIncludeVariables" || key == "formProperties" || key == "topic" {
+    if key == "doNotIncludeVariables" || key == "topic" {
         return true;
     }
 

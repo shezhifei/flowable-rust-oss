@@ -1442,6 +1442,11 @@ export interface StartEvent {
     [k: string]: ExtensionElement[];
   };
   formKey?: string | null;
+  /**
+   * Java `StartEvent.formProperties`: a start form declared inline with
+   * `flowable:formProperty` rather than through a `formKey` reference.
+   */
+  formProperties?: FormProperty[];
   id?: string | null;
   incomingFlows: SequenceFlow[];
   initiator?: string | null;

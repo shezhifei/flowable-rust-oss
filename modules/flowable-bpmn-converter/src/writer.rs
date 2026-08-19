@@ -288,19 +288,21 @@ fn write_flow_element(
         FlowElementEnum::ManualTask(v) => write_task(writer, "manualTask", &v.task.activity, &[]),
         FlowElementEnum::ReceiveTask(v) => write_receive_task(writer, v),
         FlowElementEnum::BusinessRuleTask(v) => write_business_rule_task(writer, v),
-        FlowElementEnum::StartEvent(v) => write_event(writer, "startEvent", &v.event, |n| {
-            push_opt(n, "flowable:initiator", v.initiator.as_deref());
-            push_opt(n, "flowable:formKey", v.form_key.as_deref());
-            if !v.interrupting {
-                n.push_attribute(("isInterrupting", "false"));
-            }
-        }),
-        FlowElementEnum::EndEvent(v) => write_event(writer, "endEvent", &v.event, |_| {}),
+        FlowElementEnum::StartEvent(v) => {
+            write_event(writer, "startEvent", &v.event, &v.form_properties, |n| {
+                push_opt(n, "flowable:initiator", v.initiator.as_deref());
+                push_opt(n, "flowable:formKey", v.form_key.as_deref());
+                if !v.interrupting {
+                    n.push_attribute(("isInterrupting", "false"));
+                }
+            })
+        }
+        FlowElementEnum::EndEvent(v) => write_event(writer, "endEvent", &v.event, &[], |_| {}),
         FlowElementEnum::IntermediateCatchEvent(v) => {
-            write_event(writer, "intermediateCatchEvent", &v.event, |_| {})
+            write_event(writer, "intermediateCatchEvent", &v.event, &[], |_| {})
         }
         FlowElementEnum::IntermediateThrowEvent(v) => {
-            write_event(writer, "intermediateThrowEvent", &v.event, |_| {})
+            write_event(writer, "intermediateThrowEvent", &v.event, &[], |_| {})
         }
         FlowElementEnum::BoundaryEvent(v) => write_boundary_event(writer, v),
         FlowElementEnum::ExclusiveGateway(v) => {
@@ -635,16 +637,34 @@ fn write_gateway(
     emit(writer, XmlEvent::End(BytesEnd::new(name)))
 }
 
+/// Writes an event and its definitions. `forms` is the inline start form —
+/// non-empty only for `startEvent`, the one event type Java lets carry
+/// `flowable:formProperty`.
 fn write_event<F: FnOnce(&mut BytesStart<'_>)>(
     writer: &mut Writer<Vec<u8>>,
     name: &'static str,
     value: &flowable_bpmn_model::Event,
+    forms: &[FormProperty],
     decorate: F,
 ) -> Result<(), BpmnXmlWriteError> {
     let mut node = flow_node_start(name, &value.flow_node);
     decorate(&mut node);
     emit(writer, XmlEvent::Start(node))?;
-    write_flow_body(writer, &value.flow_node.flow_element)?;
+    if let Some(documentation) = &value.flow_node.flow_element.documentation {
+        text_element(writer, "documentation", documentation)?;
+    }
+    write_extensions(
+        writer,
+        &value.flow_node.flow_element.base_element,
+        &value.flow_node.flow_element.execution_listeners,
+        &[],
+        &[],
+        forms,
+        &[],
+        &[],
+        None,
+        &[],
+    )?;
     for definition in &value.event_definitions {
         write_event_definition(writer, definition)?;
     }

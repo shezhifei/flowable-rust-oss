@@ -1182,6 +1182,10 @@ pub struct StartEvent {
     pub same_deployment: bool,
     #[serde(alias = "isInterrupting")]
     pub interrupting: bool,
+    /// Java `StartEvent.formProperties`: a start form declared inline with
+    /// `flowable:formProperty` rather than through a `formKey` reference.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub form_properties: Vec<FormProperty>,
 }
 
 impl Default for StartEvent {
@@ -1192,6 +1196,7 @@ impl Default for StartEvent {
             form_key: None,
             same_deployment: true,
             interrupting: true,
+            form_properties: Vec::new(),
         }
     }
 }

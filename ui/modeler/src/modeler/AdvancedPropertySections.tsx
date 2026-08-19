@@ -5,6 +5,7 @@ import type {
   FieldExtension,
   FlowableListener,
   FlowElementEnum,
+  FormProperty,
   IOParameter,
   Message,
   MultiInstanceLoopCharacteristics,
@@ -14,6 +15,7 @@ import { useModelerStore } from './modelerStore';
 import {
   createEmptyEscalation,
   createEmptyFieldExtension,
+  createEmptyFormProperty,
   createEmptyIOParameter,
   createEmptyListener,
   createEmptyLoopCharacteristics,
@@ -22,6 +24,7 @@ import {
   updateElementPropertiesCommand,
   updateEventDefinitionCodeCommand,
   updateEventDefinitionRefCommand,
+  updateFormPropertiesCommand,
   updateModelEscalationsCommand,
   updateModelMessagesCommand,
   updateModelSignalsCommand,
@@ -1015,6 +1018,167 @@ export function TimerDefinitionSection({ element }: { element: FlowElementEnum }
   );
 }
 
+const FORM_PROPERTY_ELEMENT_TYPES = new Set<FlowElementEnum['elementType']>([
+  'startEvent',
+  'userTask',
+]);
+
+const FORM_PROPERTY_TYPES = [
+  ['string', 'String'],
+  ['long', 'Long'],
+  ['boolean', 'Boolean'],
+  ['date', 'Date'],
+  ['enum', 'Enum'],
+] as const;
+
+/**
+ * Inline form editor for the two element types Java lets carry
+ * `flowable:formProperty`: a user task form and a start form. Each row is one
+ * form field, and the whole list is written back as a unit so an add, an edit or
+ * a removal is a single undo step.
+ *
+ * `formValues` — the choices behind an enum field — are carried through
+ * untouched rather than edited here; the row shows them read-only so a field of
+ * type Enum does not look empty.
+ */
+export function FormPropertiesSection({ element }: { element: FlowElementEnum }) {
+  const execute = useModelerStore((state) => state.execute);
+  if (!FORM_PROPERTY_ELEMENT_TYPES.has(element.elementType)) return null;
+  const elementId = element.id ?? '';
+  const properties: FormProperty[] =
+    (element as FlowElementEnum & { formProperties?: FormProperty[] }).formProperties ?? [];
+
+  const commit = (next: FormProperty[], label: string) =>
+    execute(updateFormPropertiesCommand(elementId, next, label));
+
+  const patchRow = (index: number, patch: Partial<FormProperty>, label: string) => {
+    const next = properties.map((entry, entryIndex) =>
+      entryIndex === index ? { ...entry, ...patch } : entry,
+    );
+    commit(next, label);
+  };
+
+  return (
+    <section data-property-group="form-properties">
+      <h2>Form properties</h2>
+      {properties.length === 0 ? <p className="property-note">No form properties.</p> : null}
+      {properties.map((property, index) => (
+        <div key={index} className="advanced-row" data-form-property-index={index}>
+          <TextRow
+            property={`formPropertyId-${index}`}
+            label="Id"
+            value={property.id ?? ''}
+            onCommit={(draft) =>
+              patchRow(index, { id: draft.trim() || null }, 'Edit form property id')
+            }
+          />
+          <TextRow
+            property={`formPropertyName-${index}`}
+            label="Name"
+            value={property.name ?? ''}
+            onCommit={(draft) =>
+              patchRow(index, { name: draft.trim() || null }, 'Edit form property name')
+            }
+          />
+          <SelectRow
+            property={`formPropertyType-${index}`}
+            label="Type"
+            value={property.type ?? 'string'}
+            includeNone={false}
+            options={FORM_PROPERTY_TYPES}
+            onCommit={(value) => patchRow(index, { type: value }, 'Edit form property type')}
+          />
+          <TextRow
+            property={`formPropertyVariable-${index}`}
+            label="Variable"
+            value={property.variable ?? ''}
+            onCommit={(draft) =>
+              patchRow(index, { variable: draft.trim() || null }, 'Edit form property variable')
+            }
+          />
+          {property.type === 'date' ? (
+            <TextRow
+              property={`formPropertyDatePattern-${index}`}
+              label="Date pattern, e.g. dd-MM-yyyy hh:mm"
+              value={property.datePattern ?? ''}
+              onCommit={(draft) =>
+                patchRow(
+                  index,
+                  { datePattern: draft.trim() || null },
+                  'Edit form property date pattern',
+                )
+              }
+            />
+          ) : null}
+          {property.type === 'enum' ? (
+            <p className="property-note">
+              {property.formValues.length === 0
+                ? 'No enum values on this field.'
+                : `Enum values: ${property.formValues
+                    .map((value) => value.id ?? value.name ?? '')
+                    .filter(Boolean)
+                    .join(', ')}`}
+            </p>
+          ) : null}
+          <CheckboxRow
+            property={`formPropertyRequired-${index}`}
+            label="Required"
+            checked={Boolean(property.required)}
+            onCommit={(checked) =>
+              patchRow(index, { required: checked }, 'Edit form property required')
+            }
+          />
+          <CheckboxRow
+            property={`formPropertyReadable-${index}`}
+            label="Readable"
+            checked={Boolean(property.readable)}
+            onCommit={(checked) =>
+              patchRow(index, { readable: checked }, 'Edit form property readable')
+            }
+          />
+          <CheckboxRow
+            property={`formPropertyWriteable-${index}`}
+            label="Writeable"
+            checked={Boolean(property.writeable)}
+            onCommit={(checked) =>
+              patchRow(index, { writeable: checked }, 'Edit form property writeable')
+            }
+          />
+          <button
+            type="button"
+            className="quiet-action is-danger"
+            aria-label={`Remove form property ${index + 1}`}
+            onClick={() =>
+              commit(
+                properties.filter((_, entryIndex) => entryIndex !== index),
+                'Remove form property',
+              )
+            }
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="quiet-action"
+        onClick={() => {
+          const used = new Set(properties.map((entry) => entry.id).filter(Boolean) as string[]);
+          let counter = 1;
+          let id = `formProperty${counter}`;
+          while (used.has(id)) {
+            counter += 1;
+            id = `formProperty${counter}`;
+          }
+          commit([...properties, createEmptyFormProperty(id)], 'Add form property');
+        }}
+      >
+        + Add form property
+      </button>
+    </section>
+  );
+}
+
 function TextRow({
   label,
   multiline,
@@ -1059,6 +1223,34 @@ function TextRow({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function CheckboxRow({
+  checked,
+  label,
+  onCommit,
+  property,
+}: {
+  checked: boolean;
+  label: string;
+  onCommit: (checked: boolean) => void;
+  property: string;
+}) {
+  return (
+    <div className="property-field property-checkbox">
+      <label htmlFor={`property-${property}`}>
+        <input
+          id={`property-${property}`}
+          aria-label={label}
+          data-property={property}
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onCommit(event.target.checked)}
+        />
+        {label}
+      </label>
     </div>
   );
 }

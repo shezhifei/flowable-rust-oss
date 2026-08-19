@@ -6,6 +6,7 @@ import {
   ErrorEscalationSection,
   EventReferenceSection,
   FieldInjectionSection,
+  FormPropertiesSection,
   GlobalDefinitionsSection,
   ListenersSection,
   MultiInstanceSection,
@@ -333,6 +334,7 @@ function ElementProperties({
         <EventReferenceSection document={document} element={element} />
         <TimerDefinitionSection element={element} />
         <ErrorEscalationSection document={document} element={element} />
+        <FormPropertiesSection element={element} />
       </div>
     </aside>
   );
