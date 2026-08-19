@@ -22,6 +22,9 @@ const FIXTURES: &[&str] = &[
     "eventgatewaymodel.bpmn",
     "adhocsubprocess.bpmn",
     "externalWorkerServiceTask.bpmn",
+    // Two participants: the only fixture that exercises multi-pool layout and the
+    // panel's participant switcher.
+    "messageflow.bpmn",
 ];
 
 fn main() {

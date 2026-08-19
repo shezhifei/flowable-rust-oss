@@ -384,6 +384,78 @@ fn auto_layout_supports_lanes() {
 }
 
 #[test]
+fn auto_layout_keeps_parallel_branches_apart_inside_one_lane() {
+    // Two disconnected chains assigned to the same lane. The lane is a band, so
+    // both chains have to fit inside it without landing on the same row, and the
+    // flows have to be routed from the rows the nodes end up on.
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="proc1" isExecutable="true">
+    <laneSet id="laneSet">
+      <lane id="lane1" name="Everything">
+        <flowNodeRef>start1</flowNodeRef>
+        <flowNodeRef>task1</flowNodeRef>
+        <flowNodeRef>task2</flowNodeRef>
+        <flowNodeRef>end1</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="start1" />
+    <task id="task1" name="First" />
+    <task id="task2" name="Second" />
+    <endEvent id="end1" />
+    <sequenceFlow id="flow1" sourceRef="start1" targetRef="task1" />
+    <sequenceFlow id="flow2" sourceRef="task2" targetRef="end1" />
+  </process>
+</definitions>"#;
+    let model = parse_model(xml);
+
+    let result = BpmnAutoLayout::new()
+        .generate(&model)
+        .expect("lane-aware layout should succeed");
+
+    let location = |id: &str| result.bpmn_model.location_map[id].clone();
+    let boxes = [
+        ("start1", location("start1")),
+        ("task1", location("task1")),
+        ("task2", location("task2")),
+        ("end1", location("end1")),
+    ];
+    for (left_index, (left_id, left)) in boxes.iter().enumerate() {
+        for (right_id, right) in boxes.iter().skip(left_index + 1) {
+            let overlaps = left.x < right.x + right.width
+                && right.x < left.x + left.width
+                && left.y < right.y + right.height
+                && right.y < left.y + left.height;
+            assert!(
+                !overlaps,
+                "{left_id} and {right_id} should not overlap: {left:?} vs {right:?}"
+            );
+        }
+    }
+
+    let lane = location("lane1");
+    for (id, bounds) in &boxes {
+        assert!(
+            bounds.y >= lane.y - 1.0 && bounds.y + bounds.height <= lane.y + lane.height + 1.0,
+            "{id} should sit inside the lane band: {bounds:?} vs {lane:?}"
+        );
+    }
+
+    // Every waypoint has to fall inside the lane too — routing before the lane
+    // shift used to leave flows dangling outside the band.
+    for flow_id in ["flow1", "flow2"] {
+        let waypoints = &result.bpmn_model.flow_location_map[flow_id];
+        assert!(!waypoints.is_empty(), "{flow_id} should have waypoints");
+        for waypoint in waypoints {
+            assert!(
+                waypoint.y >= lane.y - 1.0 && waypoint.y <= lane.y + lane.height + 1.0,
+                "{flow_id} waypoint {waypoint:?} should stay inside the lane {lane:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn auto_layout_supports_multi_process() {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL">

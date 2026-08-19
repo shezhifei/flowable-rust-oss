@@ -752,6 +752,19 @@ impl BpmnAutoLayout {
             }
         }
 
+        // Lanes shift their members before anything is routed or attached, so
+        // boundary events glue to the parent's final position and every waypoint
+        // is drawn from bounds that will not move again.
+        if !process.lanes.is_empty() {
+            let lane_y_positions =
+                compute_lane_y_positions(&nodes, &process.lanes, &row_positions, ROW_GAP);
+            for (node_id, target_y) in &lane_y_positions {
+                if let Some(node) = nodes.get_mut(node_id) {
+                    node.bounds.y = *target_y;
+                }
+            }
+        }
+
         // post-process boundary events: reposition to right edge of parent activity
         let boundary_placements: Vec<(String, String)> = model
             .processes
@@ -858,15 +871,6 @@ impl BpmnAutoLayout {
                     kind: EdgeKind::MessageFlow,
                 },
             );
-        }
-
-        if !process.lanes.is_empty() {
-            let lane_y_positions = compute_lane_y_positions(&nodes, &process.lanes, ROW_GAP);
-            for (node_id, target_y) in &lane_y_positions {
-                if let Some(node) = nodes.get_mut(node_id) {
-                    node.bounds.y = *target_y;
-                }
-            }
         }
 
         for lane in &process.lanes {
@@ -1269,16 +1273,41 @@ fn message_flow_waypoints(source: &LayoutBounds, target: &LayoutBounds) -> Vec<L
 fn compute_lane_y_positions(
     nodes: &IndexMap<String, NodeLayout>,
     lanes: &[flowable_bpmn_model::Lane],
+    row_positions: &HashMap<String, usize>,
     row_gap: f64,
 ) -> HashMap<String, f64> {
     let mut result = HashMap::new();
-    for (lane_idx, lane) in lanes.iter().enumerate() {
-        let target_y = DIAGRAM_PADDING + (lane_idx as f64 * row_gap);
-        for ref_id in &lane.flow_references {
-            if nodes.contains_key(ref_id) {
-                result.insert(ref_id.clone(), target_y);
-            }
+    let mut band_top = DIAGRAM_PADDING;
+    for lane in lanes {
+        // A lane is a band, not a single row: a lane holding parallel branches
+        // occupies as many rows as those branches need. Collapsing every member
+        // to one y would stack them on top of each other, so the rows the lane
+        // actually uses are renumbered from the top of its band.
+        let mut rows = lane
+            .flow_references
+            .iter()
+            .filter(|reference| nodes.contains_key(*reference))
+            .filter_map(|reference| row_positions.get(reference).copied())
+            .collect::<Vec<_>>();
+        rows.sort_unstable();
+        rows.dedup();
+        if rows.is_empty() {
+            continue;
         }
+        for reference in &lane.flow_references {
+            if !nodes.contains_key(reference) {
+                continue;
+            }
+            let Some(row) = row_positions.get(reference).copied() else {
+                continue;
+            };
+            let local_row = rows
+                .iter()
+                .position(|candidate| *candidate == row)
+                .unwrap_or(0);
+            result.insert(reference.clone(), band_top + (local_row as f64 * row_gap));
+        }
+        band_top += rows.len() as f64 * row_gap;
     }
     result
 }
