@@ -227,6 +227,91 @@ export function updateEventDefinitionRefCommand(
   };
 }
 
+/** Fields a timer editor may write. Absent keys are left untouched. */
+export type TimerDefinitionFields = {
+  calendarName?: string | null;
+  endDate?: string | null;
+  timeCycle?: string | null;
+  timeDate?: string | null;
+  timeDuration?: string | null;
+};
+
+/** The three mutually exclusive timer kinds; BPMN allows at most one. */
+const TIMER_KIND_FIELDS = ['timeDate', 'timeCycle', 'timeDuration'] as const;
+
+/**
+ * Writes timer fields onto an event's `timerEventDefinition`, creating the
+ * definition when the event has none yet.
+ *
+ * `timeDate`, `timeCycle` and `timeDuration` are mutually exclusive in BPMN, so
+ * naming any one of them clears the other two — including when the value is
+ * `null`, which leaves the timer unconfigured rather than falling back to a
+ * stale kind. `calendarName` and `endDate` apply to whichever kind is set and
+ * never disturb it.
+ */
+export function updateTimerDefinitionCommand(
+  elementId: string,
+  fields: TimerDefinitionFields,
+): ModelerCommand {
+  const kind = TIMER_KIND_FIELDS.find((field) => field in fields);
+  return {
+    label: `Edit timer on ${elementId}`,
+    apply(document) {
+      const located = locateCanonicalElement(document, elementId);
+      if (!located) {
+        throw new PropertyCommandError(
+          'missing-element',
+          elementId,
+          `${elementId} is not part of this document`,
+        );
+      }
+      const element = located.element as Draft<FlowElementEnum> & {
+        eventDefinitions?: Draft<EventDefinitionEnum>[];
+      };
+      if (!('eventDefinitions' in element)) {
+        throw new PropertyCommandError(
+          'missing-element',
+          elementId,
+          `${elementId} does not carry event definitions`,
+        );
+      }
+      const definitions = (element.eventDefinitions ??= []);
+      const existing = definitions.find(
+        (candidate) => candidate.eventDefinitionType === 'timerEventDefinition',
+      );
+
+      const patch: Record<string, string | null> = {};
+      if (kind) {
+        for (const field of TIMER_KIND_FIELDS) {
+          patch[field] = field === kind ? (fields[kind] ?? null) : null;
+        }
+      }
+      if ('calendarName' in fields) patch.calendarName = fields.calendarName ?? null;
+      if ('endDate' in fields) patch.endDate = fields.endDate ?? null;
+
+      if (existing) {
+        Object.assign(existing, patch);
+      } else {
+        definitions.push({
+          eventDefinitionType: 'timerEventDefinition',
+          id: `${elementId}_timerEventDefinition`,
+          attributes: {},
+          extensionElements: {},
+          xmlColumnNumber: 0,
+          xmlRowNumber: 0,
+          timeDate: null,
+          timeCycle: null,
+          timeDuration: null,
+          calendarName: null,
+          endDate: null,
+          ...patch,
+        } as Draft<EventDefinitionEnum>);
+      }
+      normalizeModelInvariants(document);
+    },
+  };
+}
+
 /** Empty multi-instance characteristics used when enabling the MI group. */
 export function createEmptyLoopCharacteristics(
   sequential = false,

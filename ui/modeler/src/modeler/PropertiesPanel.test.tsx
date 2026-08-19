@@ -93,6 +93,23 @@ describe('properties panel element groups', () => {
     expect(html).toContain('+ Add message');
   });
 
+  it('renders the timer group for a boundary timer event', () => {
+    const html = renderPanel(['reviewTimer']);
+    expect(html).toContain('data-property-group="timer-definition"');
+    expect(html).toContain('data-property="timerType"');
+    expect(html).toContain('data-property="timeDuration"');
+    expect(html).toContain('value="PT48H"');
+    expect(html).toContain('data-property="calendarName"');
+    // Only the active timer kind gets an editor.
+    expect(html).not.toContain('data-property="timeCycle"');
+    expect(html).not.toContain('data-property="timeDate"');
+  });
+
+  it('omits the timer group for elements that cannot hold a timer', () => {
+    const html = renderPanel(['review']);
+    expect(html).not.toContain('data-property-group="timer-definition"');
+  });
+
   it('reflects the document it is given for the selected element', () => {
     const document = structuredClone(sampleDocument);
     const review = document.model.processes[0]?.flowElements?.find(

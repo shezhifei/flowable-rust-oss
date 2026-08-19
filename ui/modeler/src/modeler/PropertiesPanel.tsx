@@ -8,6 +8,7 @@ import {
   GlobalDefinitionsSection,
   ListenersSection,
   MultiInstanceSection,
+  TimerDefinitionSection,
 } from './AdvancedPropertySections';
 import { documentElements } from './diagramModel';
 import { useModelerStore } from './modelerStore';
@@ -329,6 +330,7 @@ function ElementProperties({
         <FieldInjectionSection element={element} />
         <CallActivitySection element={element} />
         <EventReferenceSection document={document} element={element} />
+        <TimerDefinitionSection element={element} />
       </div>
     </aside>
   );

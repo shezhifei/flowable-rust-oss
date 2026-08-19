@@ -14,6 +14,7 @@ import {
   updateModelMessagesCommand,
   updateModelSignalsCommand,
   updateProcessPropertiesCommand,
+  updateTimerDefinitionCommand,
 } from './propertyCommands';
 import { sampleDocument } from './sampleDocument';
 
@@ -387,5 +388,73 @@ describe('phase-2 advanced property commands', () => {
 
     state().undo();
     expect(flowElement('start')).toMatchObject({ eventDefinitions: [] });
+  });
+
+  it('keeps exactly one timer definition field set', () => {
+    state().execute(updateTimerDefinitionCommand('reviewTimer', { timeCycle: 'R3/PT10M' }));
+    const timer = flowElement('reviewTimer');
+    if (timer.elementType !== 'boundaryEvent') throw new Error('expected boundary event');
+    expect(timer.eventDefinitions).toEqual([
+      expect.objectContaining({
+        eventDefinitionType: 'timerEventDefinition',
+        timeCycle: 'R3/PT10M',
+        timeDuration: null,
+        timeDate: null,
+      }),
+    ]);
+
+    state().undo();
+    expect(flowElement('reviewTimer')).toMatchObject({
+      eventDefinitions: [expect.objectContaining({ timeDuration: 'PT48H', timeCycle: null })],
+    });
+  });
+
+  it('writes calendarName and endDate without disturbing the timer kind', () => {
+    state().execute(
+      updateTimerDefinitionCommand('reviewTimer', {
+        calendarName: 'businessCalendar',
+        endDate: '2026-09-01T00:00:00Z',
+      }),
+    );
+    const timer = flowElement('reviewTimer');
+    if (timer.elementType !== 'boundaryEvent') throw new Error('expected boundary event');
+    expect(timer.eventDefinitions).toEqual([
+      expect.objectContaining({
+        timeDuration: 'PT48H',
+        calendarName: 'businessCalendar',
+        endDate: '2026-09-01T00:00:00Z',
+      }),
+    ]);
+  });
+
+  it('creates a timer definition on an event that has none', () => {
+    state().execute(updateTimerDefinitionCommand('start', { timeDate: '2026-12-24T09:00:00Z' }));
+    const start = flowElement('start');
+    if (start.elementType !== 'startEvent') throw new Error('expected start event');
+    expect(start.eventDefinitions).toEqual([
+      expect.objectContaining({
+        eventDefinitionType: 'timerEventDefinition',
+        id: 'start_timerEventDefinition',
+        timeDate: '2026-12-24T09:00:00Z',
+        timeDuration: null,
+        timeCycle: null,
+      }),
+    ]);
+  });
+
+  it('clears the timer kind when the value is emptied', () => {
+    state().execute(updateTimerDefinitionCommand('reviewTimer', { timeDuration: null }));
+    const timer = flowElement('reviewTimer');
+    if (timer.elementType !== 'boundaryEvent') throw new Error('expected boundary event');
+    expect(timer.eventDefinitions).toEqual([
+      expect.objectContaining({ timeDuration: null, timeDate: null, timeCycle: null }),
+    ]);
+  });
+
+  it('refuses timer edits on elements that cannot carry event definitions', () => {
+    expect(() => state().execute(updateTimerDefinitionCommand('review', { timeCycle: 'R/PT1H' })))
+      .toThrow(/does not carry event definitions/);
+    expect(() => state().execute(updateTimerDefinitionCommand('nope', { timeCycle: 'R/PT1H' })))
+      .toThrow(/is not part of this document/);
   });
 });

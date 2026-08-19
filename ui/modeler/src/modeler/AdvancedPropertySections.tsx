@@ -21,6 +21,7 @@ import {
   updateEventDefinitionRefCommand,
   updateModelMessagesCommand,
   updateModelSignalsCommand,
+  updateTimerDefinitionCommand,
 } from './propertyCommands';
 
 const MULTI_INSTANCE_TYPES = new Set<FlowElementEnum['elementType']>([
@@ -747,6 +748,98 @@ export function EventReferenceSection({
   );
 }
 
+const TIMER_ELEMENT_TYPES = new Set<FlowElementEnum['elementType']>([
+  'startEvent',
+  'boundaryEvent',
+  'intermediateCatchEvent',
+]);
+
+const TIMER_KINDS = [
+  ['timeDuration', 'Duration'],
+  ['timeDate', 'Date'],
+  ['timeCycle', 'Cycle'],
+] as const;
+
+type TimerKind = (typeof TIMER_KINDS)[number][0];
+
+const TIMER_KIND_HINTS: Record<TimerKind, string> = {
+  timeCycle: 'ISO repeating interval or cron, e.g. R3/PT10M',
+  timeDate: 'ISO 8601 instant, e.g. 2026-12-24T09:00:00Z',
+  timeDuration: 'ISO 8601 duration, e.g. PT48H',
+};
+
+/**
+ * Timer editor for the events that can carry a `timerEventDefinition`. The three
+ * timer kinds are mutually exclusive in BPMN, so this offers a kind selector
+ * plus one value editor rather than three independent fields; switching kinds
+ * carries the value over and clears the others.
+ */
+export function TimerDefinitionSection({ element }: { element: FlowElementEnum }) {
+  const execute = useModelerStore((state) => state.execute);
+  if (!('eventDefinitions' in element)) return null;
+  const definitions = (element.eventDefinitions ?? []) as EventDefinitionEnum[];
+  const timer = definitions.find(
+    (definition) => definition.eventDefinitionType === 'timerEventDefinition',
+  );
+  // Offer the editor on timer-capable events before a definition exists, but
+  // never hide one that is already attached to some other element type.
+  if (!timer && !TIMER_ELEMENT_TYPES.has(element.elementType)) return null;
+
+  const elementId = element.id ?? '';
+  const valueOf = (kind: TimerKind) =>
+    timer && kind in timer ? ((timer[kind] as string | null) ?? '') : '';
+  const stringField = (field: 'calendarName' | 'endDate') =>
+    timer && field in timer ? ((timer[field] as string | null) ?? '') : '';
+  // The stored kind wins; an unconfigured timer defaults to duration.
+  const activeKind = TIMER_KINDS.find(([kind]) => valueOf(kind) !== '')?.[0] ?? 'timeDuration';
+  const activeLabel = TIMER_KINDS.find(([kind]) => kind === activeKind)?.[1] ?? 'Value';
+
+  return (
+    <section data-property-group="timer-definition">
+      <h2>Timer</h2>
+      <SelectRow
+        property="timerType"
+        label="Timer type"
+        value={activeKind}
+        includeNone={false}
+        options={TIMER_KINDS}
+        onCommit={(value) => {
+          const kind = value as TimerKind;
+          if (kind === activeKind) return;
+          // Carry the current value across so switching kinds is not data loss.
+          execute(updateTimerDefinitionCommand(elementId, { [kind]: valueOf(activeKind) || null }));
+        }}
+      />
+      <TextRow
+        property={activeKind}
+        label={`${activeLabel} — ${TIMER_KIND_HINTS[activeKind]}`}
+        value={valueOf(activeKind)}
+        onCommit={(draft) =>
+          execute(updateTimerDefinitionCommand(elementId, { [activeKind]: draft.trim() || null }))
+        }
+      />
+      <TextRow
+        property="calendarName"
+        label="Business calendar"
+        value={stringField('calendarName')}
+        onCommit={(draft) =>
+          execute(updateTimerDefinitionCommand(elementId, { calendarName: draft.trim() || null }))
+        }
+      />
+      {activeKind === 'timeCycle' ? (
+        <TextRow
+          property="endDate"
+          label="End date — stops the cycle"
+          value={stringField('endDate')}
+          onCommit={(draft) =>
+            execute(updateTimerDefinitionCommand(elementId, { endDate: draft.trim() || null }))
+          }
+        />
+      ) : null}
+    </section>
+  );
+}
+
 function TextRow({
   label,
   multiline,
@@ -796,12 +889,14 @@ function TextRow({
 }
 
 function SelectRow({
+  includeNone = true,
   label,
   onCommit,
   options,
   property,
   value,
 }: {
+  includeNone?: boolean;
   label: string;
   onCommit: (value: string) => void;
   options: readonly (readonly [string, string])[];
@@ -821,7 +916,7 @@ function SelectRow({
         value={value}
         onChange={(event) => onCommit(event.target.value)}
       >
-        <option value="">None</option>
+        {includeNone ? <option value="">None</option> : null}
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>
             {optionLabel}
