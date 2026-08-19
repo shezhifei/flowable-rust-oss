@@ -5,6 +5,10 @@ edition = "2024"
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+postgres = ["flowable-persistence/postgres"]
+mysql = ["flowable-persistence/mysql"]
+
 [dependencies]
 chrono = { version = "0.4.44", features = ["serde"] }
 regex = "1.12.2"

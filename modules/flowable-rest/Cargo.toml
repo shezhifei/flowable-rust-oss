@@ -6,8 +6,16 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-postgres = ["flowable-engine/postgres"]
-mysql = ["flowable-engine/mysql"]
+postgres = [
+    "flowable-engine/postgres",
+    "flowable-platform-bootstrap/postgres",
+    "flowable-ui-rest/postgres",
+]
+mysql = [
+    "flowable-engine/mysql",
+    "flowable-platform-bootstrap/mysql",
+    "flowable-ui-rest/mysql",
+]
 
 [dependencies]
 flowable-engine = { path = "../flowable-engine" }

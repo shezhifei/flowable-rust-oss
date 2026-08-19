@@ -5,6 +5,20 @@ edition = "2024"
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+postgres = [
+    "flowable-engine/postgres",
+    "flowable-cmmn-engine/postgres",
+    "flowable-dmn-engine/postgres",
+    "flowable-app-engine/postgres",
+]
+mysql = [
+    "flowable-engine/mysql",
+    "flowable-cmmn-engine/mysql",
+    "flowable-dmn-engine/mysql",
+    "flowable-app-engine/mysql",
+]
+
 [dependencies]
 flowable-app-engine = { path = "../flowable-app-engine" }
 flowable-cmmn-engine = { path = "../flowable-cmmn-engine" }
