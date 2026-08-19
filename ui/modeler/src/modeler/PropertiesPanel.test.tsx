@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { PropertiesPanel } from './PropertiesPanel';
+import { useModelerStore } from './modelerStore';
+import { replaceTaskTypeCommand } from './replacementCommands';
 import { sampleDocument } from './sampleDocument';
 
 function renderPanel(selectedElementIds: string[] = []) {
@@ -10,6 +12,26 @@ function renderPanel(selectedElementIds: string[] = []) {
       panelState={{ document: structuredClone(sampleDocument), selectedElementIds }}
     />,
   );
+}
+
+/**
+ * The sample document has no business rule task, so this converts `review`
+ * with the same command the palette uses rather than hand-writing an element
+ * literal that would drift from the generated type.
+ */
+function businessRuleDocument(decisionRef: string | null) {
+  useModelerStore.getState().setDocument(structuredClone(sampleDocument));
+  useModelerStore.getState().execute(replaceTaskTypeCommand('review', 'businessRuleTask'));
+  const document = structuredClone(useModelerStore.getState().document);
+  const task = document.model.processes[0]?.flowElements?.find(
+    (element) => element.id === 'review',
+  );
+  if (!task || task.elementType !== 'businessRuleTask') {
+    throw new Error('review should be a business rule task');
+  }
+  task.decisionRef = decisionRef;
+  task.resultVariableName = 'decisionOutcome';
+  return document;
 }
 
 describe('properties panel selection states', () => {
@@ -181,6 +203,38 @@ describe('properties panel element groups', () => {
   it('omits the form properties group for a service task', () => {
     const html = renderPanel(['notify']);
     expect(html).not.toContain('data-property-group="form-properties"');
+  });
+
+  it('renders the decision group for a business rule task', () => {
+    const html = renderToStaticMarkup(
+      <PropertiesPanel
+        panelState={{
+          document: businessRuleDocument('leaveDecision'),
+          selectedElementIds: ['review'],
+        }}
+      />,
+    );
+    expect(html).toContain('data-property-group="decision"');
+    expect(html).toContain('data-property="decisionRef"');
+    expect(html).toContain('value="leaveDecision"');
+    expect(html).toContain('data-property="resultVariableName"');
+    expect(html).toContain('value="decisionOutcome"');
+  });
+
+  it('renders an empty decision reference when the task has none', () => {
+    const html = renderToStaticMarkup(
+      <PropertiesPanel
+        panelState={{ document: businessRuleDocument(null), selectedElementIds: ['review'] }}
+      />,
+    );
+    expect(html).toContain('data-property="decisionRef"');
+    expect(html).not.toContain('value="leaveDecision"');
+  });
+
+  it('omits the decision group for a user task', () => {
+    const html = renderPanel(['review']);
+    expect(html).not.toContain('data-property-group="decision"');
+    expect(html).not.toContain('data-property="decisionRef"');
   });
 
   it('reflects the document it is given for the selected element', () => {

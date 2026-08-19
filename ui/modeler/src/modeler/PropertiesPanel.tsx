@@ -313,6 +313,24 @@ function ElementProperties({
           </section>
         ) : null}
 
+        {element.elementType === 'businessRuleTask' ? (
+          <section data-property-group="decision">
+            <h2>Decision</h2>
+            <TextProperty
+              property="decisionRef"
+              label="Decision key — the DMN definition this task evaluates"
+              value={element.decisionRef ?? ''}
+              onCommit={commitText('decisionRef')}
+            />
+            <TextProperty
+              property="resultVariableName"
+              label="Result variable name"
+              value={element.resultVariableName ?? ''}
+              onCommit={commitText('resultVariableName')}
+            />
+          </section>
+        ) : null}
+
         {element.elementType === 'sequenceFlow' ? (
           <section>
             <h2>Condition</h2>
