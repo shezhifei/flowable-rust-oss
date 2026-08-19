@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useModelerStore } from './modelerStore';
 import {
+  createEmptyEscalation,
   createEmptyFieldExtension,
   createEmptyIOParameter,
   createEmptyListener,
@@ -10,7 +11,9 @@ import {
   createEmptySignal,
   renameElementIdCommand,
   updateElementPropertiesCommand,
+  updateEventDefinitionCodeCommand,
   updateEventDefinitionRefCommand,
+  updateModelEscalationsCommand,
   updateModelMessagesCommand,
   updateModelSignalsCommand,
   updateProcessPropertiesCommand,
@@ -456,5 +459,91 @@ describe('phase-2 advanced property commands', () => {
       .toThrow(/does not carry event definitions/);
     expect(() => state().execute(updateTimerDefinitionCommand('nope', { timeCycle: 'R/PT1H' })))
       .toThrow(/is not part of this document/);
+  });
+
+  it('sets an error ref and code on a boundary event', () => {
+    state().execute(
+      updateEventDefinitionRefCommand('reviewTimer', 'errorEventDefinition', 'rejectedError'),
+    );
+    state().execute(
+      updateEventDefinitionCodeCommand('reviewTimer', 'errorEventDefinition', 'REJECTED'),
+    );
+    const boundary = flowElement('reviewTimer');
+    if (boundary.elementType !== 'boundaryEvent') throw new Error('expected boundary event');
+    expect(boundary.eventDefinitions).toEqual([
+      expect.objectContaining({ eventDefinitionType: 'timerEventDefinition' }),
+      expect.objectContaining({
+        eventDefinitionType: 'errorEventDefinition',
+        errorRef: 'rejectedError',
+        errorCode: 'REJECTED',
+      }),
+    ]);
+
+    state().undo();
+    const undone = flowElement('reviewTimer');
+    if (undone.elementType !== 'boundaryEvent') throw new Error('expected boundary event');
+    expect(undone.eventDefinitions).toEqual([
+      expect.objectContaining({ eventDefinitionType: 'timerEventDefinition' }),
+      expect.objectContaining({ errorRef: 'rejectedError', errorCode: null }),
+    ]);
+  });
+
+  it('sets an escalation ref and code, and clears them again', () => {
+    state().execute(
+      updateEventDefinitionRefCommand('end', 'escalationEventDefinition', 'overdueEscalation'),
+    );
+    state().execute(
+      updateEventDefinitionCodeCommand('end', 'escalationEventDefinition', 'OVERDUE'),
+    );
+    const end = flowElement('end');
+    if (end.elementType !== 'endEvent') throw new Error('expected end event');
+    expect(end.eventDefinitions).toEqual([
+      expect.objectContaining({
+        eventDefinitionType: 'escalationEventDefinition',
+        escalationRef: 'overdueEscalation',
+        escalationCode: 'OVERDUE',
+      }),
+    ]);
+
+    state().execute(updateEventDefinitionRefCommand('end', 'escalationEventDefinition', null));
+    const cleared = flowElement('end');
+    if (cleared.elementType !== 'endEvent') throw new Error('expected end event');
+    // The definition survives with a null ref; the code it carries is untouched.
+    expect(cleared.eventDefinitions).toEqual([
+      expect.objectContaining({ escalationRef: null, escalationCode: 'OVERDUE' }),
+    ]);
+  });
+
+  it('reuses one definition per type instead of stacking duplicates', () => {
+    state().execute(updateEventDefinitionRefCommand('end', 'errorEventDefinition', 'firstError'));
+    state().execute(updateEventDefinitionRefCommand('end', 'errorEventDefinition', 'secondError'));
+    const end = flowElement('end');
+    if (end.elementType !== 'endEvent') throw new Error('expected end event');
+    expect(end.eventDefinitions).toEqual([
+      expect.objectContaining({ errorRef: 'secondError' }),
+    ]);
+  });
+
+  it('manages the document escalation catalog', () => {
+    state().execute(updateModelEscalationsCommand([createEmptyEscalation('overdueEscalation')]));
+    expect(state().document.model.escalations).toEqual([
+      expect.objectContaining({
+        id: 'overdueEscalation',
+        name: 'overdueEscalation',
+        escalationCode: 'overdueEscalation',
+      }),
+    ]);
+
+    state().undo();
+    expect(state().document.model.escalations).toEqual([]);
+  });
+
+  it('refuses error and escalation edits on elements without event definitions', () => {
+    expect(() =>
+      state().execute(updateEventDefinitionCodeCommand('review', 'errorEventDefinition', 'BOOM')),
+    ).toThrow(/does not carry event definitions/);
+    expect(() =>
+      state().execute(updateEventDefinitionCodeCommand('nope', 'errorEventDefinition', 'BOOM')),
+    ).toThrow(/is not part of this document/);
   });
 });

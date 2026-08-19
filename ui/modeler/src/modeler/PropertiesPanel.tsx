@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { BpmnEditorDocument, FlowElementEnum } from '../generated/editor-protocol';
 import {
   CallActivitySection,
+  ErrorEscalationSection,
   EventReferenceSection,
   FieldInjectionSection,
   GlobalDefinitionsSection,
@@ -331,6 +332,7 @@ function ElementProperties({
         <CallActivitySection element={element} />
         <EventReferenceSection document={document} element={element} />
         <TimerDefinitionSection element={element} />
+        <ErrorEscalationSection document={document} element={element} />
       </div>
     </aside>
   );

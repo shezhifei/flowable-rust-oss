@@ -1,5 +1,6 @@
 import type {
   BpmnEditorDocument,
+  Escalation,
   EventDefinitionEnum,
   FieldExtension,
   FlowableListener,
@@ -11,6 +12,7 @@ import type {
 } from '../generated/editor-protocol';
 import { useModelerStore } from './modelerStore';
 import {
+  createEmptyEscalation,
   createEmptyFieldExtension,
   createEmptyIOParameter,
   createEmptyListener,
@@ -18,7 +20,9 @@ import {
   createEmptyMessage,
   createEmptySignal,
   updateElementPropertiesCommand,
+  updateEventDefinitionCodeCommand,
   updateEventDefinitionRefCommand,
+  updateModelEscalationsCommand,
   updateModelMessagesCommand,
   updateModelSignalsCommand,
   updateTimerDefinitionCommand,
@@ -538,6 +542,7 @@ export function GlobalDefinitionsSection({ document }: { document: BpmnEditorDoc
   const execute = useModelerStore((state) => state.execute);
   const signals = document.model.signals ?? [];
   const messages = document.model.messages ?? [];
+  const escalations = document.model.escalations ?? [];
 
   const nextDefinitionId = (prefix: string, used: Set<string>) => {
     let counter = 1;
@@ -657,6 +662,74 @@ export function GlobalDefinitionsSection({ document }: { document: BpmnEditorDoc
           + Add message
         </button>
       </section>
+      <section data-property-group="escalations">
+        <h2>Escalations</h2>
+        {escalations.length === 0 ? (
+          <p className="property-note">No escalation definitions.</p>
+        ) : null}
+        {escalations.map((escalation, index) => (
+          <div key={escalation.id ?? index} className="advanced-row" data-escalation-index={index}>
+            <TextRow
+              property={`escalationId-${index}`}
+              label="Escalation id"
+              value={escalation.id ?? ''}
+              onCommit={(draft) => {
+                const id = draft.trim();
+                if (!id) return;
+                const next = escalations.map((entry, entryIndex) =>
+                  entryIndex === index ? { ...entry, id, name: entry.name || id } : entry,
+                );
+                execute(updateModelEscalationsCommand(next));
+              }}
+            />
+            <TextRow
+              property={`escalationName-${index}`}
+              label="Escalation name"
+              value={escalation.name ?? ''}
+              onCommit={(draft) => {
+                const next = escalations.map((entry, entryIndex) =>
+                  entryIndex === index ? { ...entry, name: draft.trim() || null } : entry,
+                );
+                execute(updateModelEscalationsCommand(next));
+              }}
+            />
+            <TextRow
+              property={`escalationCatalogCode-${index}`}
+              label="Escalation code"
+              value={escalation.escalationCode ?? ''}
+              onCommit={(draft) => {
+                const next = escalations.map((entry, entryIndex) =>
+                  entryIndex === index
+                    ? { ...entry, escalationCode: draft.trim() || null }
+                    : entry,
+                );
+                execute(updateModelEscalationsCommand(next));
+              }}
+            />
+            <button
+              type="button"
+              className="quiet-action is-danger"
+              aria-label={`Remove escalation ${index + 1}`}
+              onClick={() =>
+                execute(updateModelEscalationsCommand(escalations.filter((_, i) => i !== index)))
+              }
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="quiet-action"
+          onClick={() => {
+            const used = new Set(escalations.map((entry) => entry.id).filter(Boolean) as string[]);
+            const id = nextDefinitionId('escalation', used);
+            execute(updateModelEscalationsCommand([...escalations, createEmptyEscalation(id)]));
+          }}
+        >
+          + Add escalation
+        </button>
+      </section>
     </>
   );
 }
@@ -744,6 +817,108 @@ export function EventReferenceSection({
           }
         />
       ) : null}
+    </section>
+  );
+}
+
+const EVENT_ELEMENT_TYPES = new Set<FlowElementEnum['elementType']>([
+  'startEvent',
+  'endEvent',
+  'boundaryEvent',
+  'intermediateCatchEvent',
+  'intermediateThrowEvent',
+]);
+
+/**
+ * Error and escalation editors. Both take a free-text code alongside the
+ * catalog reference because Flowable matches thrown errors by code — a boundary
+ * error event works with a code alone, no `<error>` declaration needed. Errors
+ * have no catalog to pick from (the model carries `errors` as a plain code map),
+ * so `errorRef` is a text field; escalations select from `model.escalations`.
+ */
+export function ErrorEscalationSection({
+  document,
+  element,
+}: {
+  document: BpmnEditorDocument;
+  element: FlowElementEnum;
+}) {
+  const execute = useModelerStore((state) => state.execute);
+  if (!('eventDefinitions' in element)) return null;
+  const definitions = (element.eventDefinitions ?? []) as EventDefinitionEnum[];
+  const errorDefinition = definitions.find(
+    (definition) => definition.eventDefinitionType === 'errorEventDefinition',
+  );
+  const escalationDefinition = definitions.find(
+    (definition) => definition.eventDefinitionType === 'escalationEventDefinition',
+  );
+  if (!errorDefinition && !escalationDefinition && !EVENT_ELEMENT_TYPES.has(element.elementType)) {
+    return null;
+  }
+
+  const elementId = element.id ?? '';
+  const escalations = document.model.escalations ?? [];
+  const fieldOf = (definition: EventDefinitionEnum | undefined, field: string) =>
+    definition && field in definition ? ((definition[field] as string | null) ?? '') : '';
+
+  return (
+    <section data-property-group="error-escalation">
+      <h2>Errors and escalations</h2>
+      <TextRow
+        property="errorRef"
+        label="Error ref"
+        value={fieldOf(errorDefinition, 'errorRef')}
+        onCommit={(draft) =>
+          execute(
+            updateEventDefinitionRefCommand(elementId, 'errorEventDefinition', draft.trim() || null),
+          )
+        }
+      />
+      <TextRow
+        property="errorCode"
+        label="Error code"
+        value={fieldOf(errorDefinition, 'errorCode')}
+        onCommit={(draft) =>
+          execute(
+            updateEventDefinitionCodeCommand(
+              elementId,
+              'errorEventDefinition',
+              draft.trim() || null,
+            ),
+          )
+        }
+      />
+      <SelectRow
+        property="escalationRef"
+        label="Escalation"
+        value={fieldOf(escalationDefinition, 'escalationRef')}
+        options={escalations
+          .filter((escalation): escalation is Escalation & { id: string } => Boolean(escalation.id))
+          .map((escalation) => [escalation.id, escalation.name || escalation.id] as const)}
+        onCommit={(value) =>
+          execute(
+            updateEventDefinitionRefCommand(
+              elementId,
+              'escalationEventDefinition',
+              value.trim() || null,
+            ),
+          )
+        }
+      />
+      <TextRow
+        property="escalationCode"
+        label="Escalation code"
+        value={fieldOf(escalationDefinition, 'escalationCode')}
+        onCommit={(draft) =>
+          execute(
+            updateEventDefinitionCodeCommand(
+              elementId,
+              'escalationEventDefinition',
+              draft.trim() || null,
+            ),
+          )
+        }
+      />
     </section>
   );
 }

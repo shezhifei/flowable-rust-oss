@@ -110,6 +110,26 @@ describe('properties panel element groups', () => {
     expect(html).not.toContain('data-property-group="timer-definition"');
   });
 
+  it('renders error and escalation editors for a boundary event', () => {
+    const html = renderPanel(['reviewTimer']);
+    expect(html).toContain('data-property-group="error-escalation"');
+    expect(html).toContain('data-property="errorRef"');
+    expect(html).toContain('data-property="errorCode"');
+    expect(html).toContain('data-property="escalationRef"');
+    expect(html).toContain('data-property="escalationCode"');
+  });
+
+  it('omits error and escalation editors for a user task', () => {
+    const html = renderPanel(['review']);
+    expect(html).not.toContain('data-property-group="error-escalation"');
+  });
+
+  it('renders the global escalation catalog for the process', () => {
+    const html = renderPanel();
+    expect(html).toContain('data-property-group="escalations"');
+    expect(html).toContain('+ Add escalation');
+  });
+
   it('reflects the document it is given for the selected element', () => {
     const document = structuredClone(sampleDocument);
     const review = document.model.processes[0]?.flowElements?.find(

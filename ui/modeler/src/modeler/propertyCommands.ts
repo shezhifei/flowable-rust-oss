@@ -2,6 +2,8 @@ import type { Draft } from 'immer';
 
 import type {
   ArtifactEnum,
+  BpmnEditorDocument,
+  Escalation,
   EventDefinitionEnum,
   FieldExtension,
   FlowableListener,
@@ -173,56 +175,141 @@ export function updateModelMessagesCommand(messages: Message[]): ModelerCommand 
   };
 }
 
+/** Replaces the document-level escalation definitions. */
+export function updateModelEscalationsCommand(escalations: Escalation[]): ModelerCommand {
+  return {
+    label: 'Edit escalation definitions',
+    apply(document) {
+      document.model.escalations = escalations;
+      normalizeModelInvariants(document);
+    },
+  };
+}
+
+/** Event definition types the panel can attach a reference to. */
+export type ReferencableDefinitionType =
+  | 'errorEventDefinition'
+  | 'escalationEventDefinition'
+  | 'messageEventDefinition'
+  | 'signalEventDefinition';
+
+/** Definition types that carry a literal code beside their catalog reference. */
+export type CodedDefinitionType = 'errorEventDefinition' | 'escalationEventDefinition';
+
+const REFERENCE_FIELDS: Record<ReferencableDefinitionType, string> = {
+  errorEventDefinition: 'errorRef',
+  escalationEventDefinition: 'escalationRef',
+  messageEventDefinition: 'messageRef',
+  signalEventDefinition: 'signalRef',
+};
+
+const CODE_FIELDS: Record<CodedDefinitionType, string> = {
+  errorEventDefinition: 'errorCode',
+  escalationEventDefinition: 'escalationCode',
+};
+
 /**
- * Sets signalRef or messageRef on the first matching event definition of an
- * event element. Creates a definition entry when none exists yet so the panel
- * can seed a reference without a separate create step.
+ * Applies `patch` to the element's first event definition of `definitionType`,
+ * creating one from `seed` when the event has none. Shared by every
+ * event-definition command so find-or-create and the two failure modes —
+ * unknown element, element that cannot hold definitions — stay in one place.
+ */
+function patchEventDefinition(
+  document: Draft<BpmnEditorDocument>,
+  elementId: string,
+  definitionType: EventDefinitionEnum['eventDefinitionType'],
+  patch: Record<string, unknown>,
+  seed: Record<string, unknown> = {},
+) {
+  const located = locateCanonicalElement(document, elementId);
+  if (!located) {
+    throw new PropertyCommandError(
+      'missing-element',
+      elementId,
+      `${elementId} is not part of this document`,
+    );
+  }
+  const element = located.element as Draft<FlowElementEnum> & {
+    eventDefinitions?: Draft<EventDefinitionEnum>[];
+  };
+  if (!('eventDefinitions' in element)) {
+    throw new PropertyCommandError(
+      'missing-element',
+      elementId,
+      `${elementId} does not carry event definitions`,
+    );
+  }
+  const definitions = (element.eventDefinitions ??= []);
+  const existing = definitions.find(
+    (candidate) => candidate.eventDefinitionType === definitionType,
+  );
+  if (existing) {
+    Object.assign(existing, patch);
+  } else {
+    definitions.push({
+      eventDefinitionType: definitionType,
+      id: `${elementId}_${definitionType}`,
+      attributes: {},
+      extensionElements: {},
+      xmlColumnNumber: 0,
+      xmlRowNumber: 0,
+      ...seed,
+      ...patch,
+    } as Draft<EventDefinitionEnum>);
+  }
+  normalizeModelInvariants(document);
+}
+
+/**
+ * Points an event definition at a catalog entry — signal, message, error or
+ * escalation. Creates the definition entry when none exists yet so the panel can
+ * seed a reference without a separate create step, and reuses the existing one
+ * otherwise rather than stacking duplicates of the same type.
+ *
+ * A `null` ref clears the reference but keeps the definition, so an error event
+ * stays an error event while its code is what identifies it.
  */
 export function updateEventDefinitionRefCommand(
   elementId: string,
-  definitionType: 'signalEventDefinition' | 'messageEventDefinition',
+  definitionType: ReferencableDefinitionType,
   ref: string | null,
 ): ModelerCommand {
-  const field = definitionType === 'signalEventDefinition' ? 'signalRef' : 'messageRef';
+  const field = REFERENCE_FIELDS[definitionType];
   return {
     label: `Edit ${field} on ${elementId}`,
     apply(document) {
-      const located = locateCanonicalElement(document, elementId);
-      if (!located) {
-        throw new PropertyCommandError(
-          'missing-element',
-          elementId,
-          `${elementId} is not part of this document`,
-        );
-      }
-      const element = located.element as Draft<FlowElementEnum> & {
-        eventDefinitions?: Draft<EventDefinitionEnum>[];
-      };
-      if (!('eventDefinitions' in element)) {
-        throw new PropertyCommandError(
-          'missing-element',
-          elementId,
-          `${elementId} does not carry event definitions`,
-        );
-      }
-      const definitions = (element.eventDefinitions ??= []);
-      const existing = definitions.find(
-        (candidate) => candidate.eventDefinitionType === definitionType,
+      patchEventDefinition(
+        document,
+        elementId,
+        definitionType,
+        { [field]: ref },
+        definitionType in CODE_FIELDS ? { [CODE_FIELDS[definitionType as CodedDefinitionType]]: null } : {},
       );
-      if (!existing) {
-        definitions.push({
-          eventDefinitionType: definitionType,
-          id: `${elementId}_${definitionType}`,
-          attributes: {},
-          extensionElements: {},
-          xmlColumnNumber: 0,
-          xmlRowNumber: 0,
-          [field]: ref,
-        } as Draft<EventDefinitionEnum>);
-      } else {
-        Object.assign(existing, { [field]: ref });
-      }
-      normalizeModelInvariants(document);
+    },
+  };
+}
+
+/**
+ * Sets the literal `errorCode` / `escalationCode` on an event definition. Codes
+ * are independent of the catalog reference: Flowable matches a thrown error by
+ * code, so a boundary event can carry one without any `<error>` declaration.
+ */
+export function updateEventDefinitionCodeCommand(
+  elementId: string,
+  definitionType: CodedDefinitionType,
+  code: string | null,
+): ModelerCommand {
+  const field = CODE_FIELDS[definitionType];
+  return {
+    label: `Edit ${field} on ${elementId}`,
+    apply(document) {
+      patchEventDefinition(
+        document,
+        elementId,
+        definitionType,
+        { [field]: code },
+        { [REFERENCE_FIELDS[definitionType]]: null },
+      );
     },
   };
 }
@@ -254,60 +341,25 @@ export function updateTimerDefinitionCommand(
   fields: TimerDefinitionFields,
 ): ModelerCommand {
   const kind = TIMER_KIND_FIELDS.find((field) => field in fields);
+  const patch: Record<string, string | null> = {};
+  if (kind) {
+    for (const field of TIMER_KIND_FIELDS) {
+      patch[field] = field === kind ? (fields[kind] ?? null) : null;
+    }
+  }
+  if ('calendarName' in fields) patch.calendarName = fields.calendarName ?? null;
+  if ('endDate' in fields) patch.endDate = fields.endDate ?? null;
+
   return {
     label: `Edit timer on ${elementId}`,
     apply(document) {
-      const located = locateCanonicalElement(document, elementId);
-      if (!located) {
-        throw new PropertyCommandError(
-          'missing-element',
-          elementId,
-          `${elementId} is not part of this document`,
-        );
-      }
-      const element = located.element as Draft<FlowElementEnum> & {
-        eventDefinitions?: Draft<EventDefinitionEnum>[];
-      };
-      if (!('eventDefinitions' in element)) {
-        throw new PropertyCommandError(
-          'missing-element',
-          elementId,
-          `${elementId} does not carry event definitions`,
-        );
-      }
-      const definitions = (element.eventDefinitions ??= []);
-      const existing = definitions.find(
-        (candidate) => candidate.eventDefinitionType === 'timerEventDefinition',
-      );
-
-      const patch: Record<string, string | null> = {};
-      if (kind) {
-        for (const field of TIMER_KIND_FIELDS) {
-          patch[field] = field === kind ? (fields[kind] ?? null) : null;
-        }
-      }
-      if ('calendarName' in fields) patch.calendarName = fields.calendarName ?? null;
-      if ('endDate' in fields) patch.endDate = fields.endDate ?? null;
-
-      if (existing) {
-        Object.assign(existing, patch);
-      } else {
-        definitions.push({
-          eventDefinitionType: 'timerEventDefinition',
-          id: `${elementId}_timerEventDefinition`,
-          attributes: {},
-          extensionElements: {},
-          xmlColumnNumber: 0,
-          xmlRowNumber: 0,
-          timeDate: null,
-          timeCycle: null,
-          timeDuration: null,
-          calendarName: null,
-          endDate: null,
-          ...patch,
-        } as Draft<EventDefinitionEnum>);
-      }
-      normalizeModelInvariants(document);
+      patchEventDefinition(document, elementId, 'timerEventDefinition', patch, {
+        timeDate: null,
+        timeCycle: null,
+        timeDuration: null,
+        calendarName: null,
+        endDate: null,
+      });
     },
   };
 }
@@ -381,6 +433,22 @@ export function createEmptySignal(id: string): Signal {
 export function createEmptyMessage(id: string): Message {
   return {
     attributes: {},
+    extensionElements: {},
+    id,
+    name: id,
+    xmlColumnNumber: 0,
+    xmlRowNumber: 0,
+  };
+}
+
+/**
+ * A new escalation for the document catalog. `escalationCode` is what Flowable
+ * matches at runtime, so it defaults to the id rather than staying empty.
+ */
+export function createEmptyEscalation(id: string): Escalation {
+  return {
+    attributes: {},
+    escalationCode: id,
     extensionElements: {},
     id,
     name: id,
