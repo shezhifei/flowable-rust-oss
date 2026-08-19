@@ -15,6 +15,7 @@ import type {
   Signal,
 } from '../generated/editor-protocol';
 import type { ModelerCommand } from './commands';
+import { findDiagramShape } from './diagramModel';
 import { locateCanonicalElement, normalizeModelInvariants } from './modelInvariants';
 import { collectModelIds, validateElementId } from './propertyValidation';
 
@@ -34,8 +35,9 @@ export class PropertyCommandError extends Error {
 }
 
 /**
- * Applies already-validated property values to one flow element or data
- * object. Unknown element ids abort the command so nothing half-writes.
+ * Applies already-validated property values to one flow element, data object,
+ * pool, lane, or artifact. Unknown ids abort the command so nothing
+ * half-writes.
  */
 export function updateElementPropertiesCommand(
   elementId: string,
@@ -45,24 +47,50 @@ export function updateElementPropertiesCommand(
   return {
     label: label ?? `Edit ${elementId} properties`,
     apply(document) {
-      const located = locateCanonicalElement(document, elementId);
-      if (!located) {
+      const target = locateEditableShape(document, elementId);
+      if (!target) {
         throw new PropertyCommandError(
           'missing-element',
           elementId,
           `${elementId} is not part of this document`,
         );
       }
-      Object.assign(located.element, properties);
+      Object.assign(target, properties);
       normalizeModelInvariants(document);
     },
   };
 }
 
 /**
+ * The mutable object behind an id, across every collection the canvas can
+ * select from. `locateCanonicalElement` covers the process tree; pools, lanes,
+ * and artifacts are reachable only through the document-level collections.
+ */
+function locateEditableShape(
+  document: Draft<BpmnEditorDocument>,
+  elementId: string,
+): Record<string, unknown> | null {
+  const located = locateCanonicalElement(document, elementId);
+  if (located) return located.element as Record<string, unknown>;
+  const shape = findDiagramShape(document, elementId);
+  if (!shape) return null;
+  switch (shape.kind) {
+    case 'pool':
+      return shape.pool as Record<string, unknown>;
+    case 'lane':
+      return shape.lane as Record<string, unknown>;
+    case 'artifact':
+      return shape.artifact as Record<string, unknown>;
+    default:
+      return shape.element as Record<string, unknown>;
+  }
+}
+
+/**
  * Renames an element id and rewires every diagram-owned reference to it:
  * DI maps, sequence flow endpoints, boundary attachments, default flows,
- * lane memberships, message flows, and association endpoints.
+ * lane memberships, message flows, and association endpoints. Pools, lanes,
+ * and artifacts rename through the same graph.
  */
 export function renameElementIdCommand(elementId: string, nextId: string): ModelerCommand {
   return {
@@ -80,15 +108,15 @@ export function renameElementIdCommand(elementId: string, nextId: string): Model
       }
       const trimmed = nextId.trim();
       if (trimmed === elementId) return;
-      const located = locateCanonicalElement(document, elementId);
-      if (!located) {
+      const target = locateEditableShape(document, elementId);
+      if (!target) {
         throw new PropertyCommandError(
           'missing-element',
           elementId,
           `${elementId} is not part of this document`,
         );
       }
-      located.element.id = trimmed;
+      target.id = trimmed;
 
       moveKeyedEntry(document.model.locationMap, elementId, trimmed);
       moveKeyedEntry(document.model.labelLocationMap, elementId, trimmed);
@@ -120,15 +148,29 @@ export interface ProcessPropertyUpdate {
   name?: string | null;
 }
 
-/** Edits the main process (no-selection target). A pool processRef follows a process id rename. */
-export function updateProcessPropertiesCommand(properties: ProcessPropertyUpdate): ModelerCommand {
-  const summary = properties.id ?? 'process';
+/**
+ * Edits one process. `processId` names the target so a multi-pool document can
+ * reach every participant's process; without it the command edits the main
+ * process, which is what the no-selection panel shows. A pool `processRef`
+ * follows a process id rename.
+ */
+export function updateProcessPropertiesCommand(
+  properties: ProcessPropertyUpdate,
+  processId?: string | null,
+): ModelerCommand {
+  const summary = properties.id ?? processId ?? 'process';
   return {
     label: `Edit ${summary} process properties`,
     apply(document) {
-      const process = document.model.processes[0];
+      const process = processId
+        ? document.model.processes.find((candidate) => candidate.id === processId)
+        : document.model.processes[0];
       if (!process) {
-        throw new PropertyCommandError('missing-process', summary, 'the document has no process');
+        throw new PropertyCommandError(
+          'missing-process',
+          summary,
+          processId ? `the document has no process '${processId}'` : 'the document has no process',
+        );
       }
       if (properties.id !== undefined) {
         const validationError = validateElementId(document, process.id ?? null, properties.id);

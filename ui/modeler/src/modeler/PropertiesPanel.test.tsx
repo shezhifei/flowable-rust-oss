@@ -14,6 +14,18 @@ function renderPanel(selectedElementIds: string[] = []) {
   );
 }
 
+/** Two participants, cloned from the sample so the literal cannot drift. */
+function renderMultiPoolPanel() {
+  const document = structuredClone(sampleDocument);
+  const pool = document.model.pools[0];
+  const process = document.model.processes[0];
+  if (!pool || !process) throw new Error('the sample document should have a pool and a process');
+  document.model.pools.push({ ...structuredClone(pool), id: 'vacationPool', name: 'Vacation' });
+  return renderToStaticMarkup(
+    <PropertiesPanel panelState={{ document, selectedElementIds: [] }} />,
+  );
+}
+
 /**
  * The sample document has no business rule task, so this converts `review`
  * with the same command the palette uses rather than hand-writing an element
@@ -50,9 +62,51 @@ describe('properties panel selection states', () => {
     expect(html).not.toContain('data-property="assignee"');
   });
 
-  it('notes diagram elements that are not editable yet', () => {
-    const html = renderPanel(['leavePool']);
+  it('lists the participants of a multi-pool document so each process is reachable', () => {
+    const html = renderMultiPoolPanel();
+
+    expect(html).toContain('data-property-group="pools"');
+    expect(html).toContain('data-pool-target="leavePool"');
+    expect(html).toContain('data-pool-target="vacationPool"');
+    expect(html).toContain('This document has 2 participants.');
+  });
+
+  it('keeps the single-pool panel free of the participant list', () => {
+    expect(renderPanel()).not.toContain('data-property-group="pools"');
+  });
+
+  it('notes a selection that is no longer part of the document', () => {
+    const html = renderPanel(['ghostShape']);
     expect(html).toContain('data-panel-state="unsupported"');
+  });
+
+  it('edits a pool and the process it points at', () => {
+    const html = renderPanel(['leavePool']);
+
+    expect(html).toContain('data-panel-state="pool"');
+    expect(html).toContain('data-property-group="pool-process"');
+    expect(html).toContain('value="leavePool"');
+    expect(html).toContain('data-property="processId"');
+    expect(html).toContain('value="leaveProcess"');
+    expect(html).toContain('data-property="processDocumentation"');
+  });
+
+  it('edits a lane and reports its membership', () => {
+    const html = renderPanel(['managerLane']);
+
+    expect(html).toContain('data-panel-state="lane"');
+    expect(html).toContain('value="managerLane"');
+    expect(html).toContain('value="Manager"');
+    expect(html).toContain('2 elements in this lane.');
+  });
+
+  it('edits a text annotation and an association', () => {
+    const annotation = renderPanel(['approvalNote']);
+    expect(annotation).toContain('data-panel-state="artifact"');
+    expect(annotation).toContain('data-property="text"');
+
+    const association = renderPanel(['approvalLink']);
+    expect(association).toContain('data-property="associationDirection"');
   });
 });
 

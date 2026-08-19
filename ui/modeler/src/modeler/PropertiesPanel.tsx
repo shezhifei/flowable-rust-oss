@@ -1,6 +1,12 @@
 import { useState } from 'react';
 
-import type { BpmnEditorDocument, FlowElementEnum } from '../generated/editor-protocol';
+import type {
+  ArtifactEnum,
+  BpmnEditorDocument,
+  FlowElementEnum,
+  Lane,
+  Pool,
+} from '../generated/editor-protocol';
 import {
   CallActivitySection,
   ErrorEscalationSection,
@@ -12,7 +18,7 @@ import {
   MultiInstanceSection,
   TimerDefinitionSection,
 } from './AdvancedPropertySections';
-import { documentElements } from './diagramModel';
+import { findDiagramShape, processForPool } from './diagramModel';
 import { useModelerStore } from './modelerStore';
 import {
   renameElementIdCommand,
@@ -49,6 +55,12 @@ const IMPLEMENTATION_TYPES = [
   ['delegateExpression', 'Delegate expression'],
 ] as const;
 
+const ASSOCIATION_DIRECTIONS = [
+  ['None', 'None'],
+  ['One', 'One'],
+  ['Both', 'Both'],
+] as const;
+
 export interface PanelRenderState {
   document: BpmnEditorDocument;
   selectedElementIds: string[];
@@ -80,11 +92,9 @@ export function PropertiesPanel({ panelState }: { panelState?: PanelRenderState 
   }
 
   const selectedId = selectedElementIds[0] ?? null;
-  const element = selectedId
-    ? documentElements(document).find((candidate) => candidate.id === selectedId)
-    : undefined;
+  const shape = selectedId ? findDiagramShape(document, selectedId) : null;
 
-  if (selectedId && !element) {
+  if (selectedId && !shape) {
     return (
       <aside className="properties-panel" aria-label="Element properties">
         <PanelHeading kicker="Selection" title={selectedId} glyph="◎" />
@@ -96,15 +106,243 @@ export function PropertiesPanel({ panelState }: { panelState?: PanelRenderState 
     );
   }
 
-  if (!element) {
+  if (!shape) {
     return <ProcessProperties document={document} />;
   }
-  return <ElementProperties key={element.id ?? selectedId} document={document} element={element} />;
+  switch (shape.kind) {
+    case 'pool':
+      return (
+        <PoolProperties key={shape.pool.id ?? selectedId} document={document} pool={shape.pool} />
+      );
+    case 'lane':
+      return (
+        <LaneProperties key={shape.lane.id ?? selectedId} document={document} lane={shape.lane} />
+      );
+    case 'artifact':
+      return (
+        <ArtifactProperties
+          key={shape.artifact.id ?? selectedId}
+          document={document}
+          artifact={shape.artifact}
+        />
+      );
+    default:
+      return (
+        <ElementProperties
+          key={shape.element.id ?? selectedId}
+          document={document}
+          element={shape.element}
+        />
+      );
+  }
+}
+
+/** A participant: its own attributes plus the process it points at. */
+function PoolProperties({ document, pool }: { document: BpmnEditorDocument; pool: Pool }) {
+  const execute = useModelerStore((state) => state.execute);
+  const poolId = pool.id ?? '';
+  const process = processForPool(document, pool);
+
+  return (
+    <aside className="properties-panel" aria-label="Pool properties">
+      <PanelHeading kicker="Pool" title={pool.name ?? 'Unnamed pool'} glyph="▤" />
+      <div className="property-groups" data-panel-state="pool">
+        <section>
+          <h2>General</h2>
+          <TextProperty
+            property="id"
+            label="ID"
+            value={poolId}
+            validate={(draft) => validateElementId(document, pool.id ?? null, draft)}
+            onCommit={(draft) => execute(renameElementIdCommand(poolId, draft.trim()))}
+          />
+          <TextProperty
+            property="name"
+            label="Name"
+            value={pool.name ?? ''}
+            onCommit={(draft) =>
+              execute(
+                updateElementPropertiesCommand(poolId, { name: draft.trim() || null }, 'Edit name'),
+              )
+            }
+          />
+        </section>
+        {process ? (
+          <section data-property-group="pool-process">
+            <h2>Process</h2>
+            <TextProperty
+              property="processId"
+              label="Process ID"
+              value={process.id ?? ''}
+              validate={(draft) => validateElementId(document, process.id ?? null, draft)}
+              onCommit={(draft) =>
+                execute(updateProcessPropertiesCommand({ id: draft.trim() }, process.id))
+              }
+            />
+            <TextProperty
+              property="processName"
+              label="Process name"
+              value={process.name ?? ''}
+              onCommit={(draft) =>
+                execute(updateProcessPropertiesCommand({ name: draft.trim() || null }, process.id))
+              }
+            />
+            <TextProperty
+              property="processDocumentation"
+              label="Process documentation"
+              value={process.documentation ?? ''}
+              multiline
+              onCommit={(draft) =>
+                execute(
+                  updateProcessPropertiesCommand(
+                    { documentation: draft.trim() || null },
+                    process.id,
+                  ),
+                )
+              }
+            />
+          </section>
+        ) : (
+          <section data-property-group="pool-process">
+            <h2>Process</h2>
+            <p className="property-note">
+              This pool references no process{pool.processRef ? ` ('${pool.processRef}')` : ''}.
+            </p>
+          </section>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function LaneProperties({ document, lane }: { document: BpmnEditorDocument; lane: Lane }) {
+  const execute = useModelerStore((state) => state.execute);
+  const laneId = lane.id ?? '';
+
+  return (
+    <aside className="properties-panel" aria-label="Lane properties">
+      <PanelHeading kicker="Lane" title={lane.name ?? 'Unnamed lane'} glyph="▥" />
+      <div className="property-groups" data-panel-state="lane">
+        <section>
+          <h2>General</h2>
+          <TextProperty
+            property="id"
+            label="ID"
+            value={laneId}
+            validate={(draft) => validateElementId(document, lane.id ?? null, draft)}
+            onCommit={(draft) => execute(renameElementIdCommand(laneId, draft.trim()))}
+          />
+          <TextProperty
+            property="name"
+            label="Name"
+            value={lane.name ?? ''}
+            onCommit={(draft) =>
+              execute(
+                updateElementPropertiesCommand(laneId, { name: draft.trim() || null }, 'Edit name'),
+              )
+            }
+          />
+          <p className="property-note">
+            {lane.flowReferences.length === 1
+              ? '1 element in this lane.'
+              : `${lane.flowReferences.length} elements in this lane.`}
+          </p>
+        </section>
+      </div>
+    </aside>
+  );
+}
+
+function ArtifactProperties({
+  document,
+  artifact,
+}: {
+  document: BpmnEditorDocument;
+  artifact: ArtifactEnum;
+}) {
+  const execute = useModelerStore((state) => state.execute);
+  const artifactId = artifact.id ?? '';
+  const commitText = (field: string) => (draft: string) =>
+    execute(
+      updateElementPropertiesCommand(
+        artifactId,
+        { [field]: draft.trim() || null },
+        `Edit ${field}`,
+      ),
+    );
+
+  return (
+    <aside className="properties-panel" aria-label="Artifact properties">
+      <PanelHeading
+        kicker={humanize(artifact.artifactType)}
+        title={artifactTitle(artifact)}
+        glyph={artifact.artifactType === 'association' ? '⤳' : '▭'}
+      />
+      <div className="property-groups" data-panel-state="artifact">
+        <section>
+          <h2>General</h2>
+          <TextProperty
+            property="id"
+            label="ID"
+            value={artifactId}
+            validate={(draft) => validateElementId(document, artifact.id ?? null, draft)}
+            onCommit={(draft) => execute(renameElementIdCommand(artifactId, draft.trim()))}
+          />
+          {artifact.artifactType === 'textAnnotation' ? (
+            <TextProperty
+              property="text"
+              label="Text"
+              value={artifact.text ?? ''}
+              multiline
+              onCommit={commitText('text')}
+            />
+          ) : null}
+          {artifact.artifactType === 'group' ? (
+            <TextProperty
+              property="categoryValueRef"
+              label="Category"
+              value={artifact.categoryValueRef ?? ''}
+              onCommit={commitText('categoryValueRef')}
+            />
+          ) : null}
+          {artifact.artifactType === 'association' ? (
+            <>
+              <SelectProperty
+                property="associationDirection"
+                label="Direction"
+                value={artifact.associationDirection ?? ''}
+                options={ASSOCIATION_DIRECTIONS}
+                onCommit={(value) =>
+                  execute(
+                    updateElementPropertiesCommand(
+                      artifactId,
+                      { associationDirection: value || null },
+                      'Edit direction',
+                    ),
+                  )
+                }
+              />
+              <p className="property-note">
+                {artifact.sourceRef ?? '?'} → {artifact.targetRef ?? '?'}
+              </p>
+            </>
+          ) : null}
+        </section>
+      </div>
+    </aside>
+  );
+}
+
+function artifactTitle(artifact: ArtifactEnum) {
+  if (artifact.artifactType === 'textAnnotation') return artifact.text?.trim() || 'Annotation';
+  return artifact.id ?? humanize(artifact.artifactType);
 }
 
 function ProcessProperties({ document }: { document: BpmnEditorDocument }) {
   const execute = useModelerStore((state) => state.execute);
+  const selectElement = useModelerStore((state) => state.selectElement);
   const process = document.model.processes[0];
+  const pools = document.model.pools;
 
   if (!process) {
     return (
@@ -122,6 +360,27 @@ function ProcessProperties({ document }: { document: BpmnEditorDocument }) {
     <aside className="properties-panel" aria-label="Process properties">
       <PanelHeading kicker="Process" title={process.name ?? 'Untitled process'} glyph="◎" />
       <div className="property-groups" data-panel-state="process">
+        {pools.length > 1 ? (
+          <section data-property-group="pools">
+            <h2>Pools</h2>
+            <p className="property-note">
+              This document has {pools.length} participants. Pick one to edit its process.
+            </p>
+            {pools.map((pool, index) => (
+              <button
+                key={pool.id ?? index}
+                type="button"
+                className="quiet-action"
+                data-pool-target={pool.id ?? ''}
+                onClick={() => {
+                  if (pool.id) selectElement(pool.id);
+                }}
+              >
+                {pool.name ?? pool.id ?? `Pool ${index + 1}`}
+              </button>
+            ))}
+          </section>
+        ) : null}
         <section>
           <h2>General</h2>
           <TextProperty

@@ -214,6 +214,134 @@ describe('process property updates', () => {
   });
 });
 
+/**
+ * A second participant, built by cloning the sample process so the literal
+ * cannot drift from the generated type. The clone keeps no flow elements, so
+ * its ids do not collide with the original's.
+ */
+function multiPoolDocument() {
+  const document = structuredClone(sampleDocument);
+  const main = document.model.processes[0];
+  const mainPool = document.model.pools[0];
+  if (!main || !mainPool) throw new Error('the sample document should have a pool and a process');
+
+  const second = structuredClone(main);
+  second.id = 'vacationProcess';
+  second.name = 'Vacation requests';
+  second.documentation = null;
+  second.lanes = [];
+  second.flowElements = [];
+  second.flowElementMap = {};
+  second.artifacts = [];
+  second.artifactMap = {};
+  document.model.processes.push(second);
+  document.model.pools.push({
+    ...structuredClone(mainPool),
+    id: 'vacationPool',
+    name: 'Vacation',
+    processRef: 'vacationProcess',
+  });
+  return document;
+}
+
+describe('multi-pool process property updates', () => {
+  beforeEach(() => {
+    useModelerStore.getState().setDocument(multiPoolDocument());
+  });
+
+  it('edits the named process instead of the first one', () => {
+    state().execute(
+      updateProcessPropertiesCommand(
+        { name: 'Vacation v2', documentation: 'second pool' },
+        'vacationProcess',
+      ),
+    );
+
+    expect(state().document.model.processes[1]).toMatchObject({
+      name: 'Vacation v2',
+      documentation: 'second pool',
+    });
+    expect(state().document.model.processes[0]?.name).toBe('Leave approval');
+
+    state().undo();
+    expect(state().document.model.processes[1]?.name).toBe('Vacation requests');
+  });
+
+  it('renames a non-main process id and follows only its own pool reference', () => {
+    state().execute(updateProcessPropertiesCommand({ id: 'timeOffProcess' }, 'vacationProcess'));
+
+    expect(state().document.model.processes[1]?.id).toBe('timeOffProcess');
+    expect(state().document.model.pools[1]?.processRef).toBe('timeOffProcess');
+    expect(state().document.model.pools[0]?.processRef).toBe('leaveProcess');
+  });
+
+  it('refuses a process id the document does not have', () => {
+    expect(() =>
+      state().execute(updateProcessPropertiesCommand({ name: 'nope' }, 'ghostProcess')),
+    ).toThrowError(expect.objectContaining({ code: 'missing-process' }));
+    expect(state().undoStack).toHaveLength(0);
+  });
+});
+
+describe('pool, lane, and artifact property updates', () => {
+  beforeEach(resetStore);
+
+  it('edits a pool name through the shared element command', () => {
+    state().execute(
+      updateElementPropertiesCommand('leavePool', { name: 'Approvals' }, 'Edit name'),
+    );
+    expect(state().document.model.pools[0]?.name).toBe('Approvals');
+
+    state().undo();
+    expect(state().document.model.pools[0]?.name).toBe('Leave approval');
+  });
+
+  it('renames a pool id and moves its diagram bounds', () => {
+    state().execute(renameElementIdCommand('leavePool', 'approvalPool'));
+
+    expect(state().document.model.pools[0]?.id).toBe('approvalPool');
+    expect(state().document.model.locationMap.approvalPool).toBeDefined();
+    expect(state().document.model.locationMap.leavePool).toBeUndefined();
+    // The participant points at the same process; only the pool id moved.
+    expect(state().document.model.pools[0]?.processRef).toBe('leaveProcess');
+
+    state().undo();
+    expect(state().document.model.locationMap.leavePool).toBeDefined();
+  });
+
+  it('edits a lane name and renames a lane without losing its members', () => {
+    state().execute(updateElementPropertiesCommand('managerLane', { name: 'Approver' }));
+    expect(state().document.model.processes[0]?.lanes?.[0]?.name).toBe('Approver');
+
+    state().execute(renameElementIdCommand('managerLane', 'approverLane'));
+    const lane = state().document.model.processes[0]?.lanes?.[0];
+    expect(lane?.id).toBe('approverLane');
+    expect(lane?.flowReferences).toEqual(['review', 'decision']);
+    expect(state().document.model.locationMap.approverLane).toBeDefined();
+  });
+
+  it('edits a text annotation and an association direction', () => {
+    state().execute(updateElementPropertiesCommand('approvalNote', { text: 'Checked by hand' }));
+    state().execute(
+      updateElementPropertiesCommand('approvalLink', { associationDirection: 'One' }),
+    );
+
+    const artifacts = state().document.model.processes[0]?.artifacts ?? [];
+    expect(artifacts.find((artifact) => artifact.id === 'approvalNote')).toMatchObject({
+      text: 'Checked by hand',
+    });
+    expect(artifacts.find((artifact) => artifact.id === 'approvalLink')).toMatchObject({
+      associationDirection: 'One',
+    });
+  });
+
+  it('still refuses ids that are in no collection at all', () => {
+    expect(() =>
+      state().execute(updateElementPropertiesCommand('ghost', { name: 'nope' })),
+    ).toThrowError(expect.objectContaining({ code: 'missing-element' }));
+  });
+});
+
 describe('phase-2 advanced property commands', () => {
   beforeEach(resetStore);
 
