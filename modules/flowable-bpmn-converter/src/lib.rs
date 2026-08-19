@@ -244,6 +244,22 @@ impl BpmnXMLConverter {
         }
     }
 
+    fn read_id_attribute(&self, e: &BytesStart, reader: &Reader<&[u8]>) -> Option<String> {
+        for attr in e.attributes() {
+            let Ok(attr) = attr else {
+                continue;
+            };
+            if self.get_local_name_bytes(attr.key.as_ref(), reader) == ATTRIBUTE_ID {
+                return Some(
+                    attr.decode_and_unescape_value(reader.decoder())
+                        .unwrap_or_default()
+                        .into_owned(),
+                );
+            }
+        }
+        None
+    }
+
     fn push_extension_attribute(
         &self,
         base_element: &mut BaseElement,
@@ -3858,10 +3874,14 @@ impl BpmnXMLConverter {
 
     fn parse_data_association(
         &self,
-        _e: &BytesStart,
+        e: &BytesStart,
         reader: &mut Reader<&[u8]>,
     ) -> DataAssociation {
         let mut da = DataAssociation::default();
+        // Java's DataAssociationParser reads the id off the element; without this
+        // every association would get a fresh uuid from `ensure_id` and the one
+        // authored in the XML would be lost.
+        da.base_element.id = self.read_id_attribute(e, reader);
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
@@ -3896,8 +3916,12 @@ impl BpmnXMLConverter {
         da
     }
 
-    fn parse_assignment(&self, _e: &BytesStart, reader: &mut Reader<&[u8]>) -> Assignment {
+    fn parse_assignment(&self, e: &BytesStart, reader: &mut Reader<&[u8]>) -> Assignment {
         let mut assignment = Assignment::default();
+        // Java leaves the assignment id unset, we generate one in `ensure_id`
+        // below — reading it back keeps that generated id stable across a
+        // write/parse round-trip.
+        assignment.base_element.id = self.read_id_attribute(e, reader);
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {

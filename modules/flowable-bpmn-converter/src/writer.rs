@@ -261,6 +261,8 @@ fn write_lanes(writer: &mut Writer<Vec<u8>>, lanes: &[Lane]) -> Result<(), BpmnX
         push_base(&mut node, &lane.base_element);
         push_opt(&mut node, "name", lane.name.as_deref());
         emit(writer, XmlEvent::Start(node))?;
+        // Java's LaneExport writes the extensions ahead of the references.
+        write_extension_elements_if_any(writer, &lane.base_element)?;
         for reference in &lane.flow_references {
             text_element(writer, "flowNodeRef", reference)?;
         }
@@ -722,6 +724,7 @@ fn write_event_definition(
                 v.calendar_name.as_deref(),
             );
             emit(writer, XmlEvent::Start(node))?;
+            write_extension_elements_if_any(writer, &v.base_element)?;
             if let Some(text) = &v.time_date {
                 text_element(writer, "timeDate", text)?;
             }
@@ -955,17 +958,31 @@ fn write_data_object(
     push_opt(&mut node, "itemSubjectRef", item_ref);
     push_opt(&mut node, "flowable:type", value.data_type.as_deref());
     push_opt(&mut node, "dataObjectRef", value.data_object_ref.as_deref());
+    // Java wraps both the value and any custom extension elements in a single
+    // `extensionElements` block (ValuedDataObjectXMLConverter).
+    let extensions = &value.base_element.extension_elements;
+    if value.value.is_none() && extensions.is_empty() {
+        return emit(writer, XmlEvent::Empty(node));
+    }
+    emit(writer, XmlEvent::Start(node))?;
+    emit(
+        writer,
+        XmlEvent::Start(BytesStart::new("extensionElements")),
+    )?;
     if let Some(value) = &value.value {
-        emit(writer, XmlEvent::Start(node))?;
         let text = match value {
             serde_json::Value::String(v) => v.clone(),
             v => v.to_string(),
         };
         text_element(writer, "flowable:value", &text)?;
-        emit(writer, XmlEvent::End(BytesEnd::new(tag)))
-    } else {
-        emit(writer, XmlEvent::Empty(node))
     }
+    for values in extensions.values() {
+        for extension in values {
+            write_extension(writer, extension, &root_namespace_scope())?;
+        }
+    }
+    emit(writer, XmlEvent::End(BytesEnd::new("extensionElements")))?;
+    emit(writer, XmlEvent::End(BytesEnd::new(tag)))
 }
 
 fn write_association(
@@ -1087,7 +1104,47 @@ fn write_activity_body(
     if let Some(loop_characteristics) = &activity.loop_characteristics {
         write_multi_instance(writer, loop_characteristics)?;
     }
+    // Java writes the associations after the multi-instance block, see
+    // BaseBpmnXMLConverter#convertToXML.
+    for association in &activity.data_input_associations {
+        write_data_association(writer, "dataInputAssociation", association)?;
+    }
+    for association in &activity.data_output_associations {
+        write_data_association(writer, "dataOutputAssociation", association)?;
+    }
     Ok(())
+}
+
+fn write_data_association(
+    writer: &mut Writer<Vec<u8>>,
+    name: &'static str,
+    value: &DataAssociation,
+) -> Result<(), BpmnXmlWriteError> {
+    let mut node = BytesStart::new(name);
+    push_base(&mut node, &value.base_element);
+    emit(writer, XmlEvent::Start(node))?;
+    if let Some(text) = &value.source_ref {
+        text_element(writer, "sourceRef", text)?;
+    }
+    if let Some(text) = &value.target_ref {
+        text_element(writer, "targetRef", text)?;
+    }
+    if let Some(text) = &value.transformation {
+        text_element(writer, "transformation", text)?;
+    }
+    for assignment in &value.assignments {
+        let mut node = BytesStart::new("assignment");
+        push_base(&mut node, &assignment.base_element);
+        emit(writer, XmlEvent::Start(node))?;
+        if let Some(text) = &assignment.from {
+            text_element(writer, "from", text)?;
+        }
+        if let Some(text) = &assignment.to {
+            text_element(writer, "to", text)?;
+        }
+        emit(writer, XmlEvent::End(BytesEnd::new("assignment")))?;
+    }
+    emit(writer, XmlEvent::End(BytesEnd::new(name)))
 }
 
 fn write_flow_body(
@@ -1136,28 +1193,40 @@ fn write_multi_instance(
         value.element_index_variable.as_deref(),
     );
     emit(writer, XmlEvent::Start(node))?;
-    if let Some(handler) = &value.handler {
+    // `overview_aggregations` is a derived view the parser never fills, so only
+    // the authored `aggregations` are written back.
+    let aggregations = value
+        .aggregations
+        .as_ref()
+        .map(|value| value.aggregations.as_slice())
+        .unwrap_or_default();
+    if value.handler.is_some() || !aggregations.is_empty() {
         emit(
             writer,
             XmlEvent::Start(BytesStart::new("extensionElements")),
         )?;
-        let mut collection = BytesStart::new("flowable:collection");
-        if let (Some(kind), Some(implementation)) = (
-            handler.implementation_type.as_deref(),
-            handler.implementation.as_deref(),
-        ) {
-            let attribute = if kind == "delegateExpression" {
-                "flowable:delegateExpression"
-            } else {
-                "flowable:class"
-            };
-            collection.push_attribute((attribute, implementation));
+        if let Some(handler) = &value.handler {
+            let mut collection = BytesStart::new("flowable:collection");
+            if let (Some(kind), Some(implementation)) = (
+                handler.implementation_type.as_deref(),
+                handler.implementation.as_deref(),
+            ) {
+                let attribute = if kind == "delegateExpression" {
+                    "flowable:delegateExpression"
+                } else {
+                    "flowable:class"
+                };
+                collection.push_attribute((attribute, implementation));
+            }
+            emit(writer, XmlEvent::Start(collection))?;
+            if let Some(text) = &value.collection_string {
+                text_element(writer, "flowable:string", text)?;
+            }
+            emit(writer, XmlEvent::End(BytesEnd::new("flowable:collection")))?;
         }
-        emit(writer, XmlEvent::Start(collection))?;
-        if let Some(text) = &value.collection_string {
-            text_element(writer, "flowable:string", text)?;
+        for aggregation in aggregations {
+            write_variable_aggregation(writer, aggregation)?;
         }
-        emit(writer, XmlEvent::End(BytesEnd::new("flowable:collection")))?;
         emit(writer, XmlEvent::End(BytesEnd::new("extensionElements")))?;
     }
     if let Some(text) = &value.loop_cardinality {
@@ -1172,6 +1241,66 @@ fn write_multi_instance(
     emit(
         writer,
         XmlEvent::End(BytesEnd::new("multiInstanceLoopCharacteristics")),
+    )
+}
+
+fn write_variable_aggregation(
+    writer: &mut Writer<Vec<u8>>,
+    value: &VariableAggregationDefinition,
+) -> Result<(), BpmnXmlWriteError> {
+    let mut node = BytesStart::new("flowable:variableAggregation");
+    push_opt(&mut node, "target", value.target.as_deref());
+    push_opt(
+        &mut node,
+        "targetExpression",
+        value.target_expression.as_deref(),
+    );
+    push_true(
+        &mut node,
+        "storeAsTransientVariable",
+        value.store_as_transient_variable,
+    );
+    push_true(
+        &mut node,
+        "createOverviewVariable",
+        value.create_overview_variable,
+    );
+    // The aggregator is selected by the same class / delegateExpression pair as
+    // elsewhere, but written unqualified — that is what the parser reads.
+    if let (Some(kind), Some(implementation)) = (
+        value.implementation_type.as_deref(),
+        value.implementation.as_deref(),
+    ) {
+        let attribute = if kind == "delegateExpression" {
+            "delegateExpression"
+        } else {
+            "class"
+        };
+        node.push_attribute((attribute, implementation));
+    }
+    if value.definitions.is_empty() {
+        return emit(writer, XmlEvent::Empty(node));
+    }
+    emit(writer, XmlEvent::Start(node))?;
+    for definition in &value.definitions {
+        let mut variable = BytesStart::new("variable");
+        push_opt(&mut variable, "source", definition.source.as_deref());
+        push_opt(
+            &mut variable,
+            "sourceExpression",
+            definition.source_expression.as_deref(),
+        );
+        push_opt(&mut variable, "target", definition.target.as_deref());
+        push_opt(
+            &mut variable,
+            "targetExpression",
+            definition.target_expression.as_deref(),
+        );
+        emit(writer, XmlEvent::Empty(variable))?;
+    }
+    emit(
+        writer,
+        XmlEvent::End(BytesEnd::new("flowable:variableAggregation")),
     )
 }
 
@@ -1198,7 +1327,7 @@ fn write_extensions(
     )?;
     for values in base.extension_elements.values() {
         for extension in values {
-            write_extension(writer, extension)?;
+            write_extension(writer, extension, &root_namespace_scope())?;
         }
     }
     for listener in execution {
@@ -1362,6 +1491,7 @@ fn write_io_parameter(
 fn write_extension(
     writer: &mut Writer<Vec<u8>>,
     value: &ExtensionElement,
+    in_scope: &[(String, String)],
 ) -> Result<(), BpmnXmlWriteError> {
     let local = value.name.as_deref().unwrap_or("extension");
     let name = match value.namespace_prefix.as_deref() {
@@ -1370,6 +1500,17 @@ fn write_extension(
     };
     let mut node = BytesStart::new(name.as_str());
     push_base(&mut node, &value.base_element);
+    // Re-declare every prefix this element resolves through that an ancestor has
+    // not already declared. A source document is free to bind a prefix on the
+    // extension element itself (`<custom:x xmlns:c2=".." c2:id="..">`); such a
+    // binding is not in the model's namespace map, so dropping it here would
+    // lose the resolved namespace on the next parse.
+    let mut scope = in_scope.to_vec();
+    let declarations = missing_namespace_declarations(value, &scope);
+    for (prefix, namespace) in &declarations {
+        node.push_attribute((format!("xmlns:{prefix}").as_str(), namespace.as_str()));
+    }
+    scope.extend(declarations);
     if value.element_text.is_none() && value.child_elements.is_empty() {
         return emit(writer, XmlEvent::Empty(node));
     }
@@ -1379,10 +1520,92 @@ fn write_extension(
     }
     for children in value.child_elements.values() {
         for child in children {
-            write_extension(writer, child)?;
+            write_extension(writer, child, &scope)?;
         }
     }
     emit(writer, XmlEvent::End(BytesEnd::new(name.as_str())))
+}
+
+/// The `(prefix, namespace)` bindings used by `value` — its own and its
+/// attributes' — that `scope` does not already provide.
+fn missing_namespace_declarations(
+    value: &ExtensionElement,
+    scope: &[(String, String)],
+) -> Vec<(String, String)> {
+    let mut missing: Vec<(String, String)> = Vec::new();
+    let mut used = Vec::new();
+    if let (Some(prefix), Some(namespace)) = (
+        value.namespace_prefix.as_deref(),
+        value.namespace.as_deref(),
+    ) {
+        used.push((prefix, namespace));
+    }
+    for attributes in value.base_element.attributes.values() {
+        for attribute in attributes {
+            if let (Some(prefix), Some(namespace)) = (
+                attribute.namespace_prefix.as_deref(),
+                attribute.namespace.as_deref(),
+            ) {
+                used.push((prefix, namespace));
+            }
+        }
+    }
+    for (prefix, namespace) in used {
+        if prefix.is_empty() || namespace.is_empty() {
+            continue;
+        }
+        let known = |list: &[(String, String)]| {
+            list.iter()
+                .any(|(known, bound)| known == prefix && bound == namespace)
+        };
+        if known(scope) || known(&missing) {
+            continue;
+        }
+        missing.push((prefix.to_string(), namespace.to_string()));
+    }
+    missing
+}
+
+/// The prefixes `write_model` always binds on `<definitions>`, so extension
+/// elements under them never need a redundant local declaration.
+fn root_namespace_scope() -> Vec<(String, String)> {
+    vec![
+        ("flowable".to_string(), FLOWABLE_NS.to_string()),
+        ("bpmndi".to_string(), BPMNDI_NS.to_string()),
+        ("dc".to_string(), DC_NS.to_string()),
+        ("di".to_string(), DI_NS.to_string()),
+    ]
+}
+
+/// An `extensionElements` wrapper holding only the generic extension elements
+/// carried on `base`. Callers check for emptiness first when the element may be
+/// written as an empty tag.
+fn write_generic_extension_elements(
+    writer: &mut Writer<Vec<u8>>,
+    base: &BaseElement,
+) -> Result<(), BpmnXmlWriteError> {
+    emit(
+        writer,
+        XmlEvent::Start(BytesStart::new("extensionElements")),
+    )?;
+    for values in base.extension_elements.values() {
+        for extension in values {
+            write_extension(writer, extension, &root_namespace_scope())?;
+        }
+    }
+    emit(writer, XmlEvent::End(BytesEnd::new("extensionElements")))
+}
+
+/// The same wrapper, skipped when there is nothing to put in it — for elements
+/// already being written with a start tag.
+fn write_extension_elements_if_any(
+    writer: &mut Writer<Vec<u8>>,
+    base: &BaseElement,
+) -> Result<(), BpmnXmlWriteError> {
+    if base.extension_elements.is_empty() {
+        return Ok(());
+    }
+    write_generic_extension_elements(writer, base)
 }
 
 fn write_collaboration(
@@ -1400,7 +1623,13 @@ fn write_collaboration(
         push_base(&mut node, &pool.base_element);
         push_opt(&mut node, "name", pool.name.as_deref());
         push_opt(&mut node, "processRef", pool.process_ref.as_deref());
-        emit(writer, XmlEvent::Empty(node))?;
+        if pool.base_element.extension_elements.is_empty() {
+            emit(writer, XmlEvent::Empty(node))?;
+            continue;
+        }
+        emit(writer, XmlEvent::Start(node))?;
+        write_generic_extension_elements(writer, &pool.base_element)?;
+        emit(writer, XmlEvent::End(BytesEnd::new("participant")))?;
     }
     for flow in model.message_flows.values() {
         let mut node = BytesStart::new("messageFlow");

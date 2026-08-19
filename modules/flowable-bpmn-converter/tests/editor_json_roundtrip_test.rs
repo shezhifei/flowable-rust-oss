@@ -8,26 +8,15 @@ use std::{
 
 /// Converter models copied from Java, under `tests/resources/java_fixtures`.
 ///
-/// Five of the 44 fixtures there are deliberately absent because the XML writer
-/// still drops one construct each. Each is a known gap, not a tolerated
-/// mismatch — `semantic_value` below stays strict so a fix flips the fixture
-/// straight to passing. They are also listed in
-/// `docs/plans/ui-migration-coverage.md`:
-///
-/// - `activityWithDataAssociations.bpmn` — `dataInputAssociations` /
-///   `dataOutputAssociations` on an activity are not written back.
-/// - `customextensionsmodel.bpmn` — an attribute on a *nested* custom extension
-///   element loses its resolved namespace (the prefix survives).
-/// - `multiInstanceVariableAggregationsModel.bpmn` —
-///   `flowable:variableAggregation` inside `multiInstanceLoopCharacteristics`
-///   is not written back.
-/// - `pool-with-extensions.bpmn` — `extensionElements` on a `participant`.
-/// - `valueddataobjectmodel.bpmn` — `extensionElements` on a `dataObject`.
+/// Every fixture in that directory is in the gate — nothing is skipped, and
+/// `semantic_value` below is strict, so any writer construct one of these models
+/// carries has to survive the round-trip.
 const JAVA_FIXTURES: &[&str] = &[
     "BoundaryTimerEventTest.testBoundaryTimerEvent.bpmn20.xml",
     "BusinessRuleTaskTest.testBusinessRuleTask.bpmn20.xml",
     "InclusiveGatewayTest.testDecisionFunctionality.bpmn20.xml",
     "ReceiveTaskTest.testWaitStateBehavior.bpmn20.xml",
+    "activityWithDataAssociations.bpmn",
     "adhocsubprocess.bpmn",
     "asyncendeventmodel.bpmn",
     "boundaryErrorEventWithInParameters.bpmn",
@@ -36,6 +25,7 @@ const JAVA_FIXTURES: &[&str] = &[
     "callactivityNoFallbackValue.bpmn",
     "callactivity_attributes.bpmn",
     "conditionaltest.bpmn",
+    "customextensionsmodel.bpmn",
     "dataobjectmodel.bpmn",
     "datastore.bpmn",
     "eventgatewaymodel.bpmn",
@@ -47,9 +37,11 @@ const JAVA_FIXTURES: &[&str] = &[
     "httpServiceTaskWithParallelInSameTransactionModel.bpmn",
     "message.bpmn",
     "messageflow.bpmn",
+    "multiInstanceVariableAggregationsModel.bpmn",
     "multiinstancemodel.bpmn",
     "notexecutablemodel.bpmn",
     "parallelgatewaymodel.bpmn",
+    "pool-with-extensions.bpmn",
     "pools.bpmn",
     "scopedmodel.bpmn",
     "script-task-do-not-include-variables.xml",
@@ -63,6 +55,7 @@ const JAVA_FIXTURES: &[&str] = &[
     "subprocessmodel_with_extensions.bpmn",
     "subprocessmultidiagrammodel.bpmn",
     "usertaskmodel.bpmn",
+    "valueddataobjectmodel.bpmn",
 ];
 
 /// Engine differential-test models, read in place at `differential/fixtures`
