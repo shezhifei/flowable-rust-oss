@@ -28,6 +28,7 @@ flowable-event-registry-service = { path = "../flowable-event-registry-service" 
 rusqlite = { version = "0.31.0", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
+tracing = "0.1"
 
 [dev-dependencies]
 tempfile = "3.14"

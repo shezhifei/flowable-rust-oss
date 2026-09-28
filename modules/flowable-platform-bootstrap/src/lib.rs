@@ -1352,9 +1352,20 @@ impl DefinitionCatalog for AppDefinitionCatalogAdapter {
                 }))
             }
             DefinitionType::EventRegistry => {
-                // Reconcile cache against durable change log so App composition sees
-                // recent Event Registry deploy/delete activity on shared process storage.
-                let _ = self.event_registry_service.detect_and_reconcile_changes();
+                // Refresh this node's cache against the durable change log so a
+                // co-located event runtime sees recent deploy/delete activity on
+                // shared process storage. This is a cache refresh only: the
+                // lookup below reads the durable store directly, so a reconcile
+                // failure must not fail definition resolution. Log it (the
+                // change-log high-water mark is not advanced on failure, so the
+                // next call retries the same records) and continue.
+                if let Err(error) = self.event_registry_service.detect_and_reconcile_changes() {
+                    tracing::error!(
+                        error = %error,
+                        "Event Registry cache reconciliation failed before resolving event \
+                         definition by key; continuing with direct store lookup"
+                    );
+                }
                 let mut query = self
                     .event_registry_service
                     .create_event_definition_query()
@@ -1367,25 +1378,27 @@ impl DefinitionCatalog for AppDefinitionCatalogAdapter {
                     .list()
                     .map_err(|error| flowable_app_engine::AppError::execution(error.to_string()))?
                     .into_iter()
-                    .next()
-                    .or_else(|| {
-                        // Explicit default-tenant fallback when tenant-specific missing.
-                        if tenant_id.is_some() {
-                            self.event_registry_service
-                                .create_event_definition_query()
-                                .key(definition_key)
-                                .latest()
-                                .list()
-                                .ok()
-                                .and_then(|definitions| {
-                                    definitions
-                                        .into_iter()
-                                        .find(|definition| definition.tenant_id.is_none())
-                                })
-                        } else {
-                            None
-                        }
-                    });
+                    .next();
+                // Explicit default-tenant fallback when the tenant-specific
+                // lookup missed. An empty result simply means no fallback
+                // exists; a storage failure from the fallback query must
+                // propagate instead of being silently treated as "no
+                // default-tenant definition".
+                let definition = match definition {
+                    Some(definition) => Some(definition),
+                    None if tenant_id.is_some() => self
+                        .event_registry_service
+                        .create_event_definition_query()
+                        .key(definition_key)
+                        .latest()
+                        .list()
+                        .map_err(|error| {
+                            flowable_app_engine::AppError::execution(error.to_string())
+                        })?
+                        .into_iter()
+                        .find(|definition| definition.tenant_id.is_none()),
+                    None => None,
+                };
                 Ok(definition.map(|definition| ResolvedDefinition {
                     definition_type,
                     definition_id: definition.id,
@@ -1466,9 +1479,17 @@ impl DefinitionCatalog for AppDefinitionCatalogAdapter {
                 }))
             }
             DefinitionType::EventRegistry => {
-                // Reconcile cache against the durable change log first, matching
-                // the by-key resolution path above.
-                let _ = self.event_registry_service.detect_and_reconcile_changes();
+                // Reconcile the cache against the durable change log first,
+                // matching the by-key resolution path. Cache refresh only (the
+                // lookup below reads the store directly); log failures and
+                // continue, the unadvanced high-water mark ensures retry.
+                if let Err(error) = self.event_registry_service.detect_and_reconcile_changes() {
+                    tracing::error!(
+                        error = %error,
+                        "Event Registry cache reconciliation failed before resolving event \
+                         definition by id; continuing with direct store lookup"
+                    );
+                }
                 let definition = match self
                     .event_registry_service
                     .get_event_definition(definition_id)
