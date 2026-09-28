@@ -21,7 +21,7 @@
 use crate::error::CmmnError;
 use crate::models::{CmmnLifecycleListener, CmmnListenerImplementationType};
 use flowable_engine_common::el::{
-    Expression, ExpressionMethodRegistry, MapVariableContainer, SimpleExpression,
+    ExpressionMethodRegistry, MapVariableContainer, SimpleExpression,
     with_expression_method_registry,
 };
 use serde_json::{Map, Value};
@@ -198,11 +198,12 @@ pub(crate) fn execute_lifecycle_listener(
     registry: Option<&CmmnLifecycleListenerRegistry>,
 ) -> Result<(), CmmnError> {
     match listener.implementation_type {
-        // Java ExpressionPlanItemLifecycleListener.stateChanged: `expression.getValue(instance)`.
-        // The value is discarded; only the side effect matters.
+        // Java ExpressionPlanItemLifecycleListener.stateChanged
+        // (ExpressionPlanItemLifecycleListener.java:46-48): `expression.getValue(instance)`
+        // — the value is discarded, but an evaluation exception escapes and
+        // rolls the command back.
         CmmnListenerImplementationType::Expression => {
-            evaluate_expression_listener(&listener.implementation, context, registry);
-            Ok(())
+            evaluate_expression_listener(&listener.implementation, context, registry)
         }
         // Java resolves `class` by instantiating it and `delegateExpression` by resolving the
         // bean (CmmnListenerNotificationHelper.java:162-169 createCaseLifecycleListener). Rust
@@ -246,28 +247,33 @@ fn invoke_registered_listener(
 }
 
 /// Evaluate an `expression` listener body. The result is discarded — Java's
-/// `ExpressionPlanItemLifecycleListener` ignores it too.
+/// `ExpressionPlanItemLifecycleListener` ignores it too — but evaluation
+/// errors are propagated (Java lets them escape and roll the transition
+/// back). An undefined variable or an unregistered method stays a lenient
+/// null and succeeds; a registered method that fails returns an error.
 fn evaluate_expression_listener(
     implementation: &str,
     context: &CmmnLifecycleListenerContext,
     registry: Option<&CmmnLifecycleListenerRegistry>,
-) {
+) -> Result<(), CmmnError> {
     let trimmed = implementation.trim();
     if trimmed.is_empty() {
-        return;
+        return Ok(());
     }
     let scope = expression_scope(context);
-    match registry {
+    let outcome = match registry {
         // Route through the registry so `${bean.method(...)}` side effects resolve.
-        Some(registry) => {
-            with_expression_method_registry(registry.expression_methods(), || {
-                let _ = SimpleExpression::new(trimmed.to_string()).get_value(&scope);
-            });
-        }
-        None => {
-            let _ = SimpleExpression::new(trimmed.to_string()).get_value(&scope);
-        }
-    }
+        Some(registry) => with_expression_method_registry(registry.expression_methods(), || {
+            SimpleExpression::new(trimmed.to_string()).get_value_strict(&scope)
+        }),
+        None => SimpleExpression::new(trimmed.to_string()).get_value_strict(&scope),
+    };
+    outcome.map_err(|error| {
+        CmmnError::execution(format!(
+            "CMMN expression lifecycle listener '{trimmed}' failed: {error}"
+        ))
+    })?;
+    Ok(())
 }
 
 /// Variable scope for an expression listener: the case variables, plus the transition metadata

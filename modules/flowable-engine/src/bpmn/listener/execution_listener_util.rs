@@ -84,11 +84,19 @@ fn invoke_execution_listener(
 
     match impl_type {
         "expression" => {
-            // Evaluate for side effects when the expression language supports them.
-            // Currently SimpleExpression is read-only; evaluation still validates syntax
-            // and variable resolution.
-            let _ =
-                SimpleExpression::new(implementation.to_string()).get_value(evaluation_execution);
+            // Java ExpressionExecutionListener.notify (ExpressionExecutionListener.java:34-37):
+            // the expression return value is ignored, but an evaluation
+            // exception escapes and fails the command (transaction rolls
+            // back). Use the strict entry so a registered method failure —
+            // not an undefined variable, which stays lenient null — surfaces.
+            SimpleExpression::new(implementation.to_string())
+                .get_value_strict(evaluation_execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "executionListener expression '{implementation}' on event '{event}' \
+                         failed: {error}"
+                    ))
+                })?;
             Ok(())
         }
         "delegateExpression" | "class" | "" => {
@@ -248,10 +256,20 @@ pub fn flow_element_execution_listeners(flow_element: &FlowElementEnum) -> &[Flo
             &t.task.activity.flow_node.flow_element.execution_listeners
         }
         FlowElementEnum::CaseServiceTask(t) => {
-            &t.service_task.task.activity.flow_node.flow_element.execution_listeners
+            &t.service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .execution_listeners
         }
         FlowElementEnum::SendTask(t) => {
-            &t.service_task.task.activity.flow_node.flow_element.execution_listeners
+            &t.service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .execution_listeners
         }
         FlowElementEnum::ScriptTask(t) => {
             &t.task.activity.flow_node.flow_element.execution_listeners
@@ -279,9 +297,7 @@ pub fn flow_element_execution_listeners(flow_element: &FlowElementEnum) -> &[Flo
         FlowElementEnum::EventBasedGateway(g) => {
             &g.gateway.flow_node.flow_element.execution_listeners
         }
-        FlowElementEnum::ComplexGateway(g) => {
-            &g.gateway.flow_node.flow_element.execution_listeners
-        }
+        FlowElementEnum::ComplexGateway(g) => &g.gateway.flow_node.flow_element.execution_listeners,
         FlowElementEnum::IntermediateCatchEvent(e) => {
             &e.event.flow_node.flow_element.execution_listeners
         }

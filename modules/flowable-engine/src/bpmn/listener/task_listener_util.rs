@@ -70,8 +70,19 @@ fn invoke_task_listener(
 
     match impl_type {
         "expression" => {
-            let _ =
-                SimpleExpression::new(implementation.to_string()).get_value(evaluation_execution);
+            // Java ExpressionTaskListener.notify (ExpressionTaskListener.java:31-34):
+            // the return value is discarded, but evaluation exceptions escape
+            // and fail the command. Undefined variables stay lenient null;
+            // only real evaluation failures (e.g. a registered method
+            // returning an error) are propagated.
+            SimpleExpression::new(implementation.to_string())
+                .get_value_strict(evaluation_execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "taskListener expression '{implementation}' on event '{event}' failed: \
+                         {error}"
+                    ))
+                })?;
             Ok(())
         }
         "delegateExpression" | "class" | "" => {
