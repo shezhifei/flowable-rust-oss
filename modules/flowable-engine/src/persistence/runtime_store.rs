@@ -1091,7 +1091,11 @@ impl RuntimeStore {
         &self.db_store
     }
 
-    pub fn insert_execution(&self, execution: &Execution, session: &mut DbSession) -> Result<(), StorageError> {
+    pub fn insert_execution(
+        &self,
+        execution: &Execution,
+        session: &mut DbSession,
+    ) -> Result<(), StorageError> {
         let process_instance_id = execution.process_instance_id.clone().unwrap_or_default();
 
         // P58: register the owning process instance for the end-of-command
@@ -1121,46 +1125,43 @@ impl RuntimeStore {
         // variable-instance queries (P4-1 patched only the REST mutation path).
         for (name, value) in &execution.variables {
             let id = format!("{}:{}", execution.id, name);
-            session
-                .insert_with_extra(
-                    "variables",
-                    &id,
-                    value,
-                    &[
-                        ("execution_id".into(), Some(execution.id.clone())),
-                        (
-                            "process_instance_id".into(),
-                            Some(process_instance_id.clone()),
-                        ),
-                        ("name".into(), Some(name.clone())),
-                    ],
-                )?;
+            session.insert_with_extra(
+                "variables",
+                &id,
+                value,
+                &[
+                    ("execution_id".into(), Some(execution.id.clone())),
+                    (
+                        "process_instance_id".into(),
+                        Some(process_instance_id.clone()),
+                    ),
+                    ("name".into(), Some(name.clone())),
+                ],
+            )?;
         }
         for (name, value) in &execution.local_variables {
             let id = format!("{}:{}", execution.id, name);
-            session
-                .insert_with_extra(
-                    "variables",
-                    &id,
-                    value,
-                    &[
-                        ("execution_id".into(), Some(execution.id.clone())),
-                        (
-                            "process_instance_id".into(),
-                            Some(process_instance_id.clone()),
-                        ),
-                        ("name".into(), Some(name.clone())),
-                    ],
-                )?;
+            session.insert_with_extra(
+                "variables",
+                &id,
+                value,
+                &[
+                    ("execution_id".into(), Some(execution.id.clone())),
+                    (
+                        "process_instance_id".into(),
+                        Some(process_instance_id.clone()),
+                    ),
+                    ("name".into(), Some(name.clone())),
+                ],
+            )?;
         }
 
-        session
-            .insert_with_extra(
-                "executions",
-                &execution.id,
-                &execution,
-                &[("process_instance_id".into(), Some(process_instance_id))],
-            )?;
+        session.insert_with_extra(
+            "executions",
+            &execution.id,
+            &execution,
+            &[("process_instance_id".into(), Some(process_instance_id))],
+        )?;
 
         // ADR-0001 Phase 5: dual-write normalized ACT_RU_EXECUTION via DataManager.
         // Prefer update when the row already exists (JSON path uses upsert semantics).
@@ -1172,7 +1173,7 @@ impl RuntimeStore {
         // either pollutes later work or allows JSON primary writes to diverge from ACT_*.
         Self::dual_write_execution(session, execution);
         Ok(())
-}
+    }
 
     /// Queue + immediately flush ACT_RU_EXECUTION dual-write; sticky-notes failures
     /// so the session commit fails (Java command/transaction failure semantics).
@@ -1203,12 +1204,10 @@ impl RuntimeStore {
                 }
             }
             Err(err) => {
-                session.note_write_error(crate::persistence::StorageError::Persistence(
-                    format!(
-                        "dual-write ACT_RU_EXECUTION find_by_id failed for id={}: {err}",
-                        execution.id
-                    ),
-                ));
+                session.note_write_error(crate::persistence::StorageError::Persistence(format!(
+                    "dual-write ACT_RU_EXECUTION find_by_id failed for id={}: {err}",
+                    execution.id
+                )));
             }
         }
         // Force SQL now so failures are attributed to dual-write, not a later flush.
@@ -1220,7 +1219,11 @@ impl RuntimeStore {
         }
     }
 
-    pub fn update_execution(&self, execution: &Execution, session: &mut DbSession) -> Result<(), StorageError> {
+    pub fn update_execution(
+        &self,
+        execution: &Execution,
+        session: &mut DbSession,
+    ) -> Result<(), StorageError> {
         self.insert_execution(execution, session)
     }
 
@@ -1320,9 +1323,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| (e.id.clone(), e))
-            .collect()
+        .into_iter()
+        .map(|e| (e.id.clone(), e))
+        .collect()
     }
 
     pub fn insert_process_instance(
@@ -1378,9 +1381,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| (e.id.clone(), e))
-            .collect()
+        .into_iter()
+        .map(|e| (e.id.clone(), e))
+        .collect()
     }
 
     // ── Process Instance exclusive-scope lock (P48) ──
@@ -1925,19 +1928,18 @@ impl RuntimeStore {
         &self,
         session: &mut DbSession,
     ) -> Vec<EventRegistryChangeRecord> {
-        let mut records: Vec<EventRegistryChangeRecord> =
-            match session.find_with_filters(
-                "event_registry_change_records",
-                &[],
-                Some(("revision", true)),
-                None,
-            ) {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    Vec::new()
-                }
-            };
+        let mut records: Vec<EventRegistryChangeRecord> = match session.find_with_filters(
+            "event_registry_change_records",
+            &[],
+            Some(("revision", true)),
+            None,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
         // Stable tie-break for legacy rows that predate the unique revision index.
         records.sort_by(|left, right| {
             left.revision
@@ -2214,20 +2216,20 @@ impl RuntimeStore {
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
         // Prefer the projected type index; fall back to resolved_type so legacy
         // rows with a NULL comment_type column still match.
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
-            match session.find_by_two(
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = match session
+            .find_by_two(
                 "historic_comments",
                 "task_id",
                 task_id,
                 "comment_type",
                 comment_type,
             ) {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    Vec::new()
-                }
-            };
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
         if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
             || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
         {
@@ -2260,18 +2262,18 @@ impl RuntimeStore {
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
         // Java `selectCommentsByProcessInstanceId` does not filter by type
         // (includes event-style comments such as identity-link audit rows).
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
-            match session.find_by(
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = match session
+            .find_by(
                 "historic_comments",
                 "process_instance_id",
                 process_instance_id,
             ) {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    Vec::new()
-                }
-            };
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
         // Java Comment.xml `selectCommentsByProcessInstanceId`: order by TIME_ desc
         comments.sort_by(|left, right| right.time.cmp(&left.time).then(right.id.cmp(&left.id)));
         comments
@@ -2283,35 +2285,35 @@ impl RuntimeStore {
         comment_type: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
-            match session.find_by_two(
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = match session
+            .find_by_two(
                 "historic_comments",
                 "process_instance_id",
                 process_instance_id,
                 "comment_type",
                 comment_type,
             ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
+        if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
+            || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
+        {
+            let by_pi: Vec<crate::history::historic_entities::HistoricComment> = match session
+                .find_by(
+                    "historic_comments",
+                    "process_instance_id",
+                    process_instance_id,
+                ) {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
                     Vec::new()
                 }
             };
-        if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
-            || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
-        {
-            let by_pi: Vec<crate::history::historic_entities::HistoricComment> =
-                match session.find_by(
-                    "historic_comments",
-                    "process_instance_id",
-                    process_instance_id,
-                ) {
-                    Ok(found) => found,
-                    Err(error) => {
-                        session.note_write_error(error);
-                        Vec::new()
-                    }
-                };
             for comment in by_pi {
                 if comment.resolved_type() == comment_type
                     && !comments.iter().any(|existing| existing.id == comment.id)
@@ -2345,16 +2347,15 @@ impl RuntimeStore {
         if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
             || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
         {
-            let all: Vec<crate::history::historic_entities::HistoricComment> =
-                {
-            match session.find_all("historic_comments") {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    Vec::new()
+            let all: Vec<crate::history::historic_entities::HistoricComment> = {
+                match session.find_all("historic_comments") {
+                    Ok(found) => found,
+                    Err(error) => {
+                        session.note_write_error(error);
+                        Vec::new()
+                    }
                 }
-            }
-        };
+            };
             for comment in all {
                 if comment.resolved_type() == comment_type
                     && !comments.iter().any(|existing| existing.id == comment.id)
@@ -2476,7 +2477,9 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricTaskLogEntry> {
         let mut entries = {
-            match session.find_all::<crate::history::historic_entities::HistoricTaskLogEntry>("historic_task_log_entries") {
+            match session.find_all::<crate::history::historic_entities::HistoricTaskLogEntry>(
+                "historic_task_log_entries",
+            ) {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
@@ -2616,7 +2619,11 @@ impl RuntimeStore {
 
     // ── Task methods ──
 
-    pub fn insert_task(&self, task: &crate::task::Task, session: &mut DbSession) -> Result<(), StorageError> {
+    pub fn insert_task(
+        &self,
+        task: &crate::task::Task,
+        session: &mut DbSession,
+    ) -> Result<(), StorageError> {
         let mut task = task.clone();
         // Task 6: single batched resolve replaces 4 separate XML parses.
         // Only resolve when at least one property is missing.
@@ -2652,44 +2659,47 @@ impl RuntimeStore {
                 task.form_key = props.form_key;
             }
         }
-        session
-            .insert_with_extra(
-                "tasks",
-                &task.id,
-                &task,
-                &[
-                    (
-                        "process_instance_id".into(),
-                        Some(task.process_instance_id.clone()),
-                    ),
-                    ("execution_id".into(), Some(task.execution_id.clone())),
-                    (
-                        "task_definition_key".into(),
-                        Some(task.task_definition_key.clone()),
-                    ),
-                    ("name".into(), Some(task.name.clone())),
-                    ("assignee".into(), task.assignee.clone()),
-                    ("owner".into(), task.owner.clone()),
-                    ("parent_task_id".into(), task.parent_task_id.clone()),
-                    ("priority".into(), task.priority.map(|v| v.to_string())),
-                    (
-                        "due_date".into(),
-                        task.due_date
-                            .map(|due_date| due_date.timestamp_millis().to_string()),
-                    ),
-                ],
-            )?;
+        session.insert_with_extra(
+            "tasks",
+            &task.id,
+            &task,
+            &[
+                (
+                    "process_instance_id".into(),
+                    Some(task.process_instance_id.clone()),
+                ),
+                ("execution_id".into(), Some(task.execution_id.clone())),
+                (
+                    "task_definition_key".into(),
+                    Some(task.task_definition_key.clone()),
+                ),
+                ("name".into(), Some(task.name.clone())),
+                ("assignee".into(), task.assignee.clone()),
+                ("owner".into(), task.owner.clone()),
+                ("parent_task_id".into(), task.parent_task_id.clone()),
+                ("priority".into(), task.priority.map(|v| v.to_string())),
+                (
+                    "due_date".into(),
+                    task.due_date
+                        .map(|due_date| due_date.timestamp_millis().to_string()),
+                ),
+            ],
+        )?;
         // P97: no silent historic sync here. History writes belong to the
         // HistoryManager (gating + async buffer + identity-link diff); syncing
         // the historic row in the store consumed the IL diff in
         // record_task_updated and bypassed history_disabled/async_history.
         Ok(())
-}
+    }
 
-    pub fn update_task(&self, task: &crate::task::Task, session: &mut DbSession) -> Result<(), crate::persistence::StorageError> {
+    pub fn update_task(
+        &self,
+        task: &crate::task::Task,
+        session: &mut DbSession,
+    ) -> Result<(), crate::persistence::StorageError> {
         self.insert_task(task, session)?;
         Ok(())
-}
+    }
 
     pub fn delete_task(&self, id: &str, session: &mut DbSession) {
         let _ = session.delete("tasks", id);
@@ -2762,9 +2772,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|t| (t.id.clone(), t))
-            .collect()
+        .into_iter()
+        .map(|t| (t.id.clone(), t))
+        .collect()
     }
 
     pub fn resolve_user_task_assignee(
@@ -2855,16 +2865,25 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Result<UserTaskProperties, StorageError> {
         let execution = self.find_execution(execution_id, session);
-        let process_definition_id = match execution.as_ref().and_then(|execution| execution.process_definition_id.clone()) {
+        let process_definition_id = match execution
+            .as_ref()
+            .and_then(|execution| execution.process_definition_id.clone())
+        {
             Some(id) => Some(id),
-            None => self.find_process_instance(process_instance_id, session)?.map(|instance| instance.process_definition_id),
+            None => self
+                .find_process_instance(process_instance_id, session)?
+                .map(|instance| instance.process_definition_id),
         };
-        let Some(process_definition_id) = process_definition_id else { return Ok(UserTaskProperties::default()); };
+        let Some(process_definition_id) = process_definition_id else {
+            return Ok(UserTaskProperties::default());
+        };
         let activity_id = execution
             .as_ref()
             .and_then(|execution| execution.activity_id.clone())
             .unwrap_or_else(|| task_definition_key.to_string());
-        let Some(process_definition) = session.find::<ProcessDefinition>("process_definitions", &process_definition_id)? else {
+        let Some(process_definition) =
+            session.find::<ProcessDefinition>("process_definitions", &process_definition_id)?
+        else {
             return Ok(UserTaskProperties::default());
         };
         let deployment_id = match process_definition.deployment_id {
@@ -2881,22 +2900,45 @@ impl RuntimeStore {
         };
 
         // Prefer cache; fall back to direct parse for backward compatibility.
-        let model = if let Some(cache) = &self.bpmn_model_cache {
-            cache.get_or_parse(&deployment_id, &resource_name, &bytes)
-        } else {
-            let xml = match std::str::from_utf8(&bytes).ok() {
-                Some(s) => s,
-                None => return Ok(UserTaskProperties::default()),
+        // Java parity: the bytes were validated as UTF-8 BPMN XML at deployment time,
+        // so once the resource row exists any decoding/parse failure means the stored
+        // resource is corrupt and must surface as a 500 instead of default properties.
+        let model: Arc<flowable_bpmn_model::model::BpmnModel> =
+            if let Some(cache) = &self.bpmn_model_cache {
+                // A cache hit always returns Some; None here can only mean the stored bytes
+                // failed UTF-8 validation or BPMN conversion (i.e. corrupt resource).
+                match cache.get_or_parse(&deployment_id, &resource_name, &bytes) {
+                    Some(model) => model,
+                    None => {
+                        return Err(Self::corrupt_deployment_resource_error(
+                            &deployment_id,
+                            &resource_name,
+                            "resource bytes are not valid UTF-8 or BPMN XML conversion failed",
+                        ));
+                    }
+                }
+            } else {
+                let xml = match std::str::from_utf8(&bytes) {
+                    Ok(xml) => xml,
+                    Err(error) => {
+                        return Err(Self::corrupt_deployment_resource_error(
+                            &deployment_id,
+                            &resource_name,
+                            &format!("resource bytes are not valid UTF-8: {error}"),
+                        ));
+                    }
+                };
+                match BpmnXMLConverter::new().try_convert_to_bpmn_model(xml) {
+                    Ok(model) => Arc::new(model),
+                    Err(error) => {
+                        return Err(Self::corrupt_deployment_resource_error(
+                            &deployment_id,
+                            &resource_name,
+                            &format!("BPMN XML conversion failed: {error}"),
+                        ));
+                    }
+                }
             };
-            BpmnXMLConverter::new()
-                .try_convert_to_bpmn_model(xml)
-                .ok()
-                .map(Arc::new)
-        };
-
-        let Some(model) = model else {
-            return Ok(UserTaskProperties::default());
-        };
 
         // Single pass over flow_elements to extract all properties.
         for process in &model.processes {
@@ -2958,20 +3000,62 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Result<Option<T>, StorageError> {
         let execution = self.find_execution(execution_id, session);
-        let process_definition_id = match execution.as_ref().and_then(|execution| execution.process_definition_id.clone()) {
+        let process_definition_id = match execution
+            .as_ref()
+            .and_then(|execution| execution.process_definition_id.clone())
+        {
             Some(id) => Some(id),
-            None => self.find_process_instance(process_instance_id, session)?.map(|instance| instance.process_definition_id),
+            None => self
+                .find_process_instance(process_instance_id, session)?
+                .map(|instance| instance.process_definition_id),
         };
-        let Some(process_definition_id) = process_definition_id else { return Ok(None); };
+        let Some(process_definition_id) = process_definition_id else {
+            return Ok(None);
+        };
         let activity_id = execution
             .and_then(|execution| execution.activity_id)
             .unwrap_or_else(|| task_definition_key.to_string());
-        let Some(process_definition) = session.find::<ProcessDefinition>("process_definitions", &process_definition_id)? else { return Ok(None); };
-        let Some(deployment_id) = process_definition.deployment_id else { return Ok(None); };
-        let Some(resource_name) = process_definition.resource_name else { return Ok(None); };
-        let Some(bytes) = self.deployment_resource_bytes(&deployment_id, &resource_name, session) else { return Ok(None); };
-        let Some(xml) = std::str::from_utf8(&bytes).ok() else { return Ok(None); };
-        let Some(model) = BpmnXMLConverter::new().try_convert_to_bpmn_model(xml).ok() else { return Ok(None); };
+        let Some(process_definition) =
+            session.find::<ProcessDefinition>("process_definitions", &process_definition_id)?
+        else {
+            return Ok(None);
+        };
+        let Some(deployment_id) = process_definition.deployment_id else {
+            return Ok(None);
+        };
+        let Some(resource_name) = process_definition.resource_name else {
+            return Ok(None);
+        };
+        // Java parity: a no-row blob SELECT legitimately yields None (absent resource,
+        // sticky SQL errors are already recorded by `deployment_resource_bytes`).
+        let Some(bytes) = self.deployment_resource_bytes(&deployment_id, &resource_name, session)
+        else {
+            return Ok(None);
+        };
+        // The bytes were validated as UTF-8 BPMN XML at deployment time, so once the row
+        // exists a decoding/parse failure can only mean the stored resource is corrupt.
+        // Java re-parsing such a resource throws FlowableException (HTTP 500); it must
+        // never silently fall back to default task properties.
+        let xml = match std::str::from_utf8(&bytes) {
+            Ok(xml) => xml,
+            Err(error) => {
+                return Err(Self::corrupt_deployment_resource_error(
+                    &deployment_id,
+                    &resource_name,
+                    &format!("resource bytes are not valid UTF-8: {error}"),
+                ));
+            }
+        };
+        let model = match BpmnXMLConverter::new().try_convert_to_bpmn_model(xml) {
+            Ok(model) => model,
+            Err(error) => {
+                return Err(Self::corrupt_deployment_resource_error(
+                    &deployment_id,
+                    &resource_name,
+                    &format!("BPMN XML conversion failed: {error}"),
+                ));
+            }
+        };
 
         Ok(model
             .processes
@@ -3016,6 +3100,20 @@ impl RuntimeStore {
                 None
             }
         }
+    }
+
+    /// Build the error for a deployment resource row whose bytes cannot be decoded as
+    /// UTF-8 BPMN XML. Such bytes were validated at deployment time, so this can only be
+    /// a corrupt/stored-as-garbage resource; Java surfaces this as a FlowableException
+    /// (HTTP 500) rather than silently falling back to default task properties.
+    fn corrupt_deployment_resource_error(
+        deployment_id: &str,
+        resource_name: &str,
+        reason: &str,
+    ) -> StorageError {
+        StorageError::Deserialization(format!(
+            "corrupt deployment resource '{resource_name}' of deployment '{deployment_id}': {reason}"
+        ))
     }
 
     // ── Identity-Link methods ──
@@ -3240,10 +3338,7 @@ impl RuntimeStore {
                         "scope_definition_id".into(),
                         link.scope_definition_id.clone(),
                     ),
-                    (
-                        "create_time".into(),
-                        create_time_ms.map(|v| v.to_string()),
-                    ),
+                    ("create_time".into(), create_time_ms.map(|v| v.to_string())),
                 ],
             )
             .unwrap_or_default();
@@ -3851,7 +3946,9 @@ impl RuntimeStore {
                 .unwrap_or_default();
             // Java parity: corrupt variable JSON is a persistence failure, not null.
             let value = serde_json::from_str(&row.data).map_err(|e| {
-                StorageError::Deserialization(format!("variable '{name}' in execution '{execution_id}': {e}"))
+                StorageError::Deserialization(format!(
+                    "variable '{name}' in execution '{execution_id}': {e}"
+                ))
             })?;
             out.insert(name, value);
         }
@@ -4083,9 +4180,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| (e.execution_id.clone(), e))
-            .collect()
+        .into_iter()
+        .map(|e| (e.execution_id.clone(), e))
+        .collect()
     }
 
     pub fn snapshot_message_style_wait_states(
@@ -4229,23 +4326,27 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| {
-                (
-                    format!("{}:{}", e.process_instance_id, e.boundary_event_id),
-                    e,
-                )
-            })
-            .collect()
+        .into_iter()
+        .map(|e| {
+            (
+                format!("{}:{}", e.process_instance_id, e.boundary_event_id),
+                e,
+            )
+        })
+        .collect()
     }
 
     // ── Timer Job State methods ──
 
-    pub fn insert_timer_job_state(&self, state: &RuntimeTimerJobState, session: &mut DbSession) -> Result<(), crate::persistence::StorageError> {
+    pub fn insert_timer_job_state(
+        &self,
+        state: &RuntimeTimerJobState,
+        session: &mut DbSession,
+    ) -> Result<(), crate::persistence::StorageError> {
         let job_type = self.find_timer_job_type(&state.timer_job_id, session);
         self.insert_timer_job_state_with_type(state, job_type.as_ref(), session)?;
         Ok(())
-}
+    }
 
     pub fn insert_timer_job_state_with_type(
         &self,
@@ -4318,63 +4419,62 @@ impl RuntimeStore {
                 None => DbValue::NullInteger,
             }
         }
-        session
-            .insert_with_typed_extra(
-                "timer_job_states",
-                &state.timer_job_id,
-                &state,
-                &[
-                    (
-                        "process_instance_id".into(),
-                        DbValue::Text(state.process_instance_id.clone()),
-                    ),
-                    (
-                        "execution_id".into(),
-                        DbValue::Text(state.execution_id.clone()),
-                    ),
-                    (
-                        "activity_id".into(),
-                        DbValue::Text(state.activity_id.clone()),
-                    ),
-                    ("lock_owner".into(), opt_text(&state.lock_owner)),
-                    ("lock_time".into(), opt_i64(state.lock_time)),
-                    (
-                        "lock_expiration_time".into(),
-                        opt_i64(state.lock_expiration_time),
-                    ),
-                    ("retries".into(), opt_i64(state.retries.map(|v| v as i64))),
-                    ("error_message".into(), opt_text(&state.error_message)),
-                    ("error_details".into(), opt_text(&state.error_details)),
-                    ("due_time".into(), opt_i64(state.due_time)),
-                    ("job_state".into(), opt_text(&state.job_state)),
-                    (
-                        "job_type".into(),
-                        match job_type {
-                            Some(jt) => DbValue::Text(jt.as_str().to_string()),
-                            None => DbValue::Null,
-                        },
-                    ),
-                    ("create_time".into(), opt_i64(state.create_time)),
-                    ("correlation_id".into(), opt_text(&state.correlation_id)),
-                    ("handler_type".into(), opt_text(&state.handler_type)),
-                    ("tenant_id".into(), opt_text(&state.tenant_id)),
-                    (
-                        "process_definition_id".into(),
-                        opt_text(&state.process_definition_id),
-                    ),
-                    ("element_name".into(), opt_text(&state.element_name)),
-                    ("category".into(), opt_text(&state.category)),
-                    ("scope_id".into(), opt_text(&state.scope_id)),
-                    ("sub_scope_id".into(), opt_text(&state.sub_scope_id)),
-                    ("scope_type".into(), opt_text(&state.scope_type)),
-                    (
-                        "scope_definition_id".into(),
-                        opt_text(&state.scope_definition_id),
-                    ),
-                ],
-            )?;
+        session.insert_with_typed_extra(
+            "timer_job_states",
+            &state.timer_job_id,
+            &state,
+            &[
+                (
+                    "process_instance_id".into(),
+                    DbValue::Text(state.process_instance_id.clone()),
+                ),
+                (
+                    "execution_id".into(),
+                    DbValue::Text(state.execution_id.clone()),
+                ),
+                (
+                    "activity_id".into(),
+                    DbValue::Text(state.activity_id.clone()),
+                ),
+                ("lock_owner".into(), opt_text(&state.lock_owner)),
+                ("lock_time".into(), opt_i64(state.lock_time)),
+                (
+                    "lock_expiration_time".into(),
+                    opt_i64(state.lock_expiration_time),
+                ),
+                ("retries".into(), opt_i64(state.retries.map(|v| v as i64))),
+                ("error_message".into(), opt_text(&state.error_message)),
+                ("error_details".into(), opt_text(&state.error_details)),
+                ("due_time".into(), opt_i64(state.due_time)),
+                ("job_state".into(), opt_text(&state.job_state)),
+                (
+                    "job_type".into(),
+                    match job_type {
+                        Some(jt) => DbValue::Text(jt.as_str().to_string()),
+                        None => DbValue::Null,
+                    },
+                ),
+                ("create_time".into(), opt_i64(state.create_time)),
+                ("correlation_id".into(), opt_text(&state.correlation_id)),
+                ("handler_type".into(), opt_text(&state.handler_type)),
+                ("tenant_id".into(), opt_text(&state.tenant_id)),
+                (
+                    "process_definition_id".into(),
+                    opt_text(&state.process_definition_id),
+                ),
+                ("element_name".into(), opt_text(&state.element_name)),
+                ("category".into(), opt_text(&state.category)),
+                ("scope_id".into(), opt_text(&state.scope_id)),
+                ("sub_scope_id".into(), opt_text(&state.sub_scope_id)),
+                ("scope_type".into(), opt_text(&state.scope_type)),
+                (
+                    "scope_definition_id".into(),
+                    opt_text(&state.scope_definition_id),
+                ),
+            ],
+        )?;
         Ok(())
-}
+    }
 
     pub fn find_timer_job_type(
         &self,
@@ -4561,9 +4661,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| (e.timer_job_id.clone(), e))
-            .collect()
+        .into_iter()
+        .map(|e| (e.timer_job_id.clone(), e))
+        .collect()
     }
 
     /// Typed management job query: every criteria predicate, the sort order,
@@ -4893,7 +4993,9 @@ impl RuntimeStore {
         if tenant_filter.map(|f| !f.is_empty()).unwrap_or(false) {
             let mut filtered = Vec::with_capacity(candidates.len());
             for job in candidates {
-                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? {
+                    filtered.push(job);
+                }
             }
             candidates = filtered;
         }
@@ -5022,7 +5124,11 @@ impl RuntimeStore {
             ("retries".to_string(), FilterOp::GreaterThan(0)),
         ];
         let mut candidates = session.find_with_filters::<RuntimeTimerJobState>(
-            "timer_job_states", &filters, Some(("due_time", true)), None)?;
+            "timer_job_states",
+            &filters,
+            Some(("due_time", true)),
+            None,
+        )?;
         // Expired locks require the reset path; acquisition only sees unlocked jobs.
         candidates.retain(|job| job.lock_owner.is_none());
         if tenant_filter
@@ -5031,7 +5137,9 @@ impl RuntimeStore {
         {
             let mut filtered = Vec::with_capacity(candidates.len());
             for job in candidates {
-                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? {
+                    filtered.push(job);
+                }
             }
             candidates = filtered;
         }
@@ -5235,7 +5343,9 @@ impl RuntimeStore {
         if tenant_filter.map(|f| !f.is_empty()).unwrap_or(false) {
             let mut filtered = Vec::with_capacity(candidates.len());
             for job in candidates {
-                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? {
+                    filtered.push(job);
+                }
             }
             candidates = filtered;
         }
@@ -5411,7 +5521,9 @@ impl RuntimeStore {
         if apply_tenant {
             let mut filtered = Vec::with_capacity(candidates.len());
             for job in candidates {
-                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? {
+                    filtered.push(job);
+                }
             }
             candidates = filtered;
         }
@@ -5572,9 +5684,19 @@ impl RuntimeStore {
         {
             let mut filtered = Vec::with_capacity(candidates.len());
             for job in candidates {
-                let Some(instance) = self.find_process_instance(&job.process_instance_id, session)? else { continue; };
+                let Some(instance) =
+                    self.find_process_instance(&job.process_instance_id, session)?
+                else {
+                    continue;
+                };
                 let tenant_id = instance.tenant_id.unwrap_or_default();
-                if tenant_filter.unwrap_or_default().iter().any(|expected| expected == &tenant_id) { filtered.push(job); }
+                if tenant_filter
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|expected| expected == &tenant_id)
+                {
+                    filtered.push(job);
+                }
             }
             candidates = filtered;
         }
@@ -5634,9 +5756,13 @@ impl RuntimeStore {
         for job in session.find_all::<RuntimeTimerJobState>("timer_job_states")? {
             if job.due_time.is_some_and(|due| due <= now)
                 && job.retries.is_some_and(|retries| retries > 0)
-                && (job.lock_owner.is_none() || job.lock_expiration_time.is_some_and(|expires| expires <= now))
+                && (job.lock_owner.is_none()
+                    || job
+                        .lock_expiration_time
+                        .is_some_and(|expires| expires <= now))
                 && self.is_fetchable_external_worker_candidate(&job, session)?
-                && topic.is_none_or(|topic| job.job_handler_configuration.as_deref() == Some(topic)) {
+                && topic.is_none_or(|topic| job.job_handler_configuration.as_deref() == Some(topic))
+            {
                 candidates.push(job);
             }
         }
@@ -5667,55 +5793,53 @@ impl RuntimeStore {
                 if let (Some(ref old_owner), Some(ref old_exp_time)) =
                     (old_lock_owner, old_lock_expiration_time)
                 {
-                    session
-                        .cas_update(
-                            "timer_job_states",
-                            &timer_job.timer_job_id,
-                            &json,
-                            &[
-                                ("lock_owner".into(), Some(owner.to_string())),
-                                ("lock_time".into(), Some(now.to_string())),
-                                (
-                                    "lock_expiration_time".into(),
-                                    timer_job.lock_expiration_time.map(|v| v.to_string()),
-                                ),
-                                ("retries".into(), timer_job.retries.map(|v| v.to_string())),
-                                ("error_message".into(), timer_job.error_message.clone()),
-                                ("error_details".into(), timer_job.error_details.clone()),
-                                ("due_time".into(), timer_job.due_time.map(|v| v.to_string())),
-                                ("job_state".into(), timer_job.job_state.clone()),
-                                ("job_type".into(), job_type_extra.clone()),
-                            ],
-                            &[
-                                ("lock_owner".into(), Some(old_owner.clone())),
-                                (
-                                    "lock_expiration_time".into(),
-                                    Some(old_exp_time.to_string()),
-                                ),
-                            ],
-                        )?
+                    session.cas_update(
+                        "timer_job_states",
+                        &timer_job.timer_job_id,
+                        &json,
+                        &[
+                            ("lock_owner".into(), Some(owner.to_string())),
+                            ("lock_time".into(), Some(now.to_string())),
+                            (
+                                "lock_expiration_time".into(),
+                                timer_job.lock_expiration_time.map(|v| v.to_string()),
+                            ),
+                            ("retries".into(), timer_job.retries.map(|v| v.to_string())),
+                            ("error_message".into(), timer_job.error_message.clone()),
+                            ("error_details".into(), timer_job.error_details.clone()),
+                            ("due_time".into(), timer_job.due_time.map(|v| v.to_string())),
+                            ("job_state".into(), timer_job.job_state.clone()),
+                            ("job_type".into(), job_type_extra.clone()),
+                        ],
+                        &[
+                            ("lock_owner".into(), Some(old_owner.clone())),
+                            (
+                                "lock_expiration_time".into(),
+                                Some(old_exp_time.to_string()),
+                            ),
+                        ],
+                    )?
                 } else {
-                    session
-                        .cas_update(
-                            "timer_job_states",
-                            &timer_job.timer_job_id,
-                            &json,
-                            &[
-                                ("lock_owner".into(), Some(owner.to_string())),
-                                ("lock_time".into(), Some(now.to_string())),
-                                (
-                                    "lock_expiration_time".into(),
-                                    timer_job.lock_expiration_time.map(|v| v.to_string()),
-                                ),
-                                ("retries".into(), timer_job.retries.map(|v| v.to_string())),
-                                ("error_message".into(), timer_job.error_message.clone()),
-                                ("error_details".into(), timer_job.error_details.clone()),
-                                ("due_time".into(), timer_job.due_time.map(|v| v.to_string())),
-                                ("job_state".into(), timer_job.job_state.clone()),
-                                ("job_type".into(), job_type_extra),
-                            ],
-                            &[("lock_owner".into(), None)],
-                        )?
+                    session.cas_update(
+                        "timer_job_states",
+                        &timer_job.timer_job_id,
+                        &json,
+                        &[
+                            ("lock_owner".into(), Some(owner.to_string())),
+                            ("lock_time".into(), Some(now.to_string())),
+                            (
+                                "lock_expiration_time".into(),
+                                timer_job.lock_expiration_time.map(|v| v.to_string()),
+                            ),
+                            ("retries".into(), timer_job.retries.map(|v| v.to_string())),
+                            ("error_message".into(), timer_job.error_message.clone()),
+                            ("error_details".into(), timer_job.error_details.clone()),
+                            ("due_time".into(), timer_job.due_time.map(|v| v.to_string())),
+                            ("job_state".into(), timer_job.job_state.clone()),
+                            ("job_type".into(), job_type_extra),
+                        ],
+                        &[("lock_owner".into(), None)],
+                    )?
                 }
             };
 
@@ -5861,7 +5985,9 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> HashMap<String, EventSubprocessTimerSubscription> {
         {
-            match session.find_all::<EventSubprocessTimerSubscription>("event_subprocess_timer_subscriptions") {
+            match session.find_all::<EventSubprocessTimerSubscription>(
+                "event_subprocess_timer_subscriptions",
+            ) {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
@@ -5869,9 +5995,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| (e.subscription_id.clone(), e))
-            .collect()
+        .into_iter()
+        .map(|e| (e.subscription_id.clone(), e))
+        .collect()
     }
 
     pub fn acquire_due_event_subprocess_timer_subscriptions(
@@ -5937,7 +6063,8 @@ impl RuntimeStore {
             .collect();
         // Deterministic ordering: due time, then id (for stability)
         candidates.sort_by(|a, b| {
-            a.due_time.cmp(&b.due_time)
+            a.due_time
+                .cmp(&b.due_time)
                 .then(a.subscription_id.cmp(&b.subscription_id))
         });
         candidates
@@ -6239,7 +6366,9 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> HashMap<String, EventSubprocessEventSubscription> {
         {
-            match session.find_all::<EventSubprocessEventSubscription>("event_subprocess_event_subscriptions") {
+            match session.find_all::<EventSubprocessEventSubscription>(
+                "event_subprocess_event_subscriptions",
+            ) {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
@@ -6247,9 +6376,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|e| (e.subscription_id.clone(), e))
-            .collect()
+        .into_iter()
+        .map(|e| (e.subscription_id.clone(), e))
+        .collect()
     }
 
     // ── Timer Worker Node methods ──
@@ -6301,9 +6430,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .map(|n| (n.node_id.clone(), n))
-            .collect()
+        .into_iter()
+        .map(|n| (n.node_id.clone(), n))
+        .collect()
     }
 
     // ── Timer Coordinator Lease methods ──
@@ -6356,13 +6485,14 @@ impl RuntimeStore {
     ) -> Option<i64> {
         let new_expiry = now + timeout_ms;
 
-        let current_opt = match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
-            Ok(found) => found,
-            Err(error) => {
-                session.note_write_error(error);
-                None
-            }
-        };
+        let current_opt =
+            match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            };
 
         if let Some(current) = current_opt {
             if current.owner_node_id == owner_node_id {
@@ -6402,7 +6532,9 @@ impl RuntimeStore {
                 let owner_node_opt = if current.owner_node_id.is_empty() {
                     None
                 } else {
-                    match session.find::<TimerWorkerNode>("timer_worker_nodes", &current.owner_node_id) {
+                    match session
+                        .find::<TimerWorkerNode>("timer_worker_nodes", &current.owner_node_id)
+                    {
                         Ok(found) => found,
                         Err(error) => {
                             session.note_write_error(error);
@@ -6506,13 +6638,14 @@ impl RuntimeStore {
         fencing_token: i64,
         session: &mut DbSession,
     ) -> bool {
-        let current_opt = match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
-            Ok(found) => found,
-            Err(error) => {
-                session.note_write_error(error);
-                None
-            }
-        };
+        let current_opt =
+            match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            };
 
         let Some(current) = current_opt else {
             return false;
@@ -6623,7 +6756,9 @@ impl RuntimeStore {
     /// Force step down the current leader (admin operation)
     /// This advances the fencing token and releases the lease
     pub fn force_step_down(&self, session: &mut DbSession) -> bool {
-        let lease_opt = match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", "timer-coordinator") {
+        let lease_opt = match session
+            .find::<TimerCoordinatorLease>("timer_coordinator_leases", "timer-coordinator")
+        {
             Ok(found) => found,
             Err(error) => {
                 session.note_write_error(error);
@@ -6693,9 +6828,9 @@ impl RuntimeStore {
                 }
             }
         }
-            .into_iter()
-            .filter(|node| node.last_heartbeat < now - heartbeat_timeout_ms)
-            .collect();
+        .into_iter()
+        .filter(|node| node.last_heartbeat < now - heartbeat_timeout_ms)
+        .collect();
 
         let mut cleaned = 0;
         for node in expired_nodes {
@@ -7191,17 +7326,17 @@ impl RuntimeStore {
         .into_iter()
         .filter_map(|m| {
             let gid = m.extras.get("group_id").cloned().flatten()?;
-                {
-            match session.find("groups", &gid) {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    None
+            {
+                match session.find("groups", &gid) {
+                    Ok(found) => found,
+                    Err(error) => {
+                        session.note_write_error(error);
+                        None
+                    }
                 }
             }
-        }
-            })
-            .collect()
+        })
+        .collect()
     }
 
     pub fn get_users_by_group(
@@ -7221,17 +7356,17 @@ impl RuntimeStore {
         .into_iter()
         .filter_map(|m| {
             let uid = m.extras.get("user_id").cloned().flatten()?;
-                {
-            match session.find("users", &uid) {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    None
+            {
+                match session.find("users", &uid) {
+                    Ok(found) => found,
+                    Err(error) => {
+                        session.note_write_error(error);
+                        None
+                    }
                 }
             }
-        }
-            })
-            .collect()
+        })
+        .collect()
     }
 
     pub fn membership_exists(
@@ -7455,7 +7590,11 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::Token> {
         // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
-        (match session.find_by::<crate::identity::entities::Token>("tokens", "token_value", token_value) {
+        (match session.find_by::<crate::identity::entities::Token>(
+            "tokens",
+            "token_value",
+            token_value,
+        ) {
             Ok(found) => found,
             Err(error) => {
                 session.note_write_error(error);
@@ -7530,21 +7669,21 @@ impl RuntimeStore {
         // `TaskHelper.deleteHistoricTaskInstancesByProcessInstanceId:612-620` →
         // `deleteHistoricTask` → `deleteHistoricIdentityLinksByTaskId`.
         // Collect the ids before the historic task rows are removed.
-        let historic_task_ids: Vec<String> = match session
-            .find_by::<crate::history::historic_entities::HistoricTaskInstance>(
+        let historic_task_ids: Vec<String> =
+            match session.find_by::<crate::history::historic_entities::HistoricTaskInstance>(
                 "historic_task_instances",
                 "process_instance_id",
                 process_instance_id,
             ) {
-            Ok(found) => found,
-            Err(error) => {
-                session.note_write_error(error);
-                Vec::new()
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
             }
-        }
-        .into_iter()
-        .map(|instance| instance.id)
-        .collect();
+            .into_iter()
+            .map(|instance| instance.id)
+            .collect();
         session
             .delete("historic_process_instances", process_instance_id)
             .unwrap_or_default();
@@ -7917,7 +8056,9 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricDetail> {
         let mut details = {
-            match session.find_all::<crate::history::historic_entities::HistoricDetail>("historic_details") {
+            match session
+                .find_all::<crate::history::historic_entities::HistoricDetail>("historic_details")
+            {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
@@ -8031,18 +8172,18 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<crate::runtime::compensation::CompensationSubscription> {
         // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
-        let mut results =
-            match session.find_by::<crate::runtime::compensation::CompensationSubscription>(
+        let mut results = match session
+            .find_by::<crate::runtime::compensation::CompensationSubscription>(
                 "compensation_subscriptions",
                 "process_instance_id",
                 pi_id,
             ) {
-                Ok(found) => found,
-                Err(error) => {
-                    session.note_write_error(error);
-                    Vec::new()
-                }
-            };
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
         results.sort_by(|a, b| {
             b.subscription_order
                 .cmp(&a.subscription_order)
@@ -8074,7 +8215,9 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricProcessInstance> {
         {
-            match session.find_all::<crate::history::historic_entities::HistoricProcessInstance>("historic_process_instances") {
+            match session.find_all::<crate::history::historic_entities::HistoricProcessInstance>(
+                "historic_process_instances",
+            ) {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
@@ -8150,7 +8293,8 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::CleanupLog> {
         {
-            match session.find_all::<crate::history::historic_entities::CleanupLog>("cleanup_logs") {
+            match session.find_all::<crate::history::historic_entities::CleanupLog>("cleanup_logs")
+            {
                 Ok(found) => found,
                 Err(error) => {
                     session.note_write_error(error);
