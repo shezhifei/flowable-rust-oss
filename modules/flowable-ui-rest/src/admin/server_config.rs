@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 //! ServerConfig store aligned with Java admin domain + representation.
 //! Durable via JSON file (path from `FLOWABLE_UI_SERVER_CONFIG_PATH` or
 //! `./data/ui-admin-server-configs.json`).
@@ -169,19 +177,37 @@ impl ServerConfigStore {
             cipher: PasswordCipher::from_env()?,
             path,
         };
-        if !store.load_from_disk() {
-            store.seed_defaults();
-            let _ = store.persist();
-        }
+        store.load_or_seed();
         Ok(store)
+    }
+
+    /// Loads persisted configs, seeding the built-in defaults on first run.
+    ///
+    /// The seeded configs are inserted into memory first and therefore stay
+    /// usable even when persisting them fails: a disk/permission problem at
+    /// startup must not block the in-memory admin surface. The persistence
+    /// failure still has to be loud, because without a log the seeded defaults
+    /// silently vanish on the next restart (P3 observability gap).
+    fn load_or_seed(&self) {
+        if self.load_from_disk() {
+            return;
+        }
+        self.seed_defaults();
+        if let Err(error) = self.persist() {
+            tracing::error!(
+                path = %self.path.display(),
+                "failed to persist seeded default admin server configs: {error}; \
+                 the in-memory configs stay usable for this process, but the seeded \
+                 defaults may be lost on restart"
+            );
+        }
     }
 
     pub fn empty_for_tests(cipher: PasswordCipher) -> Self {
         Self {
             configs: RwLock::new(HashMap::new()),
             cipher,
-            path: PathBuf::from(std::env::temp_dir())
-                .join(format!("flowable-ui-sc-test-{}.json", Uuid::new_v4())),
+            path: std::env::temp_dir().join(format!("flowable-ui-sc-test-{}.json", Uuid::new_v4())),
         }
     }
 
@@ -407,5 +433,60 @@ fn default_meta(endpoint: EndpointType) -> (&'static str, &'static str) {
         EndpointType::Dmn => ("Flowable DMN app", "Flowable DMN REST config"),
         EndpointType::Form => ("Flowable Form app", "Flowable Form REST config"),
         EndpointType::Content => ("Flowable Content app", "Flowable Content REST config"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store_at(path: PathBuf) -> ServerConfigStore {
+        ServerConfigStore {
+            configs: RwLock::new(HashMap::new()),
+            cipher: PasswordCipher::default(),
+            path,
+        }
+    }
+
+    /// P3: when the first-run seed cannot be persisted, startup must not panic
+    /// and the seeded configs must remain usable in memory for this process.
+    #[test]
+    fn seed_persist_failure_keeps_in_memory_configs() {
+        let dir = std::env::temp_dir().join(format!("flowable-ui-sc-seed-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let blocker = dir.join("not-a-directory");
+        std::fs::write(&blocker, b"x").expect("blocker file");
+        // The store path's parent is a regular file, so `create_dir_all` inside
+        // `persist` fails deterministically on both Windows and Unix.
+        let store = store_at(blocker.join("server-configs.json"));
+
+        store.load_or_seed();
+
+        assert_eq!(
+            store.list_representations().len(),
+            EndpointType::all().len(),
+            "seeded configs must be available in memory despite persist failure"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The happy counterpart: a writable fresh path is seeded, persisted and
+    /// reloaded with the same config set.
+    #[test]
+    fn seed_persist_success_round_trips() {
+        let path =
+            std::env::temp_dir().join(format!("flowable-ui-sc-seed-ok-{}.json", Uuid::new_v4()));
+        let store = store_at(path.clone());
+
+        store.load_or_seed();
+
+        assert!(path.is_file(), "seed configs were persisted");
+        let reloaded = store_at(path.clone());
+        assert!(reloaded.load_from_disk(), "persisted seed loads back");
+        assert_eq!(
+            reloaded.list_representations().len(),
+            EndpointType::all().len()
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }
