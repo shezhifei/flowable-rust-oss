@@ -342,10 +342,9 @@ mod tests {
 
     fn task_service_with_task(task: Task) -> FlowableTaskService {
         let engine_id = ENGINE_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let engine = Arc::new(ProcessEngine::new(format!(
-            "flowable-task-service-claim-{}",
-            engine_id
-        )).unwrap());
+        let engine = Arc::new(
+            ProcessEngine::new(format!("flowable-task-service-claim-{}", engine_id)).unwrap(),
+        );
         let runtime_store = engine.get_runtime_store();
         let mut session = runtime_store.create_session().unwrap();
         runtime_store.insert_task(&task, &mut session);

@@ -57,7 +57,10 @@ impl MapVariableContainer {
 
     pub fn from_json_map(variables: &serde_json::Map<String, Value>) -> Self {
         Self {
-            variables: variables.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            variables: variables
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             tenant_id: None,
             root_object_json: None,
         }

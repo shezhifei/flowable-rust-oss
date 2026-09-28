@@ -128,7 +128,10 @@ impl AsyncTaskExecutor {
         if self.shutdown.load(Ordering::SeqCst) {
             return None;
         }
-        self.sender.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.sender
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     pub fn remaining_capacity(&self) -> usize {

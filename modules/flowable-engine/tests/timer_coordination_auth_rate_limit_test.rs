@@ -65,8 +65,11 @@ fn test_auth_rate_limiting_on_failures() {
     session.flush_and_commit().unwrap();
 
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let service = TimerCoordinationService::new(Arc::clone(&engine.get_runtime_service()), config).expect("identity runtime must build");
-    let _handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let service = TimerCoordinationService::new(Arc::clone(&engine.get_runtime_service()), config)
+        .expect("identity runtime must build");
+    let _handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 

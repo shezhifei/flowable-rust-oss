@@ -3238,10 +3238,11 @@ fn extract_event_start_subscriptions(
                 .base_element
                 .extension_elements;
             // P93: deploy-time correlation key (CorrelationUtil.java:53-54).
-            let configuration = crate::bpmn::event_registry_correlation::correlation_key_from_base_element(
-                &start_event.event.flow_node.flow_element.base_element,
-                None,
-            );
+            let configuration =
+                crate::bpmn::event_registry_correlation::correlation_key_from_base_element(
+                    &start_event.event.flow_node.flow_element.base_element,
+                    None,
+                );
 
             let mut registered_standard = false;
             for event_def in &start_event.event.event_definitions {
@@ -3281,10 +3282,11 @@ fn extract_event_start_subscriptions(
             }
 
             if !registered_standard
-                && let Some(event_type) = crate::bpmn::event_registry_correlation::extension_element_text(
-                    extensions,
-                    crate::bpmn::event_registry_correlation::ELEMENT_EVENT_TYPE,
-                )
+                && let Some(event_type) =
+                    crate::bpmn::event_registry_correlation::extension_element_text(
+                        extensions,
+                        crate::bpmn::event_registry_correlation::ELEMENT_EVENT_TYPE,
+                    )
             {
                 if !crate::bpmn::event_registry_correlation::is_manual_subscription(extensions) {
                     subscriptions.push(ProcessEventStartSubscription {

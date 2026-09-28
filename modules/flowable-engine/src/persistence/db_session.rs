@@ -1482,10 +1482,7 @@ impl DbSession {
                 &format!("SELECT MAX(revision) AS RES_ FROM {records_table}"),
                 DbParams::new(),
             )?;
-            let current = row
-                .and_then(|r| r.get_integer("RES_"))
-                .unwrap_or(0)
-                .max(0) as u64;
+            let current = row.and_then(|r| r.get_integer("RES_")).unwrap_or(0).max(0) as u64;
             let next = current + 1;
             let mut params = DbParams::new();
             params.push(SEQ_ID);

@@ -64,8 +64,7 @@ fn sample_request(url: &str) -> HttpRequest {
 
 #[test]
 fn async_runtime_mode_is_async() {
-    let real =
-        RealHttpClient::new(RealHttpClientConfig::default()).expect("real client");
+    let real = RealHttpClient::new(RealHttpClientConfig::default()).expect("real client");
     let runtime = AsyncHttpRuntime::new(
         Arc::new(real),
         AsyncHttpRuntimeConfig {

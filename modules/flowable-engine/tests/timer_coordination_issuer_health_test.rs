@@ -103,9 +103,12 @@ fn test_issuer_health_endpoint_reports_configured_profile() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service, config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service, config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(100));
 
     let token = create_token("health-issuer", "test-kid");

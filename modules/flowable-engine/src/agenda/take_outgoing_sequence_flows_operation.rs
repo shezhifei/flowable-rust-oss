@@ -30,8 +30,12 @@ fn get_outgoing_flows(element: &FlowElementEnum) -> Option<&Vec<SequenceFlow>> {
         FlowElementEnum::Task(t) => Some(&t.activity.flow_node.outgoing_flows),
         FlowElementEnum::UserTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ServiceTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
-        FlowElementEnum::CaseServiceTask(t) => Some(&t.service_task.task.activity.flow_node.outgoing_flows),
-        FlowElementEnum::SendTask(t) => Some(&t.service_task.task.activity.flow_node.outgoing_flows),
+        FlowElementEnum::CaseServiceTask(t) => {
+            Some(&t.service_task.task.activity.flow_node.outgoing_flows)
+        }
+        FlowElementEnum::SendTask(t) => {
+            Some(&t.service_task.task.activity.flow_node.outgoing_flows)
+        }
         FlowElementEnum::ScriptTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ManualTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ReceiveTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
@@ -206,9 +210,7 @@ fn is_end_event(flow_element: Option<&FlowElementEnum>) -> bool {
 
 enum InclusiveGatewayAction {
     Continue(Vec<(SequenceFlow, bool)>),
-    Split {
-        flows: Vec<(SequenceFlow, bool)>,
-    },
+    Split { flows: Vec<(SequenceFlow, bool)> },
 }
 
 fn collect_matching_outgoing_flows(
@@ -555,19 +557,19 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
             // activity type derived from the BPMN model so listeners see the
             // same kind string as in Java.
             {
-                let activity_type_for_event =
-                    if let Some(process_def_id) = execution.process_definition_id.as_ref()
-                        && let Some(bpmn_model) = dm.get_bpmn_model(process_def_id)
-                        && let Some(main_process) = bpmn_model.main_process.as_ref()
-                        && let Some(flow_element) = crate::agenda::continue_process_operation::find_flow_element(
+                let activity_type_for_event = if let Some(process_def_id) =
+                    execution.process_definition_id.as_ref()
+                    && let Some(bpmn_model) = dm.get_bpmn_model(process_def_id)
+                    && let Some(main_process) = bpmn_model.main_process.as_ref()
+                    && let Some(flow_element) =
+                        crate::agenda::continue_process_operation::find_flow_element(
                             main_process,
                             activity_id,
-                        )
-                    {
-                        crate::agenda::continue_process_operation::flow_element_type(flow_element)
-                    } else {
-                        "unknown"
-                    };
+                        ) {
+                    crate::agenda::continue_process_operation::flow_element_type(flow_element)
+                } else {
+                    "unknown"
+                };
                 crate::engine::event_dispatcher::dispatch_activity_completed(
                     command_context,
                     activity_id,
@@ -676,7 +678,8 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                             FlowElementEnum::CaseServiceTask(task)
                                 if task.service_task.task.activity.is_for_compensation =>
                             {
-                                task.service_task.task
+                                task.service_task
+                                    .task
                                     .activity
                                     .flow_node
                                     .flow_element
@@ -913,11 +916,12 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                 // Java handleFlowNode :151-152 — when the leaving flow node's
                 // parent container is an AdhocSubProcess, evaluate completion
                 // condition after leave (see end of this method).
-                adhoc_child_leave = crate::bpmn::execution_graph_util::find_parent_element_for_child(
-                    main_process,
-                    activity_id,
-                )
-                .is_some_and(|parent| matches!(parent, FlowElementEnum::AdhocSubProcess(_)));
+                adhoc_child_leave =
+                    crate::bpmn::execution_graph_util::find_parent_element_for_child(
+                        main_process,
+                        activity_id,
+                    )
+                    .is_some_and(|parent| matches!(parent, FlowElementEnum::AdhocSubProcess(_)));
 
                 let outgoing_flows = match get_outgoing_flows(flow_element) {
                     Some(flows) => flows,
@@ -963,12 +967,10 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                         // configured, raise a FlowableException instead of
                         // silently deleting the execution.
                         None => {
-                            return Err(crate::error::FlowableError::ExecutionError(
-                                format!(
-                                    "No outgoing sequence flow of the exclusive gateway '{}' could be selected for continuing execution {}",
-                                    activity_id, execution.id
-                                ),
-                            ));
+                            return Err(crate::error::FlowableError::ExecutionError(format!(
+                                "No outgoing sequence flow of the exclusive gateway '{}' could be selected for continuing execution {}",
+                                activity_id, execution.id
+                            )));
                         }
                     }
                 } else if let FlowElementEnum::InclusiveGateway(_gateway) = flow_element {
@@ -1058,7 +1060,12 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                 }
             } else if !selected_flows.is_empty() {
                 for (flow, target_is_end_event) in selected_flows {
-                    schedule_sequence_flow(command_context, &execution, &flow, target_is_end_event)?;
+                    schedule_sequence_flow(
+                        command_context,
+                        &execution,
+                        &flow,
+                        target_is_end_event,
+                    )?;
                 }
             } else if selected_flows.is_empty() {
                 if is_start_event {
@@ -1182,7 +1189,9 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use flowable_bpmn_model::model::{BaseElement, ExclusiveGateway, FlowElement, FlowNode, Gateway};
+    use flowable_bpmn_model::model::{
+        BaseElement, ExclusiveGateway, FlowElement, FlowNode, Gateway,
+    };
     use serde_json::json;
 
     fn test_sequence_flow(
@@ -1298,7 +1307,8 @@ mod tests {
             ("_FLOWABLE_SKIP_EXPRESSION_ENABLED", json!(true)),
         ]);
 
-        let selected = collect_matching_outgoing_flows(&process, None, &[flow], &execution).unwrap();
+        let selected =
+            collect_matching_outgoing_flows(&process, None, &[flow], &execution).unwrap();
         assert_eq!(
             selected.len(),
             1,

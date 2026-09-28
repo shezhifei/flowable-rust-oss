@@ -86,9 +86,7 @@ fn validate_blank_process_instance_id_reports_error() {
     let engine = ProcessEngine::new("p56-validate-blank-pi".to_string()).unwrap();
     let report = engine
         .get_runtime_service()
-        .validate_migration_plan(
-            &MigrationPlan::new("", "some-definition").with_name("blank-pi"),
-        )
+        .validate_migration_plan(&MigrationPlan::new("", "some-definition").with_name("blank-pi"))
         .unwrap();
     assert!(report.has_errors());
     let codes: Vec<&str> = report
@@ -165,7 +163,11 @@ fn validate_happy_plan_returns_empty_report() {
         .get_runtime_service()
         .validate_migration_plan(&plan)
         .unwrap();
-    assert!(report.is_empty(), "happy plan should produce no issues, got: {:?}", report);
+    assert!(
+        report.is_empty(),
+        "happy plan should produce no issues, got: {:?}",
+        report
+    );
     assert!(!report.has_errors());
 }
 
@@ -201,8 +203,14 @@ fn validate_severity_classification_works() {
     report.push(MigrationValidationIssue::warning("w", "be careful"));
     assert!(report.has_errors());
     assert_eq!(report.issues.len(), 2);
-    assert_eq!(report.issues[0].severity, MigrationValidationSeverity::Error);
-    assert_eq!(report.issues[1].severity, MigrationValidationSeverity::Warning);
+    assert_eq!(
+        report.issues[0].severity,
+        MigrationValidationSeverity::Error
+    );
+    assert_eq!(
+        report.issues[1].severity,
+        MigrationValidationSeverity::Warning
+    );
     assert!(!report.is_empty());
 }
 
@@ -216,22 +224,36 @@ fn batch_migration_continues_after_individual_failure() {
     let good_plan = MigrationPlan::new(instance_a.clone(), target_id.clone())
         .with_name("good")
         .add_activity_migration("task1", vec!["renamedTask".to_string()]);
-    let bad_plan = MigrationPlan::new("does-not-exist".to_string(), target_id.clone())
-        .with_name("bad");
+    let bad_plan =
+        MigrationPlan::new("does-not-exist".to_string(), target_id.clone()).with_name("bad");
     let result: MigrationBatchResult = engine
         .get_runtime_service()
         .migrate_process_instances(vec![good_plan, bad_plan])
         .unwrap();
 
     assert_eq!(result.results.len(), 2);
-    let by_name: std::collections::HashMap<Option<String>, &flowable_engine::engine::runtime_service::MigrationBatchEntryResult> =
-        result
-            .results
-            .iter()
-            .map(|row| (row.plan_name.clone(), row))
-            .collect();
-    assert!(by_name.get(&Some("good".to_string())).unwrap().outcome.is_ok());
-    assert!(by_name.get(&Some("bad".to_string())).unwrap().outcome.is_err());
+    let by_name: std::collections::HashMap<
+        Option<String>,
+        &flowable_engine::engine::runtime_service::MigrationBatchEntryResult,
+    > = result
+        .results
+        .iter()
+        .map(|row| (row.plan_name.clone(), row))
+        .collect();
+    assert!(
+        by_name
+            .get(&Some("good".to_string()))
+            .unwrap()
+            .outcome
+            .is_ok()
+    );
+    assert!(
+        by_name
+            .get(&Some("bad".to_string()))
+            .unwrap()
+            .outcome
+            .is_err()
+    );
     assert!(!result.all_succeeded());
     let failures: Vec<&str> = result
         .failures()
@@ -259,7 +281,7 @@ fn batch_migration_with_callback_observes_pre_and_post() {
         ) -> Result<(), flowable_engine::error::FlowableError> {
             self.log
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push(("pre".to_string(), plan.process_instance_id.clone()));
             Ok(())
         }
@@ -269,10 +291,14 @@ fn batch_migration_with_callback_observes_pre_and_post() {
             result: Result<(), String>,
             _command_context: &mut CommandContext,
         ) -> Result<(), flowable_engine::error::FlowableError> {
-            let tag = if result.is_ok() { "post-ok" } else { "post-err" };
+            let tag = if result.is_ok() {
+                "post-ok"
+            } else {
+                "post-err"
+            };
             self.log
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push((tag.to_string(), plan.process_instance_id.clone()));
             Ok(())
         }
@@ -287,7 +313,11 @@ fn batch_migration_with_callback_observes_pre_and_post() {
         .migrate_process_instances_with_callback(vec![plan], recorder.clone())
         .unwrap();
 
-    let log = recorder.log.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let log = recorder
+        .log
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     assert_eq!(log.len(), 2);
     assert_eq!(log[0].0, "pre");
     assert_eq!(log[0].1, instance_id);
@@ -322,7 +352,7 @@ fn batch_migration_with_callback_records_post_err_for_failed_plan() {
             if result.is_err() {
                 self.post_errs
                     .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                    .unwrap_or_else(|e| e.into_inner())
                     .push(plan.process_instance_id.clone());
             }
             Ok(())
@@ -335,5 +365,8 @@ fn batch_migration_with_callback_records_post_err_for_failed_plan() {
         .get_runtime_service()
         .migrate_process_instances_with_callback(vec![bad_plan], recorder.clone())
         .unwrap();
-    assert_eq!(*recorder.post_errs.lock().unwrap_or_else(|e| e.into_inner()), vec!["missing-pi".to_string()]);
+    assert_eq!(
+        *recorder.post_errs.lock().unwrap_or_else(|e| e.into_inner()),
+        vec!["missing-pi".to_string()]
+    );
 }

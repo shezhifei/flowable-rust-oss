@@ -130,7 +130,8 @@ fn test_single_bpmn_resource_starts_each_process_definition_by_id() {
     assert_eq!(user_tasks[0].task_definition_key, "userTaskA");
 
     let message_wait_states = runtime_service
-        .get_event_wait_states_by_process_instance_id(message_wait_instance.id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(message_wait_instance.id.clone())
+        .unwrap();
     assert_eq!(message_wait_states.len(), 1);
     assert_eq!(
         message_wait_states[0].wait_kind,

@@ -62,7 +62,10 @@ impl PendingFuture {
     }
 
     pub fn is_done(&self) -> bool {
-        matches!(*self.state.lock().unwrap_or_else(|e| e.into_inner()), FutureState::Completed(_))
+        matches!(
+            *self.state.lock().unwrap_or_else(|e| e.into_inner()),
+            FutureState::Completed(_)
+        )
     }
 
     pub fn complete(&self, result: Result<Value, String>) {
@@ -75,12 +78,18 @@ impl PendingFuture {
     }
 
     pub(crate) fn complete_operation(&self, result: PendingOperationResult) {
-        *self.operation_result.lock().unwrap_or_else(|e| e.into_inner()) = Some(result);
+        *self
+            .operation_result
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(result);
         self.complete(Ok(Value::Null));
     }
 
     pub(crate) fn operation_result(&self) -> Option<PendingOperationResult> {
-        self.operation_result.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.operation_result
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     pub fn state(&self) -> FutureState {
@@ -136,16 +145,26 @@ impl PendingFutureRegistry {
     pub fn create(&self) -> Arc<PendingFuture> {
         let id = uuid::Uuid::new_v4().to_string();
         let future = Arc::new(PendingFuture::new(id.clone()));
-        self.futures.lock().unwrap_or_else(|e| e.into_inner()).insert(id, Arc::clone(&future));
+        self.futures
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, Arc::clone(&future));
         future
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<PendingFuture>> {
-        self.futures.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned()
+        self.futures
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(id)
+            .cloned()
     }
 
     pub fn remove(&self, id: &str) -> Option<Arc<PendingFuture>> {
-        self.futures.lock().unwrap_or_else(|e| e.into_inner()).remove(id)
+        self.futures
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(id)
     }
 
     pub fn len(&self) -> usize {
@@ -153,7 +172,10 @@ impl PendingFutureRegistry {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.futures.lock().unwrap_or_else(|e| e.into_inner()).is_empty()
+        self.futures
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty()
     }
 
     pub fn complete(&self, id: &str, result: Result<Value, String>) -> bool {

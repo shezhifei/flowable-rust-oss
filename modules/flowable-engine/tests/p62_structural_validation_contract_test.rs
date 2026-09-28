@@ -37,8 +37,14 @@ fn rejects_sequence_flow_references_outside_the_current_scope() {
         <endEvent id="end" />"#,
     );
 
-    assert!(message.contains("flowable-seq-flow-invalid-src"), "{message}");
-    assert!(message.contains("flowable-seq-flow-invalid-target"), "{message}");
+    assert!(
+        message.contains("flowable-seq-flow-invalid-src"),
+        "{message}"
+    );
+    assert!(
+        message.contains("flowable-seq-flow-invalid-target"),
+        "{message}"
+    );
 }
 
 #[test]

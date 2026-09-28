@@ -20,16 +20,16 @@ mod timer_util;
 pub use case_file::CaseFileGraph;
 pub use deployment::CmmnDeploymentBuilder;
 pub use error::CmmnError;
+pub use event_registry_correlation::{
+    correlation_params_from_payload, generate_correlation_key, generate_event_correlation_keys,
+    matches_subscription_configuration,
+};
 pub use history::{
     CmmnHistoricCaseInstanceQuery, CmmnHistoricHumanTaskQuery, CmmnHistoricMilestoneQuery,
     CmmnHistoryService,
 };
 pub use history_cleaning::CmmnHistoryCleaningConfiguration;
 pub use identity::CmmnIdentityLinkService;
-pub use lifecycle_listener::{
-    CmmnLifecycleListenerContext, CmmnLifecycleListenerHandler, CmmnLifecycleListenerRegistry,
-    CmmnLifecycleScope,
-};
 pub use job::{
     ALL_HANDLER_TYPES, CmmnJobExecutionContext, CmmnJobHandler, CmmnJobHandlerRegistry,
     MIGRATION_STATUS_COMPLETED, MIGRATION_STATUS_FAIL, MIGRATION_STATUS_IN_PROGRESS,
@@ -40,33 +40,32 @@ pub use job::{
     TYPE_HISTORIC_CASE_MIGRATION, TYPE_HISTORY_CLEANUP, TYPE_SET_ASYNC_VARIABLES,
     TYPE_TRIGGER_TIMER,
 };
-pub use management::{CmmnManagementJobQuery, CmmnManagementService};
-pub use event_registry_correlation::{
-    correlation_params_from_payload, generate_correlation_key, generate_event_correlation_keys,
-    matches_subscription_configuration,
+pub use lifecycle_listener::{
+    CmmnLifecycleListenerContext, CmmnLifecycleListenerHandler, CmmnLifecycleListenerRegistry,
+    CmmnLifecycleScope,
 };
+pub use management::{CmmnManagementJobQuery, CmmnManagementService};
 pub use models::{
-    CMMN_SCOPE_TYPE, REFERENCE_TYPE_EVENT_CASE, START_EVENT_CORRELATION_MANUAL,
-    START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID, CmmnCase, CmmnCaseDefinition,
-    CmmnCaseFileItem, CmmnCaseFileItemDefinition, CmmnCaseFileItemDefinitionNode,
-    CmmnCaseFileItemOnPart, CmmnCaseFileItemState, CmmnCaseFileModel, CmmnCaseInstance,
-    CmmnCaseInstanceStartRequest, CmmnCaseInstanceState, CmmnCasePlanModel, CmmnCaseTask,
-    CmmnChangePlanItemStateRequest, CmmnDecisionTask, CmmnDelegationState, CmmnDeployment,
-    CmmnDeploymentRequest, CmmnDeploymentResource, CmmnDiscretionaryItem,
-    CmmnEventCorrelationParameter, CmmnEventListener, CmmnEventOutParameter, CmmnEventSubscription,
-    CmmnGenericPlanItem, CmmnHistoricCaseInstance, CmmnHistoricHumanTaskInstance,
-    CmmnHistoricMilestoneInstance, CmmnHumanTask, CmmnHumanTaskCompletionRequest,
-    CmmnHumanTaskCompletionResult, CmmnHumanTaskInstance, CmmnHumanTaskState, CmmnHumanTaskUpdate,
-    CmmnIOParameter, CmmnIdentityLink, CmmnJob, CmmnJobFamily, CmmnLifecycleListener,
-    CmmnListenerImplementationType, CmmnMigrationDocument, CmmnMigrationValidationResult,
-    CmmnMilestone, CmmnModel, CmmnPlanFragment, CmmnPlanItem, CmmnPlanItemDefinitionWithTargetIds,
-    CmmnPlanItemInstance, CmmnPlanItemOnPart, CmmnPlanningTable, CmmnProcessTask,
-    CmmnProcessTaskStartRequest, CmmnProcessTaskStartResult, CmmnSentry, CmmnSentryIfPartCondition,
-    CmmnSentryIfPartExpression, CmmnSentryIfPartLiteral, CmmnSentryIfPartLogicalOperator,
-    CmmnSentryIfPartOperator, CmmnStage, CmmnStageInstance, CmmnStageInstanceState,
-    CmmnStageOverview, CmmnTaskAssociationKind, CmmnTaskAssociationState,
-    CmmnTaskInstanceAssociation, PagedResult, SentryLifecycleEvent, SentryVariableContext,
-    SentryVariableMap,
+    CMMN_SCOPE_TYPE, CmmnCase, CmmnCaseDefinition, CmmnCaseFileItem, CmmnCaseFileItemDefinition,
+    CmmnCaseFileItemDefinitionNode, CmmnCaseFileItemOnPart, CmmnCaseFileItemState,
+    CmmnCaseFileModel, CmmnCaseInstance, CmmnCaseInstanceStartRequest, CmmnCaseInstanceState,
+    CmmnCasePlanModel, CmmnCaseTask, CmmnChangePlanItemStateRequest, CmmnDecisionTask,
+    CmmnDelegationState, CmmnDeployment, CmmnDeploymentRequest, CmmnDeploymentResource,
+    CmmnDiscretionaryItem, CmmnEventCorrelationParameter, CmmnEventListener, CmmnEventOutParameter,
+    CmmnEventSubscription, CmmnGenericPlanItem, CmmnHistoricCaseInstance,
+    CmmnHistoricHumanTaskInstance, CmmnHistoricMilestoneInstance, CmmnHumanTask,
+    CmmnHumanTaskCompletionRequest, CmmnHumanTaskCompletionResult, CmmnHumanTaskInstance,
+    CmmnHumanTaskState, CmmnHumanTaskUpdate, CmmnIOParameter, CmmnIdentityLink, CmmnJob,
+    CmmnJobFamily, CmmnLifecycleListener, CmmnListenerImplementationType, CmmnMigrationDocument,
+    CmmnMigrationValidationResult, CmmnMilestone, CmmnModel, CmmnPlanFragment, CmmnPlanItem,
+    CmmnPlanItemDefinitionWithTargetIds, CmmnPlanItemInstance, CmmnPlanItemOnPart,
+    CmmnPlanningTable, CmmnProcessTask, CmmnProcessTaskStartRequest, CmmnProcessTaskStartResult,
+    CmmnSentry, CmmnSentryIfPartCondition, CmmnSentryIfPartExpression, CmmnSentryIfPartLiteral,
+    CmmnSentryIfPartLogicalOperator, CmmnSentryIfPartOperator, CmmnStage, CmmnStageInstance,
+    CmmnStageInstanceState, CmmnStageOverview, CmmnTaskAssociationKind, CmmnTaskAssociationState,
+    CmmnTaskInstanceAssociation, PagedResult, REFERENCE_TYPE_EVENT_CASE,
+    START_EVENT_CORRELATION_MANUAL, START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID,
+    SentryLifecycleEvent, SentryVariableContext, SentryVariableMap,
 };
 pub use parent_state_resolver::{
     ensure_cmmn_job_parent_allows_activation, is_cmmn_job_parent_suspended, parent_not_cmmn_error,
@@ -204,7 +203,8 @@ impl CmmnEngine {
         name: impl Into<String>,
         handler: Arc<dyn CmmnLifecycleListenerHandler>,
     ) {
-        self.runtime_service.register_lifecycle_listener(name, handler);
+        self.runtime_service
+            .register_lifecycle_listener(name, handler);
     }
 
     /// P126: register a bean method callable from an `expression` lifecycle listener body

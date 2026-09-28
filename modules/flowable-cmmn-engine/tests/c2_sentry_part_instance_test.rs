@@ -365,19 +365,28 @@ fn trigger_mode_defaults_and_builders() {
     // Single onPart, no ifPart -> fast path, not cumulative.
     assert!(!base.is_multi_part());
 
-    let explicit_default = base.clone().with_trigger_mode(CmmnSentry::TRIGGER_MODE_DEFAULT);
+    let explicit_default = base
+        .clone()
+        .with_trigger_mode(CmmnSentry::TRIGGER_MODE_DEFAULT);
     assert!(explicit_default.is_default_trigger_mode());
     assert!(!explicit_default.is_on_event_trigger_mode());
 
-    let on_event = base.clone().with_trigger_mode(CmmnSentry::TRIGGER_MODE_ON_EVENT);
+    let on_event = base
+        .clone()
+        .with_trigger_mode(CmmnSentry::TRIGGER_MODE_ON_EVENT);
     assert!(!on_event.is_default_trigger_mode());
     assert!(on_event.is_on_event_trigger_mode());
 
     // onPart + ifPart -> cumulative multi-part evaluation
     // (AbstractEvaluationCriteriaOperation.java:506).
-    assert!(base.clone().with_if_part("approved == true").is_multi_part());
+    assert!(
+        base.clone()
+            .with_if_part("approved == true")
+            .is_multi_part()
+    );
     // Two onParts -> cumulative even without ifPart.
-    assert!(base
-        .with_plan_item_on_part(CmmnPlanItemOnPart::new("on-2", "y", "complete"))
-        .is_multi_part());
+    assert!(
+        base.with_plan_item_on_part(CmmnPlanItemOnPart::new("on-2", "y", "complete"))
+            .is_multi_part()
+    );
 }

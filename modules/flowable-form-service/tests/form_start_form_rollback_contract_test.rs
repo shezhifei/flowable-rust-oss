@@ -25,7 +25,7 @@ use flowable_form_service::{
     FlowableFormService, FormDeploymentRequest, FormDeploymentResource, FormFieldHandler,
     FormFieldSubmitContext, FormProperty, FormSubmissionProperty, FormSubmissionRequest,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use test_support::runtime_fixture;
@@ -266,9 +266,7 @@ fn start_form_custom_handler_error_rolls_back_process_and_content_association() 
         }
     }
 
-    let engine = Arc::new(ProcessEngine::new(
-        "start-form-rollback-handler".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("start-form-rollback-handler".to_string()).unwrap());
     let mut custom: BTreeMap<String, Arc<dyn FormFieldHandler>> = BTreeMap::new();
     custom.insert("custom_widget".to_string(), Arc::new(FailingWidgetHandler));
     let service = FlowableFormService::with_handlers(Arc::clone(&engine), custom).unwrap();

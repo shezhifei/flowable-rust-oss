@@ -23,8 +23,7 @@ use serde_json::Value;
 /// Session-cache key for the inbound Event Registry delivery id that owns this
 /// trigger (P134 dual-record merge). When set, the send-event trigger path
 /// updates that delivery instead of inserting a second row.
-pub const INBOUND_EVENT_DELIVERY_ID_CACHE_KEY: &str =
-    "flowable.eventRegistry.inboundDeliveryId";
+pub const INBOUND_EVENT_DELIVERY_ID_CACHE_KEY: &str = "flowable.eventRegistry.inboundDeliveryId";
 
 /// Triggers a waiting send-event (triggerable) service task with inbound payload.
 ///
@@ -40,7 +39,11 @@ pub struct TriggerSendEventServiceTaskCmd {
 }
 
 impl TriggerSendEventServiceTaskCmd {
-    pub fn new(execution_id: impl Into<String>, event_key: impl Into<String>, payload: Value) -> Self {
+    pub fn new(
+        execution_id: impl Into<String>,
+        event_key: impl Into<String>,
+        payload: Value,
+    ) -> Self {
         Self {
             execution_id: execution_id.into(),
             event_key: event_key.into(),
@@ -58,13 +61,13 @@ impl TriggerSendEventServiceTaskCmd {
 }
 
 impl Command<()> for TriggerSendEventServiceTaskCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<(), FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<(), FlowableError> {
         let wait_state = command_context
             .runtime_store
-            .find_event_wait_state_by_execution_id(&self.execution_id, &mut command_context.session);
+            .find_event_wait_state_by_execution_id(
+                &self.execution_id,
+                &mut command_context.session,
+            );
 
         let Some(wait_state) = wait_state else {
             tracing::warn!(

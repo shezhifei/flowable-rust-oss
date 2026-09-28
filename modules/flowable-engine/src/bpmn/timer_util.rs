@@ -41,7 +41,9 @@ pub struct ResolvedTimerSchedule {
 
 /// Default retries for newly created timer jobs
 /// (Java `asyncExecutorNumberOfRetries`, default 3).
-pub fn default_timer_retries(command_context: &crate::interceptor::command_context::CommandContext) -> Option<i32> {
+pub fn default_timer_retries(
+    command_context: &crate::interceptor::command_context::CommandContext,
+) -> Option<i32> {
     Some(
         command_context
             .config
@@ -256,9 +258,7 @@ pub fn resolve_timer_schedule(
     // needed)" when no expression could be built, rolling back the command.
     // Silently inserting a never-firing `due_time = None` job would stall the
     // process instead.
-    let has_any = time_date
-        .map(|s| !s.trim().is_empty())
-        .unwrap_or(false)
+    let has_any = time_date.map(|s| !s.trim().is_empty()).unwrap_or(false)
         || time_duration.map(|s| !s.trim().is_empty()).unwrap_or(false)
         || time_cycle.map(|s| !s.trim().is_empty()).unwrap_or(false);
     if !has_any {
@@ -434,12 +434,8 @@ pub fn resolve_next_timer_schedule(
     // Repeats always use the cycle calendar as the kind default; a modelled
     // calendarName still overrides (DefaultJobManager.getBusinessCalendarName
     // defaults to CYCLE_TYPE then evaluates the job's calendarName expression).
-    let (_resolved_name, calendar) = resolve_business_calendar(
-        CYCLE_CALENDAR_NAME,
-        raw_calendar_name,
-        execution,
-        calendars,
-    )?;
+    let (_resolved_name, calendar) =
+        resolve_business_calendar(CYCLE_CALENDAR_NAME, raw_calendar_name, execution, calendars)?;
 
     // The decremented cycle text still carries the remaining count
     // (`R2/…` → 2 left), mirroring the maxIterations Java persists on the
@@ -592,8 +588,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            err.to_string().contains("could not be evaluated")
-                || err.to_string().contains("null"),
+            err.to_string().contains("could not be evaluated") || err.to_string().contains("null"),
             "unexpected error: {err}"
         );
     }
@@ -1029,7 +1024,10 @@ mod tests {
             now: DateTime<Utc>,
             max_iterations: Option<u32>,
         ) -> Result<Option<DateTime<Utc>>, FlowableError> {
-            self.resolve_max.lock().unwrap_or_else(|e| e.into_inner()).push(max_iterations);
+            self.resolve_max
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(max_iterations);
             Ok(Some(now + Duration::minutes(self.due_offset_minutes)))
         }
 
@@ -1055,7 +1053,7 @@ mod tests {
         ) -> Result<bool, FlowableError> {
             self.validate_seen
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push((max_iterations, end_date));
             if let Some(end) = end_date {
                 return Ok(candidate <= end);
@@ -1064,10 +1062,7 @@ mod tests {
         }
     }
 
-    fn with_capturing(
-        name: &str,
-        calendar: Arc<CapturingCalendar>,
-    ) -> BusinessCalendarRegistry {
+    fn with_capturing(name: &str, calendar: Arc<CapturingCalendar>) -> BusinessCalendarRegistry {
         let mut registry = BusinessCalendarRegistry::default();
         registry.register(name, calendar).unwrap();
         registry
@@ -1090,8 +1085,21 @@ mod tests {
             Utc::now(),
         )
         .unwrap();
-        assert_eq!(*calendar.resolve_max.lock().unwrap_or_else(|e| e.into_inner()), vec![Some(5)]);
-        assert_eq!(calendar.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0].0, Some(5));
+        assert_eq!(
+            *calendar
+                .resolve_max
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()),
+            vec![Some(5)]
+        );
+        assert_eq!(
+            calendar
+                .validate_seen
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())[0]
+                .0,
+            Some(5)
+        );
     }
 
     #[test]
@@ -1109,7 +1117,13 @@ mod tests {
             Utc::now(),
         )
         .unwrap();
-        assert_eq!(*calendar.resolve_max.lock().unwrap_or_else(|e| e.into_inner()), vec![None]);
+        assert_eq!(
+            *calendar
+                .resolve_max
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()),
+            vec![None]
+        );
     }
 
     #[test]
@@ -1132,7 +1146,11 @@ mod tests {
         .unwrap();
         assert_eq!(s.end_date.as_deref(), Some("shift-close"));
         assert_eq!(
-            calendar.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0].1,
+            calendar
+                .validate_seen
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())[0]
+                .1,
             Some(now + Duration::minutes(600)),
             "validate must see the calendar-resolved end bound"
         );
@@ -1154,7 +1172,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            err.to_string().contains("shift roster cannot resolve end 'shift-close'"),
+            err.to_string()
+                .contains("shift roster cannot resolve end 'shift-close'"),
             "unexpected error: {err}"
         );
     }
@@ -1176,7 +1195,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            err.to_string().contains("could not resolve end date from 'not-a-date'"),
+            err.to_string()
+                .contains("could not resolve end date from 'not-a-date'"),
             "unexpected error: {err}"
         );
     }
@@ -1196,14 +1216,24 @@ mod tests {
         )
         .unwrap()
         .expect("within the calendar-resolved end bound");
-        assert!(next.cycle.starts_with("R2/"), "unexpected cycle: {}", next.cycle);
+        assert!(
+            next.cycle.starts_with("R2/"),
+            "unexpected cycle: {}",
+            next.cycle
+        );
         assert_eq!(
-            *calendar.resolve_max.lock().unwrap_or_else(|e| e.into_inner()),
+            *calendar
+                .resolve_max
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()),
             vec![Some(2)],
             "the repeat bound is the remaining count"
         );
         assert_eq!(
-            calendar.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0],
+            calendar
+                .validate_seen
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())[0],
             (Some(2), Some(now + Duration::minutes(600))),
             "validate must see the remaining count and the calendar-resolved end"
         );
@@ -1223,7 +1253,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            err.to_string().contains("shift roster cannot resolve end 'shift-close'"),
+            err.to_string()
+                .contains("shift roster cannot resolve end 'shift-close'"),
             "unexpected error: {err}"
         );
     }

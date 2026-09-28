@@ -77,7 +77,10 @@ fn parses_date_and_repeat_timer_expressions() {
         .iter()
         .find(|listener| listener.id == "repeatListener")
         .expect("repeat listener");
-    assert_eq!(repeat_listener.timer_expression.as_deref(), Some("R3/PT20S"));
+    assert_eq!(
+        repeat_listener.timer_expression.as_deref(),
+        Some("R3/PT20S")
+    );
 }
 
 #[test]
@@ -171,7 +174,10 @@ fn rejects_missing_id() {
   </case>
 </definitions>"#,
     );
-    assert!(result.is_err(), "timerEventListener without id must be rejected");
+    assert!(
+        result.is_err(),
+        "timerEventListener without id must be rejected"
+    );
 }
 
 #[test]
@@ -230,7 +236,10 @@ fn empty_timer_expression_is_treated_as_absent() {
     "#,
     );
     let listeners = timer_listeners(&case);
-    assert!(listeners.is_empty(), "empty timerExpression must not mark a timer listener");
+    assert!(
+        listeners.is_empty(),
+        "empty timerExpression must not mark a timer listener"
+    );
     let listener = case
         .case_plan_model
         .event_listeners

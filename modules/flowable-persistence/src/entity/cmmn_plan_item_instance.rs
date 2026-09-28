@@ -205,11 +205,7 @@ impl CmmnPlanItemInstanceDataManager {
         params.push(entity.tenant_id.clone());
         params.push(entity.data.clone());
 
-        session.insert(
-            entity,
-            StatementId::InsertCmmnPlanItemInstance,
-            params,
-        )
+        session.insert(entity, StatementId::InsertCmmnPlanItemInstance, params)
     }
 
     pub fn delete(

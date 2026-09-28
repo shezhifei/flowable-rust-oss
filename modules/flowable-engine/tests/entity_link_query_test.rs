@@ -26,7 +26,8 @@ fn entity_link_query_filters_by_scope_id_and_scope_type() {
         reference_scope_id: Some("ref-1".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: Some("child".to_string()),
-    }).unwrap();
+    })
+    .unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "reference".to_string(),
@@ -35,7 +36,8 @@ fn entity_link_query_filters_by_scope_id_and_scope_type() {
         reference_scope_id: Some("ref-2".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: Some("child".to_string()),
-    }).unwrap();
+    })
+    .unwrap();
 
     let by_scope = svc
         .create_entity_link_query()
@@ -67,7 +69,8 @@ fn entity_link_query_filters_by_reference_scope() {
         reference_scope_id: Some("ref-a".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: None,
-    }).unwrap();
+    })
+    .unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "reference".to_string(),
@@ -76,7 +79,8 @@ fn entity_link_query_filters_by_reference_scope() {
         reference_scope_id: Some("ref-b".to_string()),
         reference_scope_type: Some("subProcess".to_string()),
         hierarchy_type: None,
-    }).unwrap();
+    })
+    .unwrap();
 
     let by_ref_id = svc
         .create_entity_link_query()
@@ -108,7 +112,8 @@ fn entity_link_query_filters_by_link_type() {
         reference_scope_id: Some("r1".to_string()),
         reference_scope_type: None,
         hierarchy_type: None,
-    }).unwrap();
+    })
+    .unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "dependency".to_string(),
@@ -117,7 +122,8 @@ fn entity_link_query_filters_by_link_type() {
         reference_scope_id: Some("r2".to_string()),
         reference_scope_type: None,
         hierarchy_type: None,
-    }).unwrap();
+    })
+    .unwrap();
 
     let refs = svc
         .create_entity_link_query()
@@ -142,7 +148,8 @@ fn entity_link_query_returns_all_when_no_filter() {
             reference_scope_id: Some(format!("ref-{}", i)),
             reference_scope_type: None,
             hierarchy_type: None,
-        }).unwrap();
+        })
+        .unwrap();
     }
 
     let all = svc.create_entity_link_query().list().unwrap();
@@ -162,7 +169,8 @@ fn entity_link_remove_deletes_link() {
         reference_scope_id: Some("r1".to_string()),
         reference_scope_type: None,
         hierarchy_type: None,
-    }).unwrap();
+    })
+    .unwrap();
 
     assert_eq!(svc.create_entity_link_query().list().unwrap().len(), 1);
 
@@ -184,7 +192,8 @@ fn entity_link_query_combined_filters() {
         reference_scope_id: Some("ref-1".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: Some("child".to_string()),
-    }).unwrap();
+    })
+    .unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "dependency".to_string(),
@@ -193,7 +202,8 @@ fn entity_link_query_combined_filters() {
         reference_scope_id: Some("ref-2".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: None,
-    }).unwrap();
+    })
+    .unwrap();
 
     let combined = svc
         .create_entity_link_query()

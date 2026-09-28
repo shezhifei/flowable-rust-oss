@@ -40,18 +40,10 @@ pub fn select_historic_process_instances_for_cleaning(
     // (Java HistoricProcessInstanceQuery.finishedBefore → END_TIME_ < ?)
     let mut candidates: Vec<HistoricProcessInstance> = all
         .into_iter()
-        .filter(|instance| {
-            instance
-                .end_time
-                .is_some_and(|end| end < cutoff)
-        })
+        .filter(|instance| instance.end_time.is_some_and(|end| end < cutoff))
         .collect();
     // Deterministic order for batch truncation (oldest finished first).
-    candidates.sort_by(|a, b| {
-        a.end_time
-            .cmp(&b.end_time)
-            .then_with(|| a.id.cmp(&b.id))
-    });
+    candidates.sort_by(|a, b| a.end_time.cmp(&b.end_time).then_with(|| a.id.cmp(&b.id)));
     Ok(candidates)
 }
 

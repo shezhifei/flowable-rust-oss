@@ -90,10 +90,7 @@ fn mail_task_executes_owned_runtime_and_stores_send_record() {
     assert_eq!(outbox[0].recipients[0], "ops@example.flowable.local");
     assert_eq!(outbox[0].recipients[1], "audit@example.flowable.local");
     assert_eq!(outbox[0].subject, "Deployment finished");
-    assert_eq!(
-        outbox[0].body,
-        "Process deployment completed successfully."
-    );
+    assert_eq!(outbox[0].body, "Process deployment completed successfully.");
     assert_eq!(
         outbox[0].html_body.as_deref(),
         Some("Process deployment completed successfully.")
@@ -151,7 +148,10 @@ fn mail_task_evaluates_el_fields_and_captures_cc_bcc_charset() {
                 .process_definition_id(process_definition_id)
                 .name("Mail EL Instance".to_string())
                 .variable("toAddress".to_string(), json!("ops@example.flowable.local"))
-                .variable("ccAddress".to_string(), json!("audit@example.flowable.local"))
+                .variable(
+                    "ccAddress".to_string(),
+                    json!("audit@example.flowable.local"),
+                )
                 .variable("mailSubject".to_string(), json!("EL Subject"))
                 .variable("mailBody".to_string(), json!("EL body text")),
         )
@@ -169,7 +169,10 @@ fn mail_task_evaluates_el_fields_and_captures_cc_bcc_charset() {
     let outbox = runtime_store.list_mail_outbox_records(&mut session);
     assert_eq!(outbox.len(), 1);
     assert_eq!(outbox[0].recipient, "ops@example.flowable.local");
-    assert_eq!(outbox[0].recipients, vec!["ops@example.flowable.local".to_string()]);
+    assert_eq!(
+        outbox[0].recipients,
+        vec!["ops@example.flowable.local".to_string()]
+    );
     assert_eq!(outbox[0].subject, "EL Subject");
     assert_eq!(outbox[0].body, "EL body text");
     assert_eq!(outbox[0].status, MailOutboxStatus::Sent);
@@ -262,7 +265,9 @@ fn mail_task_ignore_exception_swallows_missing_recipient_error() {
     let runtime_store = process_engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     assert!(
-        runtime_store.list_mail_outbox_records(&mut session).is_empty(),
+        runtime_store
+            .list_mail_outbox_records(&mut session)
+            .is_empty(),
         "ignored send failure must not create an outbox record"
     );
 }
@@ -371,10 +376,7 @@ fn mail_task_text_var_reads_body_from_variable() {
     let builder = repository_service
         .create_deployment()
         .name("Mail TextVar Deployment".to_string())
-        .add_string(
-            "mailTextVarProcess.bpmn20.xml".to_string(),
-            xml.to_string(),
-        );
+        .add_string("mailTextVarProcess.bpmn20.xml".to_string(), xml.to_string());
     repository_service.deploy(builder).unwrap();
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
@@ -491,10 +493,7 @@ fn mail_task_html_var_reads_body_from_variable() {
     let builder = repository_service
         .create_deployment()
         .name("Mail HtmlVar Deployment".to_string())
-        .add_string(
-            "mailHtmlVarProcess.bpmn20.xml".to_string(),
-            xml.to_string(),
-        );
+        .add_string("mailHtmlVarProcess.bpmn20.xml".to_string(), xml.to_string());
     repository_service.deploy(builder).unwrap();
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
@@ -704,7 +703,9 @@ fn mail_task_field_extension_form_headers_and_text_var() {
             "mailFieldExtProcess.bpmn20.xml".to_string(),
             xml.to_string(),
         );
-    repository_service.deploy(builder).expect("field extension mail must deploy");
+    repository_service
+        .deploy(builder)
+        .expect("field extension mail must deploy");
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
     let process_instance = runtime_service
@@ -713,10 +714,7 @@ fn mail_task_field_extension_form_headers_and_text_var() {
                 .create_process_instance_builder()
                 .process_definition_id(process_definition_id)
                 .name("Mail Field Ext Instance".to_string())
-                .variable(
-                    "bodyTemplate".to_string(),
-                    json!("Body via field textVar."),
-                ),
+                .variable("bodyTemplate".to_string(), json!("Body via field textVar.")),
         )
         .unwrap();
 

@@ -68,7 +68,11 @@ fn default_registry_exposes_the_three_java_calendars() {
     names.sort();
     assert_eq!(
         names,
-        vec![CYCLE_CALENDAR_NAME, DUE_DATE_CALENDAR_NAME, DURATION_CALENDAR_NAME],
+        vec![
+            CYCLE_CALENDAR_NAME,
+            DUE_DATE_CALENDAR_NAME,
+            DURATION_CALENDAR_NAME
+        ],
         "default registry must seed exactly Java's dueDate/duration/cycle calendars"
     );
     assert_eq!(DUE_DATE_CALENDAR_NAME, "dueDate");
@@ -91,7 +95,9 @@ fn names_are_deterministic() {
 #[test]
 fn duration_calendar_resolves_iso_duration() {
     let registry = BusinessCalendarRegistry::default();
-    let calendar = registry.get(DURATION_CALENDAR_NAME).expect("duration calendar");
+    let calendar = registry
+        .get(DURATION_CALENDAR_NAME)
+        .expect("duration calendar");
     let due = calendar
         .resolve_due_date("PT10M", now(), None)
         .expect("resolve PT10M")
@@ -102,7 +108,9 @@ fn duration_calendar_resolves_iso_duration() {
 #[test]
 fn due_date_calendar_resolves_instant() {
     let registry = BusinessCalendarRegistry::default();
-    let calendar = registry.get(DUE_DATE_CALENDAR_NAME).expect("dueDate calendar");
+    let calendar = registry
+        .get(DUE_DATE_CALENDAR_NAME)
+        .expect("dueDate calendar");
     let due = calendar
         .resolve_due_date("2030-01-01T00:00:00Z", now(), None)
         .expect("resolve instant")
@@ -128,7 +136,10 @@ fn unknown_name_fails_with_allowed_names() {
     let registry = BusinessCalendarRegistry::default();
     let err = registry.require("nope").unwrap_err();
     let text = err.to_string();
-    assert!(text.contains("nope"), "message must name the request: {text}");
+    assert!(
+        text.contains("nope"),
+        "message must name the request: {text}"
+    );
     assert!(
         text.contains("dueDate") && text.contains("duration") && text.contains("cycle"),
         "message must list allowed calendars: {text}"
@@ -198,12 +209,17 @@ fn two_registries_hold_different_implementations_under_the_same_name() {
     let mut first = BusinessCalendarRegistry::default();
     let mut second = BusinessCalendarRegistry::default();
     first
-        .register("shared", Arc::new(FixedOffsetCalendar { offset_minutes: 3 }))
+        .register(
+            "shared",
+            Arc::new(FixedOffsetCalendar { offset_minutes: 3 }),
+        )
         .unwrap();
     second
         .register(
             "shared",
-            Arc::new(FixedOffsetCalendar { offset_minutes: 300 }),
+            Arc::new(FixedOffsetCalendar {
+                offset_minutes: 300,
+            }),
         )
         .unwrap();
 
@@ -250,7 +266,11 @@ fn registry_is_not_serialized_into_configuration_json() {
     names.sort();
     assert_eq!(
         names,
-        vec![CYCLE_CALENDAR_NAME, DUE_DATE_CALENDAR_NAME, DURATION_CALENDAR_NAME],
+        vec![
+            CYCLE_CALENDAR_NAME,
+            DUE_DATE_CALENDAR_NAME,
+            DURATION_CALENDAR_NAME
+        ],
         "a deserialized configuration falls back to the seeded defaults"
     );
 }
@@ -258,18 +278,24 @@ fn registry_is_not_serialized_into_configuration_json() {
 #[test]
 fn configuration_default_seeds_the_registry() {
     let config = ProcessEngineConfiguration::default();
-    assert!(config
-        .business_calendar_registry
-        .get(DUE_DATE_CALENDAR_NAME)
-        .is_some());
-    assert!(config
-        .business_calendar_registry
-        .get(DURATION_CALENDAR_NAME)
-        .is_some());
-    assert!(config
-        .business_calendar_registry
-        .get(CYCLE_CALENDAR_NAME)
-        .is_some());
+    assert!(
+        config
+            .business_calendar_registry
+            .get(DUE_DATE_CALENDAR_NAME)
+            .is_some()
+    );
+    assert!(
+        config
+            .business_calendar_registry
+            .get(DURATION_CALENDAR_NAME)
+            .is_some()
+    );
+    assert!(
+        config
+            .business_calendar_registry
+            .get(CYCLE_CALENDAR_NAME)
+            .is_some()
+    );
 }
 
 #[test]
@@ -278,16 +304,22 @@ fn cycle_calendar_validates_end_date_rejection() {
     let calendar = registry.get(CYCLE_CALENDAR_NAME).unwrap();
     let end = now() + Duration::minutes(30);
     // Candidate after endDate is invalid (Java isValidDate / validateDuedate).
-    assert!(!calendar
-        .validate_due_date("R5/PT1H", None, Some(end), now() + Duration::hours(1))
-        .unwrap());
-    assert!(calendar
-        .validate_due_date("R5/PT1H", None, Some(end), now() + Duration::minutes(10))
-        .unwrap());
+    assert!(
+        !calendar
+            .validate_due_date("R5/PT1H", None, Some(end), now() + Duration::hours(1))
+            .unwrap()
+    );
+    assert!(
+        calendar
+            .validate_due_date("R5/PT1H", None, Some(end), now() + Duration::minutes(10))
+            .unwrap()
+    );
     // No endDate → always valid.
-    assert!(calendar
-        .validate_due_date("R5/PT1H", None, None, now() + Duration::days(365))
-        .unwrap());
+    assert!(
+        calendar
+            .validate_due_date("R5/PT1H", None, None, now() + Duration::days(365))
+            .unwrap()
+    );
 }
 
 #[test]
@@ -307,7 +339,11 @@ fn duration_calendar_rejects_unparsable_description() {
 #[test]
 fn resolve_end_date_parses_instants() {
     let registry = BusinessCalendarRegistry::default();
-    for name in [DUE_DATE_CALENDAR_NAME, DURATION_CALENDAR_NAME, CYCLE_CALENDAR_NAME] {
+    for name in [
+        DUE_DATE_CALENDAR_NAME,
+        DURATION_CALENDAR_NAME,
+        CYCLE_CALENDAR_NAME,
+    ] {
         let calendar = registry.require(name).unwrap();
         let end = calendar
             .resolve_end_date("2030-01-01T00:00:00Z", now())

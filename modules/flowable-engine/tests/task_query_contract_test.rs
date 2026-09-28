@@ -13,7 +13,8 @@ fn test_task_query_deterministic_ordering() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -72,7 +73,8 @@ fn test_task_query_filtering() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

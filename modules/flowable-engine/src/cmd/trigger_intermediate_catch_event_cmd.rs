@@ -81,7 +81,10 @@ fn find_waiting_event_intermediate_catch_execution(
     expected_kind: &EventSubscriptionKind,
     event_ref: &str,
 ) -> Result<Option<Execution>, crate::error::FlowableError> {
-    let Some(wait_state) = store.find_event_wait_state_by_execution_id(execution_id, session) else { return Ok(None); };
+    let Some(wait_state) = store.find_event_wait_state_by_execution_id(execution_id, session)
+    else {
+        return Ok(None);
+    };
 
     let kind_matches = matches!(
         (&wait_state.wait_kind, expected_kind),
@@ -123,13 +126,26 @@ fn find_waiting_event_intermediate_catch_execution(
     }
 
     let ref_matches = if let Some(sub) = wait_state.event_subscription.as_ref() {
-        sub.kind == *expected_kind && event_ref_matches(store, dm, sub, expected_kind, event_ref, &wait_state, session)?
-    } else { false };
+        sub.kind == *expected_kind
+            && event_ref_matches(
+                store,
+                dm,
+                sub,
+                expected_kind,
+                event_ref,
+                &wait_state,
+                session,
+            )?
+    } else {
+        false
+    };
     if !ref_matches {
         return Ok(None);
     }
 
-    let Some(execution) = em.find_by_id(execution_id, session) else { return Ok(None); };
+    let Some(execution) = em.find_by_id(execution_id, session) else {
+        return Ok(None);
+    };
 
     if execution.is_active {
         return Ok(None);
@@ -153,7 +169,11 @@ fn event_ref_matches(
 
     if *expected_kind == EventSubscriptionKind::Signal {
         let model = signal_model_for_wait_state(store, dm, wait_state, session)?;
-        Ok(signal_refs_match_in_model(model.as_deref(), &subscription.event_ref, trigger_ref))
+        Ok(signal_refs_match_in_model(
+            model.as_deref(),
+            &subscription.event_ref,
+            trigger_ref,
+        ))
     } else {
         Ok(false)
     }
@@ -165,10 +185,13 @@ fn signal_model_for_wait_state(
     wait_state: &RuntimeEventWaitState,
     session: &mut crate::persistence::db_session::DbSession,
 ) -> Result<Option<std::sync::Arc<BpmnModel>>, crate::error::FlowableError> {
-    let process_definition_id = match store.find_execution(&wait_state.execution_id, session)
-        .and_then(|execution| execution.process_definition_id) {
+    let process_definition_id = match store
+        .find_execution(&wait_state.execution_id, session)
+        .and_then(|execution| execution.process_definition_id)
+    {
         Some(id) => Some(id),
-        None => store.find_process_instance(&wait_state.process_instance_id, session)?
+        None => store
+            .find_process_instance(&wait_state.process_instance_id, session)?
             .map(|instance| instance.process_definition_id),
     };
     Ok(process_definition_id.and_then(|id| dm.get_bpmn_model(&id)))

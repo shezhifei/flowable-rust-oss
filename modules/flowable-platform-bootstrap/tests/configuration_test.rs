@@ -205,11 +205,7 @@ fn database_url_shares_one_backend_across_modules() {
         "mysql://flowable:flowable@127.0.0.1:3306/flowable",
     );
     let configuration = PlatformConfiguration::load_from_sources(None).unwrap();
-    for module in [
-        &configuration.dmn,
-        &configuration.cmmn,
-        &configuration.app,
-    ] {
+    for module in [&configuration.dmn, &configuration.cmmn, &configuration.app] {
         assert_eq!(module.database_kind.as_deref(), Some("mysql"));
         assert_eq!(
             module.database_url.as_deref(),

@@ -81,13 +81,19 @@ impl EventCollector {
     }
 
     fn clear(&self) {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 }
 
 impl EngineEventListener for EventCollector {
     fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(event.clone());
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(event.clone());
         Ok(())
     }
 }
@@ -183,7 +189,9 @@ fn multi_instance_started_and_completed_fire() {
             .get_tasks_by_process_instance_id(pi.id.clone())
             .unwrap();
         assert_eq!(tasks.len(), 1);
-        task_service.complete_task_by_id(tasks[0].id.clone()).unwrap();
+        task_service
+            .complete_task_by_id(tasks[0].id.clone())
+            .unwrap();
     }
 
     let types = collector.types();
@@ -236,7 +244,9 @@ fn multi_instance_completed_with_condition_fires() {
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();
     assert_eq!(tasks.len(), 1);
-    task_service.complete_task_by_id(tasks[0].id.clone()).unwrap();
+    task_service
+        .complete_task_by_id(tasks[0].id.clone())
+        .unwrap();
 
     let types = collector.types();
     assert!(
@@ -367,9 +377,7 @@ fn task_field_changed_events_fire_on_update_and_setters() {
 
     // Dedicated setters → priority / dueDate.
     let due = Utc.with_ymd_and_hms(2026, 8, 1, 12, 0, 0).unwrap();
-    task_service
-        .set_task_priority(task_id.clone(), 42)
-        .unwrap();
+    task_service.set_task_priority(task_id.clone(), 42).unwrap();
     task_service
         .set_task_due_date(task_id.clone(), Some(due))
         .unwrap();

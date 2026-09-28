@@ -44,7 +44,10 @@ impl Default for CmmnHistoryCleaningConfiguration {
 
 /// Java `DefaultCmmnHistoryCleaningManager.getEndedBefore`
 /// (`DefaultCmmnHistoryCleaningManager.java:49-52`).
-pub fn ended_before(config: &CmmnHistoryCleaningConfiguration, now: DateTime<Utc>) -> DateTime<Utc> {
+pub fn ended_before(
+    config: &CmmnHistoryCleaningConfiguration,
+    now: DateTime<Utc>,
+) -> DateTime<Utc> {
     let after = ChronoDuration::seconds(config.clean_instances_ended_after.as_secs() as i64)
         + ChronoDuration::nanoseconds(config.clean_instances_ended_after.subsec_nanos() as i64);
     now - after
@@ -53,7 +56,9 @@ pub fn ended_before(config: &CmmnHistoryCleaningConfiguration, now: DateTime<Utc
 /// Stored repeat text on the cleanup timer job (Java `TimerJobEntity.repeat`).
 /// Plain string (not JSON) so ensure-job can compare with the config cron directly.
 pub fn job_repeat(job: &CmmnJob) -> Option<&str> {
-    job.configuration.as_deref().filter(|s| !s.trim().is_empty())
+    job.configuration
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
 }
 
 /// Java `HandleHistoryCleanupTimerJobCmd` for CMMN

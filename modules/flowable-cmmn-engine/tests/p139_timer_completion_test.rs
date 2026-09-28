@@ -163,5 +163,9 @@ fn stage_nested_timer_without_auto_complete_keeps_case_and_stage_active() {
     );
 
     let jobs = timer_jobs_for_case(&engine, &case_id);
-    assert_eq!(jobs.len(), 1, "stage-nested timer job must remain scheduled");
+    assert_eq!(
+        jobs.len(),
+        1,
+        "stage-nested timer job must remain scheduled"
+    );
 }

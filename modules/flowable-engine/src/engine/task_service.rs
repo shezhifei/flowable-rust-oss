@@ -225,7 +225,9 @@ impl TaskQuery {
                 // misuse instead of panicking.
                 self.or_query_objects.push(TaskQueryCriteria::default());
             }
-            self.or_query_objects.last_mut().unwrap_or(&mut self.criteria)
+            self.or_query_objects
+                .last_mut()
+                .unwrap_or(&mut self.criteria)
         } else {
             &mut self.criteria
         }
@@ -246,8 +248,7 @@ impl TaskQuery {
     /// Java `TaskQueryImpl.endOr()` (TaskQueryImpl.java:2065-2073).
     pub fn end_or(mut self) -> Self {
         if !self.or_active {
-            self.pending_error =
-                Some("endOr() can only be called after calling or()".to_string());
+            self.pending_error = Some("endOr() can only be called after calling or()".to_string());
             return self;
         }
         self.or_active = false;
@@ -551,7 +552,11 @@ impl Command<Vec<Task>> for TaskQueryCmd {
                     involved_groups.iter().map(String::as_str).collect();
                 let matching: std::collections::HashSet<String> = all_links
                     .iter()
-                    .filter(|l| l.group_id.as_deref().is_some_and(|gid| involved.contains(gid)))
+                    .filter(|l| {
+                        l.group_id
+                            .as_deref()
+                            .is_some_and(|gid| involved.contains(gid))
+                    })
                     .filter_map(|l| l.task_id.clone())
                     .collect();
                 tasks.retain(|task| matching.contains(&task.id));
@@ -559,7 +564,8 @@ impl Command<Vec<Task>> for TaskQueryCmd {
 
             // Java default for candidateUser/candidateGroup: exclude assigned tasks.
             if !self.query.criteria.ignore_assignee
-                && (self.query.criteria.candidate_user.is_some() || self.query.criteria.candidate_group.is_some())
+                && (self.query.criteria.candidate_user.is_some()
+                    || self.query.criteria.candidate_group.is_some())
             {
                 tasks.retain(|task| task.assignee.is_none());
             }
@@ -784,7 +790,9 @@ fn or_block_matches(
             involved_groups.iter().map(String::as_str).collect();
         let matched = all_links.iter().any(|l| {
             l.task_id.as_deref() == Some(task.id.as_str())
-                && l.group_id.as_deref().is_some_and(|gid| involved.contains(gid))
+                && l.group_id
+                    .as_deref()
+                    .is_some_and(|gid| involved.contains(gid))
         });
         if matched {
             return true;
@@ -1057,9 +1065,11 @@ pub(crate) fn complete_task_internal(
         Some(&task.execution_id),
     );
 
-    command_context
-        .history_manager
-        .record_task_end(&task.id, None, &mut command_context.session)?;
+    command_context.history_manager.record_task_end(
+        &task.id,
+        None,
+        &mut command_context.session,
+    )?;
 
     command_context.history_manager.record_audit_event(
         "complete",
@@ -1357,11 +1367,8 @@ pub(crate) fn complete_task_internal(
                     // `super.leave` → `cleanupMiRoot`.
                     // ParallelMultiInstanceBehavior.java:302-319 — pass whether
                     // the completion condition was already satisfied above.
-                    let with_condition = multi_instance_completion_condition_satisfied(
-                        command_context,
-                        &mi,
-                        &p,
-                    )?;
+                    let with_condition =
+                        multi_instance_completion_condition_satisfied(command_context, &mi, &p)?;
                     command_context
                         .execution_entity_manager
                         .update(&p, &mut command_context.session)?;
@@ -1447,9 +1454,14 @@ fn flow_element_outgoing_count(flow_element: &FlowElementEnum) -> Option<usize> 
         FlowElementEnum::ServiceTask(task) => {
             Some(task.task.activity.flow_node.outgoing_flows.len())
         }
-        FlowElementEnum::CaseServiceTask(task) => {
-            Some(task.service_task.task.activity.flow_node.outgoing_flows.len())
-        }
+        FlowElementEnum::CaseServiceTask(task) => Some(
+            task.service_task
+                .task
+                .activity
+                .flow_node
+                .outgoing_flows
+                .len(),
+        ),
         FlowElementEnum::ScriptTask(task) => {
             Some(task.task.activity.flow_node.outgoing_flows.len())
         }
@@ -2102,7 +2114,10 @@ impl Command<Option<serde_json::Value>> for GetTaskLocalVariableCmd {
     }
 }
 
-fn update_historic_task_assignment(command_context: &mut CommandContext, task: &Task) -> Result<(), crate::error::FlowableError> {
+fn update_historic_task_assignment(
+    command_context: &mut CommandContext,
+    task: &Task,
+) -> Result<(), crate::error::FlowableError> {
     command_context
         .history_manager
         .record_task_updated(task, &mut command_context.session)?;
@@ -2117,12 +2132,9 @@ fn record_assignee_identity_link_event(
 ) {
     // P97: delegate to the HistoryManager so history_disabled/async_history
     // gating applies (previously a direct, ungated store write).
-    command_context.history_manager.record_task_assignment_event(
-        task_id,
-        action,
-        assignee,
-        &mut command_context.session,
-    );
+    command_context
+        .history_manager
+        .record_task_assignment_event(task_id, action, assignee, &mut command_context.session);
 }
 
 /// Load the user-task's task_listeners and invoke them for `event`.

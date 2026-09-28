@@ -983,9 +983,10 @@ fn reschedule_non_interrupting_timer_cycle(
         .runtime_store
         .find_execution(&timer_state.execution_id, &mut command_context.session)
         .or_else(|| {
-            command_context
-                .runtime_store
-                .find_execution(&timer_state.process_instance_id, &mut command_context.session)
+            command_context.runtime_store.find_execution(
+                &timer_state.process_instance_id,
+                &mut command_context.session,
+            )
         })
         .unwrap_or_default();
 

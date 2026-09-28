@@ -564,10 +564,7 @@ impl ProcessEngine {
         // Java swallows optimistic-lock races from concurrent nodes; Rust is single-
         // writer for the ensure cmd so we surface real errors.
         if enable_history_cleaning {
-            if let Err(error) = engine
-                .management_service
-                .handle_history_cleanup_timer_job()
-            {
+            if let Err(error) = engine.management_service.handle_history_cleanup_timer_job() {
                 tracing::warn!(
                     "failed to ensure BPMN history cleanup timer job on engine start: {error}"
                 );
@@ -928,12 +925,16 @@ impl ProcessEngine {
 
     /// Deregister a specific timer node by ID.
     pub fn deregister_timer_node(&self, node_id: &str) -> bool {
-        self.runtime_service.deregister_timer_node(node_id).unwrap_or_default()
+        self.runtime_service
+            .deregister_timer_node(node_id)
+            .unwrap_or_default()
     }
 
     /// Remove all expired timer nodes from the registry.
     pub fn cleanup_expired_timer_nodes(&self) -> usize {
-        self.runtime_service.cleanup_expired_timer_nodes().unwrap_or_default()
+        self.runtime_service
+            .cleanup_expired_timer_nodes()
+            .unwrap_or_default()
     }
 
     /// Java parity: `TimerManager`/`JobService` reads run through the MyBatis
@@ -965,7 +966,8 @@ impl ProcessEngine {
     pub fn start_process_instance_by_message(
         &self,
         message_ref: String,
-    ) -> Result<crate::runtime::process_instance::ProcessInstance, crate::error::FlowableError> {
+    ) -> Result<crate::runtime::process_instance::ProcessInstance, crate::error::FlowableError>
+    {
         self.runtime_service
             .start_process_instance_by_message(message_ref)
     }
@@ -975,7 +977,8 @@ impl ProcessEngine {
     pub fn start_process_instance_by_signal(
         &self,
         signal_ref: String,
-    ) -> Result<crate::runtime::process_instance::ProcessInstance, crate::error::FlowableError> {
+    ) -> Result<crate::runtime::process_instance::ProcessInstance, crate::error::FlowableError>
+    {
         self.runtime_service
             .start_process_instance_by_signal(signal_ref)
     }
@@ -1089,7 +1092,10 @@ impl ProcessEngine {
         Self::write_recovery_snapshot_file(&snapshot, path.as_ref())
     }
 
-    pub fn import_recovery_snapshot(&self, snapshot: RecoverySnapshot) -> Result<(), FlowableError> {
+    pub fn import_recovery_snapshot(
+        &self,
+        snapshot: RecoverySnapshot,
+    ) -> Result<(), FlowableError> {
         let mut session = self.runtime_store.create_session()?;
         let deployment_manager = self.command_executor.deployment_manager();
 
@@ -1128,7 +1134,8 @@ impl ProcessEngine {
                 .insert_boundary_event_state(bs, &mut session);
         }
         for tj in snapshot.timer_job_states {
-            self.runtime_store.insert_timer_job_state(&tj, &mut session)?;
+            self.runtime_store
+                .insert_timer_job_state(&tj, &mut session)?;
         }
         for sub in snapshot.event_subprocess_timer_subscriptions {
             self.runtime_store

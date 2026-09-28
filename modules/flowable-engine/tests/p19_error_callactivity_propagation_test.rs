@@ -356,7 +356,10 @@ fn p19_no_code_boundary_on_call_activity_catches_coded_error() {
         "p19-no-code",
         &[
             ("throwError.bpmn20.xml", THROW_ERROR_XML),
-            ("noCodeBoundaryCatch.bpmn20.xml", NO_CODE_BOUNDARY_PARENT_XML),
+            (
+                "noCodeBoundaryCatch.bpmn20.xml",
+                NO_CODE_BOUNDARY_PARENT_XML,
+            ),
         ],
     );
 
@@ -413,7 +416,10 @@ fn p19_uncaught_error_on_call_activity_fails_child() {
         .iter()
         .find(|(id, _, super_id)| *id != parent_id && super_id.is_some())
         .expect("child process instance");
-    assert!(child.1, "child must be ended (Failed) when error is uncaught");
+    assert!(
+        child.1,
+        "child must be ended (Failed) when error is uncaught"
+    );
 }
 
 /// Java `ErrorPropagationTest`: two-level call, middle boundary catches → MyErrorTaskNested.
@@ -544,7 +550,8 @@ fn p19_call_activity_registers_error_boundary_state() {
     let parent_id = start_by_key(&engine, "callActivityBoundaryCatch");
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let boundaries = store.find_boundary_event_states_by_process_instance_id(&parent_id, &mut session);
+    let boundaries =
+        store.find_boundary_event_states_by_process_instance_id(&parent_id, &mut session);
     assert!(
         boundaries
             .iter()

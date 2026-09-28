@@ -207,12 +207,12 @@ impl ActivityBehavior for EndEventActivityBehavior {
         // Structural flag set when the non-interrupting event-subprocess path
         // was injected (see trigger_start_event_subscription_cmd). Not a
         // process variable — survives commit and is invisible to REST.
-        let is_non_interrupting_event_subprocess_path =
-            execution.non_interrupting_event_subprocess_path
-                || execution
-                    .process_variable(NON_INTERRUPTING_EVENT_SUBPROCESS_PATH_VARIABLE)
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false);
+        let is_non_interrupting_event_subprocess_path = execution
+            .non_interrupting_event_subprocess_path
+            || execution
+                .process_variable(NON_INTERRUPTING_EVENT_SUBPROCESS_PATH_VARIABLE)
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false);
         if is_non_interrupting_event_subprocess_path {
             // For non-interrupting event subprocess paths, we should not end the process
             // This allows the host process to continue running
@@ -503,11 +503,13 @@ fn end_process_instance_with_callback_outcome_and_event(
         // historic PI (Java `recordProcessInstanceEnd(..., deleteReason, ...)`).
         delete_reason
     };
-    command_context.history_manager.record_process_instance_end(
-        process_instance_id,
-        recorded_reason,
-        &mut command_context.session,
-    )?;
+    command_context
+        .history_manager
+        .record_process_instance_end(
+            process_instance_id,
+            recorded_reason,
+            &mut command_context.session,
+        )?;
 
     command_context.history_manager.record_audit_event(
         "process-instance-end",
@@ -744,7 +746,9 @@ fn terminate_all_behaviour(
         .collect();
     let mut member_ids = Vec::new();
     for instance in &all_instances {
-        if find_root_process_instance_id(command_context, &instance.id)? == root_id { member_ids.push(instance.id.clone()); }
+        if find_root_process_instance_id(command_context, &instance.id)? == root_id {
+            member_ids.push(instance.id.clone());
+        }
     }
 
     // Java `deleteExecutionEntities(..., root, ...)`: child instances end with
@@ -762,11 +766,13 @@ fn terminate_all_behaviour(
             command_context
                 .runtime_store
                 .update_process_instance(&pi, &mut command_context.session);
-            command_context.history_manager.record_process_instance_end(
-                member_id,
-                Some(delete_reason),
-                &mut command_context.session,
-            )?;
+            command_context
+                .history_manager
+                .record_process_instance_end(
+                    member_id,
+                    Some(delete_reason),
+                    &mut command_context.session,
+                )?;
         }
     }
     end_process_instance_with_callback_outcome_and_event(
@@ -998,7 +1004,10 @@ fn parent_process_instance_id(
 
 /// Java `ExecutionEntityImpl#getRootProcessInstanceId`: follow the super
 /// execution chain across call activities up to the top-level instance.
-fn find_root_process_instance_id(command_context: &mut CommandContext, pi_id: &str) -> Result<String, crate::error::FlowableError> {
+fn find_root_process_instance_id(
+    command_context: &mut CommandContext,
+    pi_id: &str,
+) -> Result<String, crate::error::FlowableError> {
     let mut current = pi_id.to_string();
     let mut guard = 0;
     while guard < 64 {

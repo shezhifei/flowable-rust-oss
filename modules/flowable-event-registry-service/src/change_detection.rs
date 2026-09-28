@@ -27,7 +27,9 @@ pub fn apply_change_record(
     record: &EventRegistryChangeRecord,
 ) -> Result<(), FlowableError> {
     let mut session = store.create_session().map_err(|error| {
-        FlowableError::Internal(format!("failed to open session for change detection: {error}"))
+        FlowableError::Internal(format!(
+            "failed to open session for change detection: {error}"
+        ))
     })?;
 
     match (record.change_type.as_str(), record.entity_type.as_str()) {
@@ -88,7 +90,9 @@ pub fn detect_and_reconcile_changes(
     limit: usize,
 ) -> Result<ChangeDetectionResult, FlowableError> {
     let mut session = store.create_session().map_err(|error| {
-        FlowableError::Internal(format!("failed to open session for change detection: {error}"))
+        FlowableError::Internal(format!(
+            "failed to open session for change detection: {error}"
+        ))
     })?;
     let records =
         store.list_event_registry_change_records_after(after_revision, limit, &mut session);

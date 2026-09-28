@@ -175,10 +175,10 @@ fn deployment_persists_layout_outcomes_and_outcome_variable_name() {
     assert_eq!(outcomes[1].id.as_deref(), Some("save"));
     assert_eq!(outcomes[1].name.as_deref(), Some("Save Draft"));
 
-    let reloaded_engine = Arc::new(ProcessEngine::new_with_db_path(
-        "form-deployment-layout-reloaded".to_string(),
-        &db_path,
-    ).unwrap());
+    let reloaded_engine = Arc::new(
+        ProcessEngine::new_with_db_path("form-deployment-layout-reloaded".to_string(), &db_path)
+            .unwrap(),
+    );
     let _reloaded_form_service = FlowableFormService::new(Arc::clone(&reloaded_engine)).unwrap();
     let management = FormManagementService::new(Arc::clone(&reloaded_engine)).unwrap();
     let versions = management.list_versions("employeeOnboarding").unwrap();

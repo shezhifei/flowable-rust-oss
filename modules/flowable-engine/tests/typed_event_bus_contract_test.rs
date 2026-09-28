@@ -42,17 +42,21 @@ impl EventCollector {
     }
 
     fn snapshot(&self) -> Vec<(EngineEventType, EntityKind, String)> {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 
 impl EngineEventListener for EventCollector {
     fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
         if let EngineEvent::Entity { event_type, data } = event {
-            self.events
-                .lock()
-            .unwrap_or_else(|e| e.into_inner())
-                .push((*event_type, data.entity_kind, data.entity_id.clone()));
+            self.events.lock().unwrap_or_else(|e| e.into_inner()).push((
+                *event_type,
+                data.entity_kind,
+                data.entity_id.clone(),
+            ));
         }
         Ok(())
     }
@@ -88,7 +92,11 @@ fn process_create_initialized_started_and_completed_fire_in_order() {
     let (engine, collector) = collect_for(xml, "p53-1.bpmn20.xml");
 
     let runtime = engine.get_runtime_service();
-    let def_id = engine.get_repository_service().get_process_definition_ids().unwrap()[0].clone();
+    let def_id = engine
+        .get_repository_service()
+        .get_process_definition_ids()
+        .unwrap()[0]
+        .clone();
     let pi = runtime
         .start_process_instance(
             runtime
@@ -150,7 +158,11 @@ fn task_created_and_completed_fire_with_assignment_when_assignee_set() {
 
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
-    let def_id = engine.get_repository_service().get_process_definition_ids().unwrap()[0].clone();
+    let def_id = engine
+        .get_repository_service()
+        .get_process_definition_ids()
+        .unwrap()[0]
+        .clone();
     runtime
         .start_process_instance(
             runtime
@@ -208,7 +220,11 @@ fn activity_started_completed_and_sequenceflow_taken_fire() {
 
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
-    let def_id = engine.get_repository_service().get_process_definition_ids().unwrap()[0].clone();
+    let def_id = engine
+        .get_repository_service()
+        .get_process_definition_ids()
+        .unwrap()[0]
+        .clone();
     runtime
         .start_process_instance(
             runtime

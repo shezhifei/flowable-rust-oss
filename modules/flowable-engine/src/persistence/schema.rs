@@ -853,13 +853,23 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     )?;
     ensure_column(conn, "historic_identity_links", "link_type", "TEXT")?;
     ensure_column(conn, "historic_identity_links", "task_id", "TEXT")?;
-    ensure_column(conn, "historic_identity_links", "process_instance_id", "TEXT")?;
+    ensure_column(
+        conn,
+        "historic_identity_links",
+        "process_instance_id",
+        "TEXT",
+    )?;
     ensure_column(conn, "historic_identity_links", "user_id", "TEXT")?;
     ensure_column(conn, "historic_identity_links", "group_id", "TEXT")?;
     ensure_column(conn, "historic_identity_links", "scope_id", "TEXT")?;
     ensure_column(conn, "historic_identity_links", "sub_scope_id", "TEXT")?;
     ensure_column(conn, "historic_identity_links", "scope_type", "TEXT")?;
-    ensure_column(conn, "historic_identity_links", "scope_definition_id", "TEXT")?;
+    ensure_column(
+        conn,
+        "historic_identity_links",
+        "scope_definition_id",
+        "TEXT",
+    )?;
     ensure_column(conn, "historic_identity_links", "create_time", "INTEGER")?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_historic_identity_links_task_id ON historic_identity_links(task_id)",

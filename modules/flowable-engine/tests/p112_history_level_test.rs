@@ -88,10 +88,7 @@ fn deploy_and_start(
     for (k, v) in vars {
         builder = builder.variable(k, v);
     }
-    runtime
-        .start_process_instance(builder)
-        .expect("start")
-        .id
+    runtime.start_process_instance(builder).expect("start").id
 }
 
 fn complete_first_task(engine: &ProcessEngine, pi_id: &str) {
@@ -185,9 +182,15 @@ fn is_at_least_follows_java_declaration_order() {
 fn parse_accepts_case_insensitive_keys_and_rejects_illegal() {
     // HistoryLevel.getHistoryLevelForKey:41-48
     assert_eq!(HistoryLevel::parse("none").unwrap(), HistoryLevel::None);
-    assert_eq!(HistoryLevel::parse("INSTANCE").unwrap(), HistoryLevel::Instance);
+    assert_eq!(
+        HistoryLevel::parse("INSTANCE").unwrap(),
+        HistoryLevel::Instance
+    );
     assert_eq!(HistoryLevel::parse("Task").unwrap(), HistoryLevel::Task);
-    assert_eq!(HistoryLevel::parse("activity").unwrap(), HistoryLevel::Activity);
+    assert_eq!(
+        HistoryLevel::parse("activity").unwrap(),
+        HistoryLevel::Activity
+    );
     assert_eq!(HistoryLevel::parse("audit").unwrap(), HistoryLevel::Audit);
     assert_eq!(HistoryLevel::parse("FULL").unwrap(), HistoryLevel::Full);
 
@@ -217,12 +220,7 @@ fn none_writes_nothing() {
     let engine = engine_with_level("p112-none", HistoryLevel::None);
     let mut vars = HashMap::new();
     vars.insert("v1".into(), json!("x"));
-    let pi = deploy_and_start(
-        &engine,
-        "p112None",
-        simple_process_xml("p112None"),
-        vars,
-    );
+    let pi = deploy_and_start(&engine, "p112None", simple_process_xml("p112None"), vars);
     complete_first_task(&engine, &pi);
 
     assert_eq!(count_historic_pi(&engine, &pi), 0);
@@ -260,12 +258,7 @@ fn task_level_writes_pi_and_tasks_not_activity_or_variable() {
     let engine = engine_with_level("p112-task", HistoryLevel::Task);
     let mut vars = HashMap::new();
     vars.insert("v1".into(), json!("x"));
-    let pi = deploy_and_start(
-        &engine,
-        "p112Task",
-        simple_process_xml("p112Task"),
-        vars,
-    );
+    let pi = deploy_and_start(&engine, "p112Task", simple_process_xml("p112Task"), vars);
     complete_first_task(&engine, &pi);
 
     assert_eq!(count_historic_pi(&engine, &pi), 1);
@@ -310,12 +303,7 @@ fn audit_level_writes_pi_activity_task_variable_not_detail() {
     let engine = engine_with_level("p112-audit", HistoryLevel::Audit);
     let mut vars = HashMap::new();
     vars.insert("v1".into(), json!("x"));
-    let pi = deploy_and_start(
-        &engine,
-        "p112Audit",
-        simple_process_xml("p112Audit"),
-        vars,
-    );
+    let pi = deploy_and_start(&engine, "p112Audit", simple_process_xml("p112Audit"), vars);
     complete_first_task(&engine, &pi);
 
     assert_eq!(count_historic_pi(&engine, &pi), 1);
@@ -334,12 +322,7 @@ fn full_level_writes_everything_including_variable_detail() {
     let engine = engine_with_level("p112-full", HistoryLevel::Full);
     let mut vars = HashMap::new();
     vars.insert("v1".into(), json!("x"));
-    let pi = deploy_and_start(
-        &engine,
-        "p112Full",
-        simple_process_xml("p112Full"),
-        vars,
-    );
+    let pi = deploy_and_start(&engine, "p112Full", simple_process_xml("p112Full"), vars);
     complete_first_task(&engine, &pi);
 
     assert_eq!(count_historic_pi(&engine, &pi), 1);

@@ -195,7 +195,7 @@ fn run_process(
             tenant_id: tenant_id.map(str::to_string),
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );
@@ -244,7 +244,10 @@ fn service_task_dmn_records_instance_execution_and_activity_ids() {
     let rows = history_rows(&dmn);
     assert_eq!(rows.len(), 1);
     let row = &rows[0];
-    assert_eq!(row.instance_id.as_deref(), Some(process_instance_id.as_str()));
+    assert_eq!(
+        row.instance_id.as_deref(),
+        Some(process_instance_id.as_str())
+    );
     assert_eq!(row.activity_id.as_deref(), Some("decisionTask1"));
     assert!(
         row.scope_execution_id.is_some(),
@@ -272,7 +275,10 @@ fn business_rule_task_records_instance_execution_and_activity_ids() {
     let rows = history_rows(&dmn);
     assert_eq!(rows.len(), 1);
     let row = &rows[0];
-    assert_eq!(row.instance_id.as_deref(), Some(process_instance_id.as_str()));
+    assert_eq!(
+        row.instance_id.as_deref(),
+        Some(process_instance_id.as_str())
+    );
     assert_eq!(row.activity_id.as_deref(), Some("decisionTask1"));
     assert!(row.scope_execution_id.is_some());
 }

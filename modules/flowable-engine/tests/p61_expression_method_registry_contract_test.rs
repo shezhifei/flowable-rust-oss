@@ -16,8 +16,7 @@ fn java_math_static_type_calls_are_available_by_default() {
     let execution = Execution::default();
 
     assert_eq!(
-        SimpleExpression::new("${T(java.lang.Math).max(4, 9)}".to_string())
-            .get_value(&execution),
+        SimpleExpression::new("${T(java.lang.Math).max(4, 9)}".to_string()).get_value(&execution),
         Some(json!(9))
     );
     assert_eq!(

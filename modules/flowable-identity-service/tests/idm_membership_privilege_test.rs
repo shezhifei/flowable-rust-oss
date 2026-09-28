@@ -19,30 +19,40 @@ fn setup() -> (Arc<ProcessEngine>, FlowableIdentityService) {
 fn membership_create_delete_and_query_lifecycle() {
     let (_, facade) = setup();
 
-    facade.save_user(User {
-        id: "kermit".to_string(),
-        first_name: Some("Kermit".to_string()),
-        last_name: None,
-        email: None,
-        password: None,
-        tenant_id: None,
-    }).unwrap();
-    facade.save_user(User {
-        id: "fozzie".to_string(),
-        first_name: Some("Fozzie".to_string()),
-        last_name: None,
-        email: None,
-        password: None,
-        tenant_id: None,
-    }).unwrap();
-    facade.save_group(Group {
-        id: "muppets".to_string(),
-        name: "Muppets".to_string(),
-        group_type: None,
-    }).unwrap();
+    facade
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: Some("Kermit".to_string()),
+            last_name: None,
+            email: None,
+            password: None,
+            tenant_id: None,
+        })
+        .unwrap();
+    facade
+        .save_user(User {
+            id: "fozzie".to_string(),
+            first_name: Some("Fozzie".to_string()),
+            last_name: None,
+            email: None,
+            password: None,
+            tenant_id: None,
+        })
+        .unwrap();
+    facade
+        .save_group(Group {
+            id: "muppets".to_string(),
+            name: "Muppets".to_string(),
+            group_type: None,
+        })
+        .unwrap();
 
-    facade.create_membership("kermit".to_string(), "muppets".to_string()).unwrap();
-    facade.create_membership("fozzie".to_string(), "muppets".to_string()).unwrap();
+    facade
+        .create_membership("kermit".to_string(), "muppets".to_string())
+        .unwrap();
+    facade
+        .create_membership("fozzie".to_string(), "muppets".to_string())
+        .unwrap();
 
     assert!(facade.membership_exists("kermit", "muppets").unwrap());
     assert!(facade.membership_exists("fozzie", "muppets").unwrap());
@@ -80,13 +90,21 @@ fn privilege_crud_and_user_group_mappings() {
 
     assert!(facade.find_privilege_by_id("admin-priv").unwrap().is_some());
     assert_eq!(
-        facade.find_privilege_by_id("admin-priv").unwrap().unwrap().name,
+        facade
+            .find_privilege_by_id("admin-priv")
+            .unwrap()
+            .unwrap()
+            .name,
         "Administrator"
     );
     assert!(facade.find_privilege_by_id("read-priv").unwrap().is_some());
 
-    facade.add_user_privilege_mapping("admin-priv".to_string(), "kermit".to_string()).unwrap();
-    facade.add_group_privilege_mapping("read-priv".to_string(), "muppets".to_string()).unwrap();
+    facade
+        .add_user_privilege_mapping("admin-priv".to_string(), "kermit".to_string())
+        .unwrap();
+    facade
+        .add_group_privilege_mapping("read-priv".to_string(), "muppets".to_string())
+        .unwrap();
 
     let kermit_privs = facade.get_privileges_for_user("kermit").unwrap();
     assert_eq!(kermit_privs.len(), 1);
@@ -96,11 +114,15 @@ fn privilege_crud_and_user_group_mappings() {
     assert_eq!(group_privs.len(), 1);
     assert_eq!(group_privs[0].id, "read-priv");
 
-    facade.delete_user_privilege_mapping("admin-priv", "kermit").unwrap();
+    facade
+        .delete_user_privilege_mapping("admin-priv", "kermit")
+        .unwrap();
     let kermit_after = facade.get_privileges_for_user("kermit").unwrap();
     assert!(kermit_after.is_empty());
 
-    facade.delete_group_privilege_mapping("read-priv", "muppets").unwrap();
+    facade
+        .delete_group_privilege_mapping("read-priv", "muppets")
+        .unwrap();
     let group_after = facade.get_privileges_for_group("muppets").unwrap();
     assert!(group_after.is_empty());
 
@@ -112,32 +134,46 @@ fn privilege_crud_and_user_group_mappings() {
 fn user_privileges_include_inherited_group_privileges() {
     let (_, facade) = setup();
 
-    facade.save_user(User {
-        id: "kermit".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: None,
-        tenant_id: None,
-    }).unwrap();
-    facade.save_group(Group {
-        id: "admins".to_string(),
-        name: "Admins".to_string(),
-        group_type: None,
-    }).unwrap();
-    facade.create_membership("kermit".to_string(), "admins".to_string()).unwrap();
+    facade
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: None,
+            tenant_id: None,
+        })
+        .unwrap();
+    facade
+        .save_group(Group {
+            id: "admins".to_string(),
+            name: "Admins".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    facade
+        .create_membership("kermit".to_string(), "admins".to_string())
+        .unwrap();
 
-    facade.save_privilege(Privilege {
-        id: "direct-priv".to_string(),
-        name: "Direct".to_string(),
-    }).unwrap();
-    facade.save_privilege(Privilege {
-        id: "group-priv".to_string(),
-        name: "Group".to_string(),
-    }).unwrap();
+    facade
+        .save_privilege(Privilege {
+            id: "direct-priv".to_string(),
+            name: "Direct".to_string(),
+        })
+        .unwrap();
+    facade
+        .save_privilege(Privilege {
+            id: "group-priv".to_string(),
+            name: "Group".to_string(),
+        })
+        .unwrap();
 
-    facade.add_user_privilege_mapping("direct-priv".to_string(), "kermit".to_string()).unwrap();
-    facade.add_group_privilege_mapping("group-priv".to_string(), "admins".to_string()).unwrap();
+    facade
+        .add_user_privilege_mapping("direct-priv".to_string(), "kermit".to_string())
+        .unwrap();
+    facade
+        .add_group_privilege_mapping("group-priv".to_string(), "admins".to_string())
+        .unwrap();
 
     let all_privs = facade.get_privileges_for_user("kermit").unwrap();
     assert_eq!(all_privs.len(), 2);

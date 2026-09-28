@@ -3193,13 +3193,11 @@ impl CmmnHumanTaskQuery {
                 // link on any of the user's groups. The lookup is fallible there
                 // too (no try/catch around the group query), so a resolver
                 // failure propagates instead of degrading to "no groups".
-                let user_group_ids: std::collections::HashSet<String> = match self
-                    .user_group_resolver
-                    .as_ref()
-                {
-                    Some(resolver) => resolver(candidate_user)?.into_iter().collect(),
-                    None => std::collections::HashSet::new(),
-                };
+                let user_group_ids: std::collections::HashSet<String> =
+                    match self.user_group_resolver.as_ref() {
+                        Some(resolver) => resolver(candidate_user)?.into_iter().collect(),
+                        None => std::collections::HashSet::new(),
+                    };
                 items.retain(|task| {
                     links_by_task.get(task.id.as_str()).is_some_and(|links| {
                         links.iter().any(|link| {
@@ -3246,13 +3244,11 @@ impl CmmnHumanTaskQuery {
                 // the user, or (unassigned unless ignoreAssigneeValue) a candidate
                 // link for the user or any of the user's groups. Fallible for the
                 // same reason as the candidateUser block above.
-                let user_group_ids: std::collections::HashSet<String> = match self
-                    .user_group_resolver
-                    .as_ref()
-                {
-                    Some(resolver) => resolver(candidate_or_assigned)?.into_iter().collect(),
-                    None => std::collections::HashSet::new(),
-                };
+                let user_group_ids: std::collections::HashSet<String> =
+                    match self.user_group_resolver.as_ref() {
+                        Some(resolver) => resolver(candidate_or_assigned)?.into_iter().collect(),
+                        None => std::collections::HashSet::new(),
+                    };
                 items.retain(|task| {
                     if task.assignee.as_deref() == Some(candidate_or_assigned.as_str()) {
                         return true;
@@ -6086,15 +6082,16 @@ fn persist_enabled_plan_item_instance_session(
     plan_item_definition_type: &str,
 ) -> Result<(), CmmnError> {
     let enabled_at = Utc::now();
-    if let Some(mut instance) = load_plan_item_instances_session(session)?
-        .into_iter()
-        .find(|instance| {
-            instance.case_instance_id == case_instance.id
-                && instance.plan_item_id == plan_item.id
-                && instance.plan_item_definition_type == plan_item_definition_type
-                && instance.stage_instance_id.as_deref() == parent_stage_instance_id
-                && instance.ended_at.is_none()
-        })
+    if let Some(mut instance) =
+        load_plan_item_instances_session(session)?
+            .into_iter()
+            .find(|instance| {
+                instance.case_instance_id == case_instance.id
+                    && instance.plan_item_id == plan_item.id
+                    && instance.plan_item_definition_type == plan_item_definition_type
+                    && instance.stage_instance_id.as_deref() == parent_stage_instance_id
+                    && instance.ended_at.is_none()
+            })
     {
         if instance.state != "ENABLED" {
             instance.state = "ENABLED".to_string();
@@ -6175,7 +6172,10 @@ fn count_blocking_mirror_plan_items(
             instance.case_instance_id == case_instance_id
                 && instance.plan_item_definition_type != "stage"
                 && instance.ended_at.is_none()
-                && mirror_state_blocks_non_autocomplete(&instance.state, &instance.plan_item_definition_type)
+                && mirror_state_blocks_non_autocomplete(
+                    &instance.state,
+                    &instance.plan_item_definition_type,
+                )
                 && match parent_stage_instance_id {
                     Some(stage_id) => instance.stage_instance_id.as_deref() == Some(stage_id),
                     None => instance.stage_instance_id.is_none(),
@@ -7135,13 +7135,14 @@ fn has_incomplete_required_plan_items(
             // (`PlanItemInstanceContainerUtil.java:102-118`). Milestones emit OCCUR
             // while their instance becomes COMPLETED, so their real mirror state is
             // the completion evidence rather than a synthetic COMPLETE event.
-            let completed_by_mirror = load_plan_item_instances_session(session)?
-                .iter()
-                .any(|instance| {
-                    instance.case_instance_id == case_instance.id
-                        && instance.plan_item_id == plan_item.id
-                        && instance.state == "COMPLETED"
-                });
+            let completed_by_mirror =
+                load_plan_item_instances_session(session)?
+                    .iter()
+                    .any(|instance| {
+                        instance.case_instance_id == case_instance.id
+                            && instance.plan_item_id == plan_item.id
+                            && instance.state == "COMPLETED"
+                    });
             if !completed_by_event && !completed_by_mirror {
                 return Ok(true);
             }
@@ -8817,12 +8818,7 @@ fn ignored_open_mirror_plan_items(
             } else {
                 PlanItemCompletionState::Available
             };
-            if plan_item_state_is_ignored(
-                session,
-                case_instance,
-                plan_item,
-                completion_state,
-            )? {
+            if plan_item_state_is_ignored(session, case_instance, plan_item, completion_state)? {
                 // Only subtract rows that `count_blocking_mirror_plan_items` actually
                 // counted (ENABLED always; AVAILABLE only for event-listener types).
                 // AVAILABLE milestones still land in `ignored_ids` for required tracking.
@@ -10116,13 +10112,14 @@ fn terminate_occurred_milestone_plan_item(
     // Occurred milestones still pass through the common terminal notification
     // path (`AbstractMovePlanItemInstanceToTerminalStateOperation.java:74-143`,
     // `CmmnListenerNotificationHelper.java:103-159`).
-    if let Some(instance) = load_plan_item_instances_session(session)?
-        .into_iter()
-        .find(|instance| {
-            instance.case_instance_id == case_instance_id
-                && instance.plan_item_id == plan_item_id
-                && instance.plan_item_definition_type == "milestone"
-        })
+    if let Some(instance) =
+        load_plan_item_instances_session(session)?
+            .into_iter()
+            .find(|instance| {
+                instance.case_instance_id == case_instance_id
+                    && instance.plan_item_id == plan_item_id
+                    && instance.plan_item_definition_type == "milestone"
+            })
     {
         fire_plan_item_lifecycle_listeners_session(
             session,

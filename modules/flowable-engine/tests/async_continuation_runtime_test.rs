@@ -73,10 +73,11 @@ impl EngineEventListener for RecordingJobEventListener {
             EngineEvent::Job { job, .. } | EngineEvent::JobExecutionFailure { job, .. } => job,
             EngineEvent::Entity { .. } => return Ok(()),
         };
-        self.events
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .push((event.event_type(), job.retries, job.job_state.clone()));
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).push((
+            event.event_type(),
+            job.retries,
+            job.job_state.clone(),
+        ));
         Ok(())
     }
 }
@@ -88,7 +89,10 @@ struct RecordingJobFailureListener {
 impl EngineEventListener for RecordingJobFailureListener {
     fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
         if let Some(error) = event.error() {
-            self.failures.lock().unwrap_or_else(|e| e.into_inner()).push(format!("{error:?}"));
+            self.failures
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(format!("{error:?}"));
         }
         Ok(())
     }
@@ -101,7 +105,10 @@ struct TransactionRecordingJobEventListener {
 
 impl EngineEventListener for TransactionRecordingJobEventListener {
     fn on_event(&self, _event: &EngineEvent) -> Result<(), FlowableError> {
-        self.states.lock().unwrap_or_else(|e| e.into_inner()).push(self.state);
+        self.states
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(self.state);
         Ok(())
     }
 
@@ -135,7 +142,10 @@ struct FatalTransactionJobEventListener {
 
 impl EngineEventListener for FatalTransactionJobEventListener {
     fn on_event(&self, _event: &EngineEvent) -> Result<(), FlowableError> {
-        self.states.lock().unwrap_or_else(|e| e.into_inner()).push(self.state);
+        self.states
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(self.state);
         Err(FlowableError::ExecutionError(format!(
             "fatal {:?} job event listener",
             self.state

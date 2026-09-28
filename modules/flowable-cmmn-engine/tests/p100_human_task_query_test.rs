@@ -12,8 +12,7 @@
 use chrono::{DateTime, Utc};
 use flowable_cmmn_engine::{
     CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDelegationState,
-    CmmnDeploymentRequest, CmmnEngine, CmmnHumanTask, CmmnModel, CmmnPlanItem,
-    TaskSuspensionState,
+    CmmnDeploymentRequest, CmmnEngine, CmmnHumanTask, CmmnModel, CmmnPlanItem, TaskSuspensionState,
 };
 use serde_json::json;
 
@@ -394,7 +393,10 @@ fn query_filters_by_due_date() {
         .into_iter()
         .map(|task| task.name)
         .collect::<Vec<_>>();
-    assert_eq!(without, vec!["Beta review".to_string(), "Gamma deep dive".to_string()]);
+    assert_eq!(
+        without,
+        vec!["Beta review".to_string(), "Gamma deep dive".to_string()]
+    );
 }
 
 #[test]

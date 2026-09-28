@@ -127,20 +127,13 @@ fn mail_task_text_var_html_var_composite_and_escape() {
         .deploy(
             repository_service
                 .create_deployment()
-                .add_string(
-                    "mail_var_composite.bpmn20.xml".to_string(),
-                    xml.to_string(),
-                ),
+                .add_string("mail_var_composite.bpmn20.xml".to_string(), xml.to_string()),
         )
         .unwrap();
     let def_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
     // bodyTemplate: mixed expansion + escaped \${literal}
-    let body_template = format!(
-        "Hello {}; show {}",
-        "${gender}",
-        r"\${literal}"
-    );
+    let body_template = format!("Hello {}; show {}", "${gender}", r"\${literal}");
     let html_template = format!("<b>{}</b>", "${gender}");
 
     let pi = runtime_service

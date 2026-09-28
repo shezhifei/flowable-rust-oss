@@ -224,7 +224,8 @@ fn channel_definition_falls_back_when_enabled() {
 #[test]
 fn empty_event_tenant_does_not_filter_cmmn_subscriptions() {
     // BaseEventRegistryEventConsumer.java:177-178 — empty tenant skips filter.
-    let process_engine = Arc::new(ProcessEngine::new("p122-empty-tenant-cmmn".to_string()).unwrap());
+    let process_engine =
+        Arc::new(ProcessEngine::new("p122-empty-tenant-cmmn".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -254,8 +255,7 @@ fn empty_event_tenant_does_not_filter_cmmn_subscriptions() {
     let case_id = cmmn
         .start_case_instance_by_key(
             "p122EmptyCase",
-            CmmnCaseInstanceStartRequest::new()
-                .with_override_definition_tenant_id("tenant-a"),
+            CmmnCaseInstanceStartRequest::new().with_override_definition_tenant_id("tenant-a"),
         )
         .expect("start")
         .id;
@@ -310,16 +310,14 @@ fn cmmn_consumer_exact_tenant_hit() {
     let case_a = cmmn
         .start_case_instance_by_key(
             "p122CmmnCase",
-            CmmnCaseInstanceStartRequest::new()
-                .with_override_definition_tenant_id("tenant-a"),
+            CmmnCaseInstanceStartRequest::new().with_override_definition_tenant_id("tenant-a"),
         )
         .expect("start a")
         .id;
     let case_b = cmmn
         .start_case_instance_by_key(
             "p122CmmnCaseB",
-            CmmnCaseInstanceStartRequest::new()
-                .with_override_definition_tenant_id("tenant-b"),
+            CmmnCaseInstanceStartRequest::new().with_override_definition_tenant_id("tenant-b"),
         )
         .expect("start b")
         .id;
@@ -410,9 +408,7 @@ fn bpmn_consumer_exact_tenant_hit() {
     let mut pi_a = None;
     let mut pi_b = None;
     for def_id in defs {
-        let def = repository
-            .get_process_definition(&def_id)
-            .expect("def");
+        let def = repository.get_process_definition(&def_id).expect("def");
         let pi = runtime
             .start_process_instance(
                 runtime
@@ -481,8 +477,7 @@ fn deploy_cmmn_listener(
             ))
             .with_human_task(CmmnHumanTask::new("task-b", "B"))
             .with_plan_item(
-                CmmnPlanItem::new("plan-item-b", "task-b")
-                    .with_entry_criterion("sentry-on-event"),
+                CmmnPlanItem::new("plan-item-b", "task-b").with_entry_criterion("sentry-on-event"),
             )
             .with_sentry(CmmnSentry::new(
                 "sentry-on-event",

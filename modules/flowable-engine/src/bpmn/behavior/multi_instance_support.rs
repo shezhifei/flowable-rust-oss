@@ -711,7 +711,10 @@ const MI_ROOT_BOOKKEEPING: &[&str] = &[
     "nrOfActiveInstances",
 ];
 
-fn promote_mi_root_variables_to_parent(command_context: &mut CommandContext, mi_root: &Execution) -> Result<(), crate::error::FlowableError> {
+fn promote_mi_root_variables_to_parent(
+    command_context: &mut CommandContext,
+    mi_root: &Execution,
+) -> Result<(), crate::error::FlowableError> {
     let Some(parent_id) = mi_root.parent_id.as_deref() else {
         return Ok(());
     };
@@ -829,7 +832,10 @@ fn new_child_execution(template: &Execution, parent_id: Option<String>) -> Execu
     }
 }
 
-pub(crate) fn delete_execution_related_runtime_data(command_context: &mut CommandContext, execution_id: &str) {
+pub(crate) fn delete_execution_related_runtime_data(
+    command_context: &mut CommandContext,
+    execution_id: &str,
+) {
     if let Some(task) = command_context
         .task_entity_manager
         .find_by_execution_id(execution_id, &mut command_context.session)
@@ -957,7 +963,10 @@ fn create_sequential_instance_child(
 
 /// Recursively delete an execution and all descendants (Java
 /// `deleteChildExecutions` + `deleteExecutionAndRelatedData` with no reason).
-pub(crate) fn delete_execution_tree(command_context: &mut CommandContext, root_id: &str) -> Result<(), crate::error::FlowableError> {
+pub(crate) fn delete_execution_tree(
+    command_context: &mut CommandContext,
+    root_id: &str,
+) -> Result<(), crate::error::FlowableError> {
     delete_execution_tree_with_reason(command_context, root_id, None)?;
     Ok(())
 }
@@ -1406,7 +1415,10 @@ pub(crate) fn record_mi_child_activity_end(
     Ok(())
 }
 
-fn end_sequential_instance_child(command_context: &mut CommandContext, child: &mut Execution) -> Result<(), crate::error::FlowableError> {
+fn end_sequential_instance_child(
+    command_context: &mut CommandContext,
+    child: &mut Execution,
+) -> Result<(), crate::error::FlowableError> {
     child.is_active = false;
     child.is_ended = true;
     command_context

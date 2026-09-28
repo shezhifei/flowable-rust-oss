@@ -15,7 +15,10 @@ use flowable_cmmn_engine::{
 
 fn plain_model() -> CmmnModel {
     let plan_model = CmmnCasePlanModel::new("case-plan-model", "Case plan model")
-        .with_human_task(CmmnHumanTask::new("human-task-review", "Review application"))
+        .with_human_task(CmmnHumanTask::new(
+            "human-task-review",
+            "Review application",
+        ))
         .with_plan_item(CmmnPlanItem::new("plan-item-review", "human-task-review"));
 
     CmmnModel::new(vec![CmmnCase::new(
@@ -343,7 +346,10 @@ fn historic_case_query_supports_the_tenant_parameters() {
         .list()
         .expect("tenantIdLikeIgnoreCase");
     assert_eq!(by_tenant_like_ignore_case.len(), 1);
-    assert_eq!(by_tenant_like_ignore_case[0].case_instance_id, tenant_case.id);
+    assert_eq!(
+        by_tenant_like_ignore_case[0].case_instance_id,
+        tenant_case.id
+    );
 
     let without_tenant = history
         .create_historic_case_instance_query()

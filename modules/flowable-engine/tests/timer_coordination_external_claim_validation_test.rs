@@ -93,9 +93,12 @@ fn test_expired_token_rejected() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -148,9 +151,12 @@ fn test_missing_required_claim_rejected() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -202,9 +208,12 @@ fn test_empty_role_rejected_when_strict() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -257,9 +266,12 @@ fn test_unknown_issuer_rejected() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -312,9 +324,12 @@ fn test_wrong_audience_rejected() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 

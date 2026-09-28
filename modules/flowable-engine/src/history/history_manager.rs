@@ -1,7 +1,7 @@
-use crate::persistence::StorageError;
 use crate::engine::event_dispatcher::EngineEvent;
 use crate::history::async_history_job_handler::HistoryJobPayload;
 use crate::history::historic_entities::*;
+use crate::persistence::StorageError;
 use crate::persistence::db_session::DbSession;
 use crate::persistence::runtime_store::{RuntimeJobType, RuntimeStore, RuntimeTimerJobState};
 use crate::repository::process_definition::ProcessDefinition;
@@ -113,18 +113,18 @@ impl HistoryManager {
         process_definition_id: &str,
         session: &mut DbSession,
     ) -> Option<HistoryLevel> {
-        let pd: ProcessDefinition =
-            match session.find("process_definitions", process_definition_id) {
-                Ok(Some(found)) => found,
-                Ok(None) => return None,
-                Err(error) => {
-                    // Java parity: the process-definition lookup (ProcessDefinitionUtil /
-                    // AbstractDataManager.findById -> DbSqlSession.selectById) throws on a
-                    // storage failure; null is only for a genuinely absent row.
-                    session.note_write_error(error);
-                    return None;
-                }
-            };
+        let pd: ProcessDefinition = match session.find("process_definitions", process_definition_id)
+        {
+            Ok(Some(found)) => found,
+            Ok(None) => return None,
+            Err(error) => {
+                // Java parity: the process-definition lookup (ProcessDefinitionUtil /
+                // AbstractDataManager.findById -> DbSqlSession.selectById) throws on a
+                // storage failure; null is only for a genuinely absent row.
+                session.note_write_error(error);
+                return None;
+            }
+        };
         let key = pd.history_level.as_deref()?.trim();
         if key.is_empty() {
             return None;
@@ -133,11 +133,19 @@ impl HistoryManager {
         HistoryLevel::parse(key).ok()
     }
 
-    fn process_definition_id_for_instance(&self, process_instance_id: &str, session: &mut DbSession) -> Result<Option<String>, StorageError> {
-        if let Some(instance) = self.runtime_store.find_process_instance(process_instance_id, session)? {
+    fn process_definition_id_for_instance(
+        &self,
+        process_instance_id: &str,
+        session: &mut DbSession,
+    ) -> Result<Option<String>, StorageError> {
+        if let Some(instance) = self
+            .runtime_store
+            .find_process_instance(process_instance_id, session)?
+        {
             return Ok(Some(instance.process_definition_id));
         }
-        Ok(session.find::<HistoricProcessInstance>("historic_process_instances", process_instance_id)?
+        Ok(session
+            .find::<HistoricProcessInstance>("historic_process_instances", process_instance_id)?
             .map(|instance| instance.process_definition_id))
     }
 
@@ -243,7 +251,8 @@ impl HistoryManager {
             .process_instance_id
             .as_deref()
             .map(|pi| self.process_definition_id_for_instance(pi, session))
-            .transpose()?.flatten();
+            .transpose()?
+            .flatten();
         if !self.is_history_enabled_for_identity_link(pd_id.as_deref(), session) {
             return Ok(());
         }
@@ -251,12 +260,11 @@ impl HistoryManager {
         if link.process_instance_id.is_none() && link.task_id.is_none() {
             return Ok(());
         }
-        let historic =
-            crate::history::historic_entities::HistoricIdentityLink::from_runtime(link);
+        let historic = crate::history::historic_entities::HistoricIdentityLink::from_runtime(link);
         self.runtime_store
             .insert_historic_identity_link(&historic, session);
         Ok(())
-}
+    }
 
     /// Java `DefaultHistoryManager.recordIdentityLinkDeleted:414-417` —
     /// deletes the historic row with the same id when AUDIT history is on.
@@ -335,15 +343,13 @@ impl HistoryManager {
         }
         let time = Utc::now();
         if self.async_history_enabled {
-            self.buffer
-                .borrow_mut()
-                .push(HistoryJobPayload::TaskEvent {
-                    task_id: task_id.to_string(),
-                    action: action.to_string(),
-                    message: vec![assignee.to_string(), "assignee".to_string()],
-                    user_id: Some(assignee.to_string()),
-                    time,
-                });
+            self.buffer.borrow_mut().push(HistoryJobPayload::TaskEvent {
+                task_id: task_id.to_string(),
+                action: action.to_string(),
+                message: vec![assignee.to_string(), "assignee".to_string()],
+                user_id: Some(assignee.to_string()),
+                time,
+            });
             return;
         }
         self.runtime_store.insert_historic_task_event(
@@ -359,7 +365,10 @@ impl HistoryManager {
         );
     }
 
-    pub fn flush_history(&self, session: &mut DbSession) -> Result<(), crate::persistence::StorageError> {
+    pub fn flush_history(
+        &self,
+        session: &mut DbSession,
+    ) -> Result<(), crate::persistence::StorageError> {
         if !self.async_history_enabled {
             return Ok(());
         }
@@ -426,7 +435,7 @@ impl HistoryManager {
         )?;
         self.pending_jobs.borrow_mut().push(job_id);
         Ok(())
-}
+    }
 
     pub fn take_pending_jobs(&self) -> Vec<String> {
         self.pending_jobs.borrow_mut().drain(..).collect()
@@ -522,7 +531,7 @@ impl HistoryManager {
             );
         }
         Ok(())
-}
+    }
 
     pub fn record_activity_start(
         &self,
@@ -579,7 +588,7 @@ impl HistoryManager {
             ),
         );
         Ok(())
-}
+    }
 
     /// Ends the open historic activity for `(execution_id, activity_id)`.
     ///
@@ -603,7 +612,8 @@ impl HistoryManager {
             )
             .map(|a| a.process_instance_id)
             .map(|pi| self.process_definition_id_for_instance(&pi, session))
-            .transpose()?.flatten();
+            .transpose()?
+            .flatten();
         if !self.is_history_enabled_for_activity(pd_id.as_deref(), session) {
             return Ok(());
         }
@@ -649,9 +659,13 @@ impl HistoryManager {
             );
         }
         Ok(())
-}
+    }
 
-    pub fn record_task_created(&self, task: &Task, session: &mut DbSession) -> Result<(), StorageError> {
+    pub fn record_task_created(
+        &self,
+        task: &Task,
+        session: &mut DbSession,
+    ) -> Result<(), StorageError> {
         let process_instance = self
             .runtime_store
             .find_process_instance(&task.process_instance_id, session)?;
@@ -753,7 +767,12 @@ impl HistoryManager {
         // historic IL exists there (P90b pin).
         if !task.process_instance_id.is_empty() {
             if let Some(assignee) = assignee_for_identity_link.as_deref() {
-                self.record_task_assignment_identity_link(&task.id, "assignee", Some(assignee), session);
+                self.record_task_assignment_identity_link(
+                    &task.id,
+                    "assignee",
+                    Some(assignee),
+                    session,
+                );
             }
             if let Some(owner) = owner_for_identity_link.as_deref() {
                 self.record_task_assignment_identity_link(&task.id, "owner", Some(owner), session);
@@ -786,12 +805,16 @@ impl HistoryManager {
                 .insert_historic_task_event(event, session);
         }
         Ok(())
-}
+    }
 
     /// Records the mutable task projection after listeners, assignment, claim,
     /// or metadata updates. Async history must enqueue this snapshot instead of
     /// assuming that the TaskCreated payload has already been replayed.
-    pub fn record_task_updated(&self, task: &Task, session: &mut DbSession) -> Result<(), StorageError> {
+    pub fn record_task_updated(
+        &self,
+        task: &Task,
+        session: &mut DbSession,
+    ) -> Result<(), StorageError> {
         let process_definition_id = self
             .runtime_store
             .find_process_instance(&task.process_instance_id, session)?
@@ -840,7 +863,7 @@ impl HistoryManager {
             }
         }
         Ok(())
-}
+    }
 
     pub fn record_task_end(
         &self,
@@ -901,7 +924,7 @@ impl HistoryManager {
             }
         }
         Ok(())
-}
+    }
 
     pub fn record_task_suspension_state_change(
         &self,
@@ -924,7 +947,7 @@ impl HistoryManager {
             session,
         )?;
         Ok(())
-}
+    }
 
     fn record_task_log_entry(
         &self,
@@ -960,7 +983,7 @@ impl HistoryManager {
         self.runtime_store
             .insert_historic_task_log_entry(entry, session);
         Ok(())
-}
+    }
 
     #[allow(clippy::too_many_arguments)]
     pub fn record_variable_created(
@@ -1031,7 +1054,7 @@ impl HistoryManager {
             );
         }
         Ok(())
-}
+    }
 
     pub fn record_variable_updated(
         &self,
@@ -1048,8 +1071,8 @@ impl HistoryManager {
                 .runtime_store
                 .get_historic_variable_instance(id, session)
             {
-                let pd_id =
-                    self.process_definition_id_for_instance(&existing.process_instance_id, session)?;
+                let pd_id = self
+                    .process_definition_id_for_instance(&existing.process_instance_id, session)?;
                 if !self.is_history_enabled_for_variable(pd_id.as_deref(), session) {
                     return Ok(());
                 }
@@ -1100,7 +1123,7 @@ impl HistoryManager {
                 .insert_historic_variable_instance(&instance, session);
         }
         Ok(())
-}
+    }
 
     pub fn record_form_property(
         &self,
@@ -1146,7 +1169,7 @@ impl HistoryManager {
             session,
         );
         Ok(())
-}
+    }
 
     /// Deletes the historic variable instance row.
     ///
@@ -1158,7 +1181,11 @@ impl HistoryManager {
     /// VariableCreated/Updated but not Removed — same shape as Java's OSS
     /// history manager). Keeping this path synchronous when
     /// `async_history_enabled` is therefore aligned, not a gap.
-    pub fn record_variable_removed(&self, id: &str, session: &mut DbSession) -> Result<(), StorageError> {
+    pub fn record_variable_removed(
+        &self,
+        id: &str,
+        session: &mut DbSession,
+    ) -> Result<(), StorageError> {
         // Only delete when variable history is enabled (ACTIVITY+).
         // If no historic row exists, delete is a no-op.
         if let Some(existing) = self
@@ -1176,7 +1203,7 @@ impl HistoryManager {
         self.runtime_store
             .delete_historic_variable_instance(id, session);
         Ok(())
-}
+    }
 
     pub fn record_audit_event(
         &self,

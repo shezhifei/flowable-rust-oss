@@ -3,7 +3,6 @@
 // should abort loudly rather than be papered over. Production code under `src/` is
 // held to the lint; see the root Cargo.toml `[workspace.lints]` table.
 #![allow(clippy::unwrap_used)]
-
 #![allow(dead_code)]
 
 use flowable_content_service::{CreateContentItemRequest, FlowableContentService};
@@ -15,10 +14,9 @@ pub fn service(name: &str) -> FlowableContentService {
 }
 
 pub fn persistent_service(name: &str, path: &str) -> FlowableContentService {
-    FlowableContentService::new(Arc::new(ProcessEngine::new_with_db_path(
-        name.to_string(),
-        path,
-    ).unwrap()))
+    FlowableContentService::new(Arc::new(
+        ProcessEngine::new_with_db_path(name.to_string(), path).unwrap(),
+    ))
 }
 
 pub fn create_sample_items(service: &FlowableContentService) {

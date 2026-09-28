@@ -113,7 +113,12 @@ impl AsyncJobAcquisition {
 
     pub(crate) fn request_stop(&self) {
         self.is_active.store(false, Ordering::SeqCst);
-        if let Some(tx) = self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        if let Some(tx) = self
+            .stop_tx
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
             let _ = tx.try_send(());
         }
     }
@@ -431,7 +436,10 @@ mod tests {
 
     impl EngineEventListener for RejectingJobEventListener {
         fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
-            self.observed_jobs.lock().unwrap_or_else(|e| e.into_inner()).push(event.job().clone());
+            self.observed_jobs
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(event.job().clone());
             Err(FlowableError::ExecutionError(
                 "rejected job listener failed".to_string(),
             ))
@@ -522,8 +530,7 @@ mod tests {
         let job_id_refs: Vec<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         insert_async_jobs(&engine, time_source.as_ref(), &job_id_refs);
         let runtime_service = engine.get_runtime_service();
-        let our_ids: std::collections::HashSet<&str> =
-            job_ids.iter().map(|s| s.as_str()).collect();
+        let our_ids: std::collections::HashSet<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         let acquired: Vec<_> = runtime_service
             .acquire_async_jobs(300_000, 64)
             .into_iter()
@@ -582,7 +589,11 @@ mod tests {
             .into_iter()
             .filter(|j| j.timer_job_id == fatal_id)
             .collect();
-        assert_eq!(acquired.len(), 1, "expected to acquire our fatal-rejected job");
+        assert_eq!(
+            acquired.len(),
+            1,
+            "expected to acquire our fatal-rejected job"
+        );
         let locked_job = acquired[0].clone();
 
         let error = submit_acquired_jobs_with(&runtime_service, acquired, |_task| {
@@ -682,8 +693,7 @@ mod tests {
         let job_id_refs: Vec<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         insert_async_jobs(&engine, time_source.as_ref(), &job_id_refs);
         let runtime_service = engine.get_runtime_service();
-        let our_ids: std::collections::HashSet<&str> =
-            job_ids.iter().map(|s| s.as_str()).collect();
+        let our_ids: std::collections::HashSet<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         let acquired: Vec<_> = runtime_service
             .acquire_async_jobs(300_000, 64)
             .into_iter()
@@ -757,8 +767,7 @@ mod tests {
         let job_id_refs: Vec<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         insert_async_jobs(&engine, time_source.as_ref(), &job_id_refs);
         let runtime_service = engine.get_runtime_service();
-        let our_ids: std::collections::HashSet<&str> =
-            job_ids.iter().map(|s| s.as_str()).collect();
+        let our_ids: std::collections::HashSet<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         let acquired: Vec<_> = runtime_service
             .acquire_async_jobs(300_000, 64)
             .into_iter()

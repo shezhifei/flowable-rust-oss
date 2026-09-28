@@ -111,10 +111,9 @@ fn update_human_task_sets_fields_and_clears_with_explicit_null() {
 #[test]
 fn update_human_task_unknown_id_is_not_found() {
     let engine = CmmnEngine::new_in_memory().expect("engine");
-    let result =
-        engine
-            .runtime_service()
-            .update_human_task("missing", CmmnHumanTaskUpdate::default());
+    let result = engine
+        .runtime_service()
+        .update_human_task("missing", CmmnHumanTaskUpdate::default());
     assert!(
         matches!(result, Err(CmmnError::NotFound { .. })),
         "missing task → NotFound"

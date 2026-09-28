@@ -89,11 +89,13 @@ impl FlowableHistoryService {
     ) -> Result<Option<HistoricActivityInstance>, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
         let mut session = store.create_session()?;
-        Ok(store.get_historic_activity_instance_by_execution_and_activity(
-            execution_id,
-            activity_id,
-            &mut session,
-        ))
+        Ok(
+            store.get_historic_activity_instance_by_execution_and_activity(
+                execution_id,
+                activity_id,
+                &mut session,
+            ),
+        )
     }
 
     pub fn get_historic_task_instance(

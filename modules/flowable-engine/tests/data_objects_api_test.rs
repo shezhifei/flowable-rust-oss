@@ -47,10 +47,10 @@ fn test_get_data_objects_from_nested_subprocess() {
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
 
-    repo.deploy(
-        repo.create_deployment()
-            .add_string("data-objects.bpmn20.xml".to_string(), DATA_OBJECTS_XML.to_string()),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "data-objects.bpmn20.xml".to_string(),
+        DATA_OBJECTS_XML.to_string(),
+    ))
     .unwrap();
 
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();
@@ -67,14 +67,18 @@ fn test_get_data_objects_from_nested_subprocess() {
     assert_eq!(data_objects.len(), 2);
     assert!(data_objects.contains_key("VariableA"));
     assert!(data_objects.contains_key("VariableB"));
-    assert!(runtime
-        .get_data_object(pi.id.clone(), "VariableA".to_string())
-        .unwrap()
-        .is_some());
-    assert!(runtime
-        .get_data_object(pi.id.clone(), "VariableZ".to_string())
-        .unwrap()
-        .is_none());
+    assert!(
+        runtime
+            .get_data_object(pi.id.clone(), "VariableA".to_string())
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        runtime
+            .get_data_object(pi.id.clone(), "VariableZ".to_string())
+            .unwrap()
+            .is_none()
+    );
 
     // Local on process instance same set.
     let local = runtime.get_data_objects_local(pi.id.clone()).unwrap();
@@ -82,9 +86,7 @@ fn test_get_data_objects_from_nested_subprocess() {
 
     // Task execution can see A,B,C,D (nested scope visibility).
     let task_execution_id = tasks[0].execution_id.clone();
-    let from_task_exec = runtime
-        .get_data_objects(task_execution_id.clone())
-        .unwrap();
+    let from_task_exec = runtime.get_data_objects(task_execution_id.clone()).unwrap();
     assert!(
         from_task_exec.contains_key("VariableA")
             && from_task_exec.contains_key("VariableB")
@@ -97,25 +99,35 @@ fn test_get_data_objects_from_nested_subprocess() {
     // TaskService entry
     let task_dos = task_svc.get_data_objects(tasks[0].id.clone()).unwrap();
     assert_eq!(task_dos.len(), 4);
-    assert!(task_svc
-        .get_data_object(tasks[0].id.clone(), "VariableD".to_string())
-        .unwrap()
-        .is_some());
-    assert!(task_svc
-        .get_data_object(tasks[0].id.clone(), "VariableZ".to_string())
-        .unwrap()
-        .is_none());
+    assert!(
+        task_svc
+            .get_data_object(tasks[0].id.clone(), "VariableD".to_string())
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        task_svc
+            .get_data_object(tasks[0].id.clone(), "VariableZ".to_string())
+            .unwrap()
+            .is_none()
+    );
 
     // Null validation
-    assert!(runtime
-        .get_data_object("".to_string(), "VariableA".to_string())
-        .is_err());
-    assert!(runtime
-        .get_data_object(pi.id.clone(), "".to_string())
-        .is_err());
-    assert!(task_svc
-        .get_data_object("".to_string(), "VariableA".to_string())
-        .is_err());
+    assert!(
+        runtime
+            .get_data_object("".to_string(), "VariableA".to_string())
+            .is_err()
+    );
+    assert!(
+        runtime
+            .get_data_object(pi.id.clone(), "".to_string())
+            .is_err()
+    );
+    assert!(
+        task_svc
+            .get_data_object("".to_string(), "VariableA".to_string())
+            .is_err()
+    );
 }
 
 #[test]
@@ -125,10 +137,10 @@ fn test_get_data_objects_local_only_current_scope() {
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
 
-    repo.deploy(
-        repo.create_deployment()
-            .add_string("data-objects.bpmn20.xml".to_string(), DATA_OBJECTS_XML.to_string()),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "data-objects.bpmn20.xml".to_string(),
+        DATA_OBJECTS_XML.to_string(),
+    ))
     .unwrap();
 
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();

@@ -1393,9 +1393,6 @@ impl DbSession {
         Ok(result.rows_affected > 0)
     }
 
-
-
-
     /// Optimistic-locking property update: succeeds only when `REV_` matches.
     pub fn property_update_if_revision(
         &mut self,

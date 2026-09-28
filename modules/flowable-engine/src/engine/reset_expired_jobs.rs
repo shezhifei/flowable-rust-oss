@@ -134,7 +134,12 @@ impl ResetExpiredJobs {
 
     pub(crate) fn request_stop(&self) {
         self.is_active.store(false, Ordering::SeqCst);
-        if let Some(stop_tx) = self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        if let Some(stop_tx) = self
+            .stop_tx
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
             let _ = stop_tx.try_send(());
         }
     }
@@ -142,7 +147,10 @@ impl ResetExpiredJobs {
     pub(crate) fn await_stopped(&self) {
         let handle = {
             let mut handle_guard = self.handle.lock().unwrap_or_else(|e| e.into_inner());
-            self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()).take();
+            self.stop_tx
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take();
             handle_guard.take()
         };
         if let Some(handle) = handle {

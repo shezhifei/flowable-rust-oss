@@ -197,7 +197,9 @@ impl ActivityBehavior for TransactionActivityBehavior {
                             lock_owner: None,
                             lock_time: None,
                             lock_expiration_time: None,
-                            retries: crate::bpmn::timer_util::default_timer_retries(command_context),
+                            retries: crate::bpmn::timer_util::default_timer_retries(
+                                command_context,
+                            ),
                             error_message: None,
                             error_details: None,
                             category: resolve_job_category(

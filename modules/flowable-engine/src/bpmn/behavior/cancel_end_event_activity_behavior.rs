@@ -114,9 +114,12 @@ impl ActivityBehavior for CancelEndEventActivityBehavior {
         let scope = Self::resolve_cancel_scope(execution, command_context);
 
         let has_compensation = match (&execution.process_instance_id, &scope) {
-            (Some(pi_id), Some(scope)) => {
-                Self::compensate_transaction_scope(execution, command_context, pi_id.clone(), scope)?
-            }
+            (Some(pi_id), Some(scope)) => Self::compensate_transaction_scope(
+                execution,
+                command_context,
+                pi_id.clone(),
+                scope,
+            )?,
             (Some(pi_id), None) => {
                 // Fallback (no model / no enclosing transaction resolvable,
                 // e.g. behaviors driven outside a deployed definition):
@@ -359,11 +362,15 @@ impl CancelEndEventActivityBehavior {
             .agenda
             .plan_take_outgoing_sequence_flows_operation(boundary_exec);
         Ok(())
-}
+    }
 
     /// Legacy path: find the transaction's cancel boundary event via the
     /// direct parent execution and trigger it.
-    fn trigger_cancel_boundary(&self, execution: &Execution, command_context: &mut CommandContext) -> Result<(), crate::error::FlowableError> {
+    fn trigger_cancel_boundary(
+        &self,
+        execution: &Execution,
+        command_context: &mut CommandContext,
+    ) -> Result<(), crate::error::FlowableError> {
         let process_def_id = match execution.process_definition_id.as_ref() {
             Some(id) => id,
             None => return Ok(()),
@@ -435,7 +442,7 @@ impl CancelEndEventActivityBehavior {
                 .plan_take_outgoing_sequence_flows_operation(boundary_exec);
         }
         Ok(())
-}
+    }
 }
 
 /// Delete every execution inside the transaction scope except the cancel end

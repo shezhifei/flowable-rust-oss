@@ -23,9 +23,7 @@ fn model() -> CmmnModel {
 
 fn deploy_and_start(engine: &CmmnEngine, variables: Value) -> String {
     engine
-        .deploy(
-            CmmnDeploymentRequest::new("p103-deployment").with_resource("p103.cmmn", model()),
-        )
+        .deploy(CmmnDeploymentRequest::new("p103-deployment").with_resource("p103.cmmn", model()))
         .expect("deploy");
     let mut request = CmmnCaseInstanceStartRequest::new();
     request.variables = variables;
@@ -121,7 +119,11 @@ fn variables_match_conditions_matrix_via_public_api() {
 
     assert!(flowable_cmmn_engine::variables_match_conditions(
         &map,
-        &[cond("n", QueryVariableOperation::LessThanOrEquals, json!(42))]
+        &[cond(
+            "n",
+            QueryVariableOperation::LessThanOrEquals,
+            json!(42)
+        )]
     ));
     assert!(flowable_cmmn_engine::variables_match_conditions(
         &map,

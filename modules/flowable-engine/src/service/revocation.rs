@@ -192,12 +192,7 @@ impl TokenRevocationRegistry {
     }
 
     /// Admin revoke: revoke a token by jti with a default TTL of 1 hour.
-    pub fn admin_revoke(
-        &self,
-        jti: &str,
-        issuer: &str,
-        reason: &str,
-    ) -> Result<(), FlowableError> {
+    pub fn admin_revoke(&self, jti: &str, issuer: &str, reason: &str) -> Result<(), FlowableError> {
         self.revoke(jti, issuer, reason, Duration::from_secs(3600))
     }
 
@@ -290,7 +285,9 @@ mod tests {
 
         assert_eq!(registry.check("jti-2"), RevocationStatus::NotRevoked);
         assert_eq!(
-            registry.active_count().expect("in-memory count must succeed"),
+            registry
+                .active_count()
+                .expect("in-memory count must succeed"),
             0,
             "Expired entry should be lazily evicted on check"
         );
@@ -309,9 +306,13 @@ mod tests {
 
         std::thread::sleep(Duration::from_millis(10));
 
-        registry.evict_expired().expect("in-memory evict must succeed");
+        registry
+            .evict_expired()
+            .expect("in-memory evict must succeed");
         assert_eq!(
-            registry.active_count().expect("in-memory count must succeed"),
+            registry
+                .active_count()
+                .expect("in-memory count must succeed"),
             1
         );
     }
@@ -328,7 +329,11 @@ mod tests {
             RevocationStatus::Revoked { .. }
         ));
 
-        assert!(registry.remove("jti-5").expect("in-memory remove must succeed"));
+        assert!(
+            registry
+                .remove("jti-5")
+                .expect("in-memory remove must succeed")
+        );
         assert_eq!(registry.check("jti-5"), RevocationStatus::NotRevoked);
 
         assert!(

@@ -52,12 +52,13 @@ impl Command<()> for TriggerCaseTaskCmd {
             })?;
 
         let mapped = if self.map_from_case_task {
-            let process_definition_id = execution.process_definition_id.as_deref().ok_or_else(|| {
-                FlowableError::ExecutionError(format!(
-                    "Execution {} has no process definition for case task trigger",
-                    self.execution_id
-                ))
-            })?;
+            let process_definition_id =
+                execution.process_definition_id.as_deref().ok_or_else(|| {
+                    FlowableError::ExecutionError(format!(
+                        "Execution {} has no process definition for case task trigger",
+                        self.execution_id
+                    ))
+                })?;
             let activity_id = execution.activity_id.as_deref().ok_or_else(|| {
                 FlowableError::ExecutionError(format!(
                     "Execution {} has no activity id for case task trigger",

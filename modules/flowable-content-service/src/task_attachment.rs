@@ -58,10 +58,7 @@ impl CreateTaskAttachmentCmd {
 }
 
 impl Command<ContentItem> for CreateTaskAttachmentCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<ContentItem, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<ContentItem, FlowableError> {
         let input = &self.input;
 
         // REST validates name; engine guard mirrors createAttachment contract.
@@ -177,10 +174,7 @@ impl DeleteTaskAttachmentCmd {
 }
 
 impl Command<ContentItem> for DeleteTaskAttachmentCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<ContentItem, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<ContentItem, FlowableError> {
         // Runtime task must exist (REST also guards; keep for direct service use).
         let (store, session) = command_context.store_and_session();
         let _task = store.find_task(&self.task_id, session)?.ok_or_else(|| {
@@ -244,10 +238,7 @@ impl GetTaskAttachmentCmd {
 }
 
 impl Command<ContentItem> for GetTaskAttachmentCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<ContentItem, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<ContentItem, FlowableError> {
         let (store, session) = command_context.store_and_session();
         // Historic visibility: only require historic task exists is done at REST;
         // here we resolve the attachment by id + task scope.

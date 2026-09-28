@@ -16,7 +16,8 @@ fn boundary_timer_job_category_is_populated_from_boundary_event() {
         Utc.with_ymd_and_hms(2026, 4, 18, 11, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("boundary-timer-job-category".to_string(), time_source).unwrap();
+        ProcessEngine::with_time_source("boundary-timer-job-category".to_string(), time_source)
+            .unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 
@@ -91,7 +92,8 @@ fn interrupting_user_task_boundary_timer_worker_cleans_host_and_preserves_unrela
     let engine = ProcessEngine::with_time_source(
         "boundary-timer-worker-contract".to_string(),
         time_source.clone(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();

@@ -211,7 +211,8 @@ mod tests {
         let mut session = store.create_session().unwrap();
         assert!(
             !store
-                .find_process_instance("process-1", &mut session).expect("process instance query")
+                .find_process_instance("process-1", &mut session)
+                .expect("process instance query")
                 .expect("process should remain")
                 .is_suspended
         );
@@ -241,7 +242,7 @@ mod tests {
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         }
     }
 

@@ -42,8 +42,7 @@ pub const ELEMENT_EVENT_CORRELATION_PARAMETER: &str = "eventCorrelationParameter
 /// Java `BpmnXMLConstants.ELEMENT_TRIGGER_EVENT_CORRELATION_PARAMETER`
 /// (send-event triggerable receive-side correlation;
 /// `SendEventTaskActivityBehavior.java:140`).
-pub const ELEMENT_TRIGGER_EVENT_CORRELATION_PARAMETER: &str =
-    "triggerEventCorrelationParameter";
+pub const ELEMENT_TRIGGER_EVENT_CORRELATION_PARAMETER: &str = "triggerEventCorrelationParameter";
 /// Java `BpmnXMLConstants.ELEMENT_EVENT_TYPE`.
 pub const ELEMENT_EVENT_TYPE: &str = "eventType";
 /// Java `BpmnXMLConstants.START_EVENT_CORRELATION_CONFIGURATION`.
@@ -88,9 +87,7 @@ pub fn generate_correlation_key(params: &BTreeMap<String, Option<String>>) -> St
 /// any key value). Java has no cap on n and we stay faithful; the only guard is
 /// an explicit panic when 2^n overflows `usize` (n >= 64), which Java would
 /// otherwise turn into an OOM-sized `HashSet`.
-pub fn generate_event_correlation_keys(
-    params: &BTreeMap<String, Option<String>>,
-) -> Vec<String> {
+pub fn generate_event_correlation_keys(params: &BTreeMap<String, Option<String>>) -> Vec<String> {
     if params.is_empty() {
         return Vec::new();
     }
@@ -313,8 +310,7 @@ pub fn trigger_event_correlation_key_from_base_element(
 pub fn is_store_as_unique_reference_id(
     extensions: &IndexMap<String, Vec<ExtensionElement>>,
 ) -> bool {
-    extension_element_text(extensions, START_EVENT_CORRELATION_CONFIGURATION)
-        .as_deref()
+    extension_element_text(extensions, START_EVENT_CORRELATION_CONFIGURATION).as_deref()
         == Some(START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID)
 }
 

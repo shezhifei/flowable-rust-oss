@@ -106,10 +106,11 @@ pub(crate) fn register_error_boundaries_for_execution(
             continue;
         };
         // Boundary correlation key (BoundaryEventRegistryEventActivityBehavior.java:68).
-        let configuration = crate::bpmn::behavior::boundary_event_activity_behavior::resolve_boundary_configuration(
-            &boundary,
-            Some(execution),
-        );
+        let configuration =
+            crate::bpmn::behavior::boundary_event_activity_behavior::resolve_boundary_configuration(
+                &boundary,
+                Some(execution),
+            );
         crate::bpmn::behavior::boundary_event_activity_behavior::insert_boundary_event_state_with_waiting(
             command_context,
             RuntimeBoundaryEventState {
@@ -472,11 +473,13 @@ fn end_process_instance_for_cross_call_propagation(
         command_context
             .runtime_store
             .update_process_instance(&pi, &mut command_context.session);
-        command_context.history_manager.record_process_instance_end(
-            process_instance_id,
-            Some(delete_reason),
-            &mut command_context.session,
-        )?;
+        command_context
+            .history_manager
+            .record_process_instance_end(
+                process_instance_id,
+                Some(delete_reason),
+                &mut command_context.session,
+            )?;
         command_context.history_manager.record_audit_event(
             "process-instance-end",
             Some(process_instance_id),

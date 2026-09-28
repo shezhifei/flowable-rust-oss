@@ -89,10 +89,7 @@ impl CompleteTaskWithFormCmd {
 }
 
 impl Command<FormInstance> for CompleteTaskWithFormCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<FormInstance, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<FormInstance, FlowableError> {
         let input = &self.input;
 
         // Java NeedsActiveTaskCmd: runtime task + not suspended.

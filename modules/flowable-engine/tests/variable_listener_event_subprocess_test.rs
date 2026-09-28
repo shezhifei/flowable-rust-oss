@@ -81,12 +81,10 @@ fn test_interrupting_variable_listener_event_subprocess() {
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
 
-    repo.deploy(
-        repo.create_deployment().add_string(
-            "vl-esp.bpmn20.xml".to_string(),
-            INTERRUPTING_VL_XML.to_string(),
-        ),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "vl-esp.bpmn20.xml".to_string(),
+        INTERRUPTING_VL_XML.to_string(),
+    ))
     .unwrap();
 
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();

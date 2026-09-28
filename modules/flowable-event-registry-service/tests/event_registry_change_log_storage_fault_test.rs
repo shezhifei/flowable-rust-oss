@@ -163,7 +163,11 @@ fn change_record_insert_failure_on_delete_keeps_deployment() {
     // The failed delete must not have removed the deployment or definitions.
     assert!(service.get_deployment(&deployment.id).is_ok());
     assert_eq!(
-        service.create_channel_definition_query().list().unwrap().len(),
+        service
+            .create_channel_definition_query()
+            .list()
+            .unwrap()
+            .len(),
         1
     );
 }

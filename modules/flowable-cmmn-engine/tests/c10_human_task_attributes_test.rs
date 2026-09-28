@@ -25,7 +25,10 @@ fn deploy_xml(engine: &CmmnEngine, xml: &str) {
         flowable_cmmn_converter::parse_cmmn_definitions(xml).expect("parse cmmn definitions");
     let model = CmmnModel::from(definitions);
     engine
-        .deploy(CmmnDeploymentRequest::new("c10-human-task-attributes").with_resource("c10.cmmn", model))
+        .deploy(
+            CmmnDeploymentRequest::new("c10-human-task-attributes")
+                .with_resource("c10.cmmn", model),
+        )
         .expect("deployment");
 }
 
@@ -128,10 +131,7 @@ fn candidate_users_and_groups_become_humantask_identity_links() {
     groups.sort();
 
     assert_eq!(users, vec!["alice".to_string(), "bob".to_string()]);
-    assert_eq!(
-        groups,
-        vec!["auditors".to_string(), "managers".to_string()]
-    );
+    assert_eq!(groups, vec!["auditors".to_string(), "managers".to_string()]);
 }
 
 /// A human task without flowable extension attributes still deploys and its

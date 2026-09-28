@@ -30,9 +30,7 @@ pub fn generate_correlation_key(params: &BTreeMap<String, Option<String>>) -> St
 /// Power set of correlation parameter instances minus the empty set.
 ///
 /// Java `BaseEventRegistryEventConsumer.generateCorrelationKeys` (:76-131).
-pub fn generate_event_correlation_keys(
-    params: &BTreeMap<String, Option<String>>,
-) -> Vec<String> {
+pub fn generate_event_correlation_keys(params: &BTreeMap<String, Option<String>>) -> Vec<String> {
     if params.is_empty() {
         return Vec::new();
     }

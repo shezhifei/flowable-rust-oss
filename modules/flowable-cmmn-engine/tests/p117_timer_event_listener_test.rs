@@ -59,12 +59,17 @@ fn timer_case_model(case_key: &str, timer_expression: &str) -> CmmnModel {
     )])
 }
 
-fn deploy_and_start(engine: &CmmnEngine, deployment_key: &str, case_key: &str, expression: &str) -> String {
+fn deploy_and_start(
+    engine: &CmmnEngine,
+    deployment_key: &str,
+    case_key: &str,
+    expression: &str,
+) -> String {
     engine
-        .deploy(
-            CmmnDeploymentRequest::new(deployment_key)
-                .with_resource(format!("{deployment_key}.cmmn"), timer_case_model(case_key, expression)),
-        )
+        .deploy(CmmnDeploymentRequest::new(deployment_key).with_resource(
+            format!("{deployment_key}.cmmn"),
+            timer_case_model(case_key, expression),
+        ))
         .expect("deployment");
     engine
         .start_case_instance_by_key(case_key, CmmnCaseInstanceStartRequest::new())
@@ -73,7 +78,10 @@ fn deploy_and_start(engine: &CmmnEngine, deployment_key: &str, case_key: &str, e
 }
 
 fn timer_jobs(engine: &CmmnEngine, case_id: Option<&str>) -> Vec<CmmnJob> {
-    let query = engine.management_service().create_job_query().family(CmmnJobFamily::Timer);
+    let query = engine
+        .management_service()
+        .create_job_query()
+        .family(CmmnJobFamily::Timer);
     if let Some(case_id) = case_id {
         // CmmnManagementJobQuery has no scope filter; filter in memory.
         let jobs = query.list().expect("timer jobs");
@@ -128,7 +136,10 @@ fn duration_timer_creates_job_and_fires_task() {
     engine.execute_job(&job.id).expect("execute timer job");
 
     let tasks = active_tasks(&engine, &case_id);
-    assert!(tasks.contains(&"A".to_string()), "task A should be active, got {tasks:?}");
+    assert!(
+        tasks.contains(&"A".to_string()),
+        "task A should be active, got {tasks:?}"
+    );
 
     // The fired non-repeating job is deleted.
     assert!(timer_jobs(&engine, Some(&case_id)).is_empty());
@@ -146,11 +157,17 @@ fn date_timer_creates_job_at_absolute_date() {
     let jobs = timer_jobs(&engine, Some(&case_id));
     assert_eq!(jobs.len(), 1);
     let due = jobs[0].due_date.expect("due date");
-    assert!((due - target).num_seconds().abs() < 10, "due {due} should be ~{target}");
+    assert!(
+        (due - target).num_seconds().abs() < 10,
+        "due {due} should be ~{target}"
+    );
 
     engine.execute_job(&jobs[0].id).expect("execute timer job");
     let tasks = active_tasks(&engine, &case_id);
-    assert!(tasks.contains(&"A".to_string()), "task A should be active, got {tasks:?}");
+    assert!(
+        tasks.contains(&"A".to_string()),
+        "task A should be active, got {tasks:?}"
+    );
 }
 
 #[test]
@@ -165,15 +182,22 @@ fn repeating_timer_reschedules_after_fire() {
     let job = &jobs[0];
     // The prepared repeat expression carries an injected start anchor
     // (R/<start>/PT20S, TimerEventListenerActivityBehaviour.java:237-242).
-    let config: serde_json::Value = serde_json::from_str(job.configuration.as_deref().unwrap_or("{}")).expect("config");
-    let repeat = config.get("repeat").and_then(|v| v.as_str()).expect("repeat config");
+    let config: serde_json::Value =
+        serde_json::from_str(job.configuration.as_deref().unwrap_or("{}")).expect("config");
+    let repeat = config
+        .get("repeat")
+        .and_then(|v| v.as_str())
+        .expect("repeat config");
     assert!(repeat.starts_with("R/"), "prepared repeat {repeat}");
 
     // Advance the clock is not supported by the CMMN engine; firing manually still
     // reschedules the next cycle job.
     engine.execute_job(&job.id).expect("execute timer job");
     let tasks = active_tasks(&engine, &case_id);
-    assert!(tasks.contains(&"A".to_string()), "task A should be active, got {tasks:?}");
+    assert!(
+        tasks.contains(&"A".to_string()),
+        "task A should be active, got {tasks:?}"
+    );
 
     let next_jobs = timer_jobs(&engine, Some(&case_id));
     assert_eq!(next_jobs.len(), 1, "repeat reschedules the next cycle");
@@ -181,7 +205,10 @@ fn repeating_timer_reschedules_after_fire() {
     // The CMMN engine has no settable clock, so firing immediately after scheduling
     // lands on the same 20s boundary (Java tests advance the clock between fires).
     assert!(
-        (next_jobs[0].due_date.unwrap() - job.due_date.unwrap()).num_seconds().abs() < 5,
+        (next_jobs[0].due_date.unwrap() - job.due_date.unwrap())
+            .num_seconds()
+            .abs()
+            < 5,
         "next due should be ~the 20s boundary"
     );
 }
@@ -228,8 +255,7 @@ fn available_condition_gates_timer_job_creation() {
     )]);
     engine
         .deploy(
-            CmmnDeploymentRequest::new("p117-available-deploy")
-                .with_resource("case.cmmn", model),
+            CmmnDeploymentRequest::new("p117-available-deploy").with_resource("case.cmmn", model),
         )
         .expect("deployment");
 
@@ -240,19 +266,29 @@ fn available_condition_gates_timer_job_creation() {
         )
         .expect("case instance")
         .id;
-    assert!(timer_jobs(&engine, Some(&case_id)).is_empty(), "gated listener stays unavailable");
+    assert!(
+        timer_jobs(&engine, Some(&case_id)).is_empty(),
+        "gated listener stays unavailable"
+    );
 
     engine
         .runtime_service()
         .set_case_instance_variables(&case_id, vec![("timerVar".to_string(), json!(true))])
         .expect("set variable");
-    assert_eq!(timer_jobs(&engine, Some(&case_id)).len(), 1, "timer job appears when available");
+    assert_eq!(
+        timer_jobs(&engine, Some(&case_id)).len(),
+        1,
+        "timer job appears when available"
+    );
 
     engine
         .runtime_service()
         .set_case_instance_variables(&case_id, vec![("timerVar".to_string(), json!(false))])
         .expect("set variable");
-    assert!(timer_jobs(&engine, Some(&case_id)).is_empty(), "dismissed listener drops its job");
+    assert!(
+        timer_jobs(&engine, Some(&case_id)).is_empty(),
+        "dismissed listener drops its job"
+    );
 }
 
 #[test]
@@ -263,7 +299,10 @@ fn terminating_case_deletes_timer_job() {
     let case_id = deploy_and_start(&engine, "p117-cleanup", "p117Cleanup", "PT1H");
     assert_eq!(timer_jobs(&engine, Some(&case_id)).len(), 1);
 
-    engine.runtime_service().terminate_case_instance(&case_id).expect("terminate case");
+    engine
+        .runtime_service()
+        .terminate_case_instance(&case_id)
+        .expect("terminate case");
     assert!(
         timer_jobs(&engine, Some(&case_id)).is_empty(),
         "case termination removes the timer job"
@@ -282,7 +321,10 @@ fn run_due_timer_jobs_fires_due_jobs() {
     // Pull the due date into the past, then let the scan fire it.
     let mut job = jobs[0].clone();
     job.due_date = Some(chrono::Utc::now() - chrono::Duration::seconds(1));
-    engine.management_service().update_job(&job).expect("backdate job");
+    engine
+        .management_service()
+        .update_job(&job)
+        .expect("backdate job");
 
     let triggered = engine.run_due_timer_jobs().expect("run due timer jobs");
     assert_eq!(triggered, vec![job.id]);

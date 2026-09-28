@@ -205,18 +205,27 @@ impl TriggerEventSubprocessByEventCmd {
         &self,
         command_context: &mut CommandContext,
     ) -> Result<EventSubprocessTriggerResult, crate::error::FlowableError> {
-        let subscriptions = command_context.runtime_store
+        let subscriptions = command_context
+            .runtime_store
             .find_event_subprocess_event_subscriptions_by_process_instance_id(
-                &self.process_instance_id, &mut command_context.session);
+                &self.process_instance_id,
+                &mut command_context.session,
+            );
         let mut matching_subs = Vec::new();
         for sub in subscriptions {
-            if sub.event_kind != self.event_kind { continue; }
+            if sub.event_kind != self.event_kind {
+                continue;
+            }
             let matches = if self.event_kind == EventSubscriptionKind::Escalation {
                 escalation_refs_match(command_context, &sub, &self.event_ref)?
             } else if self.event_kind == EventSubscriptionKind::Error {
                 error_refs_match(command_context, &sub, &self.event_ref)?
-            } else { sub.event_ref == self.event_ref };
-            if matches { matching_subs.push(sub); }
+            } else {
+                sub.event_ref == self.event_ref
+            };
+            if matches {
+                matching_subs.push(sub);
+            }
         }
 
         let mut triggered_ids = Vec::new();
@@ -333,12 +342,23 @@ fn escalation_refs_match(
         return Ok(true);
     }
 
-    let process_definition_id = match subscription.scope_execution_id.as_deref()
-        .and_then(|id| command_context.runtime_store.find_execution(id, &mut command_context.session))
-        .and_then(|execution| execution.process_definition_id) {
+    let process_definition_id = match subscription
+        .scope_execution_id
+        .as_deref()
+        .and_then(|id| {
+            command_context
+                .runtime_store
+                .find_execution(id, &mut command_context.session)
+        })
+        .and_then(|execution| execution.process_definition_id)
+    {
         Some(id) => Some(id),
-        None => command_context.runtime_store.find_process_instance(
-            &subscription.process_instance_id, &mut command_context.session)?
+        None => command_context
+            .runtime_store
+            .find_process_instance(
+                &subscription.process_instance_id,
+                &mut command_context.session,
+            )?
             .map(|instance| instance.process_definition_id),
     };
 
@@ -364,12 +384,23 @@ fn escalation_refs_match_exact(
         return Ok(true);
     }
 
-    let process_definition_id = match subscription.scope_execution_id.as_deref()
-        .and_then(|id| command_context.runtime_store.find_execution(id, &mut command_context.session))
-        .and_then(|execution| execution.process_definition_id) {
+    let process_definition_id = match subscription
+        .scope_execution_id
+        .as_deref()
+        .and_then(|id| {
+            command_context
+                .runtime_store
+                .find_execution(id, &mut command_context.session)
+        })
+        .and_then(|execution| execution.process_definition_id)
+    {
         Some(id) => Some(id),
-        None => command_context.runtime_store.find_process_instance(
-            &subscription.process_instance_id, &mut command_context.session)?
+        None => command_context
+            .runtime_store
+            .find_process_instance(
+                &subscription.process_instance_id,
+                &mut command_context.session,
+            )?
             .map(|instance| instance.process_definition_id),
     };
 
@@ -404,12 +435,23 @@ fn error_model_for_subscription(
     command_context: &mut CommandContext,
     subscription: &EventSubprocessEventSubscription,
 ) -> Result<Option<std::sync::Arc<BpmnModel>>, crate::error::FlowableError> {
-    let process_definition_id = match subscription.scope_execution_id.as_deref()
-        .and_then(|id| command_context.runtime_store.find_execution(id, &mut command_context.session))
-        .and_then(|execution| execution.process_definition_id) {
+    let process_definition_id = match subscription
+        .scope_execution_id
+        .as_deref()
+        .and_then(|id| {
+            command_context
+                .runtime_store
+                .find_execution(id, &mut command_context.session)
+        })
+        .and_then(|execution| execution.process_definition_id)
+    {
         Some(id) => Some(id),
-        None => command_context.runtime_store.find_process_instance(
-            &subscription.process_instance_id, &mut command_context.session)?
+        None => command_context
+            .runtime_store
+            .find_process_instance(
+                &subscription.process_instance_id,
+                &mut command_context.session,
+            )?
             .map(|instance| instance.process_definition_id),
     };
     Ok(process_definition_id.and_then(|id| command_context.deployment_manager.get_bpmn_model(&id)))
@@ -431,7 +473,8 @@ fn error_refs_match(
     let model = error_model_for_subscription(command_context, subscription)?;
     let model = model.as_deref();
 
-    Ok(normalize_error_ref(model, &subscription.event_ref) == normalize_error_ref(model, thrown_ref))
+    Ok(normalize_error_ref(model, &subscription.event_ref)
+        == normalize_error_ref(model, thrown_ref))
 }
 
 fn error_refs_match_exact(
@@ -450,7 +493,8 @@ fn error_refs_match_exact(
     let model = error_model_for_subscription(command_context, subscription)?;
     let model = model.as_deref();
 
-    Ok(normalize_error_ref(model, &subscription.event_ref) == normalize_error_ref(model, thrown_ref))
+    Ok(normalize_error_ref(model, &subscription.event_ref)
+        == normalize_error_ref(model, thrown_ref))
 }
 
 fn execution_ancestry(
@@ -483,15 +527,24 @@ fn select_nearest_event_subprocess_subscription(
     mut subscriptions: Vec<EventSubprocessEventSubscription>,
     source_execution_id: Option<&str>,
     thrown_ref: &str,
-    exact_match: fn(&mut CommandContext, &EventSubprocessEventSubscription, &str) -> Result<bool, crate::error::FlowableError>,
+    exact_match: fn(
+        &mut CommandContext,
+        &EventSubprocessEventSubscription,
+        &str,
+    ) -> Result<bool, crate::error::FlowableError>,
     accept_nearest_non_exact: bool,
 ) -> Result<Option<EventSubprocessEventSubscription>, crate::error::FlowableError> {
     if let Some(source_execution_id) = source_execution_id {
         let ancestry = execution_ancestry(command_context, source_execution_id);
         for execution_id in ancestry {
             for (position, subscription) in subscriptions.iter().enumerate() {
-                if subscription.scope_execution_id.as_deref().unwrap_or(&subscription.process_instance_id) == execution_id
-                    && exact_match(command_context, subscription, thrown_ref)? {
+                if subscription
+                    .scope_execution_id
+                    .as_deref()
+                    .unwrap_or(&subscription.process_instance_id)
+                    == execution_id
+                    && exact_match(command_context, subscription, thrown_ref)?
+                {
                     return Ok(Some(subscriptions.remove(position)));
                 }
             }

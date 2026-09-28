@@ -13,7 +13,7 @@ use flowable_dmn_model::{
     Decision, DecisionRule, DecisionTable, DmnDefinition, HitPolicy, InputClause,
     LiteralExpression, OutputClause, UnaryTests,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn deploy(model: DmnModel) -> DmnEngine {
     let engine = DmnEngine::new_in_memory().expect("engine");
@@ -24,7 +24,11 @@ fn deploy(model: DmnModel) -> DmnEngine {
     engine
 }
 
-fn execute(engine: &DmnEngine, key: &str, vars: Value) -> Result<flowable_dmn_engine::DmnExecutionResult, DmnError> {
+fn execute(
+    engine: &DmnEngine,
+    key: &str,
+    vars: Value,
+) -> Result<flowable_dmn_engine::DmnExecutionResult, DmnError> {
     engine
         .decision_service()
         .execute_by_key(key, DmnExecutionRequest::new(vars))
@@ -203,7 +207,8 @@ fn evaluation_failure_unknown_function_fails_execution() {
     let err = execute(&engine, "badFn", json!({"x": 1})).expect_err("should fail");
     assert!(matches!(err, DmnError::Execution { .. }), "{err}");
     assert!(
-        err.to_string().contains("failed to evaluate output expression")
+        err.to_string()
+            .contains("failed to evaluate output expression")
             || err.to_string().contains("unknown")
             || err.to_string().contains("notARealFunction")
             || err.to_string().contains("Unsupported")
@@ -291,27 +296,33 @@ fn coerce_after_eval_incompatible_type_errors() {
 /// COLLECT + SUM over expression outputs.
 #[test]
 fn collect_sum_aggregates_expression_outputs() {
-    let model = DmnModel::new(vec![DmnDecision::new(
-        "collect-decision",
-        "collectExpr",
-        "Collect expressions",
-        DmnHitPolicy::Collect,
-        vec![DmnInputClause::new("in-1", "qty")],
-        vec![DmnOutputClause::new("out-1", "score").with_type_ref("number")],
-        vec![
-            DmnRule::new(
-                "rule-1",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::GreaterThanOrEqual(json!(1)))],
-                vec![DmnRuleOutputEntry::from_expression("qty * 2")],
-            ),
-            DmnRule::new(
-                "rule-2",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::GreaterThanOrEqual(json!(1)))],
-                vec![DmnRuleOutputEntry::from_expression("qty + 5")],
-            ),
-        ],
-    )
-    .with_collect_operator(CollectOperator::Sum)]);
+    let model = DmnModel::new(vec![
+        DmnDecision::new(
+            "collect-decision",
+            "collectExpr",
+            "Collect expressions",
+            DmnHitPolicy::Collect,
+            vec![DmnInputClause::new("in-1", "qty")],
+            vec![DmnOutputClause::new("out-1", "score").with_type_ref("number")],
+            vec![
+                DmnRule::new(
+                    "rule-1",
+                    vec![DmnRuleInputEntry::new(DmnUnaryTest::GreaterThanOrEqual(
+                        json!(1),
+                    ))],
+                    vec![DmnRuleOutputEntry::from_expression("qty * 2")],
+                ),
+                DmnRule::new(
+                    "rule-2",
+                    vec![DmnRuleInputEntry::new(DmnUnaryTest::GreaterThanOrEqual(
+                        json!(1),
+                    ))],
+                    vec![DmnRuleOutputEntry::from_expression("qty + 5")],
+                ),
+            ],
+        )
+        .with_collect_operator(CollectOperator::Sum),
+    ]);
     let engine = deploy(model);
     // qty=3 → rule1: 6, rule2: 8 → sum 14
     let result = execute(&engine, "collectExpr", json!({"qty": 3})).expect("exec");
@@ -423,8 +434,7 @@ fn legacy_json_without_expression_field_deserializes() {
         "id": null,
         "value": "legacy-route"
     }"#;
-    let entry: DmnRuleOutputEntry =
-        serde_json::from_str(legacy).expect("legacy JSON deserializes");
+    let entry: DmnRuleOutputEntry = serde_json::from_str(legacy).expect("legacy JSON deserializes");
     assert_eq!(entry.expression, "");
     assert_eq!(entry.value, json!("legacy-route"));
 

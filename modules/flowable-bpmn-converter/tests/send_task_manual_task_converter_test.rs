@@ -37,13 +37,22 @@ fn send_task_type_mail_parses_into_send_task_variant() {
         "flowable:type must populate SendTask.service_task.task_type"
     );
     assert_eq!(
-        task.service_task.task.activity.flow_node.flow_element.name.as_deref(),
+        task.service_task
+            .task
+            .activity
+            .flow_node
+            .flow_element
+            .name
+            .as_deref(),
         Some("Notify Ops")
     );
     let fields = &task.service_task.task.activity.field_extensions;
     assert_eq!(fields.len(), 3, "{fields:?}");
     assert_eq!(fields[0].field_name.as_deref(), Some("to"));
-    assert_eq!(fields[0].string_value.as_deref(), Some("ops@example.flowable.local"));
+    assert_eq!(
+        fields[0].string_value.as_deref(),
+        Some("ops@example.flowable.local")
+    );
     assert_eq!(fields[1].field_name.as_deref(), Some("subject"));
     assert_eq!(fields[2].field_name.as_deref(), Some("text"));
     assert_eq!(fields[2].expression.as_deref(), Some("${bodyText}"));

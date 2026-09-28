@@ -60,8 +60,12 @@ fn test_timer_cluster_membership_and_leadership() {
     let timeout_ms = 300_000;
 
     // Both attempt to acquire timers
-    worker1.acquire_due_timers(timeout_ms).expect("timer acquisition must read storage");
-    worker2.acquire_due_timers(timeout_ms).expect("timer acquisition must read storage");
+    worker1
+        .acquire_due_timers(timeout_ms)
+        .expect("timer acquisition must read storage");
+    worker2
+        .acquire_due_timers(timeout_ms)
+        .expect("timer acquisition must read storage");
 
     let runtime_store = engine1.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();

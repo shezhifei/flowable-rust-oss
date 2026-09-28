@@ -6,8 +6,8 @@
 
 use flowable_dmn_engine::{
     DmnDecision, DmnDeploymentRequest, DmnEngine, DmnExecutionRequest, DmnHitPolicy,
-    DmnInputClause, DmnModel, DmnOutputClause, DmnRule, DmnRuleInputEntry,
-    DmnRuleOutputEntry, DmnUnaryTest,
+    DmnInputClause, DmnModel, DmnOutputClause, DmnRule, DmnRuleInputEntry, DmnRuleOutputEntry,
+    DmnUnaryTest,
 };
 use serde_json::json;
 
@@ -22,14 +22,18 @@ fn audit_model() -> DmnModel {
         vec![
             DmnRule::new(
                 "gold-rule",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::Equals(json!("gold")))
-                    .with_id("gold-condition")],
+                vec![
+                    DmnRuleInputEntry::new(DmnUnaryTest::Equals(json!("gold")))
+                        .with_id("gold-condition"),
+                ],
                 vec![DmnRuleOutputEntry::new(json!("priority")).with_id("gold-conclusion")],
             ),
             DmnRule::new(
                 "standard-rule",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::Equals(json!("standard")))
-                    .with_id("standard-condition")],
+                vec![
+                    DmnRuleInputEntry::new(DmnUnaryTest::Equals(json!("standard")))
+                        .with_id("standard-condition"),
+                ],
                 vec![DmnRuleOutputEntry::new(json!("normal")).with_id("standard-conclusion")],
             ),
         ],
@@ -41,8 +45,7 @@ fn runtime_and_history_expose_rule_condition_and_conclusion_results() {
     let engine = DmnEngine::new_in_memory().unwrap();
     engine
         .deploy(
-            DmnDeploymentRequest::new("P63 audit")
-                .with_resource("p63-audit.dmn", audit_model()),
+            DmnDeploymentRequest::new("P63 audit").with_resource("p63-audit.dmn", audit_model()),
         )
         .unwrap();
 

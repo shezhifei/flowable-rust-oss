@@ -7,7 +7,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
 use crate::ssrf_guard::{
-    safe_url_display, validate_outbound_url, OutboundUrlGuardConfig, OutboundUrlGuardError,
+    OutboundUrlGuardConfig, OutboundUrlGuardError, safe_url_display, validate_outbound_url,
 };
 use crate::{
     HttpExchange, HttpRequest, HttpResponse, HttpRuntime, HttpRuntimeMode, HttpServiceError,
@@ -500,7 +500,10 @@ impl RealHttpClient {
 
     /// Check circuit breaker status
     fn check_circuit_breaker(&self, host: &str) -> Result<(), HttpServiceError> {
-        let mut cb_lock = self.circuit_breakers.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cb_lock = self
+            .circuit_breakers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let state = cb_lock
             .entry(host.to_string())
             .or_insert(CircuitBreakerState::Closed { failure_count: 0 });
@@ -524,7 +527,10 @@ impl RealHttpClient {
 
     /// Record request outcome to circuit breaker
     fn record_circuit_breaker(&self, host: &str, success: bool) {
-        let mut cb_lock = self.circuit_breakers.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cb_lock = self
+            .circuit_breakers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let state = cb_lock
             .entry(host.to_string())
             .or_insert(CircuitBreakerState::Closed { failure_count: 0 });
@@ -939,7 +945,9 @@ impl HttpRuntime for RealHttpClient {
                             })
                             .collect();
                         let text = response.text().await.map_err(|error| HttpServiceError {
-                            message: format!("Failed to read response body from {safe_url}: {error}"),
+                            message: format!(
+                                "Failed to read response body from {safe_url}: {error}"
+                            ),
                             status_code: Some(status),
                             response_body_excerpt: None,
                             request_url: Some(safe_url.clone()),

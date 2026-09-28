@@ -77,7 +77,9 @@ fn test_timer_lease_renewal_prevents_false_stale_recovery() {
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
 
     // Acquire and lock the job (simulate first worker)
-    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
+    let works = worker
+        .acquire_due_timers(300_000)
+        .expect("timer acquisition must read storage");
     assert_eq!(works.len(), 1);
 
     let job_id = match &works[0] {
@@ -151,7 +153,8 @@ fn test_timer_lease_renewal_prevents_false_stale_recovery() {
 
     let reset = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(10).unwrap();
+        .reset_expired_timer_job_locks(10)
+        .unwrap();
     assert_eq!(reset, 1, "reset must clear the expired renewed lease");
 
     let mut session = runtime_store.create_session().unwrap();
@@ -241,7 +244,9 @@ fn test_manual_lease_renewal_extends_lock_multiple_times() {
     mock_time.advance_time(300_001);
 
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
+    let works = worker
+        .acquire_due_timers(300_000)
+        .expect("timer acquisition must read storage");
     assert_eq!(works.len(), 1);
 
     let job_id = match &works[0] {
@@ -306,7 +311,8 @@ fn test_manual_lease_renewal_extends_lock_multiple_times() {
 
     let reset = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(10).unwrap();
+        .reset_expired_timer_job_locks(10)
+        .unwrap();
     assert_eq!(reset, 1);
 
     let mut session = runtime_store.create_session().unwrap();
@@ -334,7 +340,8 @@ fn test_renewal_after_completion_is_noop() {
     let engine = ProcessEngine::with_time_source(
         "renewal_after_complete_engine".to_string(),
         Arc::clone(&mock_time) as Arc<_>,
-    ).unwrap();
+    )
+    .unwrap();
 
     let bpmn_xml = r#"
     <bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="http://flowable.org/bpmn">
@@ -377,7 +384,9 @@ fn test_renewal_after_completion_is_noop() {
     mock_time.advance_time(300_001);
 
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
+    let works = worker
+        .acquire_due_timers(300_000)
+        .expect("timer acquisition must read storage");
     assert_eq!(works.len(), 1);
 
     // Execute the timer work - this triggers the timer and completes the process

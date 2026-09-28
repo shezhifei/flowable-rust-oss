@@ -185,9 +185,10 @@ impl ActivityBehavior for UserTaskActivityBehavior {
         task.tenant_id = execution.tenant_id.clone();
         task.category = model_category;
         task.form_key = model_form_key;
-        if let Some(assignee) =
-            resolve_user_task_assignment_expression(model_assignee.as_deref(), &evaluation_execution)
-        {
+        if let Some(assignee) = resolve_user_task_assignment_expression(
+            model_assignee.as_deref(),
+            &evaluation_execution,
+        ) {
             task.assignee = Some(assignee);
         }
         // P86a: Java `UserTaskActivityBehavior.handleAssignments:363-371` sets
@@ -761,10 +762,8 @@ fn register_event_subprocess_subscriptions(
                         }
                     }
                     EventDefinitionEnum::EscalationEventDefinition(escalation_def) => {
-                        let escalation_ref = resolve_escalation_event_ref(
-                            escalation_def,
-                            Some(bpmn_model.as_ref()),
-                        );
+                        let escalation_ref =
+                            resolve_escalation_event_ref(escalation_def, Some(bpmn_model.as_ref()));
 
                         if existing_event_subs.iter().any(|s| {
                             s.event_subprocess_id == event_sub_id

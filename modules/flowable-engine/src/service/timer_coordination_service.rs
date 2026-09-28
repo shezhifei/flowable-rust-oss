@@ -152,7 +152,11 @@ impl TimerCoordinationService {
         config: ServicePolicyConfig,
     ) -> Result<Self, crate::persistence::StorageError> {
         let identity = runtime_service.build_identity_runtime(&config)?;
-        Ok(Self::from_identity_runtime(runtime_service, config, identity))
+        Ok(Self::from_identity_runtime(
+            runtime_service,
+            config,
+            identity,
+        ))
     }
 
     pub fn with_identity_components(
@@ -168,7 +172,11 @@ impl TimerCoordinationService {
             jwks_cache,
             revocation_registry,
         )?;
-        Ok(Self::from_identity_runtime(runtime_service, config, identity))
+        Ok(Self::from_identity_runtime(
+            runtime_service,
+            config,
+            identity,
+        ))
     }
 
     fn from_identity_runtime(
@@ -545,33 +553,31 @@ fn handle_client(
         }
 
         // ── Issuer Health Control Plane ──
-        ("GET", "/issuer-health") => {
-            match health_collector.collect_all() {
-                Ok(snapshots) => {
-                    if let Err(error) = runtime_service.audit_admin_action(build_audit_input(
-                        request_id,
-                        &principal,
-                        "issuer-health-read",
-                        "all-issuers".to_string(),
-                        "success".to_string(),
-                    )) {
-                        tracing::error!(
-                            error = %error,
-                            "audit write failed; rejecting admin request"
-                        );
-                        let res = Envelope::<()>::err("INTERNAL", "audit store unavailable");
-                        send_response(&mut stream, "500 Internal Server Error", &res);
-                        return;
-                    }
-                    send_response(&mut stream, "200 OK", &Envelope::ok(snapshots));
-                }
-                Err(error) => {
-                    tracing::error!(error = %error, "issuer-health: storage read failed");
-                    let res = Envelope::<()>::err("INTERNAL", "issuer health store unavailable");
+        ("GET", "/issuer-health") => match health_collector.collect_all() {
+            Ok(snapshots) => {
+                if let Err(error) = runtime_service.audit_admin_action(build_audit_input(
+                    request_id,
+                    &principal,
+                    "issuer-health-read",
+                    "all-issuers".to_string(),
+                    "success".to_string(),
+                )) {
+                    tracing::error!(
+                        error = %error,
+                        "audit write failed; rejecting admin request"
+                    );
+                    let res = Envelope::<()>::err("INTERNAL", "audit store unavailable");
                     send_response(&mut stream, "500 Internal Server Error", &res);
+                    return;
                 }
+                send_response(&mut stream, "200 OK", &Envelope::ok(snapshots));
             }
-        }
+            Err(error) => {
+                tracing::error!(error = %error, "issuer-health: storage read failed");
+                let res = Envelope::<()>::err("INTERNAL", "issuer health store unavailable");
+                send_response(&mut stream, "500 Internal Server Error", &res);
+            }
+        },
         (method, path_str) if method == "GET" && path_str.starts_with("/issuer-health/") => {
             let issuer = &path_str["/issuer-health/".len()..];
             let issuer_decoded = url_decode(issuer);
@@ -727,18 +733,21 @@ fn handle_client(
                             if result.old_profile.issuer != result.new_profile.issuer {
                                 jwks_cache.invalidate_issuer(&result.old_profile.issuer);
                             }
-                            if let Err(error) = runtime_service.audit_admin_action(build_audit_input(
-                                request_id,
-                                &principal,
-                                "issuer-profile-update",
-                                format!("profile:{}", profile_id_decoded),
-                                "success".to_string(),
-                            )) {
+                            if let Err(error) =
+                                runtime_service.audit_admin_action(build_audit_input(
+                                    request_id,
+                                    &principal,
+                                    "issuer-profile-update",
+                                    format!("profile:{}", profile_id_decoded),
+                                    "success".to_string(),
+                                ))
+                            {
                                 tracing::error!(
                                     error = %error,
                                     "audit write failed; rejecting admin request"
                                 );
-                                let res = Envelope::<()>::err("INTERNAL", "audit store unavailable");
+                                let res =
+                                    Envelope::<()>::err("INTERNAL", "audit store unavailable");
                                 send_response(&mut stream, "500 Internal Server Error", &res);
                                 return;
                             }
@@ -818,9 +827,12 @@ fn handle_client(
                 // A revocation that could not be persisted must be a 500: answering
                 // `{"success": true}` told the operator the token was dead while it was
                 // still accepted.
-                if let Err(error) =
-                    revocation_registry.admin_revoke_with_ttl(&req.jti, &req.issuer, &req.reason, ttl)
-                {
+                if let Err(error) = revocation_registry.admin_revoke_with_ttl(
+                    &req.jti,
+                    &req.issuer,
+                    &req.reason,
+                    ttl,
+                ) {
                     tracing::error!(error = %error, "revocation store write failed");
                     let res = Envelope::<()>::err("INTERNAL", "revocation store unavailable");
                     send_response(&mut stream, "500 Internal Server Error", &res);
@@ -853,8 +865,7 @@ fn handle_client(
                     Ok(removed) => removed,
                     Err(error) => {
                         tracing::error!(error = %error, "revocation store write failed");
-                        let res =
-                            Envelope::<()>::err("INTERNAL", "revocation store unavailable");
+                        let res = Envelope::<()>::err("INTERNAL", "revocation store unavailable");
                         send_response(&mut stream, "500 Internal Server Error", &res);
                         return;
                     }

@@ -195,11 +195,7 @@ fn unique_non_strict_merges_by_key_with_two_level_validation_messages() {
         result.validation_message.is_some(),
         "decision-level validationMessage required (HitPolicyUnique.java:73)"
     );
-    let valid_audits: Vec<_> = result
-        .rule_executions
-        .iter()
-        .filter(|r| r.valid)
-        .collect();
+    let valid_audits: Vec<_> = result.rule_executions.iter().filter(|r| r.valid).collect();
     assert!(valid_audits.len() >= 2);
     for audit in valid_audits {
         assert!(
@@ -269,11 +265,7 @@ fn any_non_strict_takes_last_matched_row_with_two_level_validation_messages() {
         result.validation_message.is_some(),
         "decision-level validationMessage (HitPolicyAny.java:74)"
     );
-    let valid_audits: Vec<_> = result
-        .rule_executions
-        .iter()
-        .filter(|r| r.valid)
-        .collect();
+    let valid_audits: Vec<_> = result.rule_executions.iter().filter(|r| r.valid).collect();
     assert!(valid_audits.len() >= 2);
     for audit in valid_audits {
         assert!(
@@ -356,12 +348,10 @@ fn priority_strict_no_output_values_rejects_when_multiple_matches() {
     let engine = strict_engine();
     engine
         .repository_service()
-        .deploy(
-            DmnDeploymentRequest::new("priority-strict").with_resource(
-                "risk.dmn",
-                priority_without_output_values(DmnHitPolicy::Priority),
-            ),
-        )
+        .deploy(DmnDeploymentRequest::new("priority-strict").with_resource(
+            "risk.dmn",
+            priority_without_output_values(DmnHitPolicy::Priority),
+        ))
         .expect("deployment");
 
     let error = engine
@@ -388,12 +378,10 @@ fn priority_single_match_without_output_values_does_not_violate() {
     let engine = strict_engine();
     engine
         .repository_service()
-        .deploy(
-            DmnDeploymentRequest::new("priority-single").with_resource(
-                "risk.dmn",
-                priority_without_output_values(DmnHitPolicy::Priority),
-            ),
-        )
+        .deploy(DmnDeploymentRequest::new("priority-single").with_resource(
+            "risk.dmn",
+            priority_without_output_values(DmnHitPolicy::Priority),
+        ))
         .expect("deployment");
 
     let result = engine
@@ -493,12 +481,10 @@ fn unknown_output_value_ranks_first_in_strict_output_order() {
     let engine = strict_engine();
     engine
         .repository_service()
-        .deploy(
-            DmnDeploymentRequest::new("unknown-strict").with_resource(
-                "risk.dmn",
-                risk_with_output_values_and_unknown(DmnHitPolicy::OutputOrder),
-            ),
-        )
+        .deploy(DmnDeploymentRequest::new("unknown-strict").with_resource(
+            "risk.dmn",
+            risk_with_output_values_and_unknown(DmnHitPolicy::OutputOrder),
+        ))
         .expect("deployment");
 
     let result = engine
@@ -555,27 +541,29 @@ fn unknown_output_value_ranks_first_in_non_strict_priority() {
 // ---------------------------------------------------------------------------
 
 fn collect_sum_non_numeric_model() -> DmnModel {
-    DmnModel::new(vec![DmnDecision::new(
-        "decision-1",
-        "sumDecision",
-        "Sum decision",
-        DmnHitPolicy::Collect,
-        vec![DmnInputClause::new("input-1", "flag")],
-        vec![DmnOutputClause::new("output-1", "amount")],
-        vec![
-            DmnRule::new(
-                "rule-1",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
-                vec![DmnRuleOutputEntry::new(json!("not-a-number"))],
-            ),
-            DmnRule::new(
-                "rule-2",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
-                vec![DmnRuleOutputEntry::new(json!("also-text"))],
-            ),
-        ],
-    )
-    .with_collect_operator(CollectOperator::Sum)])
+    DmnModel::new(vec![
+        DmnDecision::new(
+            "decision-1",
+            "sumDecision",
+            "Sum decision",
+            DmnHitPolicy::Collect,
+            vec![DmnInputClause::new("input-1", "flag")],
+            vec![DmnOutputClause::new("output-1", "amount")],
+            vec![
+                DmnRule::new(
+                    "rule-1",
+                    vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
+                    vec![DmnRuleOutputEntry::new(json!("not-a-number"))],
+                ),
+                DmnRule::new(
+                    "rule-2",
+                    vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
+                    vec![DmnRuleOutputEntry::new(json!("also-text"))],
+                ),
+            ],
+        )
+        .with_collect_operator(CollectOperator::Sum),
+    ])
 }
 
 #[test]

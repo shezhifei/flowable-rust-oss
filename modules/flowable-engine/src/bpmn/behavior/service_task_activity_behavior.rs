@@ -1028,10 +1028,7 @@ fn record_inbound_event_registry_delivery(
     {
         let store = &command_context.runtime_store;
         if let Some(mut existing) = store
-            .find_event_registry_event_instance_delivery(
-                &delivery_id,
-                &mut command_context.session,
-            )
+            .find_event_registry_event_instance_delivery(&delivery_id, &mut command_context.session)
             .map_err(|e| FlowableError::Internal(e.to_string()))?
         {
             let now = store.time_source().now().timestamp_millis();
@@ -1914,10 +1911,8 @@ pub(crate) fn execute_dmn_service_task(
 
     // Java applyFallbackToDefaultTenant :167-175 — stringValue only
     // (Boolean.parseBoolean); the expression attribute is deliberately ignored.
-    request.fallback_to_default_tenant = dmn_field_string_value_is_true(
-        service_task,
-        "fallbackToDefaultTenant",
-    );
+    request.fallback_to_default_tenant =
+        dmn_field_string_value_is_true(service_task, "fallbackToDefaultTenant");
 
     // Java applyParentDeployment :177-195
     // - sameDeployment field absent → always pass parentDeploymentId (back-compat)
@@ -2001,11 +1996,7 @@ fn resolve_dmn_parent_deployment_id(
     Ok(match find_dmn_field(service_task, "sameDeployment") {
         Some(field) => {
             // Java :183 — only stringValue, Boolean.parseBoolean
-            let raw = field
-                .string_value
-                .as_deref()
-                .map(str::trim)
-                .unwrap_or("");
+            let raw = field.string_value.as_deref().map(str::trim).unwrap_or("");
             if raw.eq_ignore_ascii_case("true") {
                 definition_deployment_id
             } else {
@@ -2504,7 +2495,9 @@ fn collect_mail_attachment_value(
 fn looks_like_filesystem_path(name: &str) -> bool {
     name.contains('/')
         || name.contains('\\')
-        || (name.len() >= 3 && name.as_bytes()[1] == b':' && name.as_bytes()[0].is_ascii_alphabetic())
+        || (name.len() >= 3
+            && name.as_bytes()[1] == b':'
+            && name.as_bytes()[0].is_ascii_alphabetic())
 }
 
 fn value_type_name(value: &Value) -> &'static str {

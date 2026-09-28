@@ -10,8 +10,8 @@
 // fallbackToDefaultTenant (CMMN has no such flag) are not implemented.
 
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest,
-    CmmnEngine, CmmnHumanTask, CmmnModel, CmmnPlanItem,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnHumanTask, CmmnModel, CmmnPlanItem,
 };
 use serde_json::json;
 
@@ -34,10 +34,8 @@ fn transient_variables_visible_during_start_but_not_persisted() {
     let engine = CmmnEngine::new_in_memory().expect("engine");
     engine
         .deploy(
-            CmmnDeploymentRequest::new("p102Transient-deployment").with_resource(
-                "p102Transient.cmmn",
-                expression_model("p102Transient"),
-            ),
+            CmmnDeploymentRequest::new("p102Transient-deployment")
+                .with_resource("p102Transient.cmmn", expression_model("p102Transient")),
         )
         .expect("deployment");
 
@@ -65,11 +63,7 @@ fn transient_variables_visible_during_start_but_not_persisted() {
         .runtime_service()
         .get_case_instance(&instance.id)
         .expect("case");
-    let variable_names = refreshed
-        .variables
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>();
+    let variable_names = refreshed.variables.keys().cloned().collect::<Vec<_>>();
     assert_eq!(variable_names, vec!["real".to_string()]);
     assert!(
         !variable_names.contains(&"temp".to_string()),
@@ -113,7 +107,10 @@ fn transient_variables_do_not_override_persisted_variables() {
         .runtime_service()
         .get_case_instance(&instance.id)
         .expect("case");
-    assert_eq!(refreshed.variables.get("assignee"), Some(&json!("real-owner")));
+    assert_eq!(
+        refreshed.variables.get("assignee"),
+        Some(&json!("real-owner"))
+    );
 }
 
 #[test]
@@ -121,10 +118,8 @@ fn override_definition_tenant_id_sets_case_instance_tenant() {
     let engine = CmmnEngine::new_in_memory().expect("engine");
     engine
         .deploy(
-            CmmnDeploymentRequest::new("p102Override-deployment").with_resource(
-                "p102Override.cmmn",
-                expression_model("p102Override"),
-            ),
+            CmmnDeploymentRequest::new("p102Override-deployment")
+                .with_resource("p102Override.cmmn", expression_model("p102Override")),
         )
         .expect("deployment");
 
@@ -151,10 +146,8 @@ fn outcome_is_accepted_and_dropped() {
     let engine = CmmnEngine::new_in_memory().expect("engine");
     engine
         .deploy(
-            CmmnDeploymentRequest::new("p102Outcome-deployment").with_resource(
-                "p102Outcome.cmmn",
-                expression_model("p102Outcome"),
-            ),
+            CmmnDeploymentRequest::new("p102Outcome-deployment")
+                .with_resource("p102Outcome.cmmn", expression_model("p102Outcome")),
         )
         .expect("deployment");
 
@@ -164,5 +157,8 @@ fn outcome_is_accepted_and_dropped() {
             CmmnCaseInstanceStartRequest::new().with_outcome("approved"),
         )
         .expect("case instance");
-    assert_eq!(instance.state, flowable_cmmn_engine::CmmnCaseInstanceState::Active);
+    assert_eq!(
+        instance.state,
+        flowable_cmmn_engine::CmmnCaseInstanceState::Active
+    );
 }

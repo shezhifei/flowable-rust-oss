@@ -114,7 +114,10 @@ impl JwksCache {
 
         // 1. Check negative cache first to avoid hammering.
         {
-            let neg = self.negative_cache.read().unwrap_or_else(|e| e.into_inner());
+            let neg = self
+                .negative_cache
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
             if let Some(entry) = neg.get(&cache_key)
                 && entry.expires_at > Instant::now()
                 && entry.jwks_uri == jwks_uri
@@ -271,7 +274,10 @@ impl JwksCache {
     }
 
     fn record_refresh_success(&self, issuer: &str, jwks_uri: &str) {
-        let mut lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
+        let mut lock = self
+            .refresh_state
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         lock.insert(
             issuer.to_string(),
             IssuerRefreshState {
@@ -283,7 +289,10 @@ impl JwksCache {
     }
 
     fn record_refresh_failure(&self, issuer: &str, jwks_uri: &str) {
-        let mut lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
+        let mut lock = self
+            .refresh_state
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let entry = lock
             .entry(issuer.to_string())
             .or_insert(IssuerRefreshState {
@@ -297,7 +306,10 @@ impl JwksCache {
     }
 
     fn add_negative_cache(&self, issuer: &str, kid: &str, jwks_uri: &str, ttl: Duration) {
-        let mut lock = self.negative_cache.write().unwrap_or_else(|e| e.into_inner());
+        let mut lock = self
+            .negative_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         lock.insert(
             (issuer.to_string(), kid.to_string()),
             NegativeCacheEntry {
@@ -415,13 +427,19 @@ impl JwksCache {
 
     /// Clear negative cache entries for testing.
     pub fn clear_negative_cache(&self) {
-        let mut lock = self.negative_cache.write().unwrap_or_else(|e| e.into_inner());
+        let mut lock = self
+            .negative_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         lock.clear();
     }
 
     /// Clear refresh state for testing.
     pub fn clear_refresh_state(&self) {
-        let mut lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
+        let mut lock = self
+            .refresh_state
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         lock.clear();
     }
 
@@ -434,7 +452,10 @@ impl JwksCache {
     }
 
     pub fn count_negative_cache_for_issuer(&self, issuer: &str) -> usize {
-        let lock = self.negative_cache.read().unwrap_or_else(|e| e.into_inner());
+        let lock = self
+            .negative_cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         lock.iter()
             .filter(|((iss, _), entry)| iss == issuer && entry.expires_at > now)
@@ -461,11 +482,17 @@ impl JwksCache {
             keys_lock.retain(|(iss, _), _| iss != issuer);
         }
         {
-            let mut neg_cache_lock = self.negative_cache.write().unwrap_or_else(|e| e.into_inner());
+            let mut neg_cache_lock = self
+                .negative_cache
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             neg_cache_lock.retain(|(iss, _), _| iss != issuer);
         }
         {
-            let mut refresh_lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
+            let mut refresh_lock = self
+                .refresh_state
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             refresh_lock.remove(issuer);
         }
     }

@@ -1,9 +1,9 @@
 use flowable_cmmn_model::{
-    Case, CaseFileItem, CaseFileItemDefinition, CaseFileItemOnPart, CaseFileModel, CasePlanModel, CaseTask,
-    CmmnDefinitions, DecisionTask, DiscretionaryItem, EntryCriterion, EventCorrelationParameter,
-    EventListener, FlowableListener, HumanTask, ListenerImplementationType, Milestone, PlanItem,
-    PlanItemOnPart, PlanningTable, ProcessTask, Sentry, SentryIfPartExpression, Stage,
-    parse_sentry_if_part_expression,
+    Case, CaseFileItem, CaseFileItemDefinition, CaseFileItemOnPart, CaseFileModel, CasePlanModel,
+    CaseTask, CmmnDefinitions, DecisionTask, DiscretionaryItem, EntryCriterion,
+    EventCorrelationParameter, EventListener, FlowableListener, HumanTask,
+    ListenerImplementationType, Milestone, PlanItem, PlanItemOnPart, PlanningTable, ProcessTask,
+    Sentry, SentryIfPartExpression, Stage, parse_sentry_if_part_expression,
 };
 use quick_xml::events::Event as XmlEvent;
 use quick_xml::reader::Reader;
@@ -135,12 +135,13 @@ fn reject_deep_nesting(xml: &str) -> Result<(), CmmnConverterError> {
             Ok(XmlEvent::Eof) => return Ok(()),
             Ok(_) => {}
             Err(error) => {
-                return Err(CmmnConverterError::InvalidXml(format!("malformed XML: {error}")));
+                return Err(CmmnConverterError::InvalidXml(format!(
+                    "malformed XML: {error}"
+                )));
             }
         }
     }
 }
-
 
 impl CmmnXmlConverter {
     pub fn new() -> Self {
@@ -909,7 +910,10 @@ fn parse_milestone(node: Node<'_, '_>) -> Result<Milestone, CmmnConverterError> 
 
 fn parse_event_listener(node: Node<'_, '_>) -> Result<EventListener, CmmnConverterError> {
     // Java GenericEventListenerXmlConverter.java:68-73 also reads flowable:availableCondition.
-    warn_unknown_attributes(node, &["id", "name", "eventType", "eventName", "availableCondition"]);
+    warn_unknown_attributes(
+        node,
+        &["id", "name", "eventType", "eventName", "availableCondition"],
+    );
     // Java: extensionElements is handled by ExtensionElementsXMLConverter
     // (planItemLifecycleListener, ExtensionElementsXMLConverter.java:121-124) — an event listener
     // is a PlanItemDefinition and therefore HasLifecycleListeners (PlanItemDefinition.java:21).

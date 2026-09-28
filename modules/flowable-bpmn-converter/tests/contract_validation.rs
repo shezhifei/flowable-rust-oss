@@ -31,7 +31,6 @@ fn read_required(path: &Path) -> String {
     })
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContractStatus {
     FullySupported,
@@ -519,7 +518,8 @@ fn run_contract_test(xml_path: &Path, ground_truth_path: &Path, status: Contract
 
     // Compare targetNamespace
     assert_eq!(
-        rust_val["targetNamespace"], expected_val["targetNamespace"],
+        rust_val["targetNamespace"],
+        expected_val["targetNamespace"],
         "targetNamespace mismatch in {}",
         xml_path.display()
     );

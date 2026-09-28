@@ -5,7 +5,8 @@ use flowable_cmmn_engine::{
 };
 use flowable_dmn_engine::DmnEngine;
 use flowable_dmn_engine::{DatabaseConfig, DatabaseKind, SchemaMode};
-use flowable_engine::engine::process_engine::ProcessEngine;use flowable_engine::engine::time_source::SystemTimeSource;
+use flowable_engine::engine::process_engine::ProcessEngine;
+use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_engine::identity::entities::{Group, Membership, User};
 use flowable_engine::runtime::process_instance::ProcessInstanceUpdate;
 use flowable_engine::service::config::{HttpServiceRuntimeMode, ProcessEngineConfiguration};
@@ -2620,9 +2621,9 @@ fn import_directory_bundle(
             &mut session,
         );
     }
-    session
-        .flush_and_commit()
-        .map_err(|e| PlatformBootstrapError::from(flowable_engine::error::FlowableError::from(e)))?;
+    session.flush_and_commit().map_err(|e| {
+        PlatformBootstrapError::from(flowable_engine::error::FlowableError::from(e))
+    })?;
 
     directory_support_contract.imported_user_count = imported_user_count;
     directory_support_contract.imported_group_count = imported_group_count;

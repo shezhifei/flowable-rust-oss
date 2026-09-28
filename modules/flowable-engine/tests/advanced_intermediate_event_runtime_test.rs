@@ -45,19 +45,22 @@ fn test_conditional_intermediate_catch() {
 
     let instance = runtime_service.start_process_instance(pi_builder).unwrap();
 
-    let wait_states =
-        runtime_service.get_event_wait_states_by_process_instance_id(instance.id.clone()).unwrap();
+    let wait_states = runtime_service
+        .get_event_wait_states_by_process_instance_id(instance.id.clone())
+        .unwrap();
     let catch_exec = wait_states
         .iter()
         .find(|e| e.activity_id.as_deref() == Some("catchCond"))
         .unwrap();
 
     // Trigger conditional catch
-    runtime_service.trigger_event_intermediate_catch(
-        EventSubscriptionKind::Conditional,
-        "${approve == true}".to_string(),
-        catch_exec.execution_id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::Conditional,
+            "${approve == true}".to_string(),
+            catch_exec.execution_id.clone(),
+        )
+        .unwrap();
 }
 
 #[test]

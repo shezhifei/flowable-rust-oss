@@ -11,9 +11,9 @@ use std::sync::Arc;
 
 #[test]
 fn moving_deadletter_job_to_executable_returns_job_and_preserves_exception_metadata() {
-    let engine = Arc::new(ProcessEngine::new(
-        "job-service-deadletter-management-contract".to_string(),
-    ).unwrap());
+    let engine = Arc::new(
+        ProcessEngine::new("job-service-deadletter-management-contract".to_string()).unwrap(),
+    );
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
     store.insert_timer_job_state(
@@ -38,7 +38,7 @@ fn moving_deadletter_job_to_executable_returns_job_and_preserves_exception_metad
             error_details: Some("stacktrace details".to_string()),
             category: None,
             ..Default::default()
-},
+        },
         &mut session,
     );
     session.flush_and_commit().unwrap();

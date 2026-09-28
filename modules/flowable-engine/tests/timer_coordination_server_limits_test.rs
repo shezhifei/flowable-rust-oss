@@ -48,8 +48,11 @@ fn test_timer_coordination_server_limits() {
     );
 
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config).expect("identity runtime must build");
-    let _handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config)
+        .expect("identity runtime must build");
+    let _handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     // Send a payload that exceeds max_request_size

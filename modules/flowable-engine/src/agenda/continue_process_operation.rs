@@ -264,11 +264,10 @@ pub fn find_flow_element<'a>(
 /// events nested inside (event) subprocesses must not fire process-level start
 /// listeners.
 fn is_process_level_start_event(process: &Process, activity_id: &str) -> bool {
-    process
-        .flow_elements
-        .iter()
-        .any(|element| matches!(element, FlowElementEnum::StartEvent(_))
-            && flow_element_id(element) == Some(activity_id))
+    process.flow_elements.iter().any(|element| {
+        matches!(element, FlowElementEnum::StartEvent(_))
+            && flow_element_id(element) == Some(activity_id)
+    })
 }
 
 fn is_async_before(flow_element: &FlowElementEnum) -> bool {
@@ -276,7 +275,9 @@ fn is_async_before(flow_element: &FlowElementEnum) -> bool {
         FlowElementEnum::Task(task) => task.activity.flow_node.asynchronous,
         FlowElementEnum::UserTask(task) => task.task.activity.flow_node.asynchronous,
         FlowElementEnum::ServiceTask(task) => task.task.activity.flow_node.asynchronous,
-        FlowElementEnum::CaseServiceTask(task) => task.service_task.task.activity.flow_node.asynchronous,
+        FlowElementEnum::CaseServiceTask(task) => {
+            task.service_task.task.activity.flow_node.asynchronous
+        }
         FlowElementEnum::ScriptTask(task) => task.task.activity.flow_node.asynchronous,
         FlowElementEnum::ManualTask(task) => task.task.activity.flow_node.asynchronous,
         FlowElementEnum::ReceiveTask(task) => task.task.activity.flow_node.asynchronous,
@@ -301,7 +302,9 @@ fn is_async_after(flow_element: &FlowElementEnum) -> bool {
         FlowElementEnum::Task(task) => task.activity.flow_node.asynchronous_leave,
         FlowElementEnum::UserTask(task) => task.task.activity.flow_node.asynchronous_leave,
         FlowElementEnum::ServiceTask(task) => task.task.activity.flow_node.asynchronous_leave,
-        FlowElementEnum::CaseServiceTask(task) => task.service_task.task.activity.flow_node.asynchronous_leave,
+        FlowElementEnum::CaseServiceTask(task) => {
+            task.service_task.task.activity.flow_node.asynchronous_leave
+        }
         FlowElementEnum::ScriptTask(task) => task.task.activity.flow_node.asynchronous_leave,
         FlowElementEnum::ManualTask(task) => task.task.activity.flow_node.asynchronous_leave,
         FlowElementEnum::ReceiveTask(task) => task.task.activity.flow_node.asynchronous_leave,
@@ -343,7 +346,9 @@ fn is_exclusive(flow_element: &FlowElementEnum) -> bool {
         FlowElementEnum::Task(task) => task.activity.flow_node.exclusive,
         FlowElementEnum::UserTask(task) => task.task.activity.flow_node.exclusive,
         FlowElementEnum::ServiceTask(task) => task.task.activity.flow_node.exclusive,
-        FlowElementEnum::CaseServiceTask(task) => task.service_task.task.activity.flow_node.exclusive,
+        FlowElementEnum::CaseServiceTask(task) => {
+            task.service_task.task.activity.flow_node.exclusive
+        }
         FlowElementEnum::ScriptTask(task) => task.task.activity.flow_node.exclusive,
         FlowElementEnum::ManualTask(task) => task.task.activity.flow_node.exclusive,
         FlowElementEnum::ReceiveTask(task) => task.task.activity.flow_node.exclusive,
@@ -375,7 +380,11 @@ fn is_async_leave_exclusive(flow_element: &FlowElementEnum) -> bool {
             task.task.activity.flow_node.asynchronous_leave_exclusive
         }
         FlowElementEnum::CaseServiceTask(task) => {
-            task.service_task.task.activity.flow_node.asynchronous_leave_exclusive
+            task.service_task
+                .task
+                .activity
+                .flow_node
+                .asynchronous_leave_exclusive
         }
         FlowElementEnum::ScriptTask(task) => {
             task.task.activity.flow_node.asynchronous_leave_exclusive

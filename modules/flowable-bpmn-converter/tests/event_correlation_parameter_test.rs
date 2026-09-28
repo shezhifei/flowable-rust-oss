@@ -64,14 +64,17 @@ fn parses_event_correlation_parameter_on_start_boundary_catch_receive() {
     let process = model.main_process.expect("main process");
 
     // --- startEvent ---
-    let FlowElementEnum::StartEvent(start) = process
-        .flow_element_map
-        .get("theStart")
-        .expect("start")
+    let FlowElementEnum::StartEvent(start) =
+        process.flow_element_map.get("theStart").expect("start")
     else {
         panic!("theStart should be StartEvent");
     };
-    let start_ext = &start.event.flow_node.flow_element.base_element.extension_elements;
+    let start_ext = &start
+        .event
+        .flow_node
+        .flow_element
+        .base_element
+        .extension_elements;
     assert_eq!(
         start_ext
             .get("eventType")
@@ -119,10 +122,8 @@ fn parses_event_correlation_parameter_on_start_boundary_catch_receive() {
     );
 
     // --- intermediateCatchEvent ---
-    let FlowElementEnum::IntermediateCatchEvent(catch) = process
-        .flow_element_map
-        .get("catchEvent")
-        .expect("catch")
+    let FlowElementEnum::IntermediateCatchEvent(catch) =
+        process.flow_element_map.get("catchEvent").expect("catch")
     else {
         panic!("catchEvent should be IntermediateCatchEvent");
     };
@@ -139,10 +140,8 @@ fn parses_event_correlation_parameter_on_start_boundary_catch_receive() {
     assert_eq!(attr(&catch_corr[1], "name").as_deref(), Some("orderId"));
 
     // --- receiveTask ---
-    let FlowElementEnum::ReceiveTask(receive) = process
-        .flow_element_map
-        .get("receive")
-        .expect("receive")
+    let FlowElementEnum::ReceiveTask(receive) =
+        process.flow_element_map.get("receive").expect("receive")
     else {
         panic!("receive should be ReceiveTask");
     };

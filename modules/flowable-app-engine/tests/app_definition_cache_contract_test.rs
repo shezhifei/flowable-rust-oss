@@ -22,13 +22,17 @@ fn portal_request(name: &str, resource_name: &str, app_key: &str) -> AppDeployme
     AppDeploymentRequest::new(name).with_resource(
         resource_name,
         AppModel::new().with_app_definition(
-            AppDefinition::new(format!("app-{app_key}"), app_key, format!("Portal {app_key}"))
-                .with_page(
-                    AppPage::new("page-process", "Process Dashboard").with_reference(
-                        AppReference::process("start-onboarding")
-                            .with_definition_key("employee-onboarding"),
-                    ),
+            AppDefinition::new(
+                format!("app-{app_key}"),
+                app_key,
+                format!("Portal {app_key}"),
+            )
+            .with_page(
+                AppPage::new("page-process", "Process Dashboard").with_reference(
+                    AppReference::process("start-onboarding")
+                        .with_definition_key("employee-onboarding"),
                 ),
+            ),
         ),
     )
 }
@@ -88,10 +92,7 @@ fn explicit_eviction_removes_entry_and_miss_rehydrates_persisted_composition() {
         .deployment_manager()
         .resolve_app_definition(&definition_id)
         .unwrap();
-    let original_version = original
-        .composition
-        .references[0]
-        .resolved_definition_version;
+    let original_version = original.composition.references[0].resolved_definition_version;
 
     engine
         .deployment_manager()

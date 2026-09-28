@@ -7,13 +7,13 @@
 //! P65-job-query storage contract: every queryable job dimension must round-trip
 //! through JSON serialization and physical columns, and survive family moves.
 
+use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::TestTimeSource;
 use flowable_engine::persistence::db_store::DbStore;
 use flowable_engine::persistence::runtime_store::{
     RuntimeJobType, RuntimeTimerJobState, copy_job_query_metadata, stamp_new_job_metadata,
 };
-use chrono::{TimeZone, Utc};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -121,7 +121,10 @@ fn physical_columns_persist_query_metadata_and_external_worker_type() {
         .unwrap()
         .expect("row must exist");
     assert_eq!(
-        raw.extras.get("category").and_then(|v| v.as_ref()).map(String::as_str),
+        raw.extras
+            .get("category")
+            .and_then(|v| v.as_ref())
+            .map(String::as_str),
         Some("orders")
     );
     assert_eq!(

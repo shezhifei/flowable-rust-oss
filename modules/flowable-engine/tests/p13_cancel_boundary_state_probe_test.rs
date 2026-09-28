@@ -58,8 +58,8 @@ fn p13_probe_cancel_boundary_state_after_cancel_end() {
 
     let runtime_store = engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
-    let states_before = runtime_store
-        .find_boundary_event_states_by_process_instance_id(&instance.id, &mut session);
+    let states_before =
+        runtime_store.find_boundary_event_states_by_process_instance_id(&instance.id, &mut session);
     assert_eq!(
         states_before.len(),
         1,
@@ -82,8 +82,8 @@ fn p13_probe_cancel_boundary_state_after_cancel_end() {
     assert_eq!(tasks[0].task_definition_key.as_str(), "cancelTask");
 
     let mut session = runtime_store.create_session().unwrap();
-    let states_after = runtime_store
-        .find_boundary_event_states_by_process_instance_id(&instance.id, &mut session);
+    let states_after =
+        runtime_store.find_boundary_event_states_by_process_instance_id(&instance.id, &mut session);
     // Pre-fix probe residue was ["catchCancel"] (cancel path bypasses
     // execute_boundary_trigger). Cleanup is now applied in
     // CancelEndEventActivityBehavior::trigger_cancel_boundary.

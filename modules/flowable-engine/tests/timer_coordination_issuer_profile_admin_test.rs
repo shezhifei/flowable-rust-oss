@@ -75,9 +75,12 @@ fn test_timer_coordination_issuer_profile_admin() {
     );
 
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config)
+        .expect("identity runtime must build");
 
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     let admin_client =
@@ -198,8 +201,11 @@ fn test_bootstrap_from_config_seeds_once_and_does_not_clobber_db_managed_changes
     let addr1 = format!("127.0.0.1:{}", port1);
     let stop_signal1 = Arc::new(AtomicBool::new(false));
     let service1 =
-        TimerCoordinationService::new(Arc::clone(&runtime_service1), make_config(addr1.clone())).expect("identity runtime must build");
-    let handle1 = service1.start(Arc::clone(&stop_signal1)).expect("timer coordination listener must bind");
+        TimerCoordinationService::new(Arc::clone(&runtime_service1), make_config(addr1.clone()))
+            .expect("identity runtime must build");
+    let handle1 = service1
+        .start(Arc::clone(&stop_signal1))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     let admin_token1 = create_token("https://bootstrap.example.com", "test-kid", "seed-audience");
@@ -239,8 +245,11 @@ fn test_bootstrap_from_config_seeds_once_and_does_not_clobber_db_managed_changes
     let addr2 = format!("127.0.0.1:{}", port2);
     let stop_signal2 = Arc::new(AtomicBool::new(false));
     let service2 =
-        TimerCoordinationService::new(Arc::clone(&runtime_service2), make_config(addr2.clone())).expect("identity runtime must build");
-    let handle2 = service2.start(Arc::clone(&stop_signal2)).expect("timer coordination listener must bind");
+        TimerCoordinationService::new(Arc::clone(&runtime_service2), make_config(addr2.clone()))
+            .expect("identity runtime must build");
+    let handle2 = service2
+        .start(Arc::clone(&stop_signal2))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     let admin_token2 = create_token(

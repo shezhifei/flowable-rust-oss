@@ -160,8 +160,7 @@ fn deployment_accepts_unsupported_types_and_the_boundary_validator_flags_them() 
     let issues = validate_form_model(&model);
     assert_eq!(issues.len(), 1);
     assert_eq!(
-        issues[0].code,
-        "flowable-form-field-type-unsupported",
+        issues[0].code, "flowable-form-field-type-unsupported",
         "the modeler boundary must still reject the vendor type"
     );
 }

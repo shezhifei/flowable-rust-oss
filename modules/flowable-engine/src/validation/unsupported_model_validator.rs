@@ -86,8 +86,7 @@ impl UnsupportedModelValidator {
                             .map(str::to_lowercase)
                             .unwrap_or_default();
                         if type_lower == "webservice"
-                            || st.service_task.implementation_type.as_deref()
-                                == Some("webservice")
+                            || st.service_task.implementation_type.as_deref() == Some("webservice")
                         {
                             return Err(FlowableError::DeploymentValidationError(format!(
                                 "sendTask '{}' uses the legacy webservice implementation which is not supported in this port",
@@ -387,9 +386,10 @@ fn validate_delegate_expression_service_task(
     // M76: `class` is a registry key (FQCN-like string), not JVM classloading.
     // Same LocalServiceTaskDelegateRegistry as `delegateExpression`.
     let implementation_type = match service_task.implementation_type.as_deref() {
-        Some("delegateExpression") | Some("class") => {
-            service_task.implementation_type.as_deref().unwrap_or_default()
-        }
+        Some("delegateExpression") | Some("class") => service_task
+            .implementation_type
+            .as_deref()
+            .unwrap_or_default(),
         Some(implementation_type) => {
             return Err(FlowableError::DeploymentValidationError(format!(
                 "Delegate service task '{}' only supports class or delegateExpression implementation in the owned M14 subset; got '{}'",
@@ -883,23 +883,28 @@ fn validate_dmn_service_task(service_task: &ServiceTask) -> Result<(), FlowableE
 
     // Java :88-107 — at least one of decisionTable / decisionService key non-empty.
     // Java only checks stringValue; we also accept expression so EL-only keys deploy.
-    let key_defined = service_task.task.activity.field_extensions.iter().any(|field| {
-        let name = field.field_name.as_deref().unwrap_or("");
-        if name != "decisionTableReferenceKey" && name != "decisionServiceReferenceKey" {
-            return false;
-        }
-        let string_ok = field
-            .string_value
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|v| !v.is_empty());
-        let expr_ok = field
-            .expression
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|v| !v.is_empty());
-        string_ok || expr_ok
-    });
+    let key_defined = service_task
+        .task
+        .activity
+        .field_extensions
+        .iter()
+        .any(|field| {
+            let name = field.field_name.as_deref().unwrap_or("");
+            if name != "decisionTableReferenceKey" && name != "decisionServiceReferenceKey" {
+                return false;
+            }
+            let string_ok = field
+                .string_value
+                .as_deref()
+                .map(str::trim)
+                .is_some_and(|v| !v.is_empty());
+            let expr_ok = field
+                .expression
+                .as_deref()
+                .map(str::trim)
+                .is_some_and(|v| !v.is_empty());
+            string_ok || expr_ok
+        });
 
     if !key_defined {
         return Err(FlowableError::DeploymentValidationError(format!(
@@ -992,9 +997,9 @@ fn validate_mail_service_task(
     let _ = optional_expression_or_literal_extension(service_task, "Mail", "attachments");
     let _ = require_expression_or_literal_extension(service_task, "Mail", "subject")?;
     // Java BaseMailActivityDelegate.createMessage:112-114 — at least one of text/textVar/html/htmlVar.
-    let has_body = ["text", "textVar", "html", "htmlVar"].iter().any(|name| {
-        optional_expression_or_literal_extension(service_task, "Mail", name).is_some()
-    });
+    let has_body = ["text", "textVar", "html", "htmlVar"]
+        .iter()
+        .any(|name| optional_expression_or_literal_extension(service_task, "Mail", name).is_some());
     if !has_body {
         return Err(FlowableError::DeploymentValidationError(format!(
             "Task type 'mail' is not supported in M9 unless it matches the owned M14 Mail service task subset; Mail service task '{}' requires at least one of text/textVar/html/htmlVar",

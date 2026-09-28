@@ -1117,11 +1117,13 @@ impl Command<()> for BulkDeleteProcessInstancesCmd {
                 let (store, session) = command_context.store_and_session();
                 store.delete_historic_process_instance_cascade(process_instance_id, session);
             } else {
-                command_context.history_manager.record_process_instance_end(
-                    process_instance_id,
-                    delete_reason,
-                    &mut command_context.session,
-                )?;
+                command_context
+                    .history_manager
+                    .record_process_instance_end(
+                        process_instance_id,
+                        delete_reason,
+                        &mut command_context.session,
+                    )?;
             }
             {
                 let (store, session) = command_context.store_and_session();
@@ -2734,7 +2736,9 @@ fn outgoing_flows(flow_element: &FlowElementEnum) -> Option<&[SequenceFlow]> {
         FlowElementEnum::Task(task) => Some(&task.activity.flow_node.outgoing_flows),
         FlowElementEnum::UserTask(task) => Some(&task.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ServiceTask(task) => Some(&task.task.activity.flow_node.outgoing_flows),
-        FlowElementEnum::CaseServiceTask(task) => Some(&task.service_task.task.activity.flow_node.outgoing_flows),
+        FlowElementEnum::CaseServiceTask(task) => {
+            Some(&task.service_task.task.activity.flow_node.outgoing_flows)
+        }
         FlowElementEnum::SendTask(task) => {
             Some(&task.service_task.task.activity.flow_node.outgoing_flows)
         }
@@ -2758,9 +2762,7 @@ fn outgoing_flows(flow_element: &FlowElementEnum) -> Option<&[SequenceFlow]> {
         FlowElementEnum::EventBasedGateway(gateway) => {
             Some(&gateway.gateway.flow_node.outgoing_flows)
         }
-        FlowElementEnum::ComplexGateway(gateway) => {
-            Some(&gateway.gateway.flow_node.outgoing_flows)
-        }
+        FlowElementEnum::ComplexGateway(gateway) => Some(&gateway.gateway.flow_node.outgoing_flows),
         FlowElementEnum::IntermediateCatchEvent(event) => {
             Some(&event.event.flow_node.outgoing_flows)
         }
@@ -3027,20 +3029,20 @@ fn enable_event_subprocess_start_event(
                 // ACTIVITY_MESSAGE/SIGNAL_WAITING on message/signal register.
                 crate::engine::event_dispatcher::insert_event_subprocess_subscription_with_waiting(
                     command_context,
-                        EventSubprocessEventSubscription {
-                            subscription_id: Uuid::new_v4().to_string(),
-                            process_instance_id: process_instance.id.clone(),
-                            scope_execution_id: Some(scope_execution_id.clone()),
-                            scope_activity_id: None,
-                            event_subprocess_id: event_subprocess_id.clone(),
-                            start_event_id: start_event_id.to_string(),
-                            interrupting: start_event.interrupting,
-                            event_kind: EventSubscriptionKind::EventRegistry,
-                            event_ref: event_type,
-                            // Event-subprocess event-registry correlation is
-                            // not computed at runtime yet (P93 scope note).
-                            configuration: None,
-                        },
+                    EventSubprocessEventSubscription {
+                        subscription_id: Uuid::new_v4().to_string(),
+                        process_instance_id: process_instance.id.clone(),
+                        scope_execution_id: Some(scope_execution_id.clone()),
+                        scope_activity_id: None,
+                        event_subprocess_id: event_subprocess_id.clone(),
+                        start_event_id: start_event_id.to_string(),
+                        interrupting: start_event.interrupting,
+                        event_kind: EventSubscriptionKind::EventRegistry,
+                        event_ref: event_type,
+                        // Event-subprocess event-registry correlation is
+                        // not computed at runtime yet (P93 scope note).
+                        configuration: None,
+                    },
                     Some(process_instance.process_definition_id.as_str()),
                 );
             }
@@ -3075,18 +3077,18 @@ fn enable_event_subprocess_start_event(
                 // ACTIVITY_MESSAGE/SIGNAL_WAITING on message/signal register.
                 crate::engine::event_dispatcher::insert_event_subprocess_subscription_with_waiting(
                     command_context,
-                        EventSubprocessEventSubscription {
-                            subscription_id: Uuid::new_v4().to_string(),
-                            process_instance_id: process_instance.id.clone(),
-                            scope_execution_id: Some(scope_execution_id.clone()),
-                            scope_activity_id: None,
-                            event_subprocess_id: event_subprocess_id.clone(),
-                            start_event_id: start_event_id.to_string(),
-                            interrupting: start_event.interrupting,
-                            event_kind: EventSubscriptionKind::Message,
-                            event_ref: msg_ref.clone(),
-                            configuration: None,
-                        },
+                    EventSubprocessEventSubscription {
+                        subscription_id: Uuid::new_v4().to_string(),
+                        process_instance_id: process_instance.id.clone(),
+                        scope_execution_id: Some(scope_execution_id.clone()),
+                        scope_activity_id: None,
+                        event_subprocess_id: event_subprocess_id.clone(),
+                        start_event_id: start_event_id.to_string(),
+                        interrupting: start_event.interrupting,
+                        event_kind: EventSubscriptionKind::Message,
+                        event_ref: msg_ref.clone(),
+                        configuration: None,
+                    },
                     Some(process_instance.process_definition_id.as_str()),
                 );
             }
@@ -3106,18 +3108,18 @@ fn enable_event_subprocess_start_event(
                 // ACTIVITY_MESSAGE/SIGNAL_WAITING on message/signal register.
                 crate::engine::event_dispatcher::insert_event_subprocess_subscription_with_waiting(
                     command_context,
-                        EventSubprocessEventSubscription {
-                            subscription_id: Uuid::new_v4().to_string(),
-                            process_instance_id: process_instance.id.clone(),
-                            scope_execution_id: Some(scope_execution_id.clone()),
-                            scope_activity_id: None,
-                            event_subprocess_id: event_subprocess_id.clone(),
-                            start_event_id: start_event_id.to_string(),
-                            interrupting: start_event.interrupting,
-                            event_kind: EventSubscriptionKind::Signal,
-                            event_ref: sig_ref.clone(),
-                            configuration: None,
-                        },
+                    EventSubprocessEventSubscription {
+                        subscription_id: Uuid::new_v4().to_string(),
+                        process_instance_id: process_instance.id.clone(),
+                        scope_execution_id: Some(scope_execution_id.clone()),
+                        scope_activity_id: None,
+                        event_subprocess_id: event_subprocess_id.clone(),
+                        start_event_id: start_event_id.to_string(),
+                        interrupting: start_event.interrupting,
+                        event_kind: EventSubscriptionKind::Signal,
+                        event_ref: sig_ref.clone(),
+                        configuration: None,
+                    },
                     Some(process_instance.process_definition_id.as_str()),
                 );
             }
@@ -3277,7 +3279,10 @@ fn find_event_subprocess_start_event<'a>(
     search_elements(&process.flow_elements, start_event_id)
 }
 
-fn cancel_execution_runtime_state(command_context: &mut CommandContext, execution: &Execution) -> Result<(), crate::error::FlowableError> {
+fn cancel_execution_runtime_state(
+    command_context: &mut CommandContext,
+    execution: &Execution,
+) -> Result<(), crate::error::FlowableError> {
     if let Some(activity_id) = execution.activity_id.as_deref() {
         command_context.history_manager.record_activity_end(
             &execution.id,
@@ -3340,11 +3345,13 @@ fn cancel_activity_executions(
                 &process_instance.id,
                 &mut command_context.session,
             );
-        command_context.history_manager.record_process_instance_end(
-            &process_instance.id,
-            Some("change-state"),
-            &mut command_context.session,
-        )?;
+        command_context
+            .history_manager
+            .record_process_instance_end(
+                &process_instance.id,
+                Some("change-state"),
+                &mut command_context.session,
+            )?;
         ended_process_instance = Some(updated);
     }
 
@@ -3484,12 +3491,22 @@ fn flow_element_display_name(flow_element: &FlowElementEnum) -> Option<&str> {
         FlowElementEnum::ServiceTask(task) => {
             task.task.activity.flow_node.flow_element.name.as_deref()
         }
-        FlowElementEnum::CaseServiceTask(task) => {
-            task.service_task.task.activity.flow_node.flow_element.name.as_deref()
-        }
-        FlowElementEnum::SendTask(task) => {
-            task.service_task.task.activity.flow_node.flow_element.name.as_deref()
-        }
+        FlowElementEnum::CaseServiceTask(task) => task
+            .service_task
+            .task
+            .activity
+            .flow_node
+            .flow_element
+            .name
+            .as_deref(),
+        FlowElementEnum::SendTask(task) => task
+            .service_task
+            .task
+            .activity
+            .flow_node
+            .flow_element
+            .name
+            .as_deref(),
         FlowElementEnum::ScriptTask(task) => {
             task.task.activity.flow_node.flow_element.name.as_deref()
         }
@@ -3739,7 +3756,10 @@ fn evaluate_event_subprocesses(
 /// rather than creating a child. This function therefore also cleans up the parent
 /// execution's own runtime data (tasks, timers, etc.) — but does NOT delete the
 /// parent execution row itself.
-fn delete_child_executions(command_context: &mut CommandContext, parent_execution_id: &str) -> Result<(), crate::error::FlowableError> {
+fn delete_child_executions(
+    command_context: &mut CommandContext,
+    parent_execution_id: &str,
+) -> Result<(), crate::error::FlowableError> {
     let child_ids: Vec<String> = command_context
         .execution_entity_manager
         .find_child_executions_by_parent_execution_id(
@@ -4171,7 +4191,8 @@ impl RuntimeService {
     pub fn insert_issuer_profile(
         &self,
         profile: crate::service::issuer_profile::IssuerProfile,
-    ) -> Result<crate::service::issuer_profile::IssuerProfile, crate::persistence::StorageError> {
+    ) -> Result<crate::service::issuer_profile::IssuerProfile, crate::persistence::StorageError>
+    {
         let store = self.command_executor.runtime_store();
         let mut session = store.create_session()?;
         store.insert_issuer_profile(profile.clone(), &mut session);
@@ -4230,8 +4251,10 @@ impl RuntimeService {
     pub fn delete_issuer_profile(
         &self,
         profile_id: &str,
-    ) -> Result<Option<crate::service::issuer_profile::IssuerProfile>, crate::persistence::StorageError>
-    {
+    ) -> Result<
+        Option<crate::service::issuer_profile::IssuerProfile>,
+        crate::persistence::StorageError,
+    > {
         let store = self.command_executor.runtime_store();
         let mut session = store.create_session()?;
         let found_profile = store.find_issuer_profile(profile_id, &mut session)?;
@@ -4248,10 +4271,8 @@ impl RuntimeService {
     pub fn build_identity_runtime(
         &self,
         config: &crate::service::config::ServicePolicyConfig,
-    ) -> Result<
-        crate::service::config::IdentityRuntimeComponents,
-        crate::persistence::StorageError,
-    > {
+    ) -> Result<crate::service::config::IdentityRuntimeComponents, crate::persistence::StorageError>
+    {
         let store = self.command_executor.runtime_store().clone();
         config.build_identity_runtime(store)
     }
@@ -4262,10 +4283,8 @@ impl RuntimeService {
         profiles: Vec<crate::service::issuer_profile::IssuerProfile>,
         jwks_cache: Arc<crate::service::jwks::JwksCache>,
         revocation_registry: Arc<crate::service::revocation::TokenRevocationRegistry>,
-    ) -> Result<
-        crate::service::config::IdentityRuntimeComponents,
-        crate::persistence::StorageError,
-    > {
+    ) -> Result<crate::service::config::IdentityRuntimeComponents, crate::persistence::StorageError>
+    {
         let store = self.command_executor.runtime_store().clone();
         config.build_identity_runtime_with_components(
             profiles,
@@ -5662,9 +5681,9 @@ impl RuntimeService {
             CoordinatorStatusResult, TimerCoordinationControlCmd,
         };
         let cmd = TimerCoordinationControlCmd::status();
-        let result: CoordinatorStatusResult = self.command_executor.execute(
-            &cmd as &dyn crate::interceptor::command::Command<CoordinatorStatusResult>,
-        )?;
+        let result: CoordinatorStatusResult = self
+            .command_executor
+            .execute(&cmd as &dyn crate::interceptor::command::Command<CoordinatorStatusResult>)?;
         Ok(result.status)
     }
 
@@ -5679,8 +5698,7 @@ impl RuntimeService {
         let cmd = TimerCoordinationControlCmd::nodes();
         let result: NodesListResult = self
             .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<NodesListResult>)
-            ?;
+            .execute(&cmd as &dyn crate::interceptor::command::Command<NodesListResult>)?;
         Ok(result.nodes)
     }
 
@@ -5696,8 +5714,7 @@ impl RuntimeService {
             TimerCoordinationControlCmd::release(Arc::clone(&self.timer_owner_id), fencing_token);
         let result: ReleaseResult = self
             .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<ReleaseResult>)
-            ?;
+            .execute(&cmd as &dyn crate::interceptor::command::Command<ReleaseResult>)?;
         Ok(result.success)
     }
 
@@ -5709,8 +5726,7 @@ impl RuntimeService {
         let cmd = TimerCoordinationControlCmd::step_down();
         let result: StepDownResult = self
             .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<StepDownResult>)
-            ?;
+            .execute(&cmd as &dyn crate::interceptor::command::Command<StepDownResult>)?;
         Ok((result.success, result.new_fencing_token))
     }
 
@@ -5725,8 +5741,7 @@ impl RuntimeService {
         let cmd = TimerCoordinationControlCmd::deregister(Arc::from(node_id));
         let result: DeregisterResult = self
             .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<DeregisterResult>)
-            ?;
+            .execute(&cmd as &dyn crate::interceptor::command::Command<DeregisterResult>)?;
         Ok(result.success)
     }
 
@@ -5738,8 +5753,7 @@ impl RuntimeService {
         let cmd = TimerCoordinationControlCmd::cleanup();
         let result: CleanupResult = self
             .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<CleanupResult>)
-            ?;
+            .execute(&cmd as &dyn crate::interceptor::command::Command<CleanupResult>)?;
         Ok(result.cleaned_count)
     }
 
@@ -5754,8 +5768,7 @@ impl RuntimeService {
         let cmd = TimerCoordinationControlCmd::audit(input);
         let _result: AuditAdminActionResult = self
             .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<AuditAdminActionResult>)
-            ?;
+            .execute(&cmd as &dyn crate::interceptor::command::Command<AuditAdminActionResult>)?;
         Ok(())
     }
 

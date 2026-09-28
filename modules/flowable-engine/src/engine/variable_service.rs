@@ -167,7 +167,6 @@ impl Command<()> for SetVariableCmd {
         if let Some(mut execution) =
             store.find_execution(&target_execution_id, &mut command_context.session)
         {
-
             // Java parity: `setVariable` updates the variable in the scope that already owns
             // it. When the owning scope holds the name as an execution-local variable, the
             // local copy must be updated in place rather than shadowed by a new global one.
@@ -853,9 +852,8 @@ impl Command<Vec<VariableInstance>> for VariableInstanceQueryCmd {
         for r in rows {
             // Java parity: a corrupt stored variable is a PersistenceException,
             // not a silent Value::Null (which would look like a legitimate null).
-            let value = serde_json::from_str::<serde_json::Value>(&r.data).map_err(|e| {
-                crate::persistence::StorageError::Deserialization(e.to_string())
-            })?;
+            let value = serde_json::from_str::<serde_json::Value>(&r.data)
+                .map_err(|e| crate::persistence::StorageError::Deserialization(e.to_string()))?;
             instances.push(VariableInstance {
                 id: r.id,
                 execution_id: r

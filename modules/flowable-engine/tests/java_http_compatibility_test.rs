@@ -71,7 +71,10 @@ impl HttpResponseHandler for ThreadRecordingResponseHandler {
         &self,
         _context: &mut HttpResponseHandlerContext<'_>,
     ) -> Result<(), FlowableError> {
-        *self.observed_thread.lock().unwrap_or_else(|e| e.into_inner()) = Some(thread::current().id());
+        *self
+            .observed_thread
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(thread::current().id());
         Ok(())
     }
 }
@@ -566,7 +569,8 @@ fn java_handle_status_codes_triggers_error_event_subprocess() {
         },
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-event-subprocess".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("java-http-event-subprocess".to_string(), config).unwrap();
     engine
         .get_repository_service()
         .deploy(
@@ -623,7 +627,8 @@ fn java_uncaught_handled_status_is_reported_as_bpmn_error_code() {
         ..Default::default()
     };
     let engine =
-        ProcessEngine::new_with_config("java-http-uncaught-bpmn-error".to_string(), config).unwrap();
+        ProcessEngine::new_with_config("java-http-uncaught-bpmn-error".to_string(), config)
+            .unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpUncaughtHandledStatus",
@@ -743,7 +748,8 @@ fn java_http_handlers_preserve_mutations_after_async_completion() {
         http_handler_registry: Some(handlers),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-handlers-async".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("java-http-handlers-async".to_string(), config).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         "javaHttpHandlersAsync",
@@ -927,7 +933,8 @@ fn java_http_handler_failure_rolls_back_request_mutations_and_runtime_state() {
         pending_future_registry: Arc::clone(&pending_futures),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-handler-rollback".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("java-http-handler-rollback".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpHandlerRollback",
@@ -987,7 +994,8 @@ fn java_http_script_handlers_use_secure_script_engine() {
         supported_script_languages: vec!["javascript".to_string()],
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-script-handlers".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("java-http-script-handlers".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpScriptHandlers",

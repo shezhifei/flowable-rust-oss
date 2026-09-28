@@ -10,8 +10,8 @@
 //! TaskQueryImpl.java:2021-2032); without one, only direct user links match.
 
 use flowable_cmmn_engine::{
-    CmmnCaseInstanceStartRequest, CmmnDeploymentRequest, CmmnEngine, CmmnHumanTaskState,
-    CmmnModel, CmmnUserGroupResolver,
+    CmmnCaseInstanceStartRequest, CmmnDeploymentRequest, CmmnEngine, CmmnHumanTaskState, CmmnModel,
+    CmmnUserGroupResolver,
 };
 use std::sync::Arc;
 

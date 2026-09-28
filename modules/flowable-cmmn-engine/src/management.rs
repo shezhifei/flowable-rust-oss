@@ -103,12 +103,7 @@ impl CmmnManagementService {
         retries: i32,
     ) -> Result<CmmnJob, CmmnError> {
         self.in_transaction(|session| {
-            move_deadletter_job_session(
-                session,
-                job_id,
-                retries,
-                DeadletterDestination::Executable,
-            )
+            move_deadletter_job_session(session, job_id, retries, DeadletterDestination::Executable)
         })
     }
 
@@ -445,9 +440,9 @@ impl CmmnManagementJobQuery {
                 .is_none_or(|scope_id| job.scope_id.as_deref() == Some(scope_id.as_str()))
         });
         jobs.retain(|job| {
-            self.sub_scope_id
-                .as_ref()
-                .is_none_or(|sub_scope_id| job.sub_scope_id.as_deref() == Some(sub_scope_id.as_str()))
+            self.sub_scope_id.as_ref().is_none_or(|sub_scope_id| {
+                job.sub_scope_id.as_deref() == Some(sub_scope_id.as_str())
+            })
         });
         jobs.retain(|job| {
             self.scope_definition_id.as_ref().is_none_or(|definition| {

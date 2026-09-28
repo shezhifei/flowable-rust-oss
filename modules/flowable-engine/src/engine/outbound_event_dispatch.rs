@@ -52,7 +52,14 @@ pub struct OutboundEventDispatchRegistry {
 impl fmt::Debug for OutboundEventDispatchRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OutboundEventDispatchRegistry")
-            .field("installed", &self.inner.lock().unwrap_or_else(|e| e.into_inner()).is_some())
+            .field(
+                "installed",
+                &self
+                    .inner
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .is_some(),
+            )
             .finish()
     }
 }
@@ -73,7 +80,10 @@ impl OutboundEventDispatchRegistry {
     }
 
     pub fn is_installed(&self) -> bool {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).is_some()
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
 
     /// Run transform + adapter when a hook is installed; otherwise succeed as

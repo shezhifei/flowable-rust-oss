@@ -440,7 +440,8 @@ fn add_candidate_group_to_suspended_task_rejected() {
 
 #[test]
 fn delete_candidate_user_from_suspended_task_rejected() {
-    let engine = ProcessEngine::new("delete-candidate-user-suspended-rejected".to_string()).unwrap();
+    let engine =
+        ProcessEngine::new("delete-candidate-user-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 

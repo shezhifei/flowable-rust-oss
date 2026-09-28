@@ -70,14 +70,14 @@ fn control_subcommand(args: &[String]) {
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
-                },
+                }
             },
             "nodes" => match client.get_nodes() {
                 Ok(nodes) => print_json(&nodes),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
-                },
+                }
             },
             "release" => {
                 let fencing_token: i64 = parse_arg(args, "--fencing-token")
@@ -91,7 +91,7 @@ fn control_subcommand(args: &[String]) {
                     Err(e) => {
                         eprintln!("Error: {}", e);
                         std::process::exit(1);
-                    },
+                    }
                 }
             }
             "step-down" => match client.admin_step_down() {
@@ -105,7 +105,7 @@ fn control_subcommand(args: &[String]) {
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
-                },
+                }
             },
             "deregister" => {
                 let node_id = parse_arg(args, "--node-id").unwrap_or_else(|| {
@@ -121,7 +121,7 @@ fn control_subcommand(args: &[String]) {
                     Err(e) => {
                         eprintln!("Error: {}", e);
                         std::process::exit(1);
-                    },
+                    }
                 }
             }
             "cleanup" => match client.cleanup_expired_nodes() {
@@ -134,7 +134,7 @@ fn control_subcommand(args: &[String]) {
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
-                },
+                }
             },
             _ => {
                 eprintln!("Unknown command: {}", command);

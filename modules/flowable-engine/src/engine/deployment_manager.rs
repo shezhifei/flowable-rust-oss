@@ -234,10 +234,7 @@ impl DeploymentManager {
                     .unwrap_or(false)
             })
             .collect();
-        candidates.sort_by(|a, b| {
-            a.due_time.cmp(&b.due_time)
-                .then(a.id.cmp(&b.id))
-        });
+        candidates.sort_by(|a, b| a.due_time.cmp(&b.due_time).then(a.id.cmp(&b.id)));
         Ok(candidates)
     }
 
@@ -769,8 +766,7 @@ impl DeploymentManager {
         // Java parity: DeploymentEntityManagerImpl.insert -> AbstractDataManager.insert
         // -> DbSqlSession.insert; a SQL failure throws and aborts the deploy command.
         // insert() sticky-records internally; keep the abort explicit here.
-        if let Err(error) =
-            session.insert("deployments", &deployment_id, &deployment_no_resources)
+        if let Err(error) = session.insert("deployments", &deployment_id, &deployment_no_resources)
         {
             session.note_write_error(error);
         }
@@ -787,15 +783,18 @@ impl DeploymentManager {
             let mut params = DbParams::new();
             params.push(entity.id.clone());
             // DELETE of a missing row is success (0 rows); real SQL errors must propagate.
-            if let Err(err) = session.inner_mut().execute(StatementId::DeleteDeployment, params) {
+            if let Err(err) = session
+                .inner_mut()
+                .execute(StatementId::DeleteDeployment, params)
+            {
                 session.note_write_error(crate::persistence::StorageError::Persistence(format!(
                     "dual-write pre-delete ACT_RE_DEPLOYMENT failed for id={}: {err}",
                     entity.id
                 )));
             }
         }
-        if let Err(err) = flowable_persistence::DeploymentDataManager::new()
-            .insert(session.inner_mut(), entity)
+        if let Err(err) =
+            flowable_persistence::DeploymentDataManager::new().insert(session.inner_mut(), entity)
         {
             session.note_write_error(crate::persistence::StorageError::Persistence(format!(
                 "dual-write ACT_RE_DEPLOYMENT insert failed for id={deployment_id}: {err}"
@@ -864,7 +863,7 @@ impl DeploymentManager {
             let key = (deployment_id.clone(), name.clone());
             self.resource_cache
                 .write()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .insert(key, Arc::new(bytes.clone()));
         }
         // Flush remaining JSON-path work after dual-write; sticky-note failures.
@@ -1009,8 +1008,9 @@ impl DeploymentManager {
             use flowable_persistence::value::DbParams;
             let mut params = DbParams::new();
             params.push(entity.id.clone());
-            if let Err(err) =
-                session.inner_mut().execute(StatementId::DeleteProcessDefinition, params)
+            if let Err(err) = session
+                .inner_mut()
+                .execute(StatementId::DeleteProcessDefinition, params)
             {
                 session.note_write_error(crate::persistence::StorageError::Persistence(format!(
                     "dual-write pre-delete ACT_RE_PROCDEF failed for id={}: {err}",
@@ -1287,9 +1287,7 @@ impl DeploymentManager {
         {
             session.note_write_error(error);
         }
-        if let Err(error) =
-            session.delete_by("repository_models", "deployment_id", deployment_id)
-        {
+        if let Err(error) = session.delete_by("repository_models", "deployment_id", deployment_id) {
             session.note_write_error(error);
         }
 
@@ -1308,9 +1306,11 @@ impl DeploymentManager {
                 if let Err(err) = flowable_persistence::DeploymentDataManager::new()
                     .delete(session.inner_mut(), &entity)
                 {
-                    session.note_write_error(crate::persistence::StorageError::Persistence(format!(
-                        "dual-delete ACT_RE_DEPLOYMENT failed for id={deployment_id}: {err}"
-                    )));
+                    session.note_write_error(crate::persistence::StorageError::Persistence(
+                        format!(
+                            "dual-delete ACT_RE_DEPLOYMENT failed for id={deployment_id}: {err}"
+                        ),
+                    ));
                 }
             }
             Ok(None) => {}

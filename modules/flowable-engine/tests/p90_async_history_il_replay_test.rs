@@ -276,16 +276,17 @@ fn async_unclaim_replay_writes_null_user_id_assignee_il() {
         2,
         "initial + unclaim must yield two assignee rows: {historic:?}"
     );
-    let null_rows: Vec<_> = assignees
-        .iter()
-        .filter(|l| l.user_id.is_none())
-        .collect();
+    let null_rows: Vec<_> = assignees.iter().filter(|l| l.user_id.is_none()).collect();
     assert_eq!(
         null_rows.len(),
         1,
         "unclaim must produce exactly one null userId row: {assignees:?}"
     );
-    assert!(assignees.iter().any(|l| l.user_id.as_deref() == Some("kermit")));
+    assert!(
+        assignees
+            .iter()
+            .any(|l| l.user_id.as_deref() == Some("kermit"))
+    );
 }
 
 /// ④ TaskUpdated IL is diff-triggered: replaying the same update after the

@@ -299,7 +299,12 @@ mod tests {
             true,
             &policy
         ));
-        assert!(subscription_matches_event_tenant(Some(""), None, true, &policy));
+        assert!(subscription_matches_event_tenant(
+            Some(""),
+            None,
+            true,
+            &policy
+        ));
     }
 
     #[test]

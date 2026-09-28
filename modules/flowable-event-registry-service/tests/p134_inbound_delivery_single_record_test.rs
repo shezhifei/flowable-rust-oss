@@ -128,10 +128,10 @@ fn inbound_send_event_keeps_single_delivery_record() {
     </definitions>"#;
 
     let repo = engine.get_repository_service();
-    repo.deploy(
-        repo.create_deployment()
-            .add_string("p134_single_delivery.bpmn20.xml".to_string(), xml.to_string()),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "p134_single_delivery.bpmn20.xml".to_string(),
+        xml.to_string(),
+    ))
     .unwrap();
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();
     let pi = engine
@@ -193,7 +193,8 @@ fn inbound_send_event_keeps_single_delivery_record() {
     // Trigger consumed the wait and mapped out params.
     let waits = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(pi.id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(pi.id.clone())
+        .unwrap();
     assert!(waits.is_empty());
     let accepted = engine
         .get_runtime_service()

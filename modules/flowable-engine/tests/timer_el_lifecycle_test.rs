@@ -29,7 +29,8 @@ fn boundary_timer_time_duration_expression_evaluates() {
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("p17-boundary-el-duration".to_string(), time_source).unwrap();
+        ProcessEngine::with_time_source("p17-boundary-el-duration".to_string(), time_source)
+            .unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
                  xmlns:flowable="http://flowable.org/bpmn"
@@ -156,7 +157,8 @@ fn intermediate_timer_time_cycle_expression_evaluates() {
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("p17-intermediate-el-cycle".to_string(), time_source).unwrap();
+        ProcessEngine::with_time_source("p17-intermediate-el-cycle".to_string(), time_source)
+            .unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="cycleElProcess" isExecutable="true">
@@ -221,7 +223,8 @@ fn boundary_timer_end_date_expression_evaluates() {
     let time_source = Arc::new(TestTimeSource::new(
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
-    let engine = ProcessEngine::with_time_source("p17-enddate-el".to_string(), time_source).unwrap();
+    let engine =
+        ProcessEngine::with_time_source("p17-enddate-el".to_string(), time_source).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
                  xmlns:flowable="http://flowable.org/bpmn"
@@ -316,10 +319,7 @@ fn start_timer_string_literal_expression_resolves() {
         .get_timer_start_subscriptions()
         .expect("timer start subscription read must succeed");
     assert_eq!(subs.len(), 1);
-    assert_eq!(
-        subs[0].time_date.as_deref(),
-        Some("2036-11-14T11:12:22Z")
-    );
+    assert_eq!(subs[0].time_date.as_deref(), Some("2036-11-14T11:12:22Z"));
     assert!(subs[0].due_time.is_some());
 }
 
@@ -332,7 +332,8 @@ fn suspended_definition_timer_start_skips_without_panic_and_reschedules_cycle() 
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("p17-suspended-start".to_string(), time_source.clone()).unwrap();
+        ProcessEngine::with_time_source("p17-suspended-start".to_string(), time_source.clone())
+            .unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="suspendedCycleStart" isExecutable="true">

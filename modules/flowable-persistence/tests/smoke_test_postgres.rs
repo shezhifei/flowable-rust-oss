@@ -33,7 +33,10 @@ fn postgres_url() -> String {
 }
 
 fn locked_postgres_url() -> (String, std::sync::MutexGuard<'static, ()>) {
-    (postgres_url(), PG_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner()))
+    (
+        postgres_url(),
+        PG_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner()),
+    )
 }
 
 fn postgres_config(url: &str) -> DatabaseConfig {

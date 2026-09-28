@@ -139,7 +139,8 @@ fn imports_postgres_copy_dump_via_source_manifest() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_source_import".to_string(),
             target_db.to_str().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let result = engine
             .import_historical_migration_from_source_manifest(&manifest_path)
             .unwrap();

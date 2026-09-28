@@ -2056,7 +2056,10 @@ impl CmmnCase {
     }
 
     /// The plan item listeners registered for one definition id, in declaration order.
-    pub(crate) fn plan_item_listeners(&self, plan_item_definition_id: &str) -> &[CmmnLifecycleListener] {
+    pub(crate) fn plan_item_listeners(
+        &self,
+        plan_item_definition_id: &str,
+    ) -> &[CmmnLifecycleListener] {
         self.plan_item_lifecycle_listeners
             .get(plan_item_definition_id)
             .map(Vec::as_slice)
@@ -2505,7 +2508,11 @@ impl From<flowable_cmmn_model::CaseFileItemOnPart> for CmmnCaseFileItemOnPart {
     fn from(on_part: flowable_cmmn_model::CaseFileItemOnPart) -> Self {
         // Converter maps XML sourceRef → case_file_item_ref
         // (CMMN11CaseModel.xsd:1034-1039).
-        Self::new(on_part.id, on_part.case_file_item_ref, on_part.standard_event)
+        Self::new(
+            on_part.id,
+            on_part.case_file_item_ref,
+            on_part.standard_event,
+        )
     }
 }
 
@@ -2747,7 +2754,11 @@ impl CmmnCaseInstanceStartRequest {
         self
     }
 
-    pub fn with_callback(mut self, callback_id: impl Into<String>, callback_type: impl Into<String>) -> Self {
+    pub fn with_callback(
+        mut self,
+        callback_id: impl Into<String>,
+        callback_type: impl Into<String>,
+    ) -> Self {
         self.callback_id = Some(callback_id.into());
         self.callback_type = Some(callback_type.into());
         self

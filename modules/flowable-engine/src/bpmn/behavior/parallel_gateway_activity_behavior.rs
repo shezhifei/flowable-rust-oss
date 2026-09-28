@@ -52,7 +52,10 @@ fn is_waiting_token_at_parallel_gateway(
 /// kept inactive as the scope parent of the forked branches
 /// (`ParallelGatewayActivityBehavior#execute` inactivates the incoming
 /// execution instead of destroying it). Any other token is deleted.
-fn delete_or_preserve_scope_execution(command_context: &mut CommandContext, execution: &Execution) -> Result<(), crate::error::FlowableError> {
+fn delete_or_preserve_scope_execution(
+    command_context: &mut CommandContext,
+    execution: &Execution,
+) -> Result<(), crate::error::FlowableError> {
     if execution.is_process_instance_scope_execution() {
         let mut preserved = execution.clone();
         preserved.is_active = false;

@@ -79,7 +79,12 @@ fn parses_all_three_implementation_types() {
     let types: Vec<_> = case
         .lifecycle_listeners
         .iter()
-        .map(|listener| (listener.implementation_type, listener.implementation.as_str()))
+        .map(|listener| {
+            (
+                listener.implementation_type,
+                listener.implementation.as_str(),
+            )
+        })
         .collect();
     assert_eq!(
         types,
@@ -89,7 +94,10 @@ fn parses_all_three_implementation_types() {
                 ListenerImplementationType::Expression,
                 "${execution.setVariable('x', 1)}"
             ),
-            (ListenerImplementationType::DelegateExpression, "${auditBean}"),
+            (
+                ListenerImplementationType::DelegateExpression,
+                "${auditBean}"
+            ),
         ]
     );
 }
@@ -109,7 +117,10 @@ fn class_attribute_wins_over_expression_and_delegate_expression() {
     );
 
     let listener = &case.lifecycle_listeners[0];
-    assert_eq!(listener.implementation_type, ListenerImplementationType::Class);
+    assert_eq!(
+        listener.implementation_type,
+        ListenerImplementationType::Class
+    );
     assert_eq!(listener.implementation, "com.example.Audit");
 }
 
@@ -201,7 +212,10 @@ fn parses_plan_item_lifecycle_listener_on_stage_and_case_plan_model() {
         "com.example.PlanModelAudit"
     );
     let stage = &case.case_plan_model.stages[0];
-    assert_eq!(stage.lifecycle_listeners[0].implementation, "com.example.StageAudit");
+    assert_eq!(
+        stage.lifecycle_listeners[0].implementation,
+        "com.example.StageAudit"
+    );
     assert_eq!(
         stage.lifecycle_listeners[0].target_state,
         Some("completed".to_string())
@@ -281,8 +295,14 @@ fn parses_plan_item_lifecycle_listener_on_event_listeners() {
     );
 
     let listeners = &case.case_plan_model.event_listeners;
-    assert_eq!(listeners[0].lifecycle_listeners[0].implementation, "com.example.UserEventAudit");
-    assert_eq!(listeners[1].lifecycle_listeners[0].implementation, "com.example.TimerAudit");
+    assert_eq!(
+        listeners[0].lifecycle_listeners[0].implementation,
+        "com.example.UserEventAudit"
+    );
+    assert_eq!(
+        listeners[1].lifecycle_listeners[0].implementation,
+        "com.example.TimerAudit"
+    );
     // the timerExpression sibling is still parsed
     assert_eq!(listeners[1].timer_expression, Some("PT1H".to_string()));
 }
@@ -325,5 +345,9 @@ fn wrong_owner_element_name_is_skipped_not_parsed() {
     "#,
     );
 
-    assert!(case.case_plan_model.human_tasks[0].lifecycle_listeners.is_empty());
+    assert!(
+        case.case_plan_model.human_tasks[0]
+            .lifecycle_listeners
+            .is_empty()
+    );
 }

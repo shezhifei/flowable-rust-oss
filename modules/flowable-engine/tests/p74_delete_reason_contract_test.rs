@@ -73,7 +73,11 @@ const BOUNDARY_INTERRUPT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 #[test]
 fn interrupting_boundary_sets_host_historic_activity_delete_reason() {
     let engine = ProcessEngine::new("p74-boundary-delete-reason".to_string()).unwrap();
-    deploy(&engine, "p74_boundary_delete_reason", BOUNDARY_INTERRUPT_XML);
+    deploy(
+        &engine,
+        "p74_boundary_delete_reason",
+        BOUNDARY_INTERRUPT_XML,
+    );
     let pi = start_by_key(&engine, "p74BoundaryDeleteReason");
 
     let history = engine.get_history_service();
@@ -177,7 +181,8 @@ fn interrupting_event_subprocess_sets_host_historic_activity_delete_reason() {
 
     let _ = engine
         .get_runtime_service()
-        .trigger_event_subprocess_by_message("cancelMessage".to_string(), pi.clone()).unwrap();
+        .trigger_event_subprocess_by_message("cancelMessage".to_string(), pi.clone())
+        .unwrap();
 
     let post = history
         .create_historic_activity_instance_query()
@@ -252,7 +257,11 @@ const TRANSACTION_CANCEL_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 #[test]
 fn cancel_end_sets_transaction_canceled_delete_reason_on_destroyed_host() {
     let engine = ProcessEngine::new("p74-tx-cancel-delete-reason".to_string()).unwrap();
-    deploy(&engine, "p74_tx_cancel_delete_reason", TRANSACTION_CANCEL_XML);
+    deploy(
+        &engine,
+        "p74_tx_cancel_delete_reason",
+        TRANSACTION_CANCEL_XML,
+    );
     let pi = start_by_key(&engine, "p74TxCancelDeleteReason");
 
     // Cancel end is automatic on one fork branch: hostTask is cancelled as
@@ -261,7 +270,10 @@ fn cancel_end_sets_transaction_canceled_delete_reason_on_destroyed_host() {
         .get_task_service()
         .get_tasks_by_process_instance_id(pi.clone())
         .unwrap();
-    let keys: Vec<_> = tasks.iter().map(|t| t.task_definition_key.as_str()).collect();
+    let keys: Vec<_> = tasks
+        .iter()
+        .map(|t| t.task_definition_key.as_str())
+        .collect();
     assert!(
         keys.contains(&"afterCancel"),
         "cancel path should leave afterCancel open; got {keys:?}"

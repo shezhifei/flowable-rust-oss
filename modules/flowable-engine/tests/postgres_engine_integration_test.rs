@@ -630,9 +630,8 @@ fn postgres_dual_write_failure_hard_fails_without_silent_divergence() {
     // Ensure clean slate for the poison column even if a prior run aborted.
     {
         let mut session = store.create_session().expect("session cleanup");
-        let _ = session.execute_raw_sql(
-            "ALTER TABLE ACT_RU_EXECUTION DROP COLUMN IF EXISTS p73_poison",
-        );
+        let _ = session
+            .execute_raw_sql("ALTER TABLE ACT_RU_EXECUTION DROP COLUMN IF EXISTS p73_poison");
         let _ = session.flush_and_commit();
     }
 
@@ -645,9 +644,7 @@ fn postgres_dual_write_failure_hard_fails_without_silent_divergence() {
             )
             .expect("add poison column");
         session
-            .execute_raw_sql(
-                "ALTER TABLE ACT_RU_EXECUTION ALTER COLUMN p73_poison DROP DEFAULT",
-            )
+            .execute_raw_sql("ALTER TABLE ACT_RU_EXECUTION ALTER COLUMN p73_poison DROP DEFAULT")
             .expect("drop poison default");
         session.flush_and_commit().expect("commit poison");
     }

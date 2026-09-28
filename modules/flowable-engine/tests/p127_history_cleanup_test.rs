@@ -45,11 +45,7 @@ fn list_cleanup_timers(engine: &ProcessEngine) -> Vec<RuntimeTimerJobState> {
         .expect("query")
 }
 
-fn insert_historic_pi(
-    engine: &ProcessEngine,
-    id: &str,
-    end_time: Option<chrono::DateTime<Utc>>,
-) {
+fn insert_historic_pi(engine: &ProcessEngine, id: &str, end_time: Option<chrono::DateTime<Utc>>) {
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
     let start = fixed_now() - ChronoDuration::days(400);
@@ -154,7 +150,11 @@ fn ensure_job_idempotent_single_timer() {
         .expect("ensure 2");
 
     let jobs = list_cleanup_timers(&engine);
-    assert_eq!(jobs.len(), 1, "repeated ensure must not create a second job");
+    assert_eq!(
+        jobs.len(),
+        1,
+        "repeated ensure must not create a second job"
+    );
     assert_eq!(
         jobs[0].handler_type.as_deref(),
         Some(job_handler_types::BPMN_HISTORY_CLEANUP)

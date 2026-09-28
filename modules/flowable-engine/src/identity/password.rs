@@ -53,16 +53,12 @@ pub fn is_valid_hash(stored: &str) -> bool {
 pub fn hash_password(plain: &str) -> String {
     let salt_bytes = *uuid::Uuid::new_v4().as_bytes();
     let salt = SaltString::encode_b64(&salt_bytes).expect("16 random bytes are a valid salt");
-    let params = argon2::Params::new(M_COST, T_COST, P_COST, None)
-        .expect("argon2 parameter set is valid");
-    argon2::Argon2::new(
-        argon2::Algorithm::Argon2id,
-        argon2::Version::V0x13,
-        params,
-    )
-    .hash_password(plain.as_bytes(), &salt)
-    .expect("argon2 hashing with valid params cannot fail")
-    .to_string()
+    let params =
+        argon2::Params::new(M_COST, T_COST, P_COST, None).expect("argon2 parameter set is valid");
+    argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
+        .hash_password(plain.as_bytes(), &salt)
+        .expect("argon2 hashing with valid params cannot fail")
+        .to_string()
 }
 
 /// Verify `plain` against a stored value.

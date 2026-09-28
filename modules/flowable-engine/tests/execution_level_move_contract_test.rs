@@ -249,11 +249,7 @@ fn move_execution_to_activity_id_with_variables_merges_locals() {
 #[test]
 fn enable_event_subprocess_start_event_allows_message_trigger_after_interrupting_signal() {
     let engine = ProcessEngine::new("p55-enable-es-start".to_string()).unwrap();
-    let instance = deploy_and_start(
-        &engine,
-        multi_event_subprocess_xml(),
-        "multi_es.bpmn20.xml",
-    );
+    let instance = deploy_and_start(&engine, multi_event_subprocess_xml(), "multi_es.bpmn20.xml");
 
     assert_eq!(
         task_definition_keys(&engine, &instance.id),
@@ -278,7 +274,8 @@ fn enable_event_subprocess_start_event_allows_message_trigger_after_interrupting
     // Fire interrupting signal first (Java test does this, then observes 0 subs).
     engine
         .get_runtime_service()
-        .trigger_event_subprocess_by_signal("mySignal".to_string(), instance.id.clone()).unwrap();
+        .trigger_event_subprocess_by_signal("mySignal".to_string(), instance.id.clone())
+        .unwrap();
     assert_eq!(
         task_definition_keys(&engine, &instance.id),
         vec!["eventSubProcessTask".to_string()]
@@ -303,7 +300,8 @@ fn enable_event_subprocess_start_event_allows_message_trigger_after_interrupting
     // Without enable, message must not activate the ES path.
     engine
         .get_runtime_service()
-        .trigger_event_subprocess_by_message("myMessage".to_string(), instance.id.clone()).unwrap();
+        .trigger_event_subprocess_by_message("myMessage".to_string(), instance.id.clone())
+        .unwrap();
     assert_eq!(
         task_definition_keys(&engine, &instance.id),
         vec!["eventSubProcessTask".to_string()],
@@ -330,7 +328,8 @@ fn enable_event_subprocess_start_event_allows_message_trigger_after_interrupting
 
     engine
         .get_runtime_service()
-        .trigger_event_subprocess_by_message("myMessage".to_string(), instance.id.clone()).unwrap();
+        .trigger_event_subprocess_by_message("myMessage".to_string(), instance.id.clone())
+        .unwrap();
 
     assert_eq!(
         task_definition_keys(&engine, &instance.id),
@@ -361,7 +360,11 @@ fn enable_event_subprocess_start_event_rejects_unknown_start_event() {
 #[test]
 fn move_execution_to_activity_id_rejects_unknown_target() {
     let engine = ProcessEngine::new("p55-exec-move-missing".to_string()).unwrap();
-    let instance = deploy_and_start(&engine, review_chain_xml(), "execution_move_missing.bpmn20.xml");
+    let instance = deploy_and_start(
+        &engine,
+        review_chain_xml(),
+        "execution_move_missing.bpmn20.xml",
+    );
     let source_id = execution_at_activity(&engine, &instance.id, "reviewA").id;
 
     let err = engine

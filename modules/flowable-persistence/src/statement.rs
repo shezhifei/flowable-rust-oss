@@ -73,14 +73,12 @@ pub enum StatementId {
     SelectDueTimerJobs,
     // AcquireDueTimerJobs removed (C4): never called; engine acquires via
     // optimistic CAS / global lock on runtime JSON state. See dialect.rs.
-
     InsertAsyncJob,
     UpdateAsyncJob,
     DeleteAsyncJob,
     SelectAsyncJobById,
     SelectDueAsyncJobs,
     // AcquireDueAsyncJobs removed (C4): same rationale as timer acquire.
-
     InsertSuspendedJob,
     UpdateSuspendedJob,
     DeleteSuspendedJob,

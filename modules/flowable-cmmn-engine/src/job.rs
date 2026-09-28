@@ -477,11 +477,7 @@ impl CmmnJobHandler for HistoryCleanupHandler {
         // Java CmmnHistoryCleanupJobHandler.execute (CmmnHistoryCleanupJobHandler.java:37-57).
         // Deviations: no in-progress batch skip; no batch-record cleanup; sync delete.
         let now = Utc::now();
-        crate::history_cleaning::execute_history_cleanup(
-            ctx.history,
-            ctx.history_cleaning,
-            now,
-        )?;
+        crate::history_cleaning::execute_history_cleanup(ctx.history, ctx.history_cleaning, now)?;
         // Schedule next cron occurrence before the outer execute_job deletes this row.
         crate::history_cleaning::schedule_next_history_cleanup_timer(ctx.management, job, now)?;
         Ok(())

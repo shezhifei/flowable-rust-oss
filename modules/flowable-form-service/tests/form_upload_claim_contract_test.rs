@@ -214,7 +214,10 @@ fn resubmitting_content_owned_by_another_process_conflicts() {
         other => panic!("expected process instance, got {other:?}"),
     };
     let owned = content.get_content_item(&item_id).unwrap();
-    assert_eq!(owned.process_instance_id.as_deref(), Some(first_pi.id.as_str()));
+    assert_eq!(
+        owned.process_instance_id.as_deref(),
+        Some(first_pi.id.as_str())
+    );
     assert_eq!(owned.field.as_deref(), Some("files"));
 
     // Second submit referencing the same item must be rejected as a conflict

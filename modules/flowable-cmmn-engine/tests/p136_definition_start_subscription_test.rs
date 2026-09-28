@@ -3,9 +3,9 @@
 //! Java: CmmnDeployer.java:194-224, CmmnDeploymentEntityManagerImpl.java:57-108.
 
 use flowable_cmmn_engine::{
-    generate_correlation_key, CmmnCase, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
-    CmmnEventCorrelationParameter, CmmnModel, START_EVENT_CORRELATION_MANUAL,
-    START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID,
+    CmmnCase, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine, CmmnEventCorrelationParameter,
+    CmmnModel, START_EVENT_CORRELATION_MANUAL,
+    START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID, generate_correlation_key,
 };
 use std::collections::BTreeMap;
 
@@ -14,13 +14,23 @@ fn engine() -> CmmnEngine {
 }
 
 fn static_start_case(key: &str, event_type: &str) -> CmmnModel {
-    let mut case = CmmnCase::new(key, key, format!("{key} case"), CmmnCasePlanModel::new("pm", "pm"));
+    let mut case = CmmnCase::new(
+        key,
+        key,
+        format!("{key} case"),
+        CmmnCasePlanModel::new("pm", "pm"),
+    );
     case.start_event_type = Some(event_type.to_string());
     CmmnModel::new(vec![case])
 }
 
 fn unique_ref_case(key: &str, event_type: &str) -> CmmnModel {
-    let mut case = CmmnCase::new(key, key, format!("{key} case"), CmmnCasePlanModel::new("pm", "pm"));
+    let mut case = CmmnCase::new(
+        key,
+        key,
+        format!("{key} case"),
+        CmmnCasePlanModel::new("pm", "pm"),
+    );
     case.start_event_type = Some(event_type.to_string());
     case.start_correlation_configuration =
         Some(START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID.to_string());
@@ -29,7 +39,12 @@ fn unique_ref_case(key: &str, event_type: &str) -> CmmnModel {
 }
 
 fn manual_start_case(key: &str, event_type: &str) -> CmmnModel {
-    let mut case = CmmnCase::new(key, key, format!("{key} case"), CmmnCasePlanModel::new("pm", "pm"));
+    let mut case = CmmnCase::new(
+        key,
+        key,
+        format!("{key} case"),
+        CmmnCasePlanModel::new("pm", "pm"),
+    );
     case.start_event_type = Some(event_type.to_string());
     case.start_correlation_configuration = Some(START_EVENT_CORRELATION_MANUAL.to_string());
     CmmnModel::new(vec![case])
@@ -37,9 +52,7 @@ fn manual_start_case(key: &str, event_type: &str) -> CmmnModel {
 
 fn deploy(engine: &CmmnEngine, name: &str, model: CmmnModel) -> String {
     engine
-        .deploy(
-            CmmnDeploymentRequest::new(name).with_resource("case.cmmn", model),
-        )
+        .deploy(CmmnDeploymentRequest::new(name).with_resource("case.cmmn", model))
         .expect("deploy")
         .id
 }

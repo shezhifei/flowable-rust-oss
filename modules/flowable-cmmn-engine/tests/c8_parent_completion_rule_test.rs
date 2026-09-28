@@ -117,9 +117,8 @@ fn model_with_enabled_milestone(case_key: &str, parent_completion_rule: &str) ->
 }
 
 fn model_with_available_milestone(case_key: &str, required: bool) -> CmmnModel {
-    let mut milestone_plan_item =
-        CmmnPlanItem::new("plan-item-milestone", "milestone-waiting")
-            .with_entry_criterion("sentry-never");
+    let mut milestone_plan_item = CmmnPlanItem::new("plan-item-milestone", "milestone-waiting")
+        .with_entry_criterion("sentry-never");
     if required {
         milestone_plan_item = milestone_plan_item.with_required_rule("required == true");
     }

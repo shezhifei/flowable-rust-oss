@@ -107,7 +107,9 @@ pub fn validate_outbound_url(
 
     // Hostname: resolve and require every address to be non-blocked.
     // Known limitation: DNS may change after this check (rebinding).
-    let port = parsed.port.unwrap_or(if parsed.scheme == "https" { 443 } else { 80 });
+    let port = parsed
+        .port
+        .unwrap_or(if parsed.scheme == "https" { 443 } else { 80 });
     let addrs: Vec<SocketAddr> = match (parsed.host.as_str(), port).to_socket_addrs() {
         Ok(iter) => iter.collect(),
         Err(error) => {
@@ -189,9 +191,9 @@ fn scheme_of(url: &str) -> Option<String> {
 }
 
 fn parse_http_url(url: &str) -> Result<ParsedUrl, String> {
-    let scheme_sep = url
-        .find("://")
-        .ok_or_else(|| "Outbound URL is missing a scheme (expected http:// or https://)".to_string())?;
+    let scheme_sep = url.find("://").ok_or_else(|| {
+        "Outbound URL is missing a scheme (expected http:// or https://)".to_string()
+    })?;
     let scheme = url[..scheme_sep].to_ascii_lowercase();
     if scheme.is_empty() {
         return Err("Outbound URL scheme is empty".to_string());
@@ -207,9 +209,7 @@ fn parse_http_url(url: &str) -> Result<ParsedUrl, String> {
         None => rest,
     };
 
-    let authority_end = authority
-        .find(['/', '?', '#'])
-        .unwrap_or(authority.len());
+    let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
     let authority = &authority[..authority_end];
     if authority.is_empty() {
         return Err("Outbound URL is missing a host".to_string());
@@ -391,7 +391,11 @@ mod tests {
 
     #[test]
     fn rejects_non_http_schemes() {
-        for url in ["file:///etc/passwd", "gopher://example.com/1", "ftp://example.com/a"] {
+        for url in [
+            "file:///etc/passwd",
+            "gopher://example.com/1",
+            "ftp://example.com/a",
+        ] {
             let err = validate_outbound_url(url, &strict()).unwrap_err();
             assert!(
                 err.message.contains("not allowed") || err.message.contains("scheme"),
@@ -431,10 +435,7 @@ mod tests {
             safe_url_display("https://example.com:8443/path?q=1#frag"),
             "https://example.com:8443"
         );
-        assert_eq!(
-            safe_url_display("http://[::1]:8080/x"),
-            "http://[::1]:8080"
-        );
+        assert_eq!(safe_url_display("http://[::1]:8080/x"), "http://[::1]:8080");
     }
 
     #[test]

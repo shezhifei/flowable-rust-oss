@@ -31,9 +31,7 @@ pub struct DataObject {
     pub data_object_definition_key: Option<String>,
 }
 
-fn collect_execution_variables_local(
-    execution: &Execution,
-) -> HashMap<String, (String, Value)> {
+fn collect_execution_variables_local(execution: &Execution) -> HashMap<String, (String, Value)> {
     let mut out = HashMap::new();
     for (name, value) in &execution.local_variables {
         out.insert(name.clone(), (execution.id.clone(), value.clone()));
@@ -151,14 +149,18 @@ fn find_data_objects_recursive(
     for element in elements {
         match element {
             FlowElementEnum::SubProcess(sub) => {
-                if sub.activity.flow_node.flow_element.base_element.id.as_deref()
+                if sub
+                    .activity
+                    .flow_node
+                    .flow_element
+                    .base_element
+                    .id
+                    .as_deref()
                     == Some(activity_id)
                 {
                     return Some(sub.data_objects.clone());
                 }
-                if let Some(found) =
-                    find_data_objects_recursive(&sub.flow_elements, activity_id)
-                {
+                if let Some(found) = find_data_objects_recursive(&sub.flow_elements, activity_id) {
                     return Some(found);
                 }
             }
@@ -256,8 +258,7 @@ fn resolve_data_objects(
         return Err(FlowableError::BadRequest("executionId is null".to_string()));
     }
     let variables = collect_variables_with_owners(command_context, execution_id, is_local)?;
-    let name_filter: Option<HashSet<&str>> =
-        names.map(|n| n.iter().map(String::as_str).collect());
+    let name_filter: Option<HashSet<&str>> = names.map(|n| n.iter().map(String::as_str).collect());
 
     let mut result = HashMap::new();
     for (name, (owner_id, value)) in variables {
@@ -270,7 +271,9 @@ fn resolve_data_objects(
             continue;
         };
         let definitions = data_objects_for_scope(command_context, &scope);
-        let Some(definition) = definitions.iter().find(|d| d.name.as_deref() == Some(name.as_str()))
+        let Some(definition) = definitions
+            .iter()
+            .find(|d| d.name.as_deref() == Some(name.as_str()))
         else {
             // Variable exists but is not a modeled data object — skip (Java).
             continue;
@@ -437,12 +440,9 @@ impl Command<Option<DataObject>> for GetTaskDataObjectCmd {
                 "variableName is null".to_string(),
             ));
         }
-        let mut map = GetTaskDataObjectsCmd::with_names(
-            self.task_id.clone(),
-            vec![self.name.clone()],
-        )
-        .execute(command_context)?;
+        let mut map =
+            GetTaskDataObjectsCmd::with_names(self.task_id.clone(), vec![self.name.clone()])
+                .execute(command_context)?;
         Ok(map.remove(&self.name))
     }
 }
-

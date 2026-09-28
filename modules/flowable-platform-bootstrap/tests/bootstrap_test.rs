@@ -76,7 +76,8 @@ fn bootstraps_owned_engine_graph_and_default_admin() {
     assert!(
         process_engine
             .get_identity_service()
-            .check_password("admin", "bootstrap-secret").unwrap()
+            .check_password("admin", "bootstrap-secret")
+            .unwrap()
     );
     assert!(process_engine.get_config().dmn_engine.is_some());
     assert_eq!(
@@ -123,7 +124,8 @@ fn default_configuration_does_not_create_admin() {
         platform
             .process_engine()
             .get_identity_service()
-            .find_user_by_id("admin").unwrap()
+            .find_user_by_id("admin")
+            .unwrap()
             .is_none(),
         "default config must not seed admin user"
     );
@@ -170,10 +172,7 @@ fn platform_app_engine_rehydrates_cached_composition_via_deployment_manager() {
             repository_service
                 .create_deployment()
                 .name("onboarding".to_string())
-                .add_string(
-                    "onboarding.bpmn20.xml".to_string(),
-                    process_xml.to_string(),
-                ),
+                .add_string("onboarding.bpmn20.xml".to_string(), process_xml.to_string()),
         )
         .expect("process deployment");
 
@@ -321,13 +320,17 @@ fn platform_app_resolves_event_registry_references_after_deploy_and_cache_change
             AppDeploymentRequest::new("employee-apps-v2").with_resource(
                 "employee-app-v2.json",
                 AppModel::new().with_app_definition(
-                    AppDefinition::new("app-employee-v2", "employee-portal-v2", "Employee Portal V2")
-                        .with_page(
-                            AppPage::new("page-events", "Events").with_reference(
-                                AppReference::event("employee-event-page")
-                                    .with_definition_key("employeeUpdated"),
-                            ),
+                    AppDefinition::new(
+                        "app-employee-v2",
+                        "employee-portal-v2",
+                        "Employee Portal V2",
+                    )
+                    .with_page(
+                        AppPage::new("page-events", "Events").with_reference(
+                            AppReference::event("employee-event-page")
+                                .with_definition_key("employeeUpdated"),
                         ),
+                    ),
                 ),
             ),
         )
@@ -341,7 +344,6 @@ fn platform_app_resolves_event_registry_references_after_deploy_and_cache_change
     assert_eq!(composition_v2.references[0].resolved_definition_version, 2);
     assert_ne!(composition_v2.references[0].resolved_definition_id, v1_id);
 }
-
 
 #[test]
 fn platform_wires_cmmn_process_task_to_real_bpmn_engine_and_completion_callback() {
@@ -1002,10 +1004,7 @@ fn platform_cascade_delete_cmmn_deployment_removes_bpmn_child_process_instance()
                 CmmnProcessTask::new("process-task-child", "Child process")
                     .with_process_ref("cascadeChildProcess"),
             )
-            .with_plan_item(CmmnPlanItem::new(
-                "plan-item-process",
-                "process-task-child",
-            )),
+            .with_plan_item(CmmnPlanItem::new("plan-item-process", "process-task-child")),
     );
     let deployment = cmmn_engine
         .deploy(
@@ -1119,8 +1118,8 @@ fn dmn_strict_mode_defaults_to_true() {
         "strictMode defaults to true (DmnEngineConfiguration.java:202)"
     );
 
-    let platform =
-        FlowablePlatform::bootstrap(isolated_platform_config("p91-strict-default")).expect("platform");
+    let platform = FlowablePlatform::bootstrap(isolated_platform_config("p91-strict-default"))
+        .expect("platform");
     let dmn = platform.dmn_engine();
     dmn.deploy(
         flowable_dmn_engine::DmnDeploymentRequest::new("p91-strict")
@@ -1154,7 +1153,9 @@ fn dmn_strict_mode_false_tolerates_unique_violation() {
     let result = dmn
         .execute_by_key(
             "routingDecision",
-            flowable_dmn_engine::DmnExecutionRequest::new(serde_json::json!({ "channel": "email" })),
+            flowable_dmn_engine::DmnExecutionRequest::new(
+                serde_json::json!({ "channel": "email" }),
+            ),
         )
         .expect("non-strict UNIQUE tolerates multi-match");
     assert!(

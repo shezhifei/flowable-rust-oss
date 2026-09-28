@@ -264,7 +264,9 @@ fn parse_date_time(s: &str) -> Option<DateTime<Utc>> {
         return Some(DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc));
     }
     if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-        return d.and_hms_opt(0, 0, 0).map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc));
+        return d
+            .and_hms_opt(0, 0, 0)
+            .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc));
     }
     None
 }
@@ -513,7 +515,10 @@ pub fn next_repeat_expression(cycle: &str) -> Option<String> {
             Some(0) | Some(1) => return None,
             Some(n) => Some(n - 1),
         };
-        return Some(rebuild_cycle_expression(next_remaining, &parsed.body_after_r));
+        return Some(rebuild_cycle_expression(
+            next_remaining,
+            &parsed.body_after_r,
+        ));
     }
 
     // Cron: expression unchanged.
@@ -617,9 +622,7 @@ fn next_cron_after(expr: &str, after: DateTime<Utc>) -> Option<DateTime<Utc>> {
 
     // Search second-by-second up to ~2 years
     let mut cursor = after + ChronoDuration::seconds(1);
-    cursor = cursor
-        .with_nanosecond(0)
-        .unwrap_or(cursor);
+    cursor = cursor.with_nanosecond(0).unwrap_or(cursor);
     for _ in 0..(2 * 366 * 24 * 60 * 60) {
         let month = cursor.month();
         if !months.contains(&month) {
@@ -629,9 +632,7 @@ fn next_cron_after(expr: &str, after: DateTime<Utc>) -> Option<DateTime<Utc>> {
             } else {
                 (cursor.year(), month + 1)
             };
-            cursor = Utc
-                .with_ymd_and_hms(y, m, 1, 0, 0, 0)
-                .single()?;
+            cursor = Utc.with_ymd_and_hms(y, m, 1, 0, 0, 0).single()?;
             continue;
         }
         let day = cursor.day();
@@ -832,7 +833,10 @@ mod tests {
         let cycle = format!("R3/{}/PT1H", start.to_rfc3339());
         let now = start;
         let s = schedule_cycle(&cycle, None, now).expect("schedule");
-        assert_eq!(s.due_time_millis, (start + ChronoDuration::hours(1)).timestamp_millis());
+        assert_eq!(
+            s.due_time_millis,
+            (start + ChronoDuration::hours(1)).timestamp_millis()
+        );
     }
 
     #[test]
@@ -841,7 +845,10 @@ mod tests {
         let end = now + ChronoDuration::hours(5);
         let cycle = format!("R/PT1H/{}", end.to_rfc3339());
         let s = schedule_cycle(&cycle, None, now).expect("schedule");
-        assert_eq!(s.due_time_millis, (now + ChronoDuration::hours(1)).timestamp_millis());
+        assert_eq!(
+            s.due_time_millis,
+            (now + ChronoDuration::hours(1)).timestamp_millis()
+        );
     }
 
     #[test]

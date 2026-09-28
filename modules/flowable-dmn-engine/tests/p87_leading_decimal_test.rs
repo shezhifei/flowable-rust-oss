@@ -46,7 +46,11 @@ fn rule(rule_number: usize, input: &str, output: &str) -> DecisionRule {
 }
 
 /// Single-input decision table over `variable` typed `type_ref`.
-fn definition(variable: &str, type_ref: Option<&str>, input_tests: &[(&str, &str)]) -> DmnDefinition {
+fn definition(
+    variable: &str,
+    type_ref: Option<&str>,
+    input_tests: &[(&str, &str)],
+) -> DmnDefinition {
     DmnDefinition {
         id: Some("p87-defs".to_string()),
         name: Some("P87 Leading Decimal Decisions".to_string()),

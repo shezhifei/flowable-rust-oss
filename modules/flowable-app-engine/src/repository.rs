@@ -616,9 +616,7 @@ impl AppDefinitionQuery {
         definitions.retain(|item| match &self.tenant_filter {
             TenantFilter::Any => true,
             TenantFilter::Exact(tenant) => item.tenant_id.as_deref() == Some(tenant.as_str()),
-            TenantFilter::WithoutTenant => {
-                item.tenant_id.as_deref().is_none_or(str::is_empty)
-            }
+            TenantFilter::WithoutTenant => item.tenant_id.as_deref().is_none_or(str::is_empty),
         });
         definitions.retain(|item| matches_optional(&self.resource_name, &item.resource_name));
         definitions.retain(|item| self.version.is_none_or(|version| item.version == version));
@@ -788,12 +786,13 @@ fn normalize_and_validate_deployment_request(
             .unwrap_or_default();
 
         if !existing_bytes.is_empty() {
-            let parsed = parse_resource_bytes_to_engine_model(&existing_bytes).map_err(|error| {
-                AppError::validation(format!(
-                    "App deployment resource '{}' is not a valid app definition: {error}",
-                    resource.resource_name
-                ))
-            })?;
+            let parsed =
+                parse_resource_bytes_to_engine_model(&existing_bytes).map_err(|error| {
+                    AppError::validation(format!(
+                        "App deployment resource '{}' is not a valid app definition: {error}",
+                        resource.resource_name
+                    ))
+                })?;
             if resource.model.app_definitions.is_empty() {
                 resource.model = parsed;
             } else if !models_semantically_equal(&resource.model, &parsed) {

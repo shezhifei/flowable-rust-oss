@@ -27,10 +27,7 @@ fn simple_model() -> CmmnModel {
 
 fn deploy_and_complete(engine: &CmmnEngine, count: usize) -> Vec<String> {
     engine
-        .deploy(
-            CmmnDeploymentRequest::new("cleanup")
-                .with_resource("cleanup.cmmn", simple_model()),
-        )
+        .deploy(CmmnDeploymentRequest::new("cleanup").with_resource("cleanup.cmmn", simple_model()))
         .expect("deploy");
     let mut ids = Vec::new();
     for i in 0..count {
@@ -251,5 +248,8 @@ fn handler_respects_batch_size() {
                 .is_ok()
         })
         .count();
-    assert_eq!(remaining, 1, "batch size 2 must leave 1 of 3 finished cases");
+    assert_eq!(
+        remaining, 1,
+        "batch size 2 must leave 1 of 3 finished cases"
+    );
 }

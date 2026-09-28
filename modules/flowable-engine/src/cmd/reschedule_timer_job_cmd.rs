@@ -101,10 +101,9 @@ impl Command<RuntimeTimerJobState> for RescheduleTimerJobCmd {
                 if job.process_instance_id.is_empty() {
                     None
                 } else {
-                    command_context.runtime_store.find_execution(
-                        &job.process_instance_id,
-                        &mut command_context.session,
-                    )
+                    command_context
+                        .runtime_store
+                        .find_execution(&job.process_instance_id, &mut command_context.session)
                 }
             })
             .unwrap_or_else(Execution::default);

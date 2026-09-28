@@ -71,9 +71,18 @@ fn or_block_ors_conditions_inside_block() {
         .list()
         .unwrap();
     let ids: Vec<&str> = matched.iter().map(|t| t.id.as_str()).collect();
-    assert!(ids.contains(&"t-assigned"), "assignee term must match: {ids:?}");
-    assert!(ids.contains(&"t-cand"), "candidate term must match: {ids:?}");
-    assert!(!ids.contains(&"t-none"), "unrelated task must not match: {ids:?}");
+    assert!(
+        ids.contains(&"t-assigned"),
+        "assignee term must match: {ids:?}"
+    );
+    assert!(
+        ids.contains(&"t-cand"),
+        "candidate term must match: {ids:?}"
+    );
+    assert!(
+        !ids.contains(&"t-none"),
+        "unrelated task must not match: {ids:?}"
+    );
 }
 
 /// The or() block ANDs with criteria set outside the block
@@ -172,12 +181,16 @@ fn or_block_candidate_user_keeps_p49_semantics() {
     let identity = engine.get_identity_service();
     let task_service = engine.get_task_service();
 
-    identity.save_group(Group {
-        id: "sales".to_string(),
-        name: "Sales".to_string(),
-        group_type: None,
-    }).unwrap();
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
+    identity
+        .save_group(Group {
+            id: "sales".to_string(),
+            name: "Sales".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    identity
+        .create_membership("aSalesUser".to_string(), "sales".to_string())
+        .unwrap();
 
     standalone_task(&engine, "t-open", "Open");
     task_service

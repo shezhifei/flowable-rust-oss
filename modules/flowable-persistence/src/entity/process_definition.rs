@@ -139,7 +139,11 @@ impl ProcessDefinitionDataManager {
         } else {
             0i64
         });
-        params.push(if entity.has_start_form_key { 1i64 } else { 0i64 });
+        params.push(if entity.has_start_form_key {
+            1i64
+        } else {
+            0i64
+        });
         params.push(entity.suspension_state as i64);
         params.push(entity.tenant_id.clone());
         params.push(entity.engine_version.clone());
@@ -168,7 +172,11 @@ impl ProcessDefinitionDataManager {
         } else {
             0i64
         });
-        params.push(if entity.has_start_form_key { 1i64 } else { 0i64 });
+        params.push(if entity.has_start_form_key {
+            1i64
+        } else {
+            0i64
+        });
         params.push(entity.suspension_state as i64);
         params.push(entity.tenant_id.clone());
         params.push(entity.engine_version.clone());

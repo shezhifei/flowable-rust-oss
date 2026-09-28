@@ -15,10 +15,10 @@
 mod test_support;
 
 use flowable_form_service::{
-    form_instance_values_bytes, FormInstance, FormSubmissionProperty, FormSubmissionRequest,
-    FormSubmissionResult,
+    FormInstance, FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult,
+    form_instance_values_bytes,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use test_support::{deploy_runtime_forms, deploy_runtime_process, runtime_fixture};
 
@@ -96,7 +96,10 @@ fn form_instance_persists_values_id_bytes_scope_definition_and_tenant() {
     let instance = &instances[0];
 
     assert!(
-        instance.form_values_id.as_deref().is_some_and(|id| !id.is_empty()),
+        instance
+            .form_values_id
+            .as_deref()
+            .is_some_and(|id| !id.is_empty()),
         "form_values_id must be assigned at write"
     );
     let stored_bytes = instance
@@ -105,11 +108,12 @@ fn form_instance_persists_values_id_bytes_scope_definition_and_tenant() {
         .expect("form_value_bytes must be stored at write");
     let parsed: BTreeMap<String, Value> = serde_json::from_slice(stored_bytes).unwrap();
     assert_eq!(parsed.get("requester"), Some(&json!("alice")));
-    assert_eq!(parsed.get("amount"), Some(&json!(99.0)).or(Some(&json!(99))));
+    assert_eq!(
+        parsed.get("amount"),
+        Some(&json!(99.0)).or(Some(&json!(99)))
+    );
 
-    let via_api = service
-        .get_form_instance_values(&instance.id)
-        .unwrap();
+    let via_api = service.get_form_instance_values(&instance.id).unwrap();
     assert_eq!(via_api, *stored_bytes);
 
     assert_eq!(

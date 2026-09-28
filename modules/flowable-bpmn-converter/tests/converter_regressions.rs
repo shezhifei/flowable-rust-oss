@@ -577,7 +577,10 @@ fn start_event_extension_elements_carry_form_properties() {
     assert_eq!(amount.property_type.as_deref(), Some("long"));
     assert_eq!(amount.variable.as_deref(), Some("amount"));
     assert!(amount.required, "required=\"true\" must be honoured");
-    assert!(amount.readable, "readable defaults to true when unspecified");
+    assert!(
+        amount.readable,
+        "readable defaults to true when unspecified"
+    );
     assert!(!amount.writeable, "writable=\"false\" must be honoured");
 
     let kind = &properties[1];

@@ -1264,7 +1264,7 @@ mod tests {
         fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
             self.events
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push(format!("{}:{:?}", self.name, event.event_type()));
             match self.error {
                 Some(error) => Err(FlowableError::ExecutionError(error.to_string())),

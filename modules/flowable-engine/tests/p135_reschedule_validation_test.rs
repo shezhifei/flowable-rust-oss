@@ -17,8 +17,7 @@ use std::sync::Arc;
 fn engine() -> ProcessEngine {
     let now = Utc.with_ymd_and_hms(2026, 8, 5, 12, 0, 0).unwrap();
     let clock = Arc::new(TestTimeSource::new(now));
-    let store =
-        Arc::new(flowable_engine::persistence::db_store::DbStore::new_in_memory().unwrap());
+    let store = Arc::new(flowable_engine::persistence::db_store::DbStore::new_in_memory().unwrap());
     ProcessEngine::build(
         "p135-bpmn-reschedule-validation".to_string(),
         clock as Arc<dyn TimeSource>,
@@ -56,11 +55,7 @@ fn reschedule_requires_exactly_one_timer_value_before_job_lookup() {
         (Some("2030-01-01T00:00:00Z"), Some("PT1H"), None),
         (Some("2030-01-01T00:00:00Z"), None, Some("R/PT1H")),
         (None, Some("PT1H"), Some("R/PT1H")),
-        (
-            Some("2030-01-01T00:00:00Z"),
-            Some("PT1H"),
-            Some("R/PT1H"),
-        ),
+        (Some("2030-01-01T00:00:00Z"), Some("PT1H"), Some("R/PT1H")),
     ] {
         let error = reschedule(&engine, time_date, time_duration, time_cycle, None)
             .expect_err("multiple timer values must fail before lookup");
@@ -74,10 +69,7 @@ fn reschedule_requires_exactly_one_timer_value_before_job_lookup() {
 #[test]
 fn reschedule_end_date_is_only_legal_with_time_cycle() {
     let engine = engine();
-    for (time_date, time_duration) in [
-        (Some("2030-01-01T00:00:00Z"), None),
-        (None, Some("PT1H")),
-    ] {
+    for (time_date, time_duration) in [(Some("2030-01-01T00:00:00Z"), None), (None, Some("PT1H"))] {
         let error = reschedule(
             &engine,
             time_date,

@@ -1,6 +1,6 @@
 use crate::bpmn::event_registry_correlation::{
-    correlation_key_from_base_element, extension_element_text, is_manual_subscription,
-    ELEMENT_EVENT_TYPE,
+    ELEMENT_EVENT_TYPE, correlation_key_from_base_element, extension_element_text,
+    is_manual_subscription,
 };
 use crate::bpmn::job_category::resolve_job_category;
 use crate::bpmn::timer_util;
@@ -414,30 +414,36 @@ impl Command<Deployment> for DeployCmd {
             let time_source = command_context.runtime_store.time_source();
             let calendars = command_context.config.business_calendar_registry.clone();
             let mut extract_error: Option<crate::error::FlowableError> = None;
-            let result = command_context.deployment_manager.with_bpmn_models(|models| {
-                let mut all_timer = Vec::new();
-                let mut all_event = Vec::new();
-                for (id, key, tenant_id) in &model_info {
-                    match extract_timer_start_subscriptions(
-                        id,
-                        key,
-                        models,
-                        time_source.as_ref(),
+            let result = command_context
+                .deployment_manager
+                .with_bpmn_models(|models| {
+                    let mut all_timer = Vec::new();
+                    let mut all_event = Vec::new();
+                    for (id, key, tenant_id) in &model_info {
+                        match extract_timer_start_subscriptions(
+                            id,
+                            key,
+                            models,
+                            time_source.as_ref(),
                             &calendars,
-                    ) {
-                        Ok(timer_subs) => all_timer.extend(timer_subs),
-                        Err(e) => {
-                            extract_error = Some(e);
-                            return (Vec::new(), Vec::new());
+                        ) {
+                            Ok(timer_subs) => all_timer.extend(timer_subs),
+                            Err(e) => {
+                                extract_error = Some(e);
+                                return (Vec::new(), Vec::new());
+                            }
                         }
-                    }
 
-                    let event_subs =
-                        extract_event_start_subscriptions(id, key, tenant_id.as_deref(), models);
-                    all_event.extend(event_subs);
-                }
-                (all_timer, all_event)
-            });
+                        let event_subs = extract_event_start_subscriptions(
+                            id,
+                            key,
+                            tenant_id.as_deref(),
+                            models,
+                        );
+                        all_event.extend(event_subs);
+                    }
+                    (all_timer, all_event)
+                });
             if let Some(e) = extract_error {
                 return Err(e);
             }
@@ -498,7 +504,8 @@ impl Command<()> for DeleteDeploymentCmd {
     ) -> Result<(), crate::error::FlowableError> {
         if command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.is_none()
+            .get_deployment(&self.deployment_id, &mut command_context.session)?
+            .is_none()
         {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Deployment '{}' was not found",
@@ -509,7 +516,8 @@ impl Command<()> for DeleteDeploymentCmd {
         if self.cascade {
             let process_definition_ids = command_context
                 .deployment_manager
-                .get_process_definitions(&mut command_context.session)                ?.into_values()
+                .get_process_definitions(&mut command_context.session)?
+                .into_values()
                 .filter(|definition| {
                     definition.deployment_id.as_deref() == Some(self.deployment_id.as_str())
                 })
@@ -575,11 +583,7 @@ impl Command<()> for DeleteDeploymentCmd {
                     .filter(|d| d.version < pd.version)
                     .max_by_key(|d| d.version)
                 {
-                    restore_ids.push((
-                        prev.id.clone(),
-                        prev.key.clone(),
-                        prev.tenant_id.clone(),
-                    ));
+                    restore_ids.push((prev.id.clone(), prev.key.clone(), prev.tenant_id.clone()));
                 }
             }
             restore_ids
@@ -598,32 +602,34 @@ impl Command<()> for DeleteDeploymentCmd {
             let calendars = command_context.config.business_calendar_registry.clone();
             let mut restore_error: Option<crate::error::FlowableError> = None;
             let (restored, restored_events) =
-                command_context.deployment_manager.with_bpmn_models(|models| {
-                    let mut all = Vec::new();
-                    let mut all_events = Vec::new();
-                    for (id, key, tenant) in &restore_plan {
-                        match extract_timer_start_subscriptions(
-                            id,
-                            key,
-                            models,
-                            time_source.as_ref(),
+                command_context
+                    .deployment_manager
+                    .with_bpmn_models(|models| {
+                        let mut all = Vec::new();
+                        let mut all_events = Vec::new();
+                        for (id, key, tenant) in &restore_plan {
+                            match extract_timer_start_subscriptions(
+                                id,
+                                key,
+                                models,
+                                time_source.as_ref(),
                                 &calendars,
-                        ) {
-                            Ok(subs) => all.extend(subs),
-                            Err(e) => {
-                                restore_error = Some(e);
-                                return (Vec::new(), Vec::new());
+                            ) {
+                                Ok(subs) => all.extend(subs),
+                                Err(e) => {
+                                    restore_error = Some(e);
+                                    return (Vec::new(), Vec::new());
+                                }
                             }
+                            all_events.extend(extract_event_start_subscriptions(
+                                id,
+                                key,
+                                tenant.as_deref(),
+                                models,
+                            ));
                         }
-                        all_events.extend(extract_event_start_subscriptions(
-                            id,
-                            key,
-                            tenant.as_deref(),
-                            models,
-                        ));
-                    }
-                    (all, all_events)
-                });
+                        (all, all_events)
+                    });
             if let Some(e) = restore_error {
                 return Err(e);
             }
@@ -663,7 +669,8 @@ impl Command<Deployment> for GetDeploymentCmd {
     ) -> Result<Deployment, crate::error::FlowableError> {
         command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.ok_or_else(|| {
+            .get_deployment(&self.deployment_id, &mut command_context.session)?
+            .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Deployment '{}' was not found",
                     self.deployment_id
@@ -710,7 +717,8 @@ impl Command<Vec<DeploymentResource>> for GetDeploymentResourcesCmd {
     ) -> Result<Vec<DeploymentResource>, crate::error::FlowableError> {
         if command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.is_none()
+            .get_deployment(&self.deployment_id, &mut command_context.session)?
+            .is_none()
         {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Deployment '{}' was not found",
@@ -745,7 +753,8 @@ impl Command<DeploymentResource> for GetDeploymentResourceCmd {
     ) -> Result<DeploymentResource, crate::error::FlowableError> {
         if command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.is_none()
+            .get_deployment(&self.deployment_id, &mut command_context.session)?
+            .is_none()
         {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Deployment '{}' was not found",

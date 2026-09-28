@@ -16,7 +16,8 @@ fn shell_enabled_engine(name: &str) -> ProcessEngine {
             shell_tasks_enabled: true,
             ..Default::default()
         },
-    ).unwrap()
+    )
+    .unwrap()
 }
 
 fn deploy_and_start(xml: &str) -> (ProcessEngine, String) {
@@ -214,16 +215,18 @@ fn test_shell_task_java_variable_names_output_and_error_code() {
         .persistent_process_variable("shellOut")
         .expect("Java outputVariable name must be populated");
     assert!(
-        shell_out
-            .as_str()
-            .is_some_and(|s| s.contains("Portable")),
+        shell_out.as_str().is_some_and(|s| s.contains("Portable")),
         "outputVariable should capture stdout, got {shell_out}"
     );
 
     let shell_code = execution
         .persistent_process_variable("shellCode")
         .expect("Java errorCodeVariable name must be populated");
-    assert_eq!(shell_code, json!(0), "errorCodeVariable should be exit code 0");
+    assert_eq!(
+        shell_code,
+        json!(0),
+        "errorCodeVariable should be exit code 0"
+    );
 }
 
 /// P51 S3 — Java ShellActivityBehavior.java:108-118 redirectErrorStream + env.clear.
@@ -277,7 +280,8 @@ fn test_shell_task_redirect_error_merges_stderr_into_output_variable() {
 #[test]
 fn test_shell_task_clean_env_flag_is_recorded_and_executes() {
     // Absolute path required: cleanEnv clears PATH, so bare `cmd` cannot be resolved.
-    let cmd_path = std::env::var("COMSPEC").unwrap_or_else(|_| r"C:\Windows\System32\cmd.exe".into());
+    let cmd_path =
+        std::env::var("COMSPEC").unwrap_or_else(|_| r"C:\Windows\System32\cmd.exe".into());
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"

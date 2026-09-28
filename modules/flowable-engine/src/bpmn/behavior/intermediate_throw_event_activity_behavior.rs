@@ -102,7 +102,7 @@ impl IntermediateThrowEventActivityBehavior {
                 .delete_compensation_subscription(&subscription.id, &mut command_context.session);
         }
         Ok(())
-}
+    }
 }
 
 fn unique_event_refs(mut refs: Vec<String>) -> Vec<String> {

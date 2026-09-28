@@ -104,7 +104,13 @@ fn collect_inclusive_join_ids(flow_elements: &[FlowElementEnum], join_ids: &mut 
         match flow_element {
             FlowElementEnum::InclusiveGateway(gateway) => {
                 if gateway.gateway.flow_node.incoming_flows.len() > 1
-                    && let Some(id) = gateway.gateway.flow_node.flow_element.base_element.id.clone()
+                    && let Some(id) = gateway
+                        .gateway
+                        .flow_node
+                        .flow_element
+                        .base_element
+                        .id
+                        .clone()
                 {
                     join_ids.push(id);
                 }

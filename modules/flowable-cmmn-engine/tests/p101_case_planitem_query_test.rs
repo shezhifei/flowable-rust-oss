@@ -13,8 +13,8 @@
 
 use chrono::{DateTime, Utc};
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest,
-    CmmnEngine, CmmnHumanTask, CmmnModel, CmmnPlanItem,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnHumanTask, CmmnModel, CmmnPlanItem,
 };
 
 fn model_with_tasks(case_key: &str) -> CmmnModel {
@@ -385,7 +385,11 @@ fn case_query_filters_by_callback() {
             .with_name("A")
             .with_callback("exec-1", "bpmn-2.0-to-cmmn-1.1-child-case"),
     );
-    start_case(&engine, "p101Callback", CmmnCaseInstanceStartRequest::new().with_name("B"));
+    start_case(
+        &engine,
+        "p101Callback",
+        CmmnCaseInstanceStartRequest::new().with_name("B"),
+    );
 
     assert_eq!(
         case_query(&engine)

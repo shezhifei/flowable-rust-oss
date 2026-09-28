@@ -17,10 +17,9 @@
 // separate package), so the type filter matches nothing.
 
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest,
-    CmmnEngine, CmmnEventListener, CmmnHumanTask, CmmnHumanTaskCompletionRequest,
-    CmmnHumanTaskState, CmmnMilestone, CmmnModel, CmmnPlanItem, CmmnPlanItemOnPart, CmmnSentry,
-    CmmnStage,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnEventListener, CmmnHumanTask, CmmnHumanTaskCompletionRequest, CmmnHumanTaskState,
+    CmmnMilestone, CmmnModel, CmmnPlanItem, CmmnPlanItemOnPart, CmmnSentry, CmmnStage,
 };
 use serde_json::json;
 
@@ -66,8 +65,10 @@ fn model_with_stage_milestone_listener(case_key: &str) -> CmmnModel {
 fn deploy_and_start(engine: &CmmnEngine, case_key: &str) -> String {
     engine
         .deploy(
-            CmmnDeploymentRequest::new(format!("{case_key}-deployment"))
-                .with_resource(format!("{case_key}.cmmn"), model_with_stage_milestone_listener(case_key)),
+            CmmnDeploymentRequest::new(format!("{case_key}-deployment")).with_resource(
+                format!("{case_key}.cmmn"),
+                model_with_stage_milestone_listener(case_key),
+            ),
         )
         .expect("deployment");
     engine
@@ -109,8 +110,15 @@ fn stage_milestone_and_event_listener_are_queryable_by_case() {
         .case_instance_id(&case_id)
         .list()
         .expect("mirror query");
-    mirrors.sort_by(|a, b| a.plan_item_definition_type.cmp(&b.plan_item_definition_type));
-    assert_eq!(mirrors.len(), 3, "stage + event listener + available milestone");
+    mirrors.sort_by(|a, b| {
+        a.plan_item_definition_type
+            .cmp(&b.plan_item_definition_type)
+    });
+    assert_eq!(
+        mirrors.len(),
+        3,
+        "stage + event listener + available milestone"
+    );
     assert_eq!(mirrors[0].plan_item_definition_type, "eventlistener");
     assert_eq!(mirrors[0].state, "AVAILABLE");
     assert_eq!(mirrors[0].name, "Watched variable");
@@ -126,7 +134,10 @@ fn stage_milestone_and_event_listener_are_queryable_by_case() {
     assert_eq!(mirrors[2].plan_item_definition_id, "stage-work");
 
     // Human-task plan items come from ACT_CMMN_HUMAN_TASK: three active tasks.
-    let tasks = task_query(&engine).case_instance_id(&case_id).list().expect("tasks");
+    let tasks = task_query(&engine)
+        .case_instance_id(&case_id)
+        .list()
+        .expect("tasks");
     assert_eq!(tasks.len(), 3);
 
     // Occur the milestone and the event listener.
@@ -142,7 +153,10 @@ fn stage_milestone_and_event_listener_are_queryable_by_case() {
         .case_instance_id(&case_id)
         .list()
         .expect("mirror query");
-    mirrors.sort_by(|a, b| a.plan_item_definition_type.cmp(&b.plan_item_definition_type));
+    mirrors.sort_by(|a, b| {
+        a.plan_item_definition_type
+            .cmp(&b.plan_item_definition_type)
+    });
     assert_eq!(mirrors.len(), 1);
     assert_eq!(mirrors[0].plan_item_definition_type, "stage");
     assert_eq!(mirrors[0].state, "ACTIVE");
@@ -154,7 +168,10 @@ fn stage_milestone_and_event_listener_are_queryable_by_case() {
         .expect("retained milestone query")
         .expect("retained milestone");
     assert_eq!(milestone.state, "COMPLETED");
-    assert_eq!(milestone.id, milestone_instance_id, "occur updates the same row");
+    assert_eq!(
+        milestone.id, milestone_instance_id,
+        "occur updates the same row"
+    );
     assert!(milestone.ended_at.is_some());
     assert!(milestone.occurred_at.is_some());
 
@@ -177,11 +194,19 @@ fn filters_by_type_state_name_element_and_definition_id() {
 
     // planItemDefinitionType — case-insensitive, Java stores the lowercased type.
     assert_eq!(
-        plan_item_query(&engine).plan_item_definition_type("stage").list().expect("q").len(),
+        plan_item_query(&engine)
+            .plan_item_definition_type("stage")
+            .list()
+            .expect("q")
+            .len(),
         1
     );
     assert_eq!(
-        plan_item_query(&engine).plan_item_definition_type("Stage").list().expect("q").len(),
+        plan_item_query(&engine)
+            .plan_item_definition_type("Stage")
+            .list()
+            .expect("q")
+            .len(),
         1
     );
     assert_eq!(
@@ -212,21 +237,47 @@ fn filters_by_type_state_name_element_and_definition_id() {
     // state — UPPERCASE Rust convention (PlanItemInstanceState values are lowercase in Java;
     // the Rust engine stores the same strings uppercase).
     assert_eq!(
-        plan_item_query(&engine).state("ACTIVE").list().expect("q").len(),
+        plan_item_query(&engine)
+            .state("ACTIVE")
+            .list()
+            .expect("q")
+            .len(),
         1
     );
     assert_eq!(
-        plan_item_query(&engine).state("COMPLETED").list().expect("q").len(),
+        plan_item_query(&engine)
+            .state("COMPLETED")
+            .list()
+            .expect("q")
+            .len(),
         0
     );
     assert_eq!(
-        plan_item_query(&engine).state("AVAILABLE").list().expect("q").len(),
+        plan_item_query(&engine)
+            .state("AVAILABLE")
+            .list()
+            .expect("q")
+            .len(),
         1
     );
 
     // name / nameLike / nameLikeIgnoreCase.
-    assert_eq!(plan_item_query(&engine).name("Shipped").list().expect("q").len(), 0);
-    assert_eq!(plan_item_query(&engine).name_like("Shipped%").list().expect("q").len(), 0);
+    assert_eq!(
+        plan_item_query(&engine)
+            .name("Shipped")
+            .list()
+            .expect("q")
+            .len(),
+        0
+    );
+    assert_eq!(
+        plan_item_query(&engine)
+            .name_like("Shipped%")
+            .list()
+            .expect("q")
+            .len(),
+        0
+    );
     assert_eq!(
         plan_item_query(&engine)
             .name_like_ignore_case("shipped%")
@@ -246,7 +297,11 @@ fn filters_by_type_state_name_element_and_definition_id() {
         0
     );
     assert_eq!(
-        plan_item_query(&engine).element_id("plan-item-stage").list().expect("q").len(),
+        plan_item_query(&engine)
+            .element_id("plan-item-stage")
+            .list()
+            .expect("q")
+            .len(),
         1
     );
 
@@ -270,11 +325,19 @@ fn filters_by_type_state_name_element_and_definition_id() {
 
     // caseInstanceId filter narrows to this case.
     assert_eq!(
-        plan_item_query(&engine).case_instance_id(&case_id).list().expect("q").len(),
+        plan_item_query(&engine)
+            .case_instance_id(&case_id)
+            .list()
+            .expect("q")
+            .len(),
         2
     );
     assert_eq!(
-        plan_item_query(&engine).case_instance_id("no-such-case").list().expect("q").len(),
+        plan_item_query(&engine)
+            .case_instance_id("no-such-case")
+            .list()
+            .expect("q")
+            .len(),
         0
     );
 }
@@ -309,7 +372,10 @@ fn milestone_occur_transition_is_reflected_in_query_state() {
         .single_result()
         .expect("milestone query")
         .expect("milestone row");
-    assert_eq!(milestone.id, available_id, "occur must not insert a duplicate row");
+    assert_eq!(
+        milestone.id, available_id,
+        "occur must not insert a duplicate row"
+    );
     assert_eq!(milestone.state, "COMPLETED");
     assert!(milestone.ended_at.is_some());
     assert!(milestone.occurred_at.is_some());
@@ -326,7 +392,10 @@ fn stage_instance_id_filter_applies_to_child_human_tasks() {
         .single_result()
         .expect("stage query")
         .expect("stage row");
-    assert_eq!(stage.stage_instance_id, None, "the stage itself has no parent stage");
+    assert_eq!(
+        stage.stage_instance_id, None,
+        "the stage itself has no parent stage"
+    );
 
     // The inner human task carries the stage instance id (HumanTaskActivityBehavior
     // task scope = plan item instance; Rust stores stage_instance_id on the task).

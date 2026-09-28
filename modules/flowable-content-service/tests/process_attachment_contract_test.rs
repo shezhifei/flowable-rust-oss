@@ -108,7 +108,10 @@ fn pure_process_attachment_create_list_get_content_and_history() {
         .unwrap();
 
     assert_eq!(item.name, "proc-note.txt");
-    assert_eq!(item.process_instance_id.as_deref(), Some(process_instance_id.as_str()));
+    assert_eq!(
+        item.process_instance_id.as_deref(),
+        Some(process_instance_id.as_str())
+    );
     assert!(item.task_id.is_none());
     assert_eq!(item.content_size, 13);
     assert_eq!(item.created_by.as_deref(), Some("admin"));
@@ -194,9 +197,11 @@ fn task_and_process_visibility_and_wrong_process_isolation() {
         .unwrap();
     assert_eq!(both.task_id.as_deref(), Some(task_a.as_str()));
     assert_eq!(both.process_instance_id.as_deref(), Some(pi_a.as_str()));
-    assert!(task_event_actions(&engine, &task_a)
-        .iter()
-        .any(|a| a == "AddAttachment"));
+    assert!(
+        task_event_actions(&engine, &task_a)
+            .iter()
+            .any(|a| a == "AddAttachment")
+    );
 
     let listed_a = content.list_process_attachments(&pi_a).unwrap();
     let ids_a: Vec<_> = listed_a.iter().map(|i| i.id.as_str()).collect();
@@ -207,7 +212,11 @@ fn task_and_process_visibility_and_wrong_process_isolation() {
 
     // Wrong process isolation: list B empty of A's attachments.
     let listed_b = content.list_process_attachments(&pi_b).unwrap();
-    assert!(listed_b.iter().all(|i| i.process_instance_id.as_deref() != Some(pi_a.as_str())));
+    assert!(
+        listed_b
+            .iter()
+            .all(|i| i.process_instance_id.as_deref() != Some(pi_a.as_str()))
+    );
     assert!(!listed_b.iter().any(|i| i.id == proc_item.id));
 
     let err = content
@@ -233,7 +242,10 @@ fn task_and_process_visibility_and_wrong_process_isolation() {
             user_id: None,
         })
         .unwrap_err();
-    assert!(matches!(err, FlowableError::BadRequest(_) | FlowableError::ExecutionError(_)));
+    assert!(matches!(
+        err,
+        FlowableError::BadRequest(_) | FlowableError::ExecutionError(_)
+    ));
 }
 
 #[test]
@@ -274,9 +286,11 @@ fn delete_removes_metadata_and_payload_atomically() {
         .unwrap_err();
     assert!(matches!(content_err, FlowableError::NotFound(_)));
 
-    assert!(process_attachment_actions(&engine, &process_instance_id)
-        .iter()
-        .any(|a| a == "DeleteAttachment"));
+    assert!(
+        process_attachment_actions(&engine, &process_instance_id)
+            .iter()
+            .any(|a| a == "DeleteAttachment")
+    );
 
     let missing = content
         .delete_process_attachment(&process_instance_id, "missing-id", None)
@@ -303,11 +317,19 @@ fn missing_process_and_suspended_mutation_guard() {
         })
         .unwrap_err();
     assert!(matches!(missing, FlowableError::NotFound(_)));
-    assert!(missing.to_string().contains("no-such-process") || missing.to_string().contains("doesn't exist") || missing.to_string().contains("not found") || missing.to_string().contains("Process instance"));
+    assert!(
+        missing.to_string().contains("no-such-process")
+            || missing.to_string().contains("doesn't exist")
+            || missing.to_string().contains("not found")
+            || missing.to_string().contains("Process instance")
+    );
 
     engine
         .get_runtime_service()
-        .suspend_process_instance(process_instance_id.clone(), ProcessInstanceUpdate::default())
+        .suspend_process_instance(
+            process_instance_id.clone(),
+            ProcessInstanceUpdate::default(),
+        )
         .unwrap();
 
     let suspended = content
@@ -377,7 +399,10 @@ fn history_disabled_rejects_attachment_operations() {
     let list_err = content.list_process_attachments(&pi.id).unwrap_err();
     assert!(
         list_err.to_string().contains("history should be enabled")
-            || list_err.to_string().to_ascii_lowercase().contains("history")
+            || list_err
+                .to_string()
+                .to_ascii_lowercase()
+                .contains("history")
     );
 }
 
@@ -407,9 +432,11 @@ fn mid_command_failure_rolls_back_staged_payload() {
             .unwrap()
             .is_empty()
     );
-    assert!(!process_attachment_actions(&engine, &process_instance_id)
-        .iter()
-        .any(|a| a == "AddAttachment"));
+    assert!(
+        !process_attachment_actions(&engine, &process_instance_id)
+            .iter()
+            .any(|a| a == "AddAttachment")
+    );
 }
 
 #[test]

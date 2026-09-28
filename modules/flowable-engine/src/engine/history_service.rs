@@ -1425,7 +1425,8 @@ impl Command<Vec<HistoricIdentityLink>> for HistoricIdentityLinkQueryCmd {
         if let Some(process_instance_id) = &self.query.process_instance_id
             && self.query.task_id.is_some()
         {
-            links.retain(|l| l.process_instance_id.as_deref() == Some(process_instance_id.as_str()));
+            links
+                .retain(|l| l.process_instance_id.as_deref() == Some(process_instance_id.as_str()));
         }
         if let Some(user_id) = &self.query.user_id
             && (self.query.task_id.is_some()

@@ -105,11 +105,13 @@ fn p12_non_interrupting_escalation_boundary_state_survives_and_fires_twice() {
     drop(session);
 
     // First fire via event-ref (mirrors EscalationPropagation → planTrigger).
-    runtime_service.trigger_boundary_event_by_event_ref(
-        EventSubscriptionKind::Escalation,
-        "ESC_CODE".to_string(),
-        pi.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_event_ref(
+            EventSubscriptionKind::Escalation,
+            "ESC_CODE".to_string(),
+            pi.id.clone(),
+        )
+        .unwrap();
 
     let tasks_1 = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
@@ -139,11 +141,13 @@ fn p12_non_interrupting_escalation_boundary_state_survives_and_fires_twice() {
     drop(session);
 
     // Second fire: same escalation again while host is still open.
-    runtime_service.trigger_boundary_event_by_event_ref(
-        EventSubscriptionKind::Escalation,
-        "ESC_CODE".to_string(),
-        pi.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_event_ref(
+            EventSubscriptionKind::Escalation,
+            "ESC_CODE".to_string(),
+            pi.id.clone(),
+        )
+        .unwrap();
 
     let tasks_2 = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
@@ -276,11 +280,13 @@ fn p12_error_boundary_is_one_shot_after_catch() {
 
     // Second artificial trigger must not spawn another errTask (no state).
     drop(session);
-    runtime_service.trigger_boundary_event_by_event_ref(
-        EventSubscriptionKind::Error,
-        "E1".to_string(),
-        pi.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_event_ref(
+            EventSubscriptionKind::Error,
+            "E1".to_string(),
+            pi.id.clone(),
+        )
+        .unwrap();
     let tasks_again = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();
@@ -395,11 +401,13 @@ fn p12_cancel_boundary_is_one_shot_after_transaction_cancelled() {
 
     // Even if residual Cancel boundary state remains, host is gone so a second
     // trigger must not create another cancelTask (host lookup fails / no-op).
-    runtime_service.trigger_boundary_event_by_event_ref(
-        EventSubscriptionKind::Cancel,
-        String::new(),
-        pi.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_event_ref(
+            EventSubscriptionKind::Cancel,
+            String::new(),
+            pi.id.clone(),
+        )
+        .unwrap();
     let tasks_again = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();

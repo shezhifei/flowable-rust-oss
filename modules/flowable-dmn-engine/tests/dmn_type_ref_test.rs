@@ -463,7 +463,9 @@ fn temporal_input_type_refs_accept_feel_constructors_in_comparisons() {
 
         let result = execute_value_result(&engine, value).expect("temporal constructor execution");
 
-        assert_eq!(result.get_output("result"), Some(&json!("matched")),
+        assert_eq!(
+            result.get_output("result"),
+            Some(&json!("matched")),
             "typeRef {type_ref}"
         );
         assert_eq!(

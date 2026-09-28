@@ -132,8 +132,11 @@ impl AppEngine {
         let deployment_manager = AppDeploymentManager::new(store.clone(), cache_limit);
         let repository_service =
             AppRepositoryService::new(store.clone(), catalog, deployment_manager.clone());
-        let runtime_service =
-            AppRuntimeService::new(store, repository_service.clone(), deployment_manager.clone());
+        let runtime_service = AppRuntimeService::new(
+            store,
+            repository_service.clone(),
+            deployment_manager.clone(),
+        );
 
         Ok(Self {
             repository_service,

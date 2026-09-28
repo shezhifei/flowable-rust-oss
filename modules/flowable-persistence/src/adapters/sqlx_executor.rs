@@ -65,9 +65,7 @@ where
     match tokio::runtime::Handle::try_current() {
         Err(_) => runtime.block_on(future),
         Ok(handle) => match handle.runtime_flavor() {
-            RuntimeFlavor::MultiThread => {
-                tokio::task::block_in_place(|| runtime.block_on(future))
-            }
+            RuntimeFlavor::MultiThread => tokio::task::block_in_place(|| runtime.block_on(future)),
             _ => std::thread::scope(|scope| {
                 scope
                     .spawn(|| runtime.block_on(future))
@@ -150,7 +148,9 @@ impl SqlxSqliteExecutor {
         runtime: Arc<Runtime>,
         mut connection: sqlx::pool::PoolConnection<sqlx::Sqlite>,
     ) -> Result<Self, PersistenceError> {
-        match block_on(&runtime, async { sqlx::query("BEGIN").execute(&mut *connection).await }) {
+        match block_on(&runtime, async {
+            sqlx::query("BEGIN").execute(&mut *connection).await
+        }) {
             Ok(_) => Ok(Self {
                 runtime,
                 connection: Some(connection),
@@ -254,8 +254,10 @@ impl SqlExecutor for SqlxSqliteExecutor {
     fn commit(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                block_on(&self.runtime, async { sqlx::query("COMMIT").execute(&mut **conn).await })
-                    .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
+                block_on(&self.runtime, async {
+                    sqlx::query("COMMIT").execute(&mut **conn).await
+                })
+                .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
         }
@@ -265,8 +267,10 @@ impl SqlExecutor for SqlxSqliteExecutor {
     fn rollback(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                block_on(&self.runtime, async { sqlx::query("ROLLBACK").execute(&mut **conn).await })
-                    .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
+                block_on(&self.runtime, async {
+                    sqlx::query("ROLLBACK").execute(&mut **conn).await
+                })
+                .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
         }
@@ -305,7 +309,9 @@ impl SqlxPostgresExecutor {
         runtime: Arc<Runtime>,
         mut connection: sqlx::pool::PoolConnection<sqlx::Postgres>,
     ) -> Result<Self, PersistenceError> {
-        match block_on(&runtime, async { sqlx::query("BEGIN").execute(&mut *connection).await }) {
+        match block_on(&runtime, async {
+            sqlx::query("BEGIN").execute(&mut *connection).await
+        }) {
             Ok(_) => Ok(Self {
                 runtime,
                 connection: Some(connection),
@@ -410,8 +416,10 @@ impl SqlExecutor for SqlxPostgresExecutor {
     fn commit(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                block_on(&self.runtime, async { sqlx::query("COMMIT").execute(&mut **conn).await })
-                    .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
+                block_on(&self.runtime, async {
+                    sqlx::query("COMMIT").execute(&mut **conn).await
+                })
+                .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
         }
@@ -421,8 +429,10 @@ impl SqlExecutor for SqlxPostgresExecutor {
     fn rollback(&mut self) -> Result<(), PersistenceError> {
         if self.in_transaction {
             if let Some(conn) = self.connection.as_mut() {
-                block_on(&self.runtime, async { sqlx::query("ROLLBACK").execute(&mut **conn).await })
-                    .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
+                block_on(&self.runtime, async {
+                    sqlx::query("ROLLBACK").execute(&mut **conn).await
+                })
+                .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
             }
             self.in_transaction = false;
         }
@@ -481,11 +491,11 @@ impl SqlxMySqlExecutor {
             .as_mut()
             .ok_or(PersistenceError::ClosedTransaction)?;
         block_on(&self.runtime, async {
-                use sqlx::Executor;
-                // Simple query protocol — prepared BEGIN is rejected (error 1295).
-                conn.execute("START TRANSACTION").await
-            })
-            .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
+            use sqlx::Executor;
+            // Simple query protocol — prepared BEGIN is rejected (error 1295).
+            conn.execute("START TRANSACTION").await
+        })
+        .map_err(|e| PersistenceError::Transaction(e.to_string()))?;
         self.in_transaction = true;
         Ok(())
     }
@@ -680,12 +690,12 @@ impl SqlxExecutorFactory {
         match config.kind {
             crate::config::DatabaseKind::Sqlite => {
                 let pool = block_on(&runtime, async {
-                        sqlx::sqlite::SqlitePoolOptions::new()
-                            .max_connections(config.pool_size)
-                            .connect(&config.url)
-                            .await
-                    })
-                    .map_err(|e| PersistenceError::Connection(e.to_string()))?;
+                    sqlx::sqlite::SqlitePoolOptions::new()
+                        .max_connections(config.pool_size)
+                        .connect(&config.url)
+                        .await
+                })
+                .map_err(|e| PersistenceError::Connection(e.to_string()))?;
                 Ok(Self {
                     runtime,
                     sqlite_pool: Some(pool),
@@ -699,12 +709,12 @@ impl SqlxExecutorFactory {
             #[cfg(feature = "postgres")]
             crate::config::DatabaseKind::Postgres => {
                 let pool = block_on(&runtime, async {
-                        sqlx::postgres::PgPoolOptions::new()
-                            .max_connections(config.pool_size)
-                            .connect(&config.url)
-                            .await
-                    })
-                    .map_err(|e| PersistenceError::Connection(e.to_string()))?;
+                    sqlx::postgres::PgPoolOptions::new()
+                        .max_connections(config.pool_size)
+                        .connect(&config.url)
+                        .await
+                })
+                .map_err(|e| PersistenceError::Connection(e.to_string()))?;
                 Ok(Self {
                     runtime,
                     sqlite_pool: None,
@@ -721,15 +731,15 @@ impl SqlxExecutorFactory {
             #[cfg(feature = "mysql")]
             crate::config::DatabaseKind::Mysql => {
                 let pool = block_on(&runtime, async {
-                        sqlx::mysql::MySqlPoolOptions::new()
-                            .max_connections(config.pool_size.max(4))
-                            .acquire_timeout(std::time::Duration::from_secs(60))
-                            .idle_timeout(Some(std::time::Duration::from_secs(60)))
-                            .test_before_acquire(true)
-                            .connect(&config.url)
-                            .await
-                    })
-                    .map_err(|e| PersistenceError::Connection(e.to_string()))?;
+                    sqlx::mysql::MySqlPoolOptions::new()
+                        .max_connections(config.pool_size.max(4))
+                        .acquire_timeout(std::time::Duration::from_secs(60))
+                        .idle_timeout(Some(std::time::Duration::from_secs(60)))
+                        .test_before_acquire(true)
+                        .connect(&config.url)
+                        .await
+                })
+                .map_err(|e| PersistenceError::Connection(e.to_string()))?;
                 Ok(Self {
                     runtime,
                     sqlite_pool: None,

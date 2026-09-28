@@ -25,12 +25,12 @@ fn evaluate(expression: &str, variables: &[(&str, Value)]) -> Option<Value> {
 fn ternary_expression_selects_values_with_java_precedence_and_associativity() {
     assert_eq!(evaluate("${true ? 'yes' : 'no'}", &[]), Some(json!("yes")));
     assert_eq!(evaluate("${false || true ? 1 : 2}", &[]), Some(json!(1)));
+    assert_eq!(evaluate("${false ? 0 : true ? 2 : 3}", &[]), Some(json!(2)));
     assert_eq!(
-        evaluate("${false ? 0 : true ? 2 : 3}", &[]),
-        Some(json!(2))
-    );
-    assert_eq!(
-        evaluate("${amount > 10 ? amount * 2 : amount + 1}", &[("amount", json!(12))]),
+        evaluate(
+            "${amount > 10 ? amount * 2 : amount + 1}",
+            &[("amount", json!(12))]
+        ),
         Some(json!(24))
     );
 }

@@ -128,14 +128,10 @@ impl Default for RuntimeJobQueryCriteria {
 impl RuntimeJobQueryCriteria {
     /// Reject structurally incompatible type flags (Java JobQueryImpl).
     pub fn validate(&self) -> Result<(), FlowableError> {
-        let type_flags = [
-            self.timers_only,
-            self.messages_only,
-            self.external_workers,
-        ]
-        .iter()
-        .filter(|&&flag| flag)
-        .count();
+        let type_flags = [self.timers_only, self.messages_only, self.external_workers]
+            .iter()
+            .filter(|&&flag| flag)
+            .count();
         if type_flags > 1 {
             return Err(FlowableError::ExecutionError(
                 "Only one of timersOnly, messagesOnly, or externalWorkers can be supplied"

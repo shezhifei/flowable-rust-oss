@@ -8,10 +8,10 @@
 // Kept deviation (baseline compatibility, see cmmn_runtime_test.rs:164-165): without declared
 // in-parameters the full parent variable map and the parent business key keep being passed.
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnCaseTask,
-    CmmnDeploymentRequest, CmmnEngine, CmmnError, CmmnHumanTask, CmmnHumanTaskCompletionRequest,
-    CmmnHumanTaskState, CmmnIOParameter, CmmnModel, CmmnPlanItem, CmmnProcessTask,
-    CmmnProcessTaskRunner, CmmnProcessTaskStartRequest, CmmnProcessTaskStartResult,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnCaseTask, CmmnDeploymentRequest,
+    CmmnEngine, CmmnError, CmmnHumanTask, CmmnHumanTaskCompletionRequest, CmmnHumanTaskState,
+    CmmnIOParameter, CmmnModel, CmmnPlanItem, CmmnProcessTask, CmmnProcessTaskRunner,
+    CmmnProcessTaskStartRequest, CmmnProcessTaskStartResult,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -61,10 +61,10 @@ fn deploy_case_task_parent(engine: &CmmnEngine, deployment_key: &str, case_task:
             )),
     );
     engine
-        .deploy(
-            CmmnDeploymentRequest::new(deployment_key)
-                .with_resource("cases.cmmn", CmmnModel::new(vec![child_case(), parent_case])),
-        )
+        .deploy(CmmnDeploymentRequest::new(deployment_key).with_resource(
+            "cases.cmmn",
+            CmmnModel::new(vec![child_case(), parent_case]),
+        ))
         .expect("deployment");
 }
 
@@ -292,7 +292,10 @@ fn process_task_out_parameters_apply_completion_payload_to_parent() {
     deploy_process_task_parent_with_out_parameter(&engine, "process-task-out");
 
     let case_instance = engine
-        .start_case_instance_by_key("processOutParameterCase", CmmnCaseInstanceStartRequest::new())
+        .start_case_instance_by_key(
+            "processOutParameterCase",
+            CmmnCaseInstanceStartRequest::new(),
+        )
         .expect("case instance");
 
     // ProcessTaskActivityBehavior.java:156 — the child process variables feed the out-parameter
@@ -301,10 +304,7 @@ fn process_task_out_parameters_apply_completion_payload_to_parent() {
     child_variables.insert("result".to_string(), json!("done"));
     engine
         .runtime_service()
-        .complete_process_task_child_instance_with_variables(
-            "process-instance-1",
-            child_variables,
-        )
+        .complete_process_task_child_instance_with_variables("process-instance-1", child_variables)
         .expect("process completion");
 
     let refreshed = engine
@@ -322,7 +322,10 @@ fn process_task_out_parameters_resolve_missing_payload_to_null() {
     deploy_process_task_parent_with_out_parameter(&engine, "process-task-out-null");
 
     let case_instance = engine
-        .start_case_instance_by_key("processOutParameterCase", CmmnCaseInstanceStartRequest::new())
+        .start_case_instance_by_key(
+            "processOutParameterCase",
+            CmmnCaseInstanceStartRequest::new(),
+        )
         .expect("case instance");
 
     // IOParameterUtil.java:64-66 — a source that cannot be resolved still writes the declared

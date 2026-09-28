@@ -123,8 +123,7 @@ impl AppDeploymentManager {
                     "Resolved app composition for definition '{app_definition_id}' was not found"
                 ))
             })?;
-        let composition: ResolvedAppComposition =
-            serde_json::from_str(&composition_entity.data)?;
+        let composition: ResolvedAppComposition = serde_json::from_str(&composition_entity.data)?;
 
         Ok(AppDefinitionCacheEntry::new(definition, composition))
     }

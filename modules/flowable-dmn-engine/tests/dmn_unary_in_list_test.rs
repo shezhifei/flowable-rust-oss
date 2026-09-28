@@ -133,7 +133,9 @@ fn execute_status(engine: &DmnEngine, status: &str) -> Value {
             DmnExecutionRequest::new(json!({ "status": status })),
         )
         .expect("execution")
-        .get_output("band").cloned().unwrap()
+        .get_output("band")
+        .cloned()
+        .unwrap()
 }
 
 fn execute_code(engine: &DmnEngine, code: Value) -> Value {
@@ -144,7 +146,9 @@ fn execute_code(engine: &DmnEngine, code: Value) -> Value {
             DmnExecutionRequest::new(json!({ "code": code })),
         )
         .expect("execution")
-        .get_output("result").cloned().unwrap()
+        .get_output("result")
+        .cloned()
+        .unwrap()
 }
 
 #[test]
@@ -197,11 +201,8 @@ fn deploys_and_evaluates_not_around_in_list_membership() {
 
 #[test]
 fn parses_in_list_unary_tests_as_in_list_variant() {
-    let model = DmnModel::try_from(string_status_definition(&[(
-        r#"? in ("a", "b")"#,
-        "'ok'",
-    )]))
-    .expect("in-list parses");
+    let model = DmnModel::try_from(string_status_definition(&[(r#"? in ("a", "b")"#, "'ok'")]))
+        .expect("in-list parses");
 
     match &model.decisions[0].rules[0].input_entries[0].expression {
         DmnUnaryTest::InList { values } => {

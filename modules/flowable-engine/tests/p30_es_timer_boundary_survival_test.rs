@@ -27,7 +27,8 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
     let engine = ProcessEngine::with_time_source(
         "p30-msg-boundary-es-timer".to_string(),
         time_source.clone(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 
@@ -65,7 +66,10 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
             repository_service
                 .create_deployment()
                 .name("p30-msg-boundary-es-timer".to_string())
-                .add_string("p30MsgBoundaryEsTimer.bpmn20.xml".to_string(), xml.to_string()),
+                .add_string(
+                    "p30MsgBoundaryEsTimer.bpmn20.xml".to_string(),
+                    xml.to_string(),
+                ),
         )
         .unwrap();
 
@@ -82,19 +86,26 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
     let mut session = runtime_store.create_session().unwrap();
     let subs_before = runtime_store
         .find_event_subprocess_timer_subscriptions_by_process_instance_id(&pi.id, &mut session);
-    assert_eq!(subs_before.len(), 1, "ES timer subscription registered at start");
+    assert_eq!(
+        subs_before.len(),
+        1,
+        "ES timer subscription registered at start"
+    );
     drop(session);
 
     // Fire the interrupting message boundary: host task cancelled, flow moves on.
     runtime_service
-        .trigger_boundary_event_by_message_ref("cancelMessage".to_string(), pi.id.clone()).unwrap();
+        .trigger_boundary_event_by_message_ref("cancelMessage".to_string(), pi.id.clone())
+        .unwrap();
 
     let tasks = engine
         .get_task_service()
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();
     assert!(
-        tasks.iter().any(|t| t.task_definition_key == "afterBoundaryTask"),
+        tasks
+            .iter()
+            .any(|t| t.task_definition_key == "afterBoundaryTask"),
         "boundary path must have progressed to afterBoundaryTask"
     );
     assert!(
@@ -118,7 +129,9 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
     time_source.advance_time(5 * 60 * 1000);
     let fired = engine.run_due_timers();
     assert!(
-        fired.iter().any(|id| id.contains("event_subprocess_timer:")),
+        fired
+            .iter()
+            .any(|id| id.contains("event_subprocess_timer:")),
         "ES timer must still fire after the boundary interrupt: {fired:?}"
     );
 
@@ -129,7 +142,10 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
         .into_iter()
         .filter(|t| t.task_definition_key == "espTask")
         .count();
-    assert_eq!(esp_tasks, 1, "event subprocess must have activated after the interrupt");
+    assert_eq!(
+        esp_tasks, 1,
+        "event subprocess must have activated after the interrupt"
+    );
 }
 
 /// Interrupting timer boundary fires on the host task; the top-level timer
@@ -142,7 +158,8 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
     let engine = ProcessEngine::with_time_source(
         "p30-timer-boundary-es-timer".to_string(),
         time_source.clone(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 
@@ -209,7 +226,9 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();
     assert!(
-        tasks.iter().any(|t| t.task_definition_key == "afterBoundaryTask"),
+        tasks
+            .iter()
+            .any(|t| t.task_definition_key == "afterBoundaryTask"),
         "timer boundary path must have progressed to afterBoundaryTask"
     );
     assert!(
@@ -233,7 +252,9 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
     time_source.advance_time(4 * 60 * 1000);
     let fired = engine.run_due_timers();
     assert!(
-        fired.iter().any(|id| id.contains("event_subprocess_timer:")),
+        fired
+            .iter()
+            .any(|id| id.contains("event_subprocess_timer:")),
         "ES timer must still fire after the boundary interrupt: {fired:?}"
     );
 
@@ -244,5 +265,8 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
         .into_iter()
         .filter(|t| t.task_definition_key == "espTask")
         .count();
-    assert_eq!(esp_tasks, 1, "event subprocess must have activated after the interrupt");
+    assert_eq!(
+        esp_tasks, 1,
+        "event subprocess must have activated after the interrupt"
+    );
 }

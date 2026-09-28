@@ -120,8 +120,6 @@ fn schedule_timer_job(
 }
 
 fn is_timer_family(job: &RuntimeTimerJobState) -> bool {
-    matches!(
-        job.job_state.as_deref(),
-        None | Some("timer") | Some("")
-    ) || (job.job_state.is_none() && job.due_time.is_some())
+    matches!(job.job_state.as_deref(), None | Some("timer") | Some(""))
+        || (job.job_state.is_none() && job.due_time.is_some())
 }

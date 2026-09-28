@@ -126,11 +126,7 @@ fn render_svg(
 }
 
 fn highlight_class(highlighted: bool) -> &'static str {
-    if highlighted {
-        " highlighted"
-    } else {
-        ""
-    }
+    if highlighted { " highlighted" } else { "" }
 }
 
 fn render_edge(
@@ -151,7 +147,11 @@ fn render_edge(
         "<polyline class=\"sequence-flow{}\" points=\"{}\" marker-end=\"{}\"{}{}{} />",
         highlight_class(highlighted),
         points,
-        if highlighted { "url(#sequence-arrow-highlighted)" } else { "url(#sequence-arrow)" },
+        if highlighted {
+            "url(#sequence-arrow-highlighted)"
+        } else {
+            "url(#sequence-arrow)"
+        },
         metadata_attribute(
             "data-element-id",
             &edge.element_id,
@@ -170,7 +170,10 @@ fn render_edge(
     );
 }
 
-fn render_node(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_node(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     match node.kind {
@@ -194,21 +197,30 @@ fn render_node(svg: &mut String, node: &NodeLayout, include_metadata_attributes:
         | DiagramNodeKind::ManualTask
         | DiagramNodeKind::ReceiveTask
         | DiagramNodeKind::BusinessRuleTask
-        | DiagramNodeKind::CallActivity => render_activity(svg, node, include_metadata_attributes, highlighted),
+        | DiagramNodeKind::CallActivity => {
+            render_activity(svg, node, include_metadata_attributes, highlighted)
+        }
         DiagramNodeKind::SubProcess
         | DiagramNodeKind::Transaction
         | DiagramNodeKind::EventSubProcess
         | DiagramNodeKind::AdhocSubProcess => {
             render_subprocess(svg, node, include_metadata_attributes, highlighted)
         }
-        DiagramNodeKind::BoundaryEvent => render_event(svg, node, include_metadata_attributes, highlighted),
-        DiagramNodeKind::DataObject => render_data_object(svg, node, include_metadata_attributes, highlighted),
+        DiagramNodeKind::BoundaryEvent => {
+            render_event(svg, node, include_metadata_attributes, highlighted)
+        }
+        DiagramNodeKind::DataObject => {
+            render_data_object(svg, node, include_metadata_attributes, highlighted)
+        }
         DiagramNodeKind::Pool => render_pool(svg, node, include_metadata_attributes, highlighted),
         DiagramNodeKind::Lane => render_lane(svg, node, include_metadata_attributes, highlighted),
     }
 }
 
-fn render_data_object(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_data_object(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     let classes = format!("data-object{}", highlight_class(highlighted));
@@ -238,7 +250,10 @@ fn escape_xml_text(text: &str) -> String {
         .replace('>', "&gt;")
 }
 
-fn render_pool(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_pool(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     let label = node.name.clone().unwrap_or_default();
@@ -261,7 +276,10 @@ fn render_pool(svg: &mut String, node: &NodeLayout, include_metadata_attributes:
     );
 }
 
-fn render_lane(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_lane(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     let label = node.name.clone().unwrap_or_default();
@@ -284,10 +302,17 @@ fn render_lane(svg: &mut String, node: &NodeLayout, include_metadata_attributes:
     );
 }
 
-fn render_activity(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_activity(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
-    let classes = format!("activity {}{}", activity_class_name(&node.kind), highlight_class(highlighted));
+    let classes = format!(
+        "activity {}{}",
+        activity_class_name(&node.kind),
+        highlight_class(highlighted)
+    );
     let _ = write!(
         svg,
         "<g class=\"{}\"{}><rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"12\" ry=\"12\" class=\"activity{}\" /></g>",
@@ -314,7 +339,10 @@ fn render_activity(svg: &mut String, node: &NodeLayout, include_metadata_attribu
     }
 }
 
-fn render_subprocess(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_subprocess(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     let _ = write!(
@@ -352,7 +380,10 @@ fn render_subprocess(svg: &mut String, node: &NodeLayout, include_metadata_attri
     }
 }
 
-fn render_event(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_event(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     let bounds = &node.bounds;
@@ -407,7 +438,10 @@ fn render_event(svg: &mut String, node: &NodeLayout, include_metadata_attributes
     }
 }
 
-fn render_gateway(svg: &mut String, node: &NodeLayout, include_metadata_attributes: bool,
+fn render_gateway(
+    svg: &mut String,
+    node: &NodeLayout,
+    include_metadata_attributes: bool,
     highlighted: bool,
 ) {
     let bounds = &node.bounds;

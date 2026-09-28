@@ -66,9 +66,7 @@ fn transient_start_variable_invisible_after_command_commits() {
         "durable variables survive the start command"
     );
     assert_eq!(
-        runtime
-            .get_variable(pi.id.clone(), "ghost".into())
-            .unwrap(),
+        runtime.get_variable(pi.id.clone(), "ghost".into()).unwrap(),
         None,
         "start-time transient must not be readable after the start command commits"
     );

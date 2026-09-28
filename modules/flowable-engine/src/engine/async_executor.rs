@@ -463,7 +463,10 @@ impl AsyncExecutor {
     pub fn lock_owner(&self) -> &str {
         // Constructors always resolve `Some`; the fallback only guards direct
         // struct-literal construction with `lock_owner: None`.
-        self.config.lock_owner.as_deref().unwrap_or("async-executor:unknown")
+        self.config
+            .lock_owner
+            .as_deref()
+            .unwrap_or("async-executor:unknown")
     }
 
     /// Tenant filter applied during job acquisition. Empty means all tenants.
@@ -664,13 +667,26 @@ mod tests {
             TimerWork::RuntimeJob(job),
             1,
         ));
-        assert_eq!(executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner()).len(), 1);
+        assert_eq!(
+            executor
+                .temporary_jobs
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .len(),
+            1
+        );
 
         assert_eq!(
             executor.try_start(runtime_service).unwrap(),
             AsyncExecutorStartOutcome::Started
         );
-        assert!(executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner()).is_empty());
+        assert!(
+            executor
+                .temporary_jobs
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_empty()
+        );
         executor.shutdown();
     }
 
@@ -695,7 +711,11 @@ mod tests {
 
         assert!(executor.submit_direct_hint_job(runtime_service, unlocked));
         assert!(
-            executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
+            executor
+                .temporary_jobs
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_empty(),
             "an unlocked durable job must be acquired by the startup poller, not submitted twice"
         );
     }
@@ -720,7 +740,10 @@ mod tests {
         };
 
         assert!(executor.submit_direct_hint_job(runtime_service, prelocked));
-        let queued = executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner());
+        let queued = executor
+            .temporary_jobs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(queued.len(), 1);
         assert!(queued.front().unwrap().direct_hint);
     }

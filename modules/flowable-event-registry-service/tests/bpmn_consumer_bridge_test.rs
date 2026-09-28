@@ -107,7 +107,8 @@ fn bpmn_consumer_triggers_waiting_intermediate_catch_execution() {
 
     let wait = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert!(
         wait.iter()
             .any(|w| w.activity_id.as_deref() == Some("waitEvent")),

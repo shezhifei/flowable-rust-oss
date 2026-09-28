@@ -272,7 +272,11 @@ fn required_decisions_inherit_correlation() {
         .create_execution_history_query()
         .list()
         .expect("history query");
-    assert_eq!(rows.len(), 2, "parent + child decisions each record history");
+    assert_eq!(
+        rows.len(),
+        2,
+        "parent + child decisions each record history"
+    );
     for row in rows {
         assert_eq!(
             row.instance_id.as_deref(),

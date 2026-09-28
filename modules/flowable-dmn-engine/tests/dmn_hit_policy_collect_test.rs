@@ -100,7 +100,9 @@ fn execute_aggregate(operator: CollectOperator) -> serde_json::Value {
             })),
         )
         .expect("execution")
-        .get_output("points").cloned().unwrap()
+        .get_output("points")
+        .cloned()
+        .unwrap()
 }
 
 #[test]

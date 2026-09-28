@@ -15,10 +15,10 @@ use crate::cmd::job_suspension::{
 };
 use crate::cmd::persist_job_extra_fields_cmd::PersistJobExtraFieldsCmd;
 use crate::cmd::record_failed_timer_work_cmd::RecordFailedTimerWorkCmd;
+use crate::cmd::reschedule_timer_job_cmd::RescheduleTimerJobCmd;
 use crate::cmd::run_due_timers_cmd::ExecuteTimerWorkCmd;
 use crate::engine::event_dispatcher::{EngineEvent, EngineEventType};
 use crate::engine::query::{Direction, Query, QueryState};
-use crate::cmd::reschedule_timer_job_cmd::RescheduleTimerJobCmd;
 use crate::engine::timer_worker::{TimerCoordinationMetrics, TimerWork};
 use crate::error::FlowableError;
 use crate::history::async_history_job_handler::SharedHistoryJobHandler;
@@ -78,7 +78,8 @@ impl Command<Vec<RuntimeTimerJobState>> for TimerJobQueryCmd {
         let mut jobs = Vec::new();
 
         // 1. Query timer_job_states
-        let timer_jobs: Vec<RuntimeTimerJobState> = command_context.session().find_all("timer_job_states")?;
+        let timer_jobs: Vec<RuntimeTimerJobState> =
+            command_context.session().find_all("timer_job_states")?;
         jobs.extend(timer_jobs);
 
         // 2. Query process_timer_start_subscriptions and map them to RuntimeTimerJobState
@@ -303,7 +304,8 @@ impl ManagementService {
         &self,
         job_id: &str,
     ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
-        self.find_job_by_id(job_id).map(|j| j.filter(is_executable_job))
+        self.find_job_by_id(job_id)
+            .map(|j| j.filter(is_executable_job))
     }
 
     pub fn list_deadletter_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
@@ -318,7 +320,8 @@ impl ManagementService {
         &self,
         job_id: &str,
     ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
-        self.find_job_by_id(job_id).map(|j| j.filter(is_deadletter_job))
+        self.find_job_by_id(job_id)
+            .map(|j| j.filter(is_deadletter_job))
     }
 
     pub fn list_suspended_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
@@ -333,7 +336,8 @@ impl ManagementService {
         &self,
         job_id: &str,
     ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
-        self.find_job_by_id(job_id).map(|j| j.filter(is_suspended_job))
+        self.find_job_by_id(job_id)
+            .map(|j| j.filter(is_suspended_job))
     }
 
     pub fn list_history_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
@@ -348,25 +352,40 @@ impl ManagementService {
         &self,
         job_id: &str,
     ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
-        self.find_job_by_id(job_id).map(|j| j.filter(is_history_job))
+        self.find_job_by_id(job_id)
+            .map(|j| j.filter(is_history_job))
     }
 
-    pub fn job_process_definition_id(&self, job: &RuntimeTimerJobState) -> Result<Option<String>, FlowableError> {
+    pub fn job_process_definition_id(
+        &self,
+        job: &RuntimeTimerJobState,
+    ) -> Result<Option<String>, FlowableError> {
         let mut session = self.command_executor.runtime_store().create_session()?;
         let store = self.command_executor.runtime_store();
-        match store.find_execution(&job.execution_id, &mut session).and_then(|execution| execution.process_definition_id) {
+        match store
+            .find_execution(&job.execution_id, &mut session)
+            .and_then(|execution| execution.process_definition_id)
+        {
             Some(value) => Ok(Some(value)),
-            None => Ok(store.find_process_instance(&job.process_instance_id, &mut session)?
+            None => Ok(store
+                .find_process_instance(&job.process_instance_id, &mut session)?
                 .map(|instance| instance.process_definition_id)),
         }
     }
 
-    pub fn job_tenant_id(&self, job: &RuntimeTimerJobState) -> Result<Option<String>, FlowableError> {
+    pub fn job_tenant_id(
+        &self,
+        job: &RuntimeTimerJobState,
+    ) -> Result<Option<String>, FlowableError> {
         let mut session = self.command_executor.runtime_store().create_session()?;
         let store = self.command_executor.runtime_store();
-        match store.find_execution(&job.execution_id, &mut session).and_then(|execution| execution.tenant_id) {
+        match store
+            .find_execution(&job.execution_id, &mut session)
+            .and_then(|execution| execution.tenant_id)
+        {
             Some(value) => Ok(Some(value)),
-            None => Ok(store.find_process_instance(&job.process_instance_id, &mut session)?
+            None => Ok(store
+                .find_process_instance(&job.process_instance_id, &mut session)?
                 .and_then(|instance| instance.tenant_id)),
         }
     }
@@ -623,15 +642,14 @@ impl ManagementService {
         // Java ManagementServiceImpl.rescheduleTimerJob → RescheduleTimerJobCmd.
         // Due date calculation routes through the business calendar registry so
         // calendarName changes the immediate due date (P64 Task 3).
-        self.command_executor
-            .execute(&RescheduleTimerJobCmd::new(
-                job_id.to_string(),
-                time_date,
-                time_duration,
-                time_cycle,
-                end_date,
-                calendar_name,
-            ))
+        self.command_executor.execute(&RescheduleTimerJobCmd::new(
+            job_id.to_string(),
+            time_date,
+            time_duration,
+            time_cycle,
+            end_date,
+            calendar_name,
+        ))
     }
 
     fn persisted_timer_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
@@ -708,7 +726,11 @@ impl Command<RuntimeTimerJobState> for MoveTimerToExecutableJobCmd {
         job.lock_owner = None;
         job.lock_time = None;
         job.lock_expiration_time = None;
-        store.insert_timer_job_state_with_type(&job, Some(&job_type), &mut command_context.session)?;
+        store.insert_timer_job_state_with_type(
+            &job,
+            Some(&job_type),
+            &mut command_context.session,
+        )?;
         Ok(job)
     }
 }
@@ -1647,7 +1669,10 @@ mod tests {
         assert!(persisted.lock_expiration_time.is_none());
 
         assert!(
-            recorded.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
+            recorded
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_empty(),
             "an inactive executor must never be hinted"
         );
     }
@@ -1699,7 +1724,10 @@ mod tests {
 
         // ...but the hint is left to another node (category not enabled here).
         assert!(
-            recorded.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
+            recorded
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_empty(),
             "a category-mismatched job must be pre-locked but not hinted"
         );
     }
@@ -1755,7 +1783,10 @@ mod tests {
             .unwrap();
         assert_eq!(persisted.job_state.as_deref(), Some("suspended"));
         assert!(
-            recorded.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
+            recorded
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_empty(),
             "a rolled-back activation must never enqueue a committed hint"
         );
     }

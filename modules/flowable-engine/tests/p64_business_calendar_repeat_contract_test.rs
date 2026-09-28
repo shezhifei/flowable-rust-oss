@@ -159,7 +159,11 @@ fn single_timer_job(
     let mut session = runtime_store.create_session().unwrap();
     let mut jobs = runtime_store
         .find_timer_job_states_by_process_instance_id(process_instance_id, &mut session);
-    assert_eq!(jobs.len(), 1, "expected exactly one timer job, got {jobs:?}");
+    assert_eq!(
+        jobs.len(),
+        1,
+        "expected exactly one timer job, got {jobs:?}"
+    );
     jobs.remove(0)
 }
 
@@ -174,12 +178,21 @@ fn optional_timer_job(
     if jobs.is_empty() {
         None
     } else {
-        assert_eq!(jobs.len(), 1, "expected at most one timer job, got {jobs:?}");
+        assert_eq!(
+            jobs.len(),
+            1,
+            "expected at most one timer job, got {jobs:?}"
+        );
         Some(jobs.remove(0))
     }
 }
 
-fn non_interrupting_cycle_xml(process_id: &str, calendar_attr: &str, cycle: &str, end: &str) -> String {
+fn non_interrupting_cycle_xml(
+    process_id: &str,
+    calendar_attr: &str,
+    cycle: &str,
+    end: &str,
+) -> String {
     // Java TimeCycleParser reads `flowable:endDate` from the <timeCycle>
     // element, not from <timerEventDefinition>.
     let end_attr = if end.is_empty() {
@@ -361,10 +374,7 @@ fn end_date_rejection_stops_the_repeat() {
     let recorder = Arc::new(RecordingCalendar::with_end_rejection(90, end));
     let (engine, clock) = engine_with("p64-repeat-end", |registry| {
         registry
-            .register(
-                "shiftCalendar",
-                recorder as Arc<dyn BusinessCalendar>,
-            )
+            .register("shiftCalendar", recorder as Arc<dyn BusinessCalendar>)
             .unwrap();
     });
 
@@ -387,7 +397,10 @@ fn end_date_rejection_stops_the_repeat() {
         )
         .unwrap();
 
-    assert_eq!(single_timer_job(&engine, &pi.id).due_time, Some(expected_due(90)));
+    assert_eq!(
+        single_timer_job(&engine, &pi.id).due_time,
+        Some(expected_due(90))
+    );
 
     // First fire at +90m is still within end (+100m); next candidate would be
     // +180m which the calendar rejects → no rescheduled job.
@@ -429,7 +442,10 @@ fn repeat_exhaustion_retires_the_timer() {
         )
         .unwrap();
 
-    assert_eq!(single_timer_job(&engine, &pi.id).due_time, Some(expected_due(30)));
+    assert_eq!(
+        single_timer_job(&engine, &pi.id).due_time,
+        Some(expected_due(30))
+    );
 
     clock.advance_time(30 * 60 * 1000);
     assert_eq!(engine.run_due_timers().len(), 1);
@@ -715,7 +731,10 @@ impl BusinessCalendar for EndDateProbeCalendar {
         description: &str,
         now: DateTime<Utc>,
     ) -> Result<DateTime<Utc>, FlowableError> {
-        assert_eq!(description, "shift-close", "raw endDate text reaches the calendar");
+        assert_eq!(
+            description, "shift-close",
+            "raw endDate text reaches the calendar"
+        );
         self.end_calls.fetch_add(1, Ordering::SeqCst);
         Ok(now + Duration::minutes(self.end_offset_minutes))
     }
@@ -788,7 +807,10 @@ fn non_instant_end_date_and_iteration_bound_flow_through_the_production_path() {
         "creation must resolve the endDate through the calendar"
     );
     assert_eq!(
-        probe_for_assert.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0],
+        probe_for_assert
+            .validate_seen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())[0],
         (Some(3), Some(now() + Duration::minutes(60 * 24 * 10))),
         "creation validate must see R3's bound and the calendar-resolved end"
     );
@@ -798,7 +820,11 @@ fn non_instant_end_date_and_iteration_bound_flow_through_the_production_path() {
 
     let second = single_timer_job(&engine, &pi.id);
     assert!(
-        second.time_cycle.as_deref().unwrap_or("").starts_with("R2/"),
+        second
+            .time_cycle
+            .as_deref()
+            .unwrap_or("")
+            .starts_with("R2/"),
         "unexpected cycle: {:?}",
         second.time_cycle
     );
@@ -809,11 +835,11 @@ fn non_instant_end_date_and_iteration_bound_flow_through_the_production_path() {
     );
     let fire_time = now() + Duration::minutes(90);
     assert_eq!(
-        probe_for_assert.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[1],
-        (
-            Some(2),
-            Some(fire_time + Duration::minutes(60 * 24 * 10))
-        ),
+        probe_for_assert
+            .validate_seen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())[1],
+        (Some(2), Some(fire_time + Duration::minutes(60 * 24 * 10))),
         "repeat validate must see the remaining count and a freshly resolved end"
     );
 }

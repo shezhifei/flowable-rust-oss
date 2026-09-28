@@ -28,10 +28,7 @@ fn converter_parses_process_history_level_extension() {
     let model = BpmnXMLConverter::new()
         .try_convert_to_bpmn_model(xml)
         .expect("convert");
-    let process = model
-        .processes
-        .first()
-        .expect("one process");
+    let process = model.processes.first().expect("one process");
     let history = process
         .base_element
         .extension_elements
@@ -62,8 +59,7 @@ fn converter_parses_all_history_level_keys() {
         let model = BpmnXMLConverter::new()
             .try_convert_to_bpmn_model(&xml)
             .unwrap_or_else(|e| panic!("convert {key}: {e:?}"));
-        let text = model
-            .processes[0]
+        let text = model.processes[0]
             .base_element
             .extension_elements
             .get("historyLevel")

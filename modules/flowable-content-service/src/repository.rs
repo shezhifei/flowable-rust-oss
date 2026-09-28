@@ -46,7 +46,12 @@ pub fn ensure_schema(
         "CREATE TABLE IF NOT EXISTS {CONTENT_ITEM_DATA_TABLE} (content_item_id {id} PRIMARY KEY, payload {blob} NOT NULL)"
     ))?;
 
-    create_index(&mut session, "idx_content_items_name", CONTENT_ITEMS_TABLE, "name")?;
+    create_index(
+        &mut session,
+        "idx_content_items_name",
+        CONTENT_ITEMS_TABLE,
+        "name",
+    )?;
     create_index(
         &mut session,
         "idx_content_items_mime_type",
@@ -115,7 +120,9 @@ fn create_index(
     table: &str,
     columns: &str,
 ) -> Result<(), flowable_engine::persistence::StorageError> {
-    let sql = session.dialect().create_index_if_not_exists(name, table, columns);
+    let sql = session
+        .dialect()
+        .create_index_if_not_exists(name, table, columns);
     if let Err(error) = session.execute_raw_sql(&sql) {
         let message = error.to_string();
         if message.contains("1061")
@@ -173,12 +180,7 @@ pub fn insert_content_item(
     params.push(item.updated_at);
     params.push(item.expires_at);
 
-    session.upsert_raw(
-        CONTENT_ITEMS_TABLE,
-        "id",
-        CONTENT_ITEM_COLUMNS,
-        params,
-    )?;
+    session.upsert_raw(CONTENT_ITEMS_TABLE, "id", CONTENT_ITEM_COLUMNS, params)?;
 
     if let Some(payload) = payload {
         let mut blob_params = DbParams::new();
@@ -224,8 +226,9 @@ pub(crate) fn find_content_items_by_filter(
     for row in &rows {
         if let Some(json) = row.get_text("data") {
             items.push(
-                serde_json::from_str::<ContentItem>(json.as_str())
-                    .map_err(|e| flowable_engine::persistence::StorageError::Deserialization(e.to_string()))?,
+                serde_json::from_str::<ContentItem>(json.as_str()).map_err(|e| {
+                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
+                })?,
             );
         }
     }
@@ -386,12 +389,7 @@ pub fn insert_content_item_in_session(
     params.push(item.updated_at);
     params.push(item.expires_at);
 
-    session.upsert_raw(
-        CONTENT_ITEMS_TABLE,
-        "id",
-        CONTENT_ITEM_COLUMNS,
-        params,
-    )?;
+    session.upsert_raw(CONTENT_ITEMS_TABLE, "id", CONTENT_ITEM_COLUMNS, params)?;
 
     if let Some(payload) = payload {
         let mut blob_params = DbParams::new();
@@ -553,10 +551,11 @@ pub fn claim_content_item_for_field_in_session(
     // tenant_id deliberately untouched: claiming a field never moves tenants.
 
     let mut params = DbParams::new();
-    params.push(
-        serde_json::to_string(&item)
-            .map_err(|e| ContentClaimError::Storage(flowable_engine::persistence::StorageError::Serialization(e.to_string())))?,
-    );
+    params.push(serde_json::to_string(&item).map_err(|e| {
+        ContentClaimError::Storage(flowable_engine::persistence::StorageError::Serialization(
+            e.to_string(),
+        ))
+    })?);
     params.push(item.task_id.clone().unwrap_or_default());
     params.push(item.process_instance_id.clone().unwrap_or_default());
     params.push(item.scope_type.clone().unwrap_or_default());
@@ -617,11 +616,9 @@ pub fn find_content_item_in_session(
     )?;
     for row in rows {
         if let Some(json) = row.get_text("data") {
-            return Ok(Some(
-                serde_json::from_str::<ContentItem>(&json).map_err(|e| {
-                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
-                })?,
-            ));
+            return Ok(Some(serde_json::from_str::<ContentItem>(&json).map_err(
+                |e| flowable_engine::persistence::StorageError::Deserialization(e.to_string()),
+            )?));
         }
     }
     Ok(None)
@@ -642,11 +639,9 @@ pub fn find_content_items_by_task_id_in_session(
     let mut items = Vec::with_capacity(rows.len());
     for row in rows {
         if let Some(json) = row.get_text("data") {
-            items.push(
-                serde_json::from_str::<ContentItem>(&json).map_err(|e| {
-                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
-                })?,
-            );
+            items.push(serde_json::from_str::<ContentItem>(&json).map_err(|e| {
+                flowable_engine::persistence::StorageError::Deserialization(e.to_string())
+            })?);
         }
     }
     Ok(items)
@@ -668,11 +663,9 @@ pub fn find_content_items_by_process_instance_id_in_session(
     let mut items = Vec::with_capacity(rows.len());
     for row in rows {
         if let Some(json) = row.get_text("data") {
-            items.push(
-                serde_json::from_str::<ContentItem>(&json).map_err(|e| {
-                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
-                })?,
-            );
+            items.push(serde_json::from_str::<ContentItem>(&json).map_err(|e| {
+                flowable_engine::persistence::StorageError::Deserialization(e.to_string())
+            })?);
         }
     }
     Ok(items)

@@ -52,10 +52,7 @@ impl CreateProcessAttachmentCmd {
 }
 
 impl Command<ContentItem> for CreateProcessAttachmentCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<ContentItem, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<ContentItem, FlowableError> {
         ensure_history_enabled(command_context)?;
 
         let input = &self.input;
@@ -222,10 +219,7 @@ impl DeleteProcessAttachmentCmd {
 }
 
 impl Command<ContentItem> for DeleteProcessAttachmentCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<ContentItem, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<ContentItem, FlowableError> {
         ensure_history_enabled(command_context)?;
 
         let (store, session) = command_context.store_and_session();
@@ -307,10 +301,7 @@ impl GetProcessAttachmentCmd {
 }
 
 impl Command<ContentItem> for GetProcessAttachmentCmd {
-    fn execute(
-        &self,
-        command_context: &mut CommandContext,
-    ) -> Result<ContentItem, FlowableError> {
+    fn execute(&self, command_context: &mut CommandContext) -> Result<ContentItem, FlowableError> {
         ensure_history_enabled(command_context)?;
         let (_store, session) = command_context.store_and_session();
         let item = repository::find_content_item_in_session(session, &self.attachment_id)
@@ -333,7 +324,9 @@ pub struct ListProcessAttachmentsCmd {
 
 impl ListProcessAttachmentsCmd {
     pub fn new(process_instance_id: String) -> Self {
-        Self { process_instance_id }
+        Self {
+            process_instance_id,
+        }
     }
 }
 

@@ -86,10 +86,7 @@ impl DmnEngineBuilder {
 
     /// Build against an explicitly configured backend (the production
     /// `FLOWABLE_DATABASE_URL` path — MySQL/Postgres as well as SQLite).
-    pub fn build_from_database_config(
-        self,
-        config: DatabaseConfig,
-    ) -> Result<DmnEngine, DmnError> {
+    pub fn build_from_database_config(self, config: DatabaseConfig) -> Result<DmnEngine, DmnError> {
         DmnEngine::from_store(DmnStore::from_config(config)?, self.strict_mode)
     }
 }

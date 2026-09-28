@@ -169,7 +169,8 @@ fn imports_postgres_raw_dump_into_fresh_engine_baseline() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_raw_postgres_import".to_string(),
             target_db.to_str().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let result = engine
             .import_historical_migration_from_sql_dump(
                 &dump_path,
@@ -221,7 +222,8 @@ fn imports_copy_based_postgres_raw_dump_into_fresh_engine_baseline() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_raw_postgres_copy_import".to_string(),
             target_db.to_str().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let result = engine
             .import_historical_migration_from_sql_dump(
                 &dump_path,
@@ -265,7 +267,8 @@ fn imports_h2_raw_dump_into_fresh_engine_baseline() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_raw_h2_import".to_string(),
             target_db.to_str().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let result = engine
             .import_historical_migration_from_sql_dump(
                 &dump_path,

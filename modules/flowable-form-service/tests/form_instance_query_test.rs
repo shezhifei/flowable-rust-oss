@@ -400,7 +400,10 @@ fn form_instance_query_supports_ids_likes_scope_tenant_and_without_task() {
 
     let by_pi_like = service
         .create_form_instance_query()
-        .process_instance_id_like(&format!("{}%", &process_instance.id[..8.min(process_instance.id.len())]))
+        .process_instance_id_like(&format!(
+            "{}%",
+            &process_instance.id[..8.min(process_instance.id.len())]
+        ))
         .list()
         .unwrap();
     assert!(by_pi_like.len() >= 2);

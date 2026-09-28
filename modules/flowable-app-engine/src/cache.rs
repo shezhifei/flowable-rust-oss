@@ -14,10 +14,7 @@ pub struct AppDefinitionCacheEntry {
 }
 
 impl AppDefinitionCacheEntry {
-    pub fn new(
-        definition: AppDefinitionRecord,
-        composition: ResolvedAppComposition,
-    ) -> Self {
+    pub fn new(definition: AppDefinitionRecord, composition: ResolvedAppComposition) -> Self {
         let app_model = AppModel::new().with_app_definition(definition.model.clone());
         Self {
             definition,

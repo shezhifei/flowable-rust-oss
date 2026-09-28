@@ -1,9 +1,8 @@
 //! P137 — explicit CMMN finishing actor persistence and historic filtering.
 
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest,
-    CmmnEngine, CmmnHumanTask, CmmnHumanTaskCompletionRequest, CmmnHumanTaskState, CmmnModel,
-    CmmnPlanItem,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnHumanTask, CmmnHumanTaskCompletionRequest, CmmnHumanTaskState, CmmnModel, CmmnPlanItem,
 };
 
 fn setup() -> CmmnEngine {
@@ -28,10 +27,7 @@ fn setup() -> CmmnEngine {
 
 fn start_case(engine: &CmmnEngine) -> String {
     engine
-        .start_case_instance_by_key(
-            "p137FinishedByCase",
-            CmmnCaseInstanceStartRequest::new(),
-        )
+        .start_case_instance_by_key("p137FinishedByCase", CmmnCaseInstanceStartRequest::new())
         .expect("start case")
         .id
 }
@@ -87,10 +83,7 @@ fn implicit_completion_and_rest_style_termination_do_not_invent_an_actor() {
         .id;
     engine
         .runtime_service()
-        .complete_human_task(
-            &completed_task,
-            CmmnHumanTaskCompletionRequest::new(),
-        )
+        .complete_human_task(&completed_task, CmmnHumanTaskCompletionRequest::new())
         .expect("complete case");
 
     let terminated = start_case(&engine);

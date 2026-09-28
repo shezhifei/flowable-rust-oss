@@ -20,7 +20,8 @@ fn create_engine() -> (ProcessEngine, Arc<TestTimeSource>) {
     let now = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(now));
     let engine =
-        ProcessEngine::with_time_source("perf_test_engine".to_string(), time_source.clone()).unwrap();
+        ProcessEngine::with_time_source("perf_test_engine".to_string(), time_source.clone())
+            .unwrap();
     (engine, time_source)
 }
 

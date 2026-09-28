@@ -234,8 +234,12 @@ impl FlowElementBehaviorResolver for DefaultActivityBehaviorFactory {
                 FlowElementEnum::Task(t) => t.activity.loop_characteristics.clone(),
                 FlowElementEnum::UserTask(t) => t.task.activity.loop_characteristics.clone(),
                 FlowElementEnum::ServiceTask(t) => t.task.activity.loop_characteristics.clone(),
-                FlowElementEnum::CaseServiceTask(t) => t.service_task.task.activity.loop_characteristics.clone(),
-                FlowElementEnum::SendTask(t) => t.service_task.task.activity.loop_characteristics.clone(),
+                FlowElementEnum::CaseServiceTask(t) => {
+                    t.service_task.task.activity.loop_characteristics.clone()
+                }
+                FlowElementEnum::SendTask(t) => {
+                    t.service_task.task.activity.loop_characteristics.clone()
+                }
                 FlowElementEnum::ScriptTask(t) => t.task.activity.loop_characteristics.clone(),
                 FlowElementEnum::ManualTask(t) => t.task.activity.loop_characteristics.clone(),
                 FlowElementEnum::ReceiveTask(t) => t.task.activity.loop_characteristics.clone(),

@@ -443,7 +443,9 @@ impl ExternalWorkerService {
         let mut session = store.create_session()?;
         let mut jobs = Vec::new();
         for job in store.snapshot_timer_job_states(&mut session).into_values() {
-            if store.is_active_external_worker_job(&job, &mut session)? { jobs.push(job); }
+            if store.is_active_external_worker_job(&job, &mut session)? {
+                jobs.push(job);
+            }
         }
         jobs.sort_by(|left, right| left.timer_job_id.cmp(&right.timer_job_id));
         Ok(jobs)
@@ -456,7 +458,13 @@ impl ExternalWorkerService {
     ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
         let store = self.command_executor.runtime_store();
         let mut session = store.create_session()?;
-        let Some(job) = store.find_timer_job_state(job_id, &mut session) else { return Ok(None); };
-        if store.is_active_external_worker_job(&job, &mut session)? { Ok(Some(job)) } else { Ok(None) }
+        let Some(job) = store.find_timer_job_state(job_id, &mut session) else {
+            return Ok(None);
+        };
+        if store.is_active_external_worker_job(&job, &mut session)? {
+            Ok(Some(job))
+        } else {
+            Ok(None)
+        }
     }
 }

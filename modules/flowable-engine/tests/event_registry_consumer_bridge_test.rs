@@ -82,11 +82,13 @@ fn event_registry_intermediate_catch_registers_and_triggers() {
         .expect("event-registry intermediate catch should be waiting");
     assert_eq!(wait_state.event_ref.as_deref(), Some("orderReceived"));
 
-    runtime.trigger_event_intermediate_catch(
-        EventSubscriptionKind::EventRegistry,
-        "orderReceived".to_string(),
-        wait_state.execution_id.clone(),
-    ).unwrap();
+    runtime
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::EventRegistry,
+            "orderReceived".to_string(),
+            wait_state.execution_id.clone(),
+        )
+        .unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -152,11 +154,13 @@ fn event_registry_receive_task_registers_and_triggers() {
             .is_empty()
     );
 
-    runtime.trigger_event_intermediate_catch(
-        EventSubscriptionKind::EventRegistry,
-        "orderReceived".to_string(),
-        wait_state.execution_id.clone(),
-    ).unwrap();
+    runtime
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::EventRegistry,
+            "orderReceived".to_string(),
+            wait_state.execution_id.clone(),
+        )
+        .unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -217,10 +221,8 @@ fn event_registry_boundary_registers_and_triggers() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let boundaries = store.find_boundary_event_states_by_process_instance_id(
-        &process_instance.id,
-        &mut session,
-    );
+    let boundaries =
+        store.find_boundary_event_states_by_process_instance_id(&process_instance.id, &mut session);
     assert!(
         boundaries.iter().any(|b| {
             b.boundary_event_id == "orderBoundary"
@@ -231,11 +233,13 @@ fn event_registry_boundary_registers_and_triggers() {
     );
     drop(session);
 
-    runtime.trigger_boundary_event_by_event_ref(
-        EventSubscriptionKind::EventRegistry,
-        "orderReceived".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime
+        .trigger_boundary_event_by_event_ref(
+            EventSubscriptionKind::EventRegistry,
+            "orderReceived".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())

@@ -60,10 +60,18 @@ fn find_wait_state_target(
     if business_key.is_some() || tenant_id.is_some() {
         let mut filtered = Vec::with_capacity(candidates.len());
         for ws in candidates {
-            let Some(pi) = command_context.runtime_store
-                .find_process_instance(&ws.process_instance_id, &mut command_context.session)? else { continue; };
-            if business_key.is_some_and(|key| pi.business_key.as_deref() != Some(key)) { continue; }
-            if tenant_id.is_some_and(|tenant| pi.tenant_id.as_deref() != Some(tenant)) { continue; }
+            let Some(pi) = command_context
+                .runtime_store
+                .find_process_instance(&ws.process_instance_id, &mut command_context.session)?
+            else {
+                continue;
+            };
+            if business_key.is_some_and(|key| pi.business_key.as_deref() != Some(key)) {
+                continue;
+            }
+            if tenant_id.is_some_and(|tenant| pi.tenant_id.as_deref() != Some(tenant)) {
+                continue;
+            }
             filtered.push(ws);
         }
         candidates = filtered;
@@ -274,8 +282,7 @@ impl Command<CorrelateMessageResult> for CorrelateMessageCmd {
                 self.message_name.clone(),
                 pi_id.clone(),
             );
-            let triggered = boundary_cmd
-                .execute_with_trigger_result(command_context)?;
+            let triggered = boundary_cmd.execute_with_trigger_result(command_context)?;
             if triggered {
                 return Ok(CorrelateMessageResult::MatchedExecution {
                     execution_id: String::new(),

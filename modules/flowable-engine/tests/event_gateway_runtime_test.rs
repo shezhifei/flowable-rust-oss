@@ -76,8 +76,9 @@ fn test_event_gateway_first_trigger_wins() {
         .unwrap();
 
     // 1. Should have 2 event wait states
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 2);
 
     let msg_wait_state = wait_states
@@ -86,15 +87,18 @@ fn test_event_gateway_first_trigger_wins() {
         .unwrap();
 
     // 2. Trigger message
-    runtime_service.trigger_event_intermediate_catch(
-        EventSubscriptionKind::Message,
-        "msg1".to_string(),
-        msg_wait_state.execution_id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::Message,
+            "msg1".to_string(),
+            msg_wait_state.execution_id.clone(),
+        )
+        .unwrap();
 
     // 3. Signal wait state should be gone, and we should be at Task After Message
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 0);
 
     let tasks = task_service
@@ -119,12 +123,10 @@ fn test_event_gateway_message_cancels_sibling_timer() {
     let runtime_store = process_engine.get_runtime_store();
 
     repository_service
-        .deploy(
-            repository_service.create_deployment().add_string(
-                "event_gateway_message_timer.bpmn20.xml".to_string(),
-                EVENT_GATEWAY_MESSAGE_TIMER_XML.to_string(),
-            ),
-        )
+        .deploy(repository_service.create_deployment().add_string(
+            "event_gateway_message_timer.bpmn20.xml".to_string(),
+            EVENT_GATEWAY_MESSAGE_TIMER_XML.to_string(),
+        ))
         .unwrap();
 
     let process_def_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
@@ -133,9 +135,14 @@ fn test_event_gateway_message_cancels_sibling_timer() {
         .unwrap();
 
     // Before trigger: message wait-state + intermediate timer job both present.
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
-    assert_eq!(wait_states.len(), 1, "expected exactly one message wait state");
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
+    assert_eq!(
+        wait_states.len(),
+        1,
+        "expected exactly one message wait state"
+    );
     let msg_wait = wait_states
         .iter()
         .find(|ws| ws.event_ref.as_deref() == Some("msg1"))
@@ -162,11 +169,13 @@ fn test_event_gateway_message_cancels_sibling_timer() {
     };
 
     // Message path wins.
-    runtime_service.trigger_event_intermediate_catch(
-        EventSubscriptionKind::Message,
-        "msg1".to_string(),
-        msg_wait.execution_id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::Message,
+            "msg1".to_string(),
+            msg_wait.execution_id.clone(),
+        )
+        .unwrap();
 
     // Sibling timer subscription/job must be gone; only message branch remains.
     {
@@ -191,8 +200,9 @@ fn test_event_gateway_message_cancels_sibling_timer() {
         );
     }
 
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 0);
 
     let tasks = task_service
@@ -236,12 +246,10 @@ fn test_event_gateway_cancel_sets_historic_activity_delete_reason() {
     let history_service = process_engine.get_history_service();
 
     repository_service
-        .deploy(
-            repository_service.create_deployment().add_string(
-                "event_gateway_message_timer.bpmn20.xml".to_string(),
-                EVENT_GATEWAY_MESSAGE_TIMER_XML.to_string(),
-            ),
-        )
+        .deploy(repository_service.create_deployment().add_string(
+            "event_gateway_message_timer.bpmn20.xml".to_string(),
+            EVENT_GATEWAY_MESSAGE_TIMER_XML.to_string(),
+        ))
         .unwrap();
 
     let process_def_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
@@ -272,18 +280,21 @@ fn test_event_gateway_cancel_sets_historic_activity_delete_reason() {
         "winning branch must not have a deleteReason before trigger"
     );
 
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     let msg_wait = wait_states
         .iter()
         .find(|ws| ws.event_ref.as_deref() == Some("msg1"))
         .expect("message wait state for msg1");
 
-    runtime_service.trigger_event_intermediate_catch(
-        EventSubscriptionKind::Message,
-        "msg1".to_string(),
-        msg_wait.execution_id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::Message,
+            "msg1".to_string(),
+            msg_wait.execution_id.clone(),
+        )
+        .unwrap();
 
     let post = history_service
         .create_historic_activity_instance_query()

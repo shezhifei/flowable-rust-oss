@@ -151,7 +151,10 @@ fn start_process_instance_async_job_is_not_exclusive() {
     repo.deploy(
         repo.create_deployment()
             .name("p48-start".to_string())
-            .add_string("p48start.bpmn20.xml".to_string(), async_task_process_xml("")),
+            .add_string(
+                "p48start.bpmn20.xml".to_string(),
+                async_task_process_xml(""),
+            ),
     )
     .unwrap();
     let pd_id = repo.get_process_definition_ids().unwrap()[0].clone();

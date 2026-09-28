@@ -29,10 +29,22 @@ pub(crate) fn flow_element_base_element(flow_element: &FlowElementEnum) -> &Base
             &task.task.activity.flow_node.flow_element.base_element
         }
         FlowElementEnum::CaseServiceTask(task) => {
-            &task.service_task.task.activity.flow_node.flow_element.base_element
+            &task
+                .service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::SendTask(task) => {
-            &task.service_task.task.activity.flow_node.flow_element.base_element
+            &task
+                .service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::ScriptTask(task) => {
             &task.task.activity.flow_node.flow_element.base_element

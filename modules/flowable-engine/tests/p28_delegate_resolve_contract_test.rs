@@ -19,8 +19,8 @@
 //!   suspended tasks are rejected.
 
 use chrono::{TimeZone, Utc};
-use flowable_engine::engine::query::Query;
 use flowable_engine::engine::process_engine::ProcessEngine;
+use flowable_engine::engine::query::Query;
 use flowable_engine::runtime::process_instance::ProcessInstanceUpdate;
 use serde_json::json;
 use std::collections::HashMap;

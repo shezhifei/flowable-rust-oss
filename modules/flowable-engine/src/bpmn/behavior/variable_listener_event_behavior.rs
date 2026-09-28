@@ -176,7 +176,11 @@ pub fn evaluate_variable_listener_event_subprocesses(
                     .id
                     .clone()
                     .unwrap_or_default();
-                matches.push((event_subprocess_id.clone(), start_id, start_event.interrupting));
+                matches.push((
+                    event_subprocess_id.clone(),
+                    start_id,
+                    start_event.interrupting,
+                ));
             }
         }
     }

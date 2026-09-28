@@ -27,7 +27,7 @@
 //! `CycleBusinessCalendar` for non-R values.
 
 use chrono::{
-    DateTime, Datelike, Days, Duration as ChronoDuration, Months, Timelike, TimeZone, Utc,
+    DateTime, Datelike, Days, Duration as ChronoDuration, Months, TimeZone, Timelike, Utc,
 };
 
 /// Parsed ISO-8601 duration split into calendar (months/days) and clock (seconds)
@@ -56,7 +56,6 @@ impl TimerDuration {
         }
         result.checked_add_signed(chrono::Duration::seconds(self.seconds))
     }
-
 }
 
 /// Parse an ISO-8601 duration (`PnYnMnDTnHnMnS`). Java `Duration.parse`/`Period.parse`
@@ -549,8 +548,8 @@ mod tests {
         let next_expr = next_repeat_expression(&prepared).expect("next expr");
         assert_eq!(next_expr, "R/2026-08-04T12:00:00.000Z/PT20S");
 
-        let next = resolve_next_due(&next_expr, now + chrono::Duration::seconds(25))
-            .expect("next due");
+        let next =
+            resolve_next_due(&next_expr, now + chrono::Duration::seconds(25)).expect("next due");
         assert_eq!(next, now + chrono::Duration::seconds(40));
     }
 
@@ -578,7 +577,10 @@ mod tests {
         let first = resolve_timer_due(&expr, now).expect("first due");
         assert_eq!(first, now + chrono::Duration::seconds(20));
         // Second fire (now+25s) would land at +40s > end → no more fires.
-        let next = resolve_next_due(&prepare_repeat(&expr, now), now + chrono::Duration::seconds(25));
+        let next = resolve_next_due(
+            &prepare_repeat(&expr, now),
+            now + chrono::Duration::seconds(25),
+        );
         assert_eq!(next, None);
     }
 }

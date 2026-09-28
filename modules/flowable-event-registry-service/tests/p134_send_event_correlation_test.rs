@@ -180,13 +180,10 @@ fn send_event_trigger_correlation_key_match_and_miss() {
     deploy_inbound_order_accepted(&service, "ordersInboundCorr");
 
     let repo = engine.get_repository_service();
-    repo.deploy(
-        repo.create_deployment()
-            .add_string(
-                "p134_send_corr.bpmn20.xml".to_string(),
-                send_event_xml_with_trigger_correlation("p134SendCorr"),
-            ),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "p134_send_corr.bpmn20.xml".to_string(),
+        send_event_xml_with_trigger_correlation("p134SendCorr"),
+    ))
     .unwrap();
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();
     let runtime = engine.get_runtime_service();
@@ -217,7 +214,10 @@ fn send_event_trigger_correlation_key_match_and_miss() {
         let kermit_waits =
             store.find_event_wait_states_by_process_instance_id(&kermit.id, &mut session);
         assert_eq!(kermit_waits.len(), 1);
-        assert_eq!(kermit_waits[0].wait_kind, RuntimeEventWaitKind::SendEventTask);
+        assert_eq!(
+            kermit_waits[0].wait_kind,
+            RuntimeEventWaitKind::SendEventTask
+        );
         assert_eq!(
             kermit_waits[0].configuration.as_deref(),
             Some(expected_customer_key("kermit").as_str()),
@@ -306,13 +306,10 @@ fn send_event_without_trigger_correlation_still_broadcasts() {
     deploy_inbound_order_accepted(&service, "ordersInboundNoCorr");
 
     let repo = engine.get_repository_service();
-    repo.deploy(
-        repo.create_deployment()
-            .add_string(
-                "p134_send_no_corr.bpmn20.xml".to_string(),
-                send_event_xml_without_trigger_correlation("p134SendNoCorr"),
-            ),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "p134_send_no_corr.bpmn20.xml".to_string(),
+        send_event_xml_without_trigger_correlation("p134SendNoCorr"),
+    ))
     .unwrap();
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();
     let runtime = engine.get_runtime_service();

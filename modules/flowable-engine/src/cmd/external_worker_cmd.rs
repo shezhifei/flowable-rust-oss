@@ -322,36 +322,37 @@ fn apply_external_worker_complete_variables(
         .clone()
         .unwrap_or_else(|| execution.id.clone());
 
-    let to_write: std::collections::HashMap<String, serde_json::Value> =
-        if let Some(service_task) = find_external_worker_service_task(command_context, &execution) {
-            if !service_task.out_parameters.is_empty() {
-                // Temporary container = complete-request variables
-                // (Java VariableContainerWrapper(variables)).
-                let mut mapped = std::collections::HashMap::new();
-                for param in &service_task.out_parameters {
-                    let value = if let Some(source) = param.source.as_ref() {
-                        variables.get(source).cloned()
-                    } else if let Some(expr) = param.source_expression.as_ref() {
-                        // Evaluate expression against a synthetic container of
-                        // the worker-supplied variables (limited EL: ${varName}).
-                        let temp = temporary_variable_execution(variables);
-                        SimpleExpression::new(expr.clone()).get_value(&temp)
-                    } else {
-                        None
-                    };
-                    if let Some(target) = param.target.as_ref() {
-                        if let Some(value) = value {
-                            mapped.insert(target.clone(), value);
-                        }
+    let to_write: std::collections::HashMap<String, serde_json::Value> = if let Some(service_task) =
+        find_external_worker_service_task(command_context, &execution)
+    {
+        if !service_task.out_parameters.is_empty() {
+            // Temporary container = complete-request variables
+            // (Java VariableContainerWrapper(variables)).
+            let mut mapped = std::collections::HashMap::new();
+            for param in &service_task.out_parameters {
+                let value = if let Some(source) = param.source.as_ref() {
+                    variables.get(source).cloned()
+                } else if let Some(expr) = param.source_expression.as_ref() {
+                    // Evaluate expression against a synthetic container of
+                    // the worker-supplied variables (limited EL: ${varName}).
+                    let temp = temporary_variable_execution(variables);
+                    SimpleExpression::new(expr.clone()).get_value(&temp)
+                } else {
+                    None
+                };
+                if let Some(target) = param.target.as_ref() {
+                    if let Some(value) = value {
+                        mapped.insert(target.clone(), value);
                     }
                 }
-                mapped
-            } else {
-                variables.clone()
             }
+            mapped
         } else {
             variables.clone()
-        };
+        }
+    } else {
+        variables.clone()
+    };
 
     if to_write.is_empty() {
         return Ok(());

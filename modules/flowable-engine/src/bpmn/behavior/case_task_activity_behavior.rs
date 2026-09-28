@@ -7,12 +7,12 @@
 //! - `ChildBpmnCaseInstanceStateChangeCallback.java:50-88` (completion)
 
 use crate::agenda::FlowableEngineAgenda;
+use crate::delegate::activity_behavior::ActivityBehavior;
 use crate::el::expression::{Expression, SimpleExpression};
 use crate::engine::variable_service::variable_type_name;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::runtime::execution::Execution;
-use crate::delegate::activity_behavior::ActivityBehavior;
 use flowable_bpmn_model::model::{CaseServiceTask, FlowElementEnum, IOParameter};
 use flowable_cmmn_engine::{
     CMMN_EXECUTION_CHILD_CASE_CALLBACK_TYPE, CmmnCaseInstanceStartRequest, CmmnCaseInstanceState,
@@ -148,7 +148,8 @@ fn parameter_target_name(parameter: &IOParameter, execution: &Execution) -> Opti
         }
     }
     if let Some(target_expression) = parameter.target_expression.as_deref() {
-        return expression_or_literal_coerced(target_expression, execution, "targetExpression").ok();
+        return expression_or_literal_coerced(target_expression, execution, "targetExpression")
+            .ok();
     }
     None
 }
@@ -285,9 +286,7 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
         command_context: &mut CommandContext,
     ) -> Result<(), FlowableError> {
         let process_definition_id = execution.process_definition_id.clone().ok_or_else(|| {
-            FlowableError::ExecutionError(
-                "Case service task missing process definition id".into(),
-            )
+            FlowableError::ExecutionError("Case service task missing process definition id".into())
         })?;
         let activity_id = execution.activity_id.clone().ok_or_else(|| {
             FlowableError::ExecutionError("Case service task missing activity id".into())
@@ -327,8 +326,10 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
         let evaluation_execution =
             crate::engine::variable_service::evaluation_execution(command_context, execution);
 
-        let case_definition_key =
-            resolve_case_definition_key(case_task.case_definition_key.as_deref(), &evaluation_execution)?;
+        let case_definition_key = resolve_case_definition_key(
+            case_task.case_definition_key.as_deref(),
+            &evaluation_execution,
+        )?;
 
         let business_key =
             resolve_business_key(&case_task, &evaluation_execution, command_context)?;
@@ -336,7 +337,9 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
         let case_instance_name = case_task
             .case_instance_name
             .as_deref()
-            .map(|name| expression_or_literal_coerced(name, &evaluation_execution, "caseInstanceName"))
+            .map(|name| {
+                expression_or_literal_coerced(name, &evaluation_execution, "caseInstanceName")
+            })
             .transpose()?;
 
         let in_parameters = map_in_parameters(&case_task, &evaluation_execution);
@@ -346,8 +349,11 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
 
         // Java CaseTaskActivityBehavior.java:93-98 — store id variable on parent.
         if let Some(id_var_name) = case_task.case_instance_id_variable_name.as_deref() {
-            let resolved =
-                expression_or_literal_coerced(id_var_name, &evaluation_execution, "caseInstanceIdVariableName")?;
+            let resolved = expression_or_literal_coerced(
+                id_var_name,
+                &evaluation_execution,
+                "caseInstanceIdVariableName",
+            )?;
             if !resolved.trim().is_empty() {
                 set_process_variable_with_history(
                     command_context,

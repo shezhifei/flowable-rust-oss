@@ -16,7 +16,8 @@ fn event_subprocess_timer_subscription_category_literal_and_expression() {
         Utc.with_ymd_and_hms(2026, 4, 20, 8, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("event-subprocess-timer-category".to_string(), time_source).unwrap();
+        ProcessEngine::with_time_source("event-subprocess-timer-category".to_string(), time_source)
+            .unwrap();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -101,7 +102,8 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
     let engine = ProcessEngine::with_time_source(
         "event-subprocess-timer-repeat".to_string(),
         time_source.clone(),
-    ).unwrap();
+    )
+    .unwrap();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
@@ -164,11 +166,13 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
 
     let runtime_store = engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
-    let subs = runtime_store.find_event_subprocess_timer_subscriptions_by_process_instance_id(
-        &pi.id,
-        &mut session,
+    let subs = runtime_store
+        .find_event_subprocess_timer_subscriptions_by_process_instance_id(&pi.id, &mut session);
+    assert_eq!(
+        subs.len(),
+        1,
+        "non-interrupting cycle must keep subscription"
     );
-    assert_eq!(subs.len(), 1, "non-interrupting cycle must keep subscription");
     assert!(subs[0].due_time.is_some());
     assert!(
         subs[0]
@@ -228,5 +232,8 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
         .into_iter()
         .filter(|t| t.task_definition_key == "espTask")
         .count();
-    assert_eq!(esp_tasks, 3, "R3 should activate event subprocess three times");
+    assert_eq!(
+        esp_tasks, 3,
+        "R3 should activate event subprocess three times"
+    );
 }

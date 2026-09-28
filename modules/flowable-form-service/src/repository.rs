@@ -1,9 +1,9 @@
 use crate::models::{FormDefinition, FormDeployment, FormInstance};
 use flowable_engine::error::FlowableError;
 use flowable_engine::persistence::DbParams;
+use flowable_engine::persistence::StorageError;
 use flowable_engine::persistence::db_session::DbSession;
 use flowable_engine::persistence::runtime_store::RuntimeStore;
-use flowable_engine::persistence::StorageError;
 
 const FORM_DEPLOYMENTS_TABLE: &str = "m14_form_deployments";
 const FORM_DEFINITIONS_TABLE: &str = "m14_form_definitions";
@@ -155,7 +155,9 @@ fn create_index(
     table: &str,
     columns: &str,
 ) -> Result<(), FlowableError> {
-    let sql = session.dialect().create_index_if_not_exists(name, table, columns);
+    let sql = session
+        .dialect()
+        .create_index_if_not_exists(name, table, columns);
     if let Err(error) = session.execute_raw_sql(&sql) {
         let message = error.to_string();
         if message.contains("1061")

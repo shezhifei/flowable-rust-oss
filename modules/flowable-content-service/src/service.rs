@@ -2,13 +2,13 @@ use crate::models::{
     ContentItem, ContentItemData, ContentObject, ContentObjectStorageMetadata,
     CreateContentItemRequest,
 };
-use crate::query::ContentItemQuery;
-use crate::repository;
-use crate::storage::{ContentStorage, LocalFileSystemStorage, LocalFileSystemStorageConfig};
 use crate::process_attachment::{
     CreateProcessAttachmentCmd, CreateProcessAttachmentInput, DeleteProcessAttachmentCmd,
     GetProcessAttachmentCmd, GetProcessAttachmentContentCmd, ListProcessAttachmentsCmd,
 };
+use crate::query::ContentItemQuery;
+use crate::repository;
+use crate::storage::{ContentStorage, LocalFileSystemStorage, LocalFileSystemStorageConfig};
 use crate::task_attachment::{
     CreateTaskAttachmentCmd, CreateTaskAttachmentInput, DeleteTaskAttachmentCmd,
     GetTaskAttachmentCmd, GetTaskAttachmentContentCmd, ListTaskAttachmentsCmd,
@@ -259,9 +259,9 @@ impl FlowableContentService {
 
         // Task-attachment path stores bytes in the session-backed blob table
         // (Java ByteArrayEntity parity) instead of FS ContentStorage.
-        let mut session = store.create_session().map_err(|e| {
-            FlowableError::ExecutionError(format!("Failed to open session: {e}"))
-        })?;
+        let mut session = store
+            .create_session()
+            .map_err(|e| FlowableError::ExecutionError(format!("Failed to open session: {e}")))?;
         if let Some(content) =
             repository::find_content_item_payload_in_session(&mut session, content_item_id)
                 .map_err(map_storage_error)?
@@ -349,8 +349,7 @@ impl FlowableContentService {
         task_id: &str,
         attachment_id: &str,
     ) -> Result<TaskAttachmentContent, FlowableError> {
-        let cmd =
-            GetTaskAttachmentContentCmd::new(task_id.to_string(), attachment_id.to_string());
+        let cmd = GetTaskAttachmentContentCmd::new(task_id.to_string(), attachment_id.to_string());
         let result = self.engine.get_command_executor().execute(&cmd);
         if !matches!(result, Err(FlowableError::NotFound(_))) {
             // Either the session blob served the request, or the command failed

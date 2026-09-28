@@ -1,6 +1,6 @@
 use crate::bpmn::behavior::event_registry_event_support::resolve_event_type_extension;
 use crate::bpmn::event_registry_correlation::{
-    correlation_key_from_base_element, extension_element_text, ELEMENT_EVENT_TYPE,
+    ELEMENT_EVENT_TYPE, correlation_key_from_base_element, extension_element_text,
 };
 use crate::bpmn::job_category::resolve_job_category;
 use crate::delegate::activity_behavior::ActivityBehavior;

@@ -73,9 +73,7 @@ fn value_matches(actual: &Value, operation: QueryVariableOperation, expected: &V
     match operation {
         QueryVariableOperation::Equals => actual == expected,
         QueryVariableOperation::NotEquals => actual != expected,
-        QueryVariableOperation::EqualsIgnoreCase => {
-            string_eq_ignore_case(actual, expected)
-        }
+        QueryVariableOperation::EqualsIgnoreCase => string_eq_ignore_case(actual, expected),
         QueryVariableOperation::NotEqualsIgnoreCase => {
             // Only defined when both sides are strings; non-string actual → false
             // (does not equal ignore-case, so "not equals ignore case" is true only
@@ -154,7 +152,11 @@ mod tests {
             .collect()
     }
 
-    fn cond(name: Option<&str>, op: QueryVariableOperation, value: Value) -> QueryVariableCondition {
+    fn cond(
+        name: Option<&str>,
+        op: QueryVariableOperation,
+        value: Value,
+    ) -> QueryVariableCondition {
         QueryVariableCondition {
             name: name.map(str::to_string),
             operation: op,
@@ -164,11 +166,7 @@ mod tests {
 
     #[test]
     fn equals_and_not_equals_numeric_string_bool() {
-        let map = vars(&[
-            ("n", json!(10)),
-            ("s", json!("Hello")),
-            ("b", json!(true)),
-        ]);
+        let map = vars(&[("n", json!(10)), ("s", json!("Hello")), ("b", json!(true))]);
         assert!(variables_match_conditions(
             &map,
             &[cond(Some("n"), QueryVariableOperation::Equals, json!(10))]
@@ -187,7 +185,11 @@ mod tests {
         ));
         assert!(variables_match_conditions(
             &map,
-            &[cond(Some("s"), QueryVariableOperation::Equals, json!("Hello"))]
+            &[cond(
+                Some("s"),
+                QueryVariableOperation::Equals,
+                json!("Hello")
+            )]
         ));
         assert!(variables_match_conditions(
             &map,
@@ -195,7 +197,11 @@ mod tests {
         ));
         assert!(!variables_match_conditions(
             &map,
-            &[cond(Some("b"), QueryVariableOperation::Equals, json!(false))]
+            &[cond(
+                Some("b"),
+                QueryVariableOperation::Equals,
+                json!(false)
+            )]
         ));
         assert!(!variables_match_conditions(
             &map,
@@ -304,7 +310,11 @@ mod tests {
         ));
         assert!(variables_match_conditions(
             &map,
-            &[cond(Some("s"), QueryVariableOperation::LessThan, json!("z"))]
+            &[cond(
+                Some("s"),
+                QueryVariableOperation::LessThan,
+                json!("z")
+            )]
         ));
         // Incomparable (number vs string) → false.
         assert!(!variables_match_conditions(
@@ -332,7 +342,11 @@ mod tests {
         let map = vars(&[("s", json!("HelloWorld"))]);
         assert!(variables_match_conditions(
             &map,
-            &[cond(Some("s"), QueryVariableOperation::Like, json!("Hello%"))]
+            &[cond(
+                Some("s"),
+                QueryVariableOperation::Like,
+                json!("Hello%")
+            )]
         ));
         assert!(variables_match_conditions(
             &map,
@@ -344,7 +358,11 @@ mod tests {
         ));
         assert!(!variables_match_conditions(
             &map,
-            &[cond(Some("s"), QueryVariableOperation::Like, json!("Nope%"))]
+            &[cond(
+                Some("s"),
+                QueryVariableOperation::Like,
+                json!("Nope%")
+            )]
         ));
         // Single-char wildcard.
         assert!(variables_match_conditions(

@@ -329,9 +329,7 @@ impl TimerJobAcquisition {
                                 }
                             }
                             Err(error) => {
-                                tracing::error!(
-                                    "failed to acquire scheduled timer work: {error}"
-                                );
+                                tracing::error!("failed to acquire scheduled timer work: {error}");
                             }
                         }
                         if wait_for_stop(
@@ -558,7 +556,11 @@ mod tests {
     }
 
     fn shutdown_task_executor(task_executor: &Arc<Mutex<Option<AsyncTaskExecutor>>>) {
-        if let Some(executor) = task_executor.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        if let Some(executor) = task_executor
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        {
             executor.shutdown();
         }
     }

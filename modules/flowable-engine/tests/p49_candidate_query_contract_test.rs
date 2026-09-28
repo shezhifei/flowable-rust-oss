@@ -46,12 +46,16 @@ fn t1_candidate_user_expands_group_memberships() {
     let identity = engine.get_identity_service();
     let task_service = engine.get_task_service();
 
-    identity.save_group(Group {
-        id: "G1".to_string(),
-        name: "Group One".to_string(),
-        group_type: None,
-    }).unwrap();
-    identity.create_membership("userA".to_string(), "G1".to_string()).unwrap();
+    identity
+        .save_group(Group {
+            id: "G1".to_string(),
+            name: "Group One".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    identity
+        .create_membership("userA".to_string(), "G1".to_string())
+        .unwrap();
 
     standalone_task(&engine, "task-group-only", "Group Only Task");
     task_service
@@ -122,12 +126,18 @@ fn t3_task_involved_groups_matches_identity_link_groups() {
         .list()
         .unwrap();
     let ids: Vec<&str> = matched.iter().map(|t| t.id.as_str()).collect();
-    assert!(ids.contains(&"task-cand-g"), "candidate group link: {ids:?}");
+    assert!(
+        ids.contains(&"task-cand-g"),
+        "candidate group link: {ids:?}"
+    );
     assert!(
         ids.contains(&"task-participant-g"),
         "non-candidate group link must match involvedGroups: {ids:?}"
     );
-    assert!(!ids.contains(&"task-other"), "other group must not match: {ids:?}");
+    assert!(
+        !ids.contains(&"task-other"),
+        "other group must not match: {ids:?}"
+    );
 }
 
 /// T4 secondary confirmation + fix:
@@ -182,12 +192,16 @@ fn t4_candidate_user_excludes_assigned_after_group_expand() {
     let identity = engine.get_identity_service();
     let task_service = engine.get_task_service();
 
-    identity.save_group(Group {
-        id: "sales".to_string(),
-        name: "Sales".to_string(),
-        group_type: None,
-    }).unwrap();
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
+    identity
+        .save_group(Group {
+            id: "sales".to_string(),
+            name: "Sales".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    identity
+        .create_membership("aSalesUser".to_string(), "sales".to_string())
+        .unwrap();
 
     standalone_task(&engine, "task-open", "Open");
     task_service
@@ -305,12 +319,16 @@ fn t6_historic_candidate_user_expands_group_memberships() {
     let task_service = engine.get_task_service();
     let history = engine.get_history_service();
 
-    identity.save_group(Group {
-        id: "sales".to_string(),
-        name: "Sales".to_string(),
-        group_type: None,
-    }).unwrap();
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
+    identity
+        .save_group(Group {
+            id: "sales".to_string(),
+            name: "Sales".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    identity
+        .create_membership("aSalesUser".to_string(), "sales".to_string())
+        .unwrap();
 
     // Group-only candidate link (no candidateUsers attribute).
     let xml_group = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -327,11 +345,10 @@ fn t6_historic_candidate_user_expands_group_memberships() {
     </definitions>"#;
 
     repository
-        .deploy(
-            repository
-                .create_deployment()
-                .add_string("p66-hist-group.bpmn20.xml".to_string(), xml_group.to_string()),
-        )
+        .deploy(repository.create_deployment().add_string(
+            "p66-hist-group.bpmn20.xml".to_string(),
+            xml_group.to_string(),
+        ))
         .unwrap();
     let pi_group = runtime
         .start_process_instance_by_key("p66HistGroupOnly")
@@ -393,11 +410,10 @@ fn t6_historic_candidate_user_expands_group_memberships() {
     </definitions>"#;
 
     repository
-        .deploy(
-            repository
-                .create_deployment()
-                .add_string("p66-hist-other.bpmn20.xml".to_string(), xml_other.to_string()),
-        )
+        .deploy(repository.create_deployment().add_string(
+            "p66-hist-other.bpmn20.xml".to_string(),
+            xml_other.to_string(),
+        ))
         .unwrap();
     let pi_other = runtime
         .start_process_instance_by_key("p66HistOtherGroup")
@@ -533,12 +549,16 @@ fn p75a_historic_candidate_user_excludes_assigned_after_group_expand() {
     let task_service = engine.get_task_service();
     let history = engine.get_history_service();
 
-    identity.save_group(Group {
-        id: "sales".to_string(),
-        name: "Sales".to_string(),
-        group_type: None,
-    }).unwrap();
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
+    identity
+        .save_group(Group {
+            id: "sales".to_string(),
+            name: "Sales".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    identity
+        .create_membership("aSalesUser".to_string(), "sales".to_string())
+        .unwrap();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"

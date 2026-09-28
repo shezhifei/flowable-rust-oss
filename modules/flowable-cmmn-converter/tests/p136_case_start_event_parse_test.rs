@@ -109,7 +109,10 @@ fn coexists_with_case_lifecycle_listener() {
     );
     assert_eq!(case.start_event_type.as_deref(), Some("coexistEvent"));
     assert_eq!(case.lifecycle_listeners.len(), 1);
-    assert_eq!(case.lifecycle_listeners[0].implementation, "com.example.Audit");
+    assert_eq!(
+        case.lifecycle_listeners[0].implementation,
+        "com.example.Audit"
+    );
 }
 
 #[test]

@@ -85,7 +85,10 @@ struct TransactionRecordingJobEventListener {
 
 impl EngineEventListener for TransactionRecordingJobEventListener {
     fn on_event(&self, _event: &EngineEvent) -> Result<(), FlowableError> {
-        self.phases.lock().unwrap_or_else(|e| e.into_inner()).push(self.label.to_string());
+        self.phases
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(self.label.to_string());
         if self.fatal {
             return Err(FlowableError::ExecutionError(format!(
                 "fatal {} job event listener",
@@ -119,7 +122,10 @@ impl EngineEventListener for RecordingJobEventListener {
             EngineEventType::JobRetriesDecremented => "JOB_RETRIES_DECREMENTED",
             _ => return Ok(()),
         };
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(name.to_string());
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(name.to_string());
         Ok(())
     }
 }
@@ -243,7 +249,8 @@ fn run_rust_contract(
         .bpmn
         .as_deref()
         .expect("HTTP contract case requires bpmn");
-    let bpmn = fs::read_to_string(fixture_directory.join(bpmn_name)).expect("read shared BPMN fixture");
+    let bpmn =
+        fs::read_to_string(fixture_directory.join(bpmn_name)).expect("read shared BPMN fixture");
     engine
         .get_repository_service()
         .deploy(
@@ -888,10 +895,7 @@ impl AutomaticGatedServer {
                 status: contract_case
                     .response_status
                     .expect("automatic HTTP case requires responseStatus"),
-                body: contract_case
-                    .response_body
-                    .clone()
-                    .unwrap_or(Value::Null),
+                body: contract_case.response_body.clone().unwrap_or(Value::Null),
             }];
             responses.extend(contract_case.subsequent_responses);
             let mut captured = Vec::new();

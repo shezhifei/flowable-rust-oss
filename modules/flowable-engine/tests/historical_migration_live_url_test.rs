@@ -228,7 +228,8 @@ fn live_sqlx_import_via_manifest_imports_owned_tables() {
     let engine = ProcessEngine::new_with_db_path(
         "historical_migration_live_import".to_string(),
         target_db.to_str().unwrap(),
-    ).unwrap();
+    )
+    .unwrap();
     let result = engine
         .import_historical_migration_from_source_manifest(&manifest_path)
         .expect("live-sqlx import should import through the live extraction pipeline");

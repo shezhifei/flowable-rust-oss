@@ -7,12 +7,12 @@
 //! P65-job-query engine contract: category/scope/correlation/external-worker
 //! and withoutScope predicates across deadletter + suspended families.
 
+use chrono::{TimeZone, Utc};
 use flowable_engine::engine::management_service::{RuntimeJobFamily, RuntimeJobQuery};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::TestTimeSource;
 use flowable_engine::persistence::db_store::DbStore;
 use flowable_engine::persistence::runtime_store::{RuntimeJobType, RuntimeTimerJobState};
-use chrono::{TimeZone, Utc};
 use std::sync::Arc;
 
 fn engine(name: &str) -> ProcessEngine {
@@ -55,11 +55,7 @@ fn seed_dimension_jobs(engine: &ProcessEngine, family_state: &str) {
     scoped.scope_definition_id = Some("case-def-orders".to_string());
     scoped.correlation_id = Some("corr-scoped".to_string());
     scoped.handler_type = Some("external-worker-complete".to_string());
-    insert(
-        engine,
-        scoped,
-        Some(RuntimeJobType::ExternalWorker),
-    );
+    insert(engine, scoped, Some(RuntimeJobType::ExternalWorker));
 
     let mut billing = base_job(&format!("{family_state}-billing"), family_state);
     billing.category = Some("billing".to_string());
@@ -69,7 +65,11 @@ fn seed_dimension_jobs(engine: &ProcessEngine, family_state: &str) {
     billing.scope_definition_id = Some("case-def-billing".to_string());
     billing.correlation_id = Some("corr-billing".to_string());
     billing.handler_type = Some("async-continuation".to_string());
-    insert(engine, billing, Some(RuntimeJobType::Other("message".into())));
+    insert(
+        engine,
+        billing,
+        Some(RuntimeJobType::Other("message".into())),
+    );
 
     let mut plain = base_job(&format!("{family_state}-plain"), family_state);
     plain.category = Some("orders-extra".to_string());
@@ -231,7 +231,10 @@ fn paging_totals_apply_after_filters_with_id_tiebreak() {
         .page(0, 1)
         .list_page()
         .unwrap();
-    assert_eq!(page.total, 2, "total must count filtered rows, not page size");
+    assert_eq!(
+        page.total, 2,
+        "total must count filtered rows, not page size"
+    );
     assert_eq!(page.data.len(), 1);
     assert_eq!(page.start, 0);
     assert_eq!(page.size, 1);

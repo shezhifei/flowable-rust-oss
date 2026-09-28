@@ -15,7 +15,8 @@ use std::sync::Arc;
 
 #[test]
 fn test_throw_compensation_without_activity_ref_schedules_completed_handlers_lifo() {
-    let process_engine = ProcessEngine::new("throw-compensation-lifo-order-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("throw-compensation-lifo-order-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -160,7 +161,8 @@ fn test_throw_compensation_without_activity_ref_schedules_completed_handlers_lif
 
 #[test]
 fn test_end_compensation_without_activity_ref_schedules_completed_handlers_lifo() {
-    let process_engine = ProcessEngine::new("end-compensation-lifo-order-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("end-compensation-lifo-order-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -293,7 +295,8 @@ fn test_end_compensation_without_activity_ref_schedules_completed_handlers_lifo(
 
 #[test]
 fn test_throw_compensation_with_activity_ref_consumes_only_matching_subscription() {
-    let process_engine = ProcessEngine::new("throw-compensation-activity-ref-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("throw-compensation-activity-ref-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -419,7 +422,8 @@ fn test_throw_compensation_with_activity_ref_consumes_only_matching_subscription
 
 #[test]
 fn test_end_compensation_with_activity_ref_consumes_only_matching_subscription() {
-    let process_engine = ProcessEngine::new("end-compensation-activity-ref-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("end-compensation-activity-ref-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -527,7 +531,8 @@ fn test_end_compensation_with_activity_ref_consumes_only_matching_subscription()
 
 #[test]
 fn test_throw_compensation_runs_only_registered_completed_activity_handlers() {
-    let process_engine = ProcessEngine::new("throw-compensation-completed-only-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("throw-compensation-completed-only-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -638,9 +643,8 @@ fn test_throw_compensation_runs_only_registered_completed_activity_handlers() {
 
 #[test]
 fn test_compensation_newest_first_uses_explicit_subscription_order_not_sqlite_rowid() {
-    let engine = Arc::new(ProcessEngine::new(
-        "compensation-explicit-order-store-test".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("compensation-explicit-order-store-test".to_string()).unwrap());
     let store = engine.get_runtime_store();
     let pi_id = "explicit_order_pi";
 
@@ -796,7 +800,8 @@ fn test_minimal_compensation_registration_and_cancel() {
 #[test]
 fn test_throw_compensation_activity_ref_referencing_handler_resolves_via_reverse_lookup() {
     let process_engine =
-        ProcessEngine::new("throw-compensation-activity-ref-reverse-lookup-test".to_string()).unwrap();
+        ProcessEngine::new("throw-compensation-activity-ref-reverse-lookup-test".to_string())
+            .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

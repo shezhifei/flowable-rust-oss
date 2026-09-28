@@ -51,8 +51,18 @@ fn deploy(engine: &AppEngine, deployment_name: &str, tenant_id: Option<&str>, la
 /// tenant-a is deployed twice (v1, v2) BEFORE the tenantless definition (v1),
 /// so the buggy "no tenant condition" query would order tenant-a v2 first.
 fn seed_mixed_tenants(engine: &AppEngine) {
-    deploy(engine, "portal-tenant-a-v1", Some("tenant-a"), "tenant-a-v1");
-    deploy(engine, "portal-tenant-a-v2", Some("tenant-a"), "tenant-a-v2");
+    deploy(
+        engine,
+        "portal-tenant-a-v1",
+        Some("tenant-a"),
+        "tenant-a-v1",
+    );
+    deploy(
+        engine,
+        "portal-tenant-a-v2",
+        Some("tenant-a"),
+        "tenant-a-v2",
+    );
     deploy(engine, "portal-tenantless", None, "tenantless");
 }
 
@@ -69,7 +79,10 @@ fn tenantless_resolve_never_leaks_other_tenant_definition() {
         .unwrap();
     assert_eq!(composition.tenant_id, None);
     assert_eq!(composition.version, 1);
-    assert_eq!(composition.app_definition_name, "Employee Portal tenantless");
+    assert_eq!(
+        composition.app_definition_name,
+        "Employee Portal tenantless"
+    );
 }
 
 #[test]
@@ -118,15 +131,22 @@ fn without_tenant_query_only_matches_tenantless_definitions() {
         .list()
         .unwrap();
     assert_eq!(tenant_a.len(), 2);
-    assert!(tenant_a
-        .iter()
-        .all(|item| item.tenant_id.as_deref() == Some("tenant-a")));
+    assert!(
+        tenant_a
+            .iter()
+            .all(|item| item.tenant_id.as_deref() == Some("tenant-a"))
+    );
 }
 
 #[test]
 fn tenantless_resolve_fails_when_only_tenant_definitions_exist() {
     let engine = engine();
-    deploy(&engine, "portal-only-tenant-a", Some("tenant-a"), "tenant-a-v1");
+    deploy(
+        &engine,
+        "portal-only-tenant-a",
+        Some("tenant-a"),
+        "tenant-a-v1",
+    );
 
     // With only tenant-scoped definitions deployed, a tenantless lookup must
     // report "not found" instead of silently borrowing tenant-a's definition.

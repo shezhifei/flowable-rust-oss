@@ -182,7 +182,8 @@ fn test_historic_process_instance_query() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let history_service = process_engine.get_history_service();
@@ -223,7 +224,8 @@ fn test_historic_activity_instance_query() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let history_service = process_engine.get_history_service();

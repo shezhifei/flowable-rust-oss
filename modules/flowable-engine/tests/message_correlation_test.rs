@@ -134,8 +134,9 @@ fn test_correlate_message_matches_intermediate_catch_event() {
         .unwrap();
 
     // Verify waiting
-    let wait_states =
-        runtime_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = runtime_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 1);
 
     // Correlate
@@ -194,8 +195,9 @@ fn test_correlate_message_matches_receive_task() {
         .unwrap();
 
     // Verify waiting
-    let wait_states =
-        runtime_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = runtime_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 1);
 
     // Correlate
@@ -294,7 +296,9 @@ fn test_correlate_message_targets_specific_process_instance() {
     }
 
     // pi1 should still be waiting
-    let pi1_wait = runtime_service.get_event_wait_states_by_process_instance_id(pi1.id.clone()).unwrap();
+    let pi1_wait = runtime_service
+        .get_event_wait_states_by_process_instance_id(pi1.id.clone())
+        .unwrap();
     assert_eq!(pi1_wait.len(), 1, "pi1 should still be waiting");
 
     // pi2 should have moved on
@@ -351,7 +355,9 @@ fn test_correlate_message_by_business_key() {
     }
 
     // pi1 should still be waiting
-    let pi1_wait = runtime_service.get_event_wait_states_by_process_instance_id(pi1.id.clone()).unwrap();
+    let pi1_wait = runtime_service
+        .get_event_wait_states_by_process_instance_id(pi1.id.clone())
+        .unwrap();
     assert_eq!(pi1_wait.len(), 1, "pi1 should still be waiting");
 
     // pi2 should have moved on

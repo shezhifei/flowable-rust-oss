@@ -110,11 +110,7 @@ fn write_decision_service_variables(
         // ObjectNode: decisionKey → ArrayNode of row ObjectNodes
         let mut decision_result_node = Map::new();
         for (decision_name, rows) in service_result {
-            let array = Value::Array(
-                rows.iter()
-                    .map(|row| Value::Object(row.clone()))
-                    .collect(),
-            );
+            let array = Value::Array(rows.iter().map(|row| Value::Object(row.clone())).collect());
             decision_result_node.insert(decision_name.clone(), array);
         }
         let name = result_variable_name.unwrap_or(decision_service_key);

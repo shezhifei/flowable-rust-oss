@@ -2,8 +2,8 @@ use crate::field_types::{self, FormFieldCategory};
 use crate::handler::{FormFieldEnrichContext, FormFieldHandler, default_handlers};
 use crate::models::{
     BaseFormField, ExpressionFormField, FormContainer, FormData, FormDefinition, FormDeployment,
-    FormDeploymentRequest, FormEnumValue, FormFieldModel, FormInstance, FormOption,
-    FormOutcome, FormProperty, FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult,
+    FormDeploymentRequest, FormEnumValue, FormFieldModel, FormInstance, FormOption, FormOutcome,
+    FormProperty, FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult,
     LayoutDefinition, OptionFormField, form_instance_values_bytes,
 };
 use crate::query::{FormDefinitionQuery, FormInstanceQuery};
@@ -492,9 +492,7 @@ impl FlowableFormService {
                 continue;
             }
             if let Some(value) = property.value.as_ref() {
-                if let Ok(ids) =
-                    crate::handler::UploadFieldHandler::parse_content_item_ids(value)
-                {
+                if let Ok(ids) = crate::handler::UploadFieldHandler::parse_content_item_ids(value) {
                     content_ids.extend(ids);
                 }
             }
@@ -504,16 +502,20 @@ impl FlowableFormService {
         }
 
         let store = self.engine.get_runtime_store();
-        let mut session = store.db_store().create_session().map_err(|e| {
-            FlowableError::Internal(format!("Database error: {e}"))
-        })?;
-        let id_list: Vec<String> = content_ids.into_iter().collect();
-        let items = content_repository::find_content_items_by_ids_in_session(&mut session, &id_list)
+        let mut session = store
+            .db_store()
+            .create_session()
             .map_err(|e| FlowableError::Internal(format!("Database error: {e}")))?;
+        let id_list: Vec<String> = content_ids.into_iter().collect();
+        let items =
+            content_repository::find_content_items_by_ids_in_session(&mut session, &id_list)
+                .map_err(|e| FlowableError::Internal(format!("Database error: {e}")))?;
         session.rollback().ok();
 
-        let content_by_id: BTreeMap<String, _> =
-            items.into_iter().map(|item| (item.id.clone(), item)).collect();
+        let content_by_id: BTreeMap<String, _> = items
+            .into_iter()
+            .map(|item| (item.id.clone(), item))
+            .collect();
         let ctx = FormFieldEnrichContext {
             content_by_id: &content_by_id,
         };
@@ -529,8 +531,6 @@ impl FlowableFormService {
         }
         Ok(())
     }
-
-
 
     fn apply_outcome_variable(
         &self,

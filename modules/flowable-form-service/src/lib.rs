@@ -16,7 +16,5 @@ pub use models::*;
 pub use query::*;
 pub use service::*;
 pub use start_form::{StartProcessInstanceWithFormCmd, StartProcessInstanceWithFormInput};
-pub use task_form::{
-    CompleteTaskWithFormCmd, CompleteTaskWithFormInput, FORCE_FAIL_FORM_OUTCOME,
-};
+pub use task_form::{CompleteTaskWithFormCmd, CompleteTaskWithFormInput, FORCE_FAIL_FORM_OUTCOME};
 pub use validation::*;

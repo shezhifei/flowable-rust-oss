@@ -383,11 +383,7 @@ fn select_scheduled_timer_candidates(
         }
     }
 
-    Ok((
-        runtime_timer_ids,
-        process_start_ids,
-        event_subprocess_ids,
-    ))
+    Ok((runtime_timer_ids, process_start_ids, event_subprocess_ids))
 }
 
 impl Command<Vec<TimerWork>> for AcquireTimerWorkCmd {
@@ -999,8 +995,7 @@ impl Command<()> for ExecuteTimerJobWithFiredEventCmd {
             );
             cmd.execute(command_context)
         } else {
-            let cmd =
-                TriggerTimerIntermediateCatchEventCmd::new(self.job.execution_id.clone());
+            let cmd = TriggerTimerIntermediateCatchEventCmd::new(self.job.execution_id.clone());
             cmd.execute(command_context)
         }
     }
@@ -1666,17 +1661,18 @@ fn inject_event_subprocess_execution(
     sub: &crate::persistence::runtime_store::EventSubprocessTimerSubscription,
     store: &crate::persistence::runtime_store::RuntimeStore,
 ) -> Result<(), crate::error::FlowableError> {
-    let process_instance =
-        match store.find_process_instance(&sub.process_instance_id, &mut command_context.session)? {
-            Some(pi) => pi,
-            None => {
-                tracing::error!(
-                    "Process instance {} not found for event subprocess timer activation",
-                    sub.process_instance_id
-                );
-                return Ok(());
-            }
-        };
+    let process_instance = match store
+        .find_process_instance(&sub.process_instance_id, &mut command_context.session)?
+    {
+        Some(pi) => pi,
+        None => {
+            tracing::error!(
+                "Process instance {} not found for event subprocess timer activation",
+                sub.process_instance_id
+            );
+            return Ok(());
+        }
+    };
 
     let process_definition_id = process_instance.process_definition_id.clone();
     // Seed from the process-instance scope execution row: it is the single
@@ -2047,7 +2043,9 @@ mod acquisition_limit_tests {
             .acquire_coordinator_lease(300_000)
             .unwrap()
             .expect("lease");
-        let works = runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &[]).unwrap();
+        let works = runtime_service
+            .acquire_timer_work_for_tenants(fencing_token, &[], &[])
+            .unwrap();
         assert_eq!(
             works.len(),
             4,
@@ -2081,7 +2079,9 @@ mod acquisition_limit_tests {
             .expect("lease");
 
         let orders = vec!["orders".to_string()];
-        let matching = runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &orders).unwrap();
+        let matching = runtime_service
+            .acquire_timer_work_for_tenants(fencing_token, &[], &orders)
+            .unwrap();
         assert_eq!(matching.len(), 2);
         for work in &matching {
             match work {
@@ -2146,8 +2146,9 @@ mod acquisition_limit_tests {
             .expect("lease");
 
         let multi = vec!["orders".to_string(), "billing".to_string()];
-        let multi_works =
-            runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &multi).unwrap();
+        let multi_works = runtime_service
+            .acquire_timer_work_for_tenants(fencing_token, &[], &multi)
+            .unwrap();
         assert_eq!(
             multi_works.len(),
             3,
@@ -2355,7 +2356,10 @@ mod acquisition_limit_tests {
             "expired timer job must remain unavailable until reset"
         );
 
-        let history_acquired = engine.get_runtime_service().acquire_history_jobs(1_000, 10).unwrap();
+        let history_acquired = engine
+            .get_runtime_service()
+            .acquire_history_jobs(1_000, 10)
+            .unwrap();
         assert!(
             history_acquired.is_empty(),
             "expired history job must remain unavailable until reset"
@@ -2392,7 +2396,10 @@ mod acquisition_limit_tests {
                 .iter()
                 .any(|job| job.timer_job_id == "async-expired")
         );
-        let history_after = engine.get_runtime_service().acquire_history_jobs(5_000, 10).unwrap();
+        let history_after = engine
+            .get_runtime_service()
+            .acquire_history_jobs(5_000, 10)
+            .unwrap();
         assert!(
             history_after
                 .iter()

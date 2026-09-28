@@ -85,9 +85,12 @@ fn test_external_provider_auth_success() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -171,9 +174,12 @@ fn test_external_provider_missing_config_fails_closed() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(runtime_service.clone(), config)
+        .expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 

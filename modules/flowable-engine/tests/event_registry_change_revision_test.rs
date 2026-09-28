@@ -21,14 +21,12 @@ fn shared_engines(label: &str) -> (Arc<ProcessEngine>, Arc<ProcessEngine>, PathB
         label,
         Uuid::new_v4()
     ));
-    let engine_a = Arc::new(ProcessEngine::new_with_db_path(
-        format!("{label}-a"),
-        path.to_str().unwrap(),
-    ).unwrap());
-    let engine_b = Arc::new(ProcessEngine::new_with_db_path(
-        format!("{label}-b"),
-        path.to_str().unwrap(),
-    ).unwrap());
+    let engine_a = Arc::new(
+        ProcessEngine::new_with_db_path(format!("{label}-a"), path.to_str().unwrap()).unwrap(),
+    );
+    let engine_b = Arc::new(
+        ProcessEngine::new_with_db_path(format!("{label}-b"), path.to_str().unwrap()).unwrap(),
+    );
     (engine_a, engine_b, path)
 }
 
@@ -52,7 +50,9 @@ fn change_record(revision: u64, id: &str) -> EventRegistryChangeRecord {
 fn allocate_and_insert(engine: &ProcessEngine, id: &str) -> u64 {
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let revision = store.next_event_registry_change_revision(&mut session).unwrap();
+    let revision = store
+        .next_event_registry_change_revision(&mut session)
+        .unwrap();
     store
         .insert_event_registry_change_record(change_record(revision, id), &mut session)
         .unwrap();
@@ -142,7 +142,9 @@ fn poll_after_revision_is_pushed_down_bounded_and_resumable() {
     let store = engine_a.get_runtime_store();
     let mut session = store.create_session().unwrap();
     for index in 0..25 {
-        let revision = store.next_event_registry_change_revision(&mut session).unwrap();
+        let revision = store
+            .next_event_registry_change_revision(&mut session)
+            .unwrap();
         store
             .insert_event_registry_change_record(
                 change_record(revision, &format!("poll-{index:02}")),

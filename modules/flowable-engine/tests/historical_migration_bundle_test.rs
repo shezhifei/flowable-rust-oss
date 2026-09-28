@@ -355,7 +355,8 @@ fn import_historical_migration_bundle_populates_target_engine_from_bundle_source
         let engine = ProcessEngine::new_with_db_path(
             "historical_source_verify".to_string(),
             target_db.to_str().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let process_definition_ids = engine
             .get_repository_service()
             .get_process_definition_ids()

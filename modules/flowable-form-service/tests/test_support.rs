@@ -3,7 +3,6 @@
 // should abort loudly rather than be papered over. Production code under `src/` is
 // held to the lint; see the root Cargo.toml `[workspace.lints]` table.
 #![allow(clippy::unwrap_used)]
-
 #![allow(dead_code)]
 
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -18,10 +17,10 @@ pub fn service(name: &str) -> FlowableFormService {
 }
 
 pub fn persistent_service(name: &str, path: &str) -> FlowableFormService {
-    FlowableFormService::new(Arc::new(ProcessEngine::new_with_db_path(
-        name.to_string(),
-        path,
-    ).unwrap())).unwrap()
+    FlowableFormService::new(Arc::new(
+        ProcessEngine::new_with_db_path(name.to_string(), path).unwrap(),
+    ))
+    .unwrap()
 }
 
 pub fn runtime_fixture(name: &str) -> (Arc<ProcessEngine>, FlowableFormService) {

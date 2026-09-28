@@ -4,7 +4,7 @@
 //! STARTTLS fails closed with a structured error.
 
 use crate::{
-    prepare_message, MailMessage, MailRuntime, MailRuntimeMode, MailSendRecord, MailServiceError,
+    MailMessage, MailRuntime, MailRuntimeMode, MailSendRecord, MailServiceError, prepare_message,
 };
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -90,9 +90,7 @@ impl SmtpMailRuntime {
 
         let addr = format!("{}:{}", host, self.config.port);
         let stream = TcpStream::connect(&addr).map_err(|error| {
-            MailServiceError::new(format!(
-                "Failed to connect to SMTP server {addr}: {error}"
-            ))
+            MailServiceError::new(format!("Failed to connect to SMTP server {addr}: {error}"))
         })?;
         stream
             .set_read_timeout(Some(self.config.timeout))
@@ -192,7 +190,9 @@ impl SmtpSession {
             } else {
                 write!(self.writer, "{line}\r\n")
             }
-            .map_err(|error| MailServiceError::new(format!("Failed to write SMTP DATA: {error}")))?;
+            .map_err(|error| {
+                MailServiceError::new(format!("Failed to write SMTP DATA: {error}"))
+            })?;
         }
         write!(self.writer, ".\r\n").map_err(|error| {
             MailServiceError::new(format!("Failed to terminate SMTP DATA: {error}"))

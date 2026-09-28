@@ -209,10 +209,7 @@ fn real_client_structured_error_contains_status_and_body_excerpt() {
     assert_eq!(error.status_code, Some(418));
     assert!(error.response_body_excerpt.is_some());
     // Path/query stripped to avoid blind probing via error echoes (P142b SSRF hardening).
-    assert_eq!(
-        error.request_url,
-        Some("https://httpbin.org".to_string())
-    );
+    assert_eq!(error.request_url, Some("https://httpbin.org".to_string()));
     assert_eq!(error.request_method, Some("GET".to_string()));
 }
 

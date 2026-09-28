@@ -410,9 +410,10 @@ impl AdhocSubProcessActivityBehavior {
             }
         }
 
-        let found = adhoc.sub_process.flow_elements.iter().find(|element| {
-            flow_node_id_if_no_incoming(element).as_deref() == Some(activity_id)
-        });
+        let found =
+            adhoc.sub_process.flow_elements.iter().find(|element| {
+                flow_node_id_if_no_incoming(element).as_deref() == Some(activity_id)
+            });
         if found.is_none() {
             return Err(crate::error::FlowableError::ExecutionError(format!(
                 "The requested activity with id {} can not be enabled in execution '{}'",
@@ -594,14 +595,11 @@ pub fn try_auto_complete_adhoc_after_child_leave(
     // Java: Condition.evaluate(adhocSubProcess.getId(), execution) on the
     // leaving child execution (parent-chain variable resolution via
     // evaluation_execution).
-    let eval_exec = crate::engine::variable_service::evaluation_execution(
-        command_context,
-        child_execution,
-    );
+    let eval_exec =
+        crate::engine::variable_service::evaluation_execution(command_context, child_execution);
     let expression = crate::el::expression::SimpleExpression::new(condition_text.to_string());
-    let condition = crate::el::uel_expression_condition::UelExpressionCondition::new(Box::new(
-        expression,
-    ));
+    let condition =
+        crate::el::uel_expression_condition::UelExpressionCondition::new(Box::new(expression));
     use crate::el::condition::Condition;
     let complete_adhoc = condition.evaluate(adhoc_id.as_deref(), &eval_exec)?;
     if !complete_adhoc {
@@ -614,10 +612,7 @@ pub fn try_auto_complete_adhoc_after_child_leave(
     if !adhoc.cancel_remaining_instances {
         let siblings = command_context
             .execution_entity_manager
-            .find_child_executions_by_parent_execution_id(
-                parent_id,
-                &mut command_context.session,
-            );
+            .find_child_executions_by_parent_execution_id(parent_id, &mut command_context.session);
         for sibling in &siblings {
             if sibling.id != child_execution.id && !sibling.is_ended {
                 end_adhoc = false;
@@ -709,31 +704,79 @@ fn load_adhoc_subprocess(
 fn flow_node_id_if_no_incoming(element: &FlowElementEnum) -> Option<String> {
     let (id, incoming_empty) = match element {
         FlowElementEnum::UserTask(t) => (
-            t.task.activity.flow_node.flow_element.base_element.id.clone(),
+            t.task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
             t.task.activity.flow_node.incoming_flows.is_empty(),
         ),
         FlowElementEnum::ServiceTask(t) => (
-            t.task.activity.flow_node.flow_element.base_element.id.clone(),
+            t.task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
             t.task.activity.flow_node.incoming_flows.is_empty(),
         ),
         FlowElementEnum::CaseServiceTask(t) => (
-            t.service_task.task.activity.flow_node.flow_element.base_element.id.clone(),
-            t.service_task.task.activity.flow_node.incoming_flows.is_empty(),
+            t.service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
+            t.service_task
+                .task
+                .activity
+                .flow_node
+                .incoming_flows
+                .is_empty(),
         ),
         FlowElementEnum::ManualTask(t) => (
-            t.task.activity.flow_node.flow_element.base_element.id.clone(),
+            t.task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
             t.task.activity.flow_node.incoming_flows.is_empty(),
         ),
         FlowElementEnum::ScriptTask(t) => (
-            t.task.activity.flow_node.flow_element.base_element.id.clone(),
+            t.task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
             t.task.activity.flow_node.incoming_flows.is_empty(),
         ),
         FlowElementEnum::ReceiveTask(t) => (
-            t.task.activity.flow_node.flow_element.base_element.id.clone(),
+            t.task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
             t.task.activity.flow_node.incoming_flows.is_empty(),
         ),
         FlowElementEnum::BusinessRuleTask(t) => (
-            t.task.activity.flow_node.flow_element.base_element.id.clone(),
+            t.task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .clone(),
             t.task.activity.flow_node.incoming_flows.is_empty(),
         ),
         FlowElementEnum::Task(t) => (
@@ -762,11 +805,7 @@ fn flow_node_id_if_no_incoming(element: &FlowElementEnum) -> Option<String> {
         ),
         _ => return None,
     };
-    if incoming_empty {
-        id
-    } else {
-        None
-    }
+    if incoming_empty { id } else { None }
 }
 
 fn flow_node_name(element: &FlowElementEnum) -> Option<String> {

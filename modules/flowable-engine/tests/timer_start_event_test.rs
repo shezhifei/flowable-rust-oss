@@ -109,7 +109,8 @@ fn timer_start_subscription_category_is_populated_from_start_event() {
 </definitions>"#;
 
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("timer-start-category".to_string(), test_time).unwrap();
+    let engine =
+        ProcessEngine::with_time_source("timer-start-category".to_string(), test_time).unwrap();
     engine
         .get_repository_service()
         .deploy(
@@ -316,7 +317,8 @@ fn test_timer_start_with_r4_cycle_limit() {
 </definitions>"#;
 
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("r2-limit".to_string(), test_time.clone()).unwrap();
+    let engine =
+        ProcessEngine::with_time_source("r2-limit".to_string(), test_time.clone()).unwrap();
     engine
         .get_repository_service()
         .deploy(

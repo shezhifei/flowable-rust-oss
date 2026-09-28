@@ -94,11 +94,8 @@ impl Command<LocalReadProbeResult> for LocalReadProbeCmd {
                 .execute(command_context)?,
             get_shadowed: GetVariableLocalCmd::new(self.execution_id.clone(), "shared".into())
                 .execute(command_context)?,
-            has_transient_only: HasVariableLocalCmd::new(
-                self.execution_id.clone(),
-                "tOnly".into(),
-            )
-            .execute(command_context)?,
+            has_transient_only: HasVariableLocalCmd::new(self.execution_id.clone(), "tOnly".into())
+                .execute(command_context)?,
             has_absent: HasVariableLocalCmd::new(self.execution_id.clone(), "absent".into())
                 .execute(command_context)?,
             all_locals: GetVariablesLocalCmd::new(self.execution_id.clone())

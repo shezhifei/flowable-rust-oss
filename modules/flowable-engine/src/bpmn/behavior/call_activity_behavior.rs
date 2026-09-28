@@ -227,16 +227,13 @@ fn resolve_called_process_definition(
     match element_type {
         CALLED_ELEMENT_TYPE_ID => {
             // Java `:287-290` findDeployedProcessDefinitionById
-            definitions
-                .get(called_element)
-                .cloned()
-                .ok_or_else(|| {
-                    FlowableError::NotFound(format!(
-                        "Process definition id '{}' was not found for call activity '{}'",
-                        called_element,
-                        call_activity_id(call_activity)
-                    ))
-                })
+            definitions.get(called_element).cloned().ok_or_else(|| {
+                FlowableError::NotFound(format!(
+                    "Process definition id '{}' was not found for call activity '{}'",
+                    called_element,
+                    call_activity_id(call_activity)
+                ))
+            })
         }
         CALLED_ELEMENT_TYPE_KEY => {
             // sameDeployment first (miss falls through)
@@ -288,10 +285,7 @@ fn resolve_called_process_definition(
 
             Err(FlowableError::NotFound(format!(
                 "Process definition {} was not found in sameDeployment[{}] tenantId[{:?}] fallbackToDefaultTenant[{}]",
-                called_element,
-                call_activity.same_deployment,
-                tenant_id,
-                fallback
+                called_element, call_activity.same_deployment, tenant_id, fallback
             )))
         }
         other => Err(FlowableError::ExecutionError(format!(
@@ -442,7 +436,10 @@ fn set_local_variable_with_history(
 
 /// Persists variable writes made on the execution row. The row is the single
 /// process-level variable store; nothing is mirrored onto the process instance.
-fn persist_execution(command_context: &mut CommandContext, execution: &Execution) -> Result<(), crate::error::FlowableError> {
+fn persist_execution(
+    command_context: &mut CommandContext,
+    execution: &Execution,
+) -> Result<(), crate::error::FlowableError> {
     command_context
         .execution_entity_manager
         .update(execution, &mut command_context.session)?;
@@ -632,12 +629,9 @@ impl ActivityBehavior for CallActivityBehavior {
         execution: &mut Execution,
         command_context: &mut CommandContext,
     ) -> Result<(), crate::error::FlowableError> {
-        let process_definition_id = execution
-            .process_definition_id
-            .clone()
-            .ok_or_else(|| {
-                FlowableError::ExecutionError("Call activity missing process definition id".into())
-            })?;
+        let process_definition_id = execution.process_definition_id.clone().ok_or_else(|| {
+            FlowableError::ExecutionError("Call activity missing process definition id".into())
+        })?;
         let activity_id = execution.activity_id.clone().ok_or_else(|| {
             FlowableError::ExecutionError("Call activity missing activity id".into())
         })?;
@@ -668,8 +662,7 @@ impl ActivityBehavior for CallActivityBehavior {
 
         let evaluation_execution =
             crate::engine::variable_service::evaluation_execution(command_context, execution);
-        let called_element =
-            resolve_called_element_value(&call_activity, &evaluation_execution)?;
+        let called_element = resolve_called_element_value(&call_activity, &evaluation_execution)?;
         let child_definition = resolve_called_process_definition(
             command_context,
             &call_activity,
@@ -715,10 +708,10 @@ impl ActivityBehavior for CallActivityBehavior {
             for key in execution.transient_variables.keys() {
                 transient_keys.insert(key.clone());
             }
-            if let Some(root) = command_context.runtime_store.find_execution(
-                &process_instance_id,
-                &mut command_context.session,
-            ) {
+            if let Some(root) = command_context
+                .runtime_store
+                .find_execution(&process_instance_id, &mut command_context.session)
+            {
                 for key in root.transient_variables.keys() {
                     transient_keys.insert(key.clone());
                 }

@@ -50,9 +50,12 @@ fn test_timer_coordination_service_hardening() {
         },
     );
 
-    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config).expect("identity runtime must build");
+    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config)
+        .expect("identity runtime must build");
 
-    let _handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let _handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     // Test 1: Malformed request

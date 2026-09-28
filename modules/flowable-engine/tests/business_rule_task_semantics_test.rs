@@ -121,7 +121,7 @@ fn business_rule_task_requires_decision_ref_in_owned_m15_path() {
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );

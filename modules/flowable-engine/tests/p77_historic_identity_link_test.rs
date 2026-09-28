@@ -87,7 +87,10 @@ fn participant_create_writes_historic_snapshot_delete_removes_historic_row() {
         process_instance_id: Some(pi_id.clone()),
         process_definition_id: None,
     };
-    engine.get_identity_link_service().add_identity_link(link).unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(link)
+        .unwrap();
 
     let historic = engine
         .get_history_service()
@@ -108,16 +111,15 @@ fn participant_create_writes_historic_snapshot_delete_removes_historic_row() {
 
     engine
         .get_identity_link_service()
-        .remove_identity_link("hil-participant-1").unwrap();
+        .remove_identity_link("hil-participant-1")
+        .unwrap();
 
     let historic_after = engine
         .get_history_service()
         .get_historic_identity_links_for_process_instance(&pi_id)
         .unwrap();
     assert!(
-        !historic_after
-            .iter()
-            .any(|l| l.id == "hil-participant-1"),
+        !historic_after.iter().any(|l| l.id == "hil-participant-1"),
         "Java deletes historic IL on runtime delete; got {historic_after:?}"
     );
 }
@@ -181,7 +183,10 @@ fn audit_gate_skips_historic_identity_link_when_history_none() {
         process_instance_id: Some("pi-none".to_string()),
         process_definition_id: None,
     };
-    engine.get_identity_link_service().add_identity_link(link).unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(link)
+        .unwrap();
 
     let mut session = engine.get_runtime_store().create_session().unwrap();
     let historic = engine
@@ -206,7 +211,10 @@ fn process_definition_only_links_are_not_historicized() {
         process_instance_id: None,
         process_definition_id: Some("pd-1".to_string()),
     };
-    engine.get_identity_link_service().add_identity_link(link).unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(link)
+        .unwrap();
 
     let mut session = engine.get_runtime_store().create_session().unwrap();
     assert!(
@@ -229,15 +237,18 @@ fn cascade_delete_historic_process_instance_removes_historic_identity_links() {
     let engine = ProcessEngine::new("p77-cascade-pi".to_string()).unwrap();
     let (pi_id, _task_id) = deploy_and_start(&engine, "p77CascadePi");
 
-    engine.get_identity_link_service().add_identity_link(IdentityLink {
-        id: "hil-cascade-1".to_string(),
-        link_type: "participant".to_string(),
-        user_id: Some("kermit".to_string()),
-        group_id: None,
-        task_id: None,
-        process_instance_id: Some(pi_id.clone()),
-        process_definition_id: None,
-    }).unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(IdentityLink {
+            id: "hil-cascade-1".to_string(),
+            link_type: "participant".to_string(),
+            user_id: Some("kermit".to_string()),
+            group_id: None,
+            task_id: None,
+            process_instance_id: Some(pi_id.clone()),
+            process_definition_id: None,
+        })
+        .unwrap();
 
     assert_eq!(
         engine
@@ -307,15 +318,18 @@ fn involved_user_historic_query_uses_historic_identity_links() {
     let engine = ProcessEngine::new("p77-involved-user".to_string()).unwrap();
     let (pi_id, _task_id) = deploy_and_start(&engine, "p77Involved");
 
-    engine.get_identity_link_service().add_identity_link(IdentityLink {
-        id: "hil-involved-1".to_string(),
-        link_type: "participant".to_string(),
-        user_id: Some("kermit".to_string()),
-        group_id: None,
-        task_id: None,
-        process_instance_id: Some(pi_id.clone()),
-        process_definition_id: None,
-    }).unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(IdentityLink {
+            id: "hil-involved-1".to_string(),
+            link_type: "participant".to_string(),
+            user_id: Some("kermit".to_string()),
+            group_id: None,
+            task_id: None,
+            process_instance_id: Some(pi_id.clone()),
+            process_definition_id: None,
+        })
+        .unwrap();
 
     let found = engine
         .get_history_service()
@@ -331,7 +345,8 @@ fn involved_user_historic_query_uses_historic_identity_links() {
     // After deleting the link, historic row is gone → no match (Java parity).
     engine
         .get_identity_link_service()
-        .remove_identity_link("hil-involved-1").unwrap();
+        .remove_identity_link("hil-involved-1")
+        .unwrap();
     let after = engine
         .get_history_service()
         .create_historic_process_instance_query()
@@ -355,15 +370,18 @@ fn historic_identity_link_query_filters_by_task_and_process() {
             "candidate".to_string(),
         )
         .unwrap();
-    engine.get_identity_link_service().add_identity_link(IdentityLink {
-        id: "hil-pi-only".to_string(),
-        link_type: "participant".to_string(),
-        user_id: Some("gonzo".to_string()),
-        group_id: None,
-        task_id: None,
-        process_instance_id: Some(pi_id.clone()),
-        process_definition_id: None,
-    }).unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(IdentityLink {
+            id: "hil-pi-only".to_string(),
+            link_type: "participant".to_string(),
+            user_id: Some("gonzo".to_string()),
+            group_id: None,
+            task_id: None,
+            process_instance_id: Some(pi_id.clone()),
+            process_definition_id: None,
+        })
+        .unwrap();
 
     let by_task = engine
         .get_history_service()

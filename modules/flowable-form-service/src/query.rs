@@ -403,14 +403,18 @@ impl FormInstanceQuery {
                 .is_none_or(|pattern| sql_like_matches(&item.form_definition_id, pattern))
         });
         instances.retain(|item| {
-            self.process_definition_id_like.as_ref().is_none_or(|pattern| {
-                matches_optional_like(pattern, item.process_definition_id.as_deref())
-            })
+            self.process_definition_id_like
+                .as_ref()
+                .is_none_or(|pattern| {
+                    matches_optional_like(pattern, item.process_definition_id.as_deref())
+                })
         });
         instances.retain(|item| {
-            self.process_instance_id_like.as_ref().is_none_or(|pattern| {
-                matches_optional_like(pattern, item.process_instance_id.as_deref())
-            })
+            self.process_instance_id_like
+                .as_ref()
+                .is_none_or(|pattern| {
+                    matches_optional_like(pattern, item.process_instance_id.as_deref())
+                })
         });
         instances.retain(|item| {
             self.task_id_like

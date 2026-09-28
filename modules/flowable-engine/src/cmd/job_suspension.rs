@@ -99,7 +99,11 @@ pub(crate) fn activate_suspended_job(
         }
     }
 
-    store.insert_timer_job_state_with_type(&job, job_type.as_ref(), &mut command_context.session)?;
+    store.insert_timer_job_state_with_type(
+        &job,
+        job_type.as_ref(),
+        &mut command_context.session,
+    )?;
 
     // Register the post-commit hint only after the row is persisted. The
     // command executor drains pending hints once the transaction commits,
@@ -119,7 +123,11 @@ fn suspend_job(
     let job_type = resolve_job_type(&store, &mut command_context.session, &job);
     job.job_state = Some("suspended".to_string());
     clear_job_lock(&mut job);
-    store.insert_timer_job_state_with_type(&job, job_type.as_ref(), &mut command_context.session)?;
+    store.insert_timer_job_state_with_type(
+        &job,
+        job_type.as_ref(),
+        &mut command_context.session,
+    )?;
     Ok(())
 }
 

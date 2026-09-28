@@ -97,8 +97,7 @@ fn restart_rehydrates_persisted_v1_composition_not_newer_catalog_versions() {
             .with_event_definition("employee-updated", "Employee Updated", 2, None)
             .build(),
     );
-    let engine_restart =
-        AppEngine::new_sqlite_with_catalog(&db_path, v2_catalog).unwrap();
+    let engine_restart = AppEngine::new_sqlite_with_catalog(&db_path, v2_catalog).unwrap();
 
     // Cold cache: restart engine must rehydrate the durable snapshot.
     assert!(
@@ -218,5 +217,8 @@ fn eviction_rehydrates_from_store_without_catalog_reresolution() {
         after.composition.references[0].resolved_definition_id,
         expected_id
     );
-    assert_eq!(after.composition.references[0].resolved_definition_version, 1);
+    assert_eq!(
+        after.composition.references[0].resolved_definition_version,
+        1
+    );
 }

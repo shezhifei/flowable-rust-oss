@@ -106,12 +106,14 @@ fn bootstrap_loads_directory_and_operations_contracts_and_imports_directory_bund
 
     let identity_service = platform.process_engine().get_identity_service();
     let user = identity_service
-        .find_user_by_id("ldap-alice").unwrap()
+        .find_user_by_id("ldap-alice")
+        .unwrap()
         .expect("directory user should be imported");
     assert_eq!(user.email.as_deref(), Some("alice@example.test"));
 
     let group = identity_service
-        .find_group_by_id("platform-admins").unwrap()
+        .find_group_by_id("platform-admins")
+        .unwrap()
         .expect("directory group should be imported");
     assert_eq!(group.name, "Platform Admins");
 
@@ -209,7 +211,10 @@ bundle_path = "{bundle_path}"
 
     let identity_service = platform.process_engine().get_identity_service();
     assert!(
-        identity_service.find_user_by_id("ldap-alice").unwrap().is_none(),
+        identity_service
+            .find_user_by_id("ldap-alice")
+            .unwrap()
+            .is_none(),
         "ldap-live must not mirror-import into the owned engine store"
     );
 }
@@ -301,11 +306,17 @@ bundle_path = "{bundle_path}"
 
     let identity_service = platform.process_engine().get_identity_service();
     assert!(
-        identity_service.find_user_by_id("ldap-bob").unwrap().is_none(),
+        identity_service
+            .find_user_by_id("ldap-bob")
+            .unwrap()
+            .is_none(),
         "live provider mutations must stay outside the owned engine store"
     );
     assert!(
-        identity_service.find_group_by_id("audit-team").unwrap().is_none(),
+        identity_service
+            .find_group_by_id("audit-team")
+            .unwrap()
+            .is_none(),
         "live provider group mutations must stay outside the owned engine store"
     );
 }

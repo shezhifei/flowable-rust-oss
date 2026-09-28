@@ -131,9 +131,11 @@ fn url_link_create_has_external_url_and_no_content_stream() {
         .get_task_attachment_content(&task_id, &item.id)
         .unwrap_err();
     assert!(matches!(err, FlowableError::NotFound(_)));
-    assert!(event_actions(&engine, &task_id)
-        .iter()
-        .any(|a| a == "AddAttachment"));
+    assert!(
+        event_actions(&engine, &task_id)
+            .iter()
+            .any(|a| a == "AddAttachment")
+    );
 }
 
 #[test]
@@ -171,9 +173,11 @@ fn name_required_and_mid_command_failure_rolls_back() {
     assert!(matches!(err, FlowableError::BadRequest(_)));
 
     assert!(content.list_task_attachments(&task_id).unwrap().is_empty());
-    assert!(!event_actions(&engine, &task_id)
-        .iter()
-        .any(|a| a == "AddAttachment"));
+    assert!(
+        !event_actions(&engine, &task_id)
+            .iter()
+            .any(|a| a == "AddAttachment")
+    );
 }
 
 #[test]
@@ -200,9 +204,11 @@ fn delete_removes_content_and_writes_event_missing_is_not_found() {
         .unwrap();
 
     assert!(content.list_task_attachments(&task_id).unwrap().is_empty());
-    assert!(event_actions(&engine, &task_id)
-        .iter()
-        .any(|a| a == "DeleteAttachment"));
+    assert!(
+        event_actions(&engine, &task_id)
+            .iter()
+            .any(|a| a == "DeleteAttachment")
+    );
 
     let err = content
         .delete_task_attachment(&task_id, "missing-attachment", None)
@@ -315,7 +321,9 @@ fn suspended_task_rejects_create_without_side_effects() {
             .unwrap()
             .is_empty()
     );
-    assert!(!event_actions(&engine, "task-suspended")
-        .iter()
-        .any(|a| a == "AddAttachment"));
+    assert!(
+        !event_actions(&engine, "task-suspended")
+            .iter()
+            .any(|a| a == "AddAttachment")
+    );
 }

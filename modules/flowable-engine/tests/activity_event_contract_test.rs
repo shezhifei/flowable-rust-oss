@@ -10,10 +10,13 @@ use std::sync::Arc;
 
 #[test]
 fn test_deterministic_activity_event_recording() {
-    let process_engine = Arc::new(ProcessEngine::new_with_config(
-        "default".to_string(),
-        ProcessEngineConfiguration::default(),
-    ).unwrap());
+    let process_engine = Arc::new(
+        ProcessEngine::new_with_config(
+            "default".to_string(),
+            ProcessEngineConfiguration::default(),
+        )
+        .unwrap(),
+    );
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">

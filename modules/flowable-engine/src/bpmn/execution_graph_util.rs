@@ -140,7 +140,9 @@ fn get_outgoing_flows(element: &FlowElementEnum) -> Option<&Vec<SequenceFlow>> {
         FlowElementEnum::Task(t) => Some(&t.activity.flow_node.outgoing_flows),
         FlowElementEnum::UserTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ServiceTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
-        FlowElementEnum::CaseServiceTask(t) => Some(&t.service_task.task.activity.flow_node.outgoing_flows),
+        FlowElementEnum::CaseServiceTask(t) => {
+            Some(&t.service_task.task.activity.flow_node.outgoing_flows)
+        }
         FlowElementEnum::ScriptTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ManualTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
         FlowElementEnum::ReceiveTask(t) => Some(&t.task.activity.flow_node.outgoing_flows),
@@ -271,7 +273,9 @@ pub fn has_loop_characteristics(element: &FlowElementEnum) -> bool {
         FlowElementEnum::Task(t) => t.activity.loop_characteristics.is_some(),
         FlowElementEnum::UserTask(t) => t.task.activity.loop_characteristics.is_some(),
         FlowElementEnum::ServiceTask(t) => t.task.activity.loop_characteristics.is_some(),
-        FlowElementEnum::CaseServiceTask(t) => t.service_task.task.activity.loop_characteristics.is_some(),
+        FlowElementEnum::CaseServiceTask(t) => {
+            t.service_task.task.activity.loop_characteristics.is_some()
+        }
         FlowElementEnum::ScriptTask(t) => t.task.activity.loop_characteristics.is_some(),
         FlowElementEnum::ManualTask(t) => t.task.activity.loop_characteristics.is_some(),
         FlowElementEnum::ReceiveTask(t) => t.task.activity.loop_characteristics.is_some(),
@@ -279,8 +283,12 @@ pub fn has_loop_characteristics(element: &FlowElementEnum) -> bool {
         FlowElementEnum::CallActivity(a) => a.activity.loop_characteristics.is_some(),
         FlowElementEnum::SubProcess(s) => s.activity.loop_characteristics.is_some(),
         FlowElementEnum::Transaction(t) => t.sub_process.activity.loop_characteristics.is_some(),
-        FlowElementEnum::EventSubProcess(e) => e.sub_process.activity.loop_characteristics.is_some(),
-        FlowElementEnum::AdhocSubProcess(a) => a.sub_process.activity.loop_characteristics.is_some(),
+        FlowElementEnum::EventSubProcess(e) => {
+            e.sub_process.activity.loop_characteristics.is_some()
+        }
+        FlowElementEnum::AdhocSubProcess(a) => {
+            a.sub_process.activity.loop_characteristics.is_some()
+        }
         _ => false,
     }
 }

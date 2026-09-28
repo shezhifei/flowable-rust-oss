@@ -166,7 +166,9 @@ fn execute_score(engine: &DmnEngine, score: Value) -> Value {
             DmnExecutionRequest::new(json!({ "score": score })),
         )
         .expect("execution")
-        .get_output("band").cloned().unwrap()
+        .get_output("band")
+        .cloned()
+        .unwrap()
 }
 
 fn execute_tags(engine: &DmnEngine, tags: Value, required_tag: Value) -> Value {
@@ -180,7 +182,9 @@ fn execute_tags(engine: &DmnEngine, tags: Value, required_tag: Value) -> Value {
             })),
         )
         .expect("execution")
-        .get_output("result").cloned().unwrap()
+        .get_output("result")
+        .cloned()
+        .unwrap()
 }
 
 /// Nested double-negation over a comparison: `not(not(> 5))` ≡ `> 5`.

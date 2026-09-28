@@ -151,7 +151,8 @@ mod tests {
         fn execute(&self, command_context: &mut CommandContext) -> Result<(), FlowableError> {
             let store = command_context.runtime_store_handle();
             let process_instance = store
-                .find_process_instance("process-1", &mut command_context.session).expect("process instance query")
+                .find_process_instance("process-1", &mut command_context.session)
+                .expect("process instance query")
                 .expect("seeded process instance");
             set_process_instance_suspension_state(command_context, process_instance, true)?;
             Err(FlowableError::ExecutionError(
@@ -181,7 +182,8 @@ mod tests {
         let mut session = store.create_session().unwrap();
         assert!(
             !store
-                .find_process_instance("process-1", &mut session).expect("process instance query")
+                .find_process_instance("process-1", &mut session)
+                .expect("process instance query")
                 .expect("process instance should remain")
                 .is_suspended
         );

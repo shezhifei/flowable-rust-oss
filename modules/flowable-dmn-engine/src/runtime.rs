@@ -60,12 +60,14 @@ impl DmnDecisionService {
         decision_key: &str,
         request: DmnExecutionRequest,
     ) -> Result<DmnExecutionResult, DmnError> {
-        match self.repository_service.latest_decision_by_key_with_fallback(
-            decision_key,
-            request.tenant_id.as_deref(),
-            request.parent_deployment_id.as_deref(),
-            request.fallback_to_default_tenant,
-        ) {
+        match self
+            .repository_service
+            .latest_decision_by_key_with_fallback(
+                decision_key,
+                request.tenant_id.as_deref(),
+                request.parent_deployment_id.as_deref(),
+                request.fallback_to_default_tenant,
+            ) {
             Ok(definition) => {
                 let mut context = request.variables.as_object().cloned().ok_or_else(|| {
                     DmnError::execution("DMN execution variables must be a JSON object")
@@ -120,12 +122,14 @@ impl DmnDecisionService {
                 continue;
             }
 
-            let definition = self.repository_service.latest_decision_by_key_with_fallback(
-                decision_key,
-                request.tenant_id.as_deref(),
-                request.parent_deployment_id.as_deref(),
-                request.fallback_to_default_tenant,
-            )?;
+            let definition = self
+                .repository_service
+                .latest_decision_by_key_with_fallback(
+                    decision_key,
+                    request.tenant_id.as_deref(),
+                    request.parent_deployment_id.as_deref(),
+                    request.fallback_to_default_tenant,
+                )?;
             self.execute_definition_with_dependencies(
                 definition,
                 &request,
@@ -150,12 +154,14 @@ impl DmnDecisionService {
                 continue;
             }
 
-            let definition = self.repository_service.latest_decision_by_key_with_fallback(
-                decision_key,
-                request.tenant_id.as_deref(),
-                request.parent_deployment_id.as_deref(),
-                request.fallback_to_default_tenant,
-            )?;
+            let definition = self
+                .repository_service
+                .latest_decision_by_key_with_fallback(
+                    decision_key,
+                    request.tenant_id.as_deref(),
+                    request.parent_deployment_id.as_deref(),
+                    request.fallback_to_default_tenant,
+                )?;
             let result = self.execute_definition_with_dependencies(
                 definition,
                 &request,
@@ -248,12 +254,14 @@ impl DmnDecisionService {
                 continue;
             }
 
-            let required_definition = self.repository_service.latest_decision_by_key_with_fallback(
-                required_decision_key,
-                request.tenant_id.as_deref(),
-                request.parent_deployment_id.as_deref(),
-                request.fallback_to_default_tenant,
-            )?;
+            let required_definition = self
+                .repository_service
+                .latest_decision_by_key_with_fallback(
+                    required_decision_key,
+                    request.tenant_id.as_deref(),
+                    request.parent_deployment_id.as_deref(),
+                    request.fallback_to_default_tenant,
+                )?;
             self.execute_definition_with_dependencies(
                 required_definition,
                 request,
@@ -931,9 +939,8 @@ fn sort_rules_by_output_priority(
     // Java OutputOrderComparator.java:31-33 — indexOf returns -1 for values not
     // in the list, so unknowns sort *before* declared values. Rank = position+1,
     // unknown → 0 (never error; prior Rust used usize::MAX and hard-failed).
-    rules.sort_by_key(|rule| {
-        output_priority_rank(definition, rule, evaluated_outputs).unwrap_or(0)
-    });
+    rules
+        .sort_by_key(|rule| output_priority_rank(definition, rule, evaluated_outputs).unwrap_or(0));
     Ok(())
 }
 
@@ -1915,9 +1922,10 @@ fn coerce_runtime_output_value(
             let number = numeric_value(value).ok_or_else(|| {
                 incompatible_output_type_ref_error(definition, output_clause, value)
             })?;
-            number.as_f64().map(Value::from).ok_or_else(|| {
-                incompatible_output_type_ref_error(definition, output_clause, value)
-            })
+            number
+                .as_f64()
+                .map(Value::from)
+                .ok_or_else(|| incompatible_output_type_ref_error(definition, output_clause, value))
         }
         "date" | "time" | "datetime" | "duration" | "daytimeduration" | "yearmonthduration" => {
             normalize_temporal_value(type_ref, value)

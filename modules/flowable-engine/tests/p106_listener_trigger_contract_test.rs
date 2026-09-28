@@ -44,11 +44,17 @@ impl EventRecorder {
     }
 
     fn record(&self, entry: String) {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(entry);
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(entry);
     }
 
     fn snapshot(&self) -> Vec<String> {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 
@@ -132,7 +138,8 @@ fn sequence_flow_execution_listeners_fire_start_take_end_in_order() {
     );
     let mut config = ProcessEngineConfiguration::default();
     config.execution_listener_registry = Some(registry);
-    let engine = ProcessEngine::new_with_config("p106-seq-flow-listener".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("p106-seq-flow-listener".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
@@ -141,7 +148,10 @@ fn sequence_flow_execution_listeners_fire_start_take_end_in_order() {
     let builder = repository_service
         .create_deployment()
         .name("Seq Flow Listener Deployment".to_string())
-        .add_string("seqFlowListenerProcess.bpmn20.xml".to_string(), SEQ_FLOW_LISTENER_XML.to_string());
+        .add_string(
+            "seqFlowListenerProcess.bpmn20.xml".to_string(),
+            SEQ_FLOW_LISTENER_XML.to_string(),
+        );
     repository_service.deploy(builder).unwrap();
 
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
@@ -221,7 +231,8 @@ fn process_execution_listeners_fire_on_start_and_end() {
     );
     let mut config = ProcessEngineConfiguration::default();
     config.execution_listener_registry = Some(registry);
-    let engine = ProcessEngine::new_with_config("p106-process-listener".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("p106-process-listener".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
@@ -230,7 +241,10 @@ fn process_execution_listeners_fire_on_start_and_end() {
     let builder = repository_service
         .create_deployment()
         .name("Process Listener Deployment".to_string())
-        .add_string("processListenerProcess.bpmn20.xml".to_string(), PROCESS_LISTENER_XML.to_string());
+        .add_string(
+            "processListenerProcess.bpmn20.xml".to_string(),
+            PROCESS_LISTENER_XML.to_string(),
+        );
     repository_service.deploy(builder).unwrap();
 
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
@@ -307,7 +321,10 @@ fn all_events_task_listener_fires_on_create_and_complete() {
     let builder = repository_service
         .create_deployment()
         .name("All Events Deployment".to_string())
-        .add_string("allEventsProcess.bpmn20.xml".to_string(), ALL_EVENTS_XML.to_string());
+        .add_string(
+            "allEventsProcess.bpmn20.xml".to_string(),
+            ALL_EVENTS_XML.to_string(),
+        );
     repository_service.deploy(builder).unwrap();
 
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();

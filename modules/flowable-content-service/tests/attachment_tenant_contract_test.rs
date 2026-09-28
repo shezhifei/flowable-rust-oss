@@ -125,16 +125,17 @@ fn process_attachment_inherits_process_instance_tenant() {
         .list_process_attachments(&process_instance_id)
         .unwrap();
     assert_eq!(listed.len(), 2);
-    assert!(listed
-        .iter()
-        .all(|item| item.tenant_id.as_deref() == Some("tenant-b")));
+    assert!(
+        listed
+            .iter()
+            .all(|item| item.tenant_id.as_deref() == Some("tenant-b"))
+    );
 }
 
 #[test]
 fn tenantless_process_attachment_stays_tenantless() {
     let engine = engine("attach-tenantless");
-    let (process_instance_id, _task_id) =
-        deploy_and_start(&engine, "tenantlessAttachProc", None);
+    let (process_instance_id, _task_id) = deploy_and_start(&engine, "tenantlessAttachProc", None);
     let content = FlowableContentService::new(Arc::clone(&engine));
 
     let item = content
@@ -197,8 +198,7 @@ fn task_attachment_inherits_task_tenant() {
 #[test]
 fn standalone_task_cannot_be_combined_with_process_scope() {
     let engine = engine("attach-standalone-reject");
-    let (process_instance_id, _task_id) =
-        deploy_and_start(&engine, "standaloneRejectProc", None);
+    let (process_instance_id, _task_id) = deploy_and_start(&engine, "standaloneRejectProc", None);
     let content = FlowableContentService::new(Arc::clone(&engine));
 
     let standalone = engine
@@ -221,7 +221,10 @@ fn standalone_task_cannot_be_combined_with_process_scope() {
         .unwrap_err();
     match err {
         FlowableError::BadRequest(msg) => {
-            assert!(msg.contains("does not belong to process instance"), "msg={msg}")
+            assert!(
+                msg.contains("does not belong to process instance"),
+                "msg={msg}"
+            )
         }
         other => panic!("expected BadRequest, got {other:?}"),
     }
@@ -249,7 +252,10 @@ fn task_of_other_process_instance_is_rejected() {
         .unwrap_err();
     match err {
         FlowableError::BadRequest(msg) => {
-            assert!(msg.contains("does not belong to process instance"), "msg={msg}")
+            assert!(
+                msg.contains("does not belong to process instance"),
+                "msg={msg}"
+            )
         }
         other => panic!("expected BadRequest, got {other:?}"),
     }

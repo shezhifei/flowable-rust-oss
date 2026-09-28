@@ -554,8 +554,9 @@ fn ensure_schema_true_mode_upgrades_7_0_0_to_latest_and_exposes_cmmn_columns() {
         let pool_factory = SqlxExecutorFactory::new(&config, runtime).unwrap();
         let catalog = Arc::new(PropertyStatementCatalog::new(Box::new(SqliteDialect)));
         let pool_for_session = pool_factory.clone_for_session();
-        let factory = DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
-            .with_schema_manager(manager_through("7.0.0"));
+        let factory =
+            DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
+                .with_schema_manager(manager_through("7.0.0"));
         factory.ensure_schema().unwrap();
 
         let mut session = factory.create_session().unwrap();
@@ -594,8 +595,9 @@ fn ensure_schema_true_mode_upgrades_7_0_0_to_latest_and_exposes_cmmn_columns() {
         let pool_factory = SqlxExecutorFactory::new(&config, runtime).unwrap();
         let catalog = Arc::new(PropertyStatementCatalog::new(Box::new(SqliteDialect)));
         let pool_for_session = pool_factory.clone_for_session();
-        let factory = DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
-            .with_schema_manager(create_manager()); // full scripts including 7.1.0
+        let factory =
+            DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
+                .with_schema_manager(create_manager()); // full scripts including 7.1.0
 
         factory
             .ensure_schema()
@@ -651,8 +653,9 @@ fn ensure_schema_create_mode_does_not_upgrade_existing_7_0_0_schema() {
         let pool_factory = SqlxExecutorFactory::new(&config, runtime).unwrap();
         let catalog = Arc::new(PropertyStatementCatalog::new(Box::new(SqliteDialect)));
         let pool_for_session = pool_factory.clone_for_session();
-        let factory = DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
-            .with_schema_manager(manager_through("7.0.0"));
+        let factory =
+            DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
+                .with_schema_manager(manager_through("7.0.0"));
         factory.ensure_schema().unwrap();
     }
 
@@ -667,8 +670,9 @@ fn ensure_schema_create_mode_does_not_upgrade_existing_7_0_0_schema() {
         let pool_factory = SqlxExecutorFactory::new(&config, runtime).unwrap();
         let catalog = Arc::new(PropertyStatementCatalog::new(Box::new(SqliteDialect)));
         let pool_for_session = pool_factory.clone_for_session();
-        let factory = DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
-            .with_schema_manager(create_manager());
+        let factory =
+            DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
+                .with_schema_manager(create_manager());
         factory.ensure_schema().unwrap();
 
         let mut session = factory.create_session().unwrap();
@@ -703,8 +707,9 @@ fn ensure_schema_true_mode_rejects_schema_newer_than_code() {
         let pool_factory = SqlxExecutorFactory::new(&config, runtime).unwrap();
         let catalog = Arc::new(PropertyStatementCatalog::new(Box::new(SqliteDialect)));
         let pool_for_session = pool_factory.clone_for_session();
-        let factory = DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
-            .with_schema_manager(create_manager());
+        let factory =
+            DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
+                .with_schema_manager(create_manager());
         factory.ensure_schema().unwrap();
 
         let mut session = factory.create_session().unwrap();
@@ -729,8 +734,9 @@ fn ensure_schema_true_mode_rejects_schema_newer_than_code() {
     let pool_factory = SqlxExecutorFactory::new(&config, runtime).unwrap();
     let catalog = Arc::new(PropertyStatementCatalog::new(Box::new(SqliteDialect)));
     let pool_for_session = pool_factory.clone_for_session();
-    let factory = DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
-        .with_schema_manager(create_manager());
+    let factory =
+        DbSessionFactory::new(config, catalog, move || pool_for_session.create_executor())
+            .with_schema_manager(create_manager());
 
     let err = factory
         .ensure_schema()

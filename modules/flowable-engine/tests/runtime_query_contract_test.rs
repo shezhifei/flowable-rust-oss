@@ -12,7 +12,8 @@ fn test_deterministic_repository_query_ordering() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let xml1 = r#"<?xml version="1.0" encoding="UTF-8"?>

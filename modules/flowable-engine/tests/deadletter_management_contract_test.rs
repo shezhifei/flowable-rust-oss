@@ -85,10 +85,12 @@ fn deletion_lock_guard_matches_each_java_job_family() {
             .unwrap()
             .is_some()
     );
-    assert!(management
-        .find_timer_job_by_id("locked-timer")
-        .unwrap()
-        .is_some());
+    assert!(
+        management
+            .find_timer_job_by_id("locked-timer")
+            .unwrap()
+            .is_some()
+    );
 
     management
         .delete_deadletter_job("locked-deadletter")

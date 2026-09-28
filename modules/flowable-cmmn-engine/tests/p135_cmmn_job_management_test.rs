@@ -288,7 +288,12 @@ fn history_job_execute_runs_direct_fixture_and_is_family_typed() {
     engine
         .execute_history_job("history-execute")
         .expect("execute history job");
-    assert!(engine.management_service().get_job("history-execute").is_err());
+    assert!(
+        engine
+            .management_service()
+            .get_job("history-execute")
+            .is_err()
+    );
     assert_eq!(
         engine
             .runtime_service()

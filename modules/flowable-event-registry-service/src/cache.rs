@@ -142,11 +142,7 @@ impl DefinitionCache {
         self.events_by_id.get(id)
     }
 
-    pub fn latest_channel(
-        &self,
-        key: &str,
-        tenant_id: Option<&str>,
-    ) -> Option<&ChannelDefinition> {
+    pub fn latest_channel(&self, key: &str, tenant_id: Option<&str>) -> Option<&ChannelDefinition> {
         let tenant_key = (tenant_id.map(str::to_string), key.to_string());
         self.channel_latest
             .get(&tenant_key)

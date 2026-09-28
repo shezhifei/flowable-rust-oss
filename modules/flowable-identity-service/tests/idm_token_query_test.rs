@@ -15,39 +15,47 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
     let engine = Arc::new(ProcessEngine::new("idm-token-query".to_string()).unwrap());
     let identity_facade = FlowableIdentityService::new(Arc::clone(&engine));
 
-    identity_facade.save_user(User {
-        id: "kermit".to_string(),
-        first_name: Some("Kermit".to_string()),
-        last_name: None,
-        email: Some("kermit@muppets.test".to_string()),
-        password: Some("thegreen".to_string()),
-        tenant_id: None,
-    }).unwrap();
-    identity_facade.save_user(User {
-        id: "gonzo".to_string(),
-        first_name: Some("Gonzo".to_string()),
-        last_name: None,
-        email: Some("gonzo@muppets.test".to_string()),
-        password: Some("whatever".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    identity_facade
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: Some("Kermit".to_string()),
+            last_name: None,
+            email: Some("kermit@muppets.test".to_string()),
+            password: Some("thegreen".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
+    identity_facade
+        .save_user(User {
+            id: "gonzo".to_string(),
+            first_name: Some("Gonzo".to_string()),
+            last_name: None,
+            email: Some("gonzo@muppets.test".to_string()),
+            password: Some("whatever".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
-    identity_facade.save_token(Token {
-        id: "token-1".to_string(),
-        token_value: "alpha-token".to_string(),
-        user_id: Some("kermit".to_string()),
-        token_date: None,
-        ip_address: None,
-        user_agent: None,
-    }).unwrap();
-    identity_facade.save_token(Token {
-        id: "token-2".to_string(),
-        token_value: "beta-token".to_string(),
-        user_id: Some("gonzo".to_string()),
-        token_date: None,
-        ip_address: None,
-        user_agent: None,
-    }).unwrap();
+    identity_facade
+        .save_token(Token {
+            id: "token-1".to_string(),
+            token_value: "alpha-token".to_string(),
+            user_id: Some("kermit".to_string()),
+            token_date: None,
+            ip_address: None,
+            user_agent: None,
+        })
+        .unwrap();
+    identity_facade
+        .save_token(Token {
+            id: "token-2".to_string(),
+            token_value: "beta-token".to_string(),
+            user_id: Some("gonzo".to_string()),
+            token_date: None,
+            ip_address: None,
+            user_agent: None,
+        })
+        .unwrap();
 
     let kermit_tokens = identity_facade
         .create_token_query()
@@ -68,7 +76,12 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
     assert_eq!(token_by_value.user_id.as_deref(), Some("gonzo"));
 
     identity_facade.delete_token("token-1").unwrap();
-    assert!(identity_facade.find_token_by_id("token-1").unwrap().is_none());
+    assert!(
+        identity_facade
+            .find_token_by_id("token-1")
+            .unwrap()
+            .is_none()
+    );
 
     let remaining = identity_facade.create_token_query().list().unwrap();
     assert_eq!(remaining.len(), 1);

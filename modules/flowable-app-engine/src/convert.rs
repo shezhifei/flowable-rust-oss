@@ -7,9 +7,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
 use crate::error::AppError;
-use crate::models::{
-    AppDefinition, AppModel, AppPage, AppReference, DefinitionType,
-};
+use crate::models::{AppDefinition, AppModel, AppPage, AppReference, DefinitionType};
 use flowable_app_converter::{app_definition_to_json, parse_app_definition};
 use flowable_app_model::{
     AppDefinition as CanonicalAppDefinition, AppPage as CanonicalAppPage,
@@ -18,9 +16,7 @@ use flowable_app_model::{
 };
 
 /// Convert a canonical app-model definition into the engine public model.
-pub fn canonical_definition_to_engine(
-    definition: CanonicalAppDefinition,
-) -> AppDefinition {
+pub fn canonical_definition_to_engine(definition: CanonicalAppDefinition) -> AppDefinition {
     let definition_key = definition.key;
     let definition_name = definition
         .name
@@ -31,8 +27,7 @@ pub fn canonical_definition_to_engine(
         .clone()
         .unwrap_or_else(|| definition_key.clone());
 
-    let mut engine_definition =
-        AppDefinition::new(definition_id, definition_key, definition_name);
+    let mut engine_definition = AppDefinition::new(definition_id, definition_key, definition_name);
     if let Some(description) = definition.description {
         engine_definition = engine_definition.with_description(description);
     }
@@ -61,7 +56,8 @@ pub fn canonical_definition_to_engine(
     if !definition.references.is_empty() {
         let mut reference_page = AppPage::new("app-references", "Application references");
         for reference in definition.references {
-            reference_page = reference_page.with_reference(canonical_reference_to_engine(reference));
+            reference_page =
+                reference_page.with_reference(canonical_reference_to_engine(reference));
         }
         engine_definition = engine_definition.with_page(reference_page);
     }
@@ -107,7 +103,10 @@ pub fn engine_definition_to_canonical(definition: &AppDefinition) -> CanonicalAp
             references.push(CanonicalAppResourceReference {
                 id: Some(reference.id.clone()),
                 name: reference.name.clone().or_else(|| Some(page.name.clone())),
-                description: reference.description.clone().or_else(|| page.description.clone()),
+                description: reference
+                    .description
+                    .clone()
+                    .or_else(|| page.description.clone()),
                 reference_type: definition_type_to_reference_type(reference.definition_type),
                 definition_key: reference.definition_key.clone(),
                 definition_id: reference.definition_id.clone(),
@@ -167,8 +166,9 @@ pub fn serialize_engine_model_as_durable_bytes(model: &AppModel) -> Result<Vec<u
 /// Prefers the canonical app-model/app-converter shape; falls back to the engine
 /// compatibility JSON shape used by older builders/tests.
 pub fn parse_resource_bytes_to_engine_model(bytes: &[u8]) -> Result<AppModel, AppError> {
-    let text = std::str::from_utf8(bytes)
-        .map_err(|error| AppError::validation(format!("App resource is not valid UTF-8: {error}")))?;
+    let text = std::str::from_utf8(bytes).map_err(|error| {
+        AppError::validation(format!("App resource is not valid UTF-8: {error}"))
+    })?;
 
     if let Ok(canonical) = parse_app_definition(text) {
         return Ok(AppModel::new().with_app_definition(canonical_definition_to_engine(canonical)));
@@ -393,13 +393,15 @@ mod tests {
     fn single_reference_page_with_pinned_definition_keeps_the_pin() {
         // A canonical page cannot express definitionId/tenantId; the converter
         // must emit a top-level reference rather than drop the pin.
-        let model = model_of(AppDefinition::new("app-1", "portal", "Portal").with_page(
-            AppPage::new("page-only", "Only").with_reference(
-                AppReference::process("start")
-                    .with_definition_key("onboarding")
-                    .with_definition_id("onboarding:5:99"),
+        let model = model_of(
+            AppDefinition::new("app-1", "portal", "Portal").with_page(
+                AppPage::new("page-only", "Only").with_reference(
+                    AppReference::process("start")
+                        .with_definition_key("onboarding")
+                        .with_definition_id("onboarding:5:99"),
+                ),
             ),
-        ));
+        );
         let canonical = engine_model_to_canonical(&model).unwrap();
         assert!(canonical.pages.is_empty(), "the pin cannot live on a page");
         assert_eq!(canonical.references.len(), 1);
@@ -429,7 +431,10 @@ mod tests {
 
         let mut different_description = base_definition();
         different_description.pages[0].description = Some("Other".to_string());
-        assert!(!models_semantically_equal(&base, &model_of(different_description)));
+        assert!(!models_semantically_equal(
+            &base,
+            &model_of(different_description)
+        ));
 
         let mut different_icon = base_definition();
         different_icon.pages[0].icon = Some("other.png".to_string());
@@ -437,7 +442,10 @@ mod tests {
 
         let mut different_order = base_definition();
         different_order.pages[0].order = Some(9);
-        assert!(!models_semantically_equal(&base, &model_of(different_order)));
+        assert!(!models_semantically_equal(
+            &base,
+            &model_of(different_order)
+        ));
     }
 
     #[test]
@@ -449,12 +457,16 @@ mod tests {
         assert!(!models_semantically_equal(&base, &model_of(different_name)));
 
         let mut different_pin = base_definition();
-        different_pin.pages[1].references[1].definition_id = Some("equipment-case:4:88".to_string());
+        different_pin.pages[1].references[1].definition_id =
+            Some("equipment-case:4:88".to_string());
         assert!(!models_semantically_equal(&base, &model_of(different_pin)));
 
         let mut different_tenant = base_definition();
         different_tenant.pages[1].references[1].tenant_id = Some("tenant-b".to_string());
-        assert!(!models_semantically_equal(&base, &model_of(different_tenant)));
+        assert!(!models_semantically_equal(
+            &base,
+            &model_of(different_tenant)
+        ));
 
         let mut moved_reference = base_definition();
         let moved = moved_reference.pages[1].references.remove(1);
@@ -477,13 +489,15 @@ mod tests {
         // Canonical pages do not persist a reference id; the parse side
         // regenerates one. Normalizing both sides through the canonical AST
         // keeps that lossy detail out of the comparison.
-        let model = model_of(AppDefinition::new("app-1", "portal", "Portal").with_page(
-            AppPage::new("page-process", "Process").with_reference(
-                AppReference::process("original-ref-id")
-                    .with_name("Start")
-                    .with_definition_key("onboarding"),
+        let model = model_of(
+            AppDefinition::new("app-1", "portal", "Portal").with_page(
+                AppPage::new("page-process", "Process").with_reference(
+                    AppReference::process("original-ref-id")
+                        .with_name("Start")
+                        .with_definition_key("onboarding"),
+                ),
             ),
-        ));
+        );
         let bytes = serialize_engine_model_as_durable_bytes(&model).unwrap();
         let parsed = parse_resource_bytes_to_engine_model(&bytes).unwrap();
         assert_ne!(

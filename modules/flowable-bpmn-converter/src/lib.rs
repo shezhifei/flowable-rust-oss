@@ -1678,7 +1678,11 @@ impl BpmnXMLConverter {
                         .id,
                 );
                 user_task.extended = user_task.extension_id.is_some()
-                    && !user_task.extension_id.as_deref().unwrap_or_default().is_empty();
+                    && !user_task
+                        .extension_id
+                        .as_deref()
+                        .unwrap_or_default()
+                        .is_empty();
                 if !is_empty {
                     self.parse_user_task_children(reader, &mut user_task, e, n, model);
                 }
@@ -1713,7 +1717,10 @@ impl BpmnXMLConverter {
                     let Ok(attr) = attr else {
                         continue;
                     };
-                    let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
+                    let key = reader
+                        .decoder()
+                        .decode(attr.key.as_ref())
+                        .unwrap_or_default();
                     let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
                     let value = attr
                         .decode_and_unescape_value(reader.decoder())
@@ -1825,7 +1832,11 @@ impl BpmnXMLConverter {
                     }
                 }
                 service_task.extended = service_task.extension_id.is_some()
-                    && !service_task.extension_id.as_deref().unwrap_or_default().is_empty();
+                    && !service_task
+                        .extension_id
+                        .as_deref()
+                        .unwrap_or_default()
+                        .is_empty();
                 self.ensure_id(
                     &mut service_task
                         .task
@@ -2214,7 +2225,10 @@ impl BpmnXMLConverter {
                     let Ok(attr) = attr else {
                         continue;
                     };
-                    let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
+                    let key = reader
+                        .decoder()
+                        .decode(attr.key.as_ref())
+                        .unwrap_or_default();
                     let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
                     let value = attr
                         .decode_and_unescape_value(reader.decoder())
@@ -2976,7 +2990,10 @@ impl BpmnXMLConverter {
             let Ok(attr) = attr else {
                 continue;
             };
-            let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
+            let key = reader
+                .decoder()
+                .decode(attr.key.as_ref())
+                .unwrap_or_default();
             let value = attr
                 .decode_and_unescape_value(reader.decoder())
                 .unwrap_or_default();
@@ -3001,7 +3018,10 @@ impl BpmnXMLConverter {
             let Ok(attr) = attr else {
                 continue;
             };
-            let a_key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
+            let a_key = reader
+                .decoder()
+                .decode(attr.key.as_ref())
+                .unwrap_or_default();
             let a_value = attr
                 .decode_and_unescape_value(reader.decoder())
                 .unwrap_or_default();

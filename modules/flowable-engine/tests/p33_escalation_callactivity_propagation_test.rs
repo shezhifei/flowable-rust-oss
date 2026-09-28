@@ -106,7 +106,7 @@ impl EngineEventListener for EscalationCompletionRecorder {
         if let EngineEvent::Entity { data, .. } = event {
             self.process_instance_ids
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push(data.entity_id.clone());
         }
         Ok(())
@@ -220,7 +220,13 @@ fn p33_escalation_end_crosses_call_activity_and_completes_child_with_event() {
         0,
         "completed escalation child must not retain runtime executions"
     );
-    assert_eq!(completed_ids.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &[child.0.clone()]);
+    assert_eq!(
+        completed_ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_slice(),
+        &[child.0.clone()]
+    );
 }
 
 #[test]
@@ -249,7 +255,13 @@ fn p33_intermediate_throw_uses_parent_call_activity_catcher() {
         task_keys(&engine, &child.0).is_empty(),
         "stale child throw token must not take its outgoing flow"
     );
-    assert_eq!(completed_ids.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &[child.0.clone()]);
+    assert_eq!(
+        completed_ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_slice(),
+        &[child.0.clone()]
+    );
 }
 
 #[test]
@@ -281,7 +293,10 @@ fn p33_escalation_walks_two_call_activity_levels_and_cleans_crossed_instances() 
         .collect();
     assert_eq!(crossed_ids.len(), 2, "leaf + middle must be crossed");
 
-    let mut recorded = completed_ids.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let mut recorded = completed_ids
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let mut expected = crossed_ids;
     recorded.sort();
     expected.sort();

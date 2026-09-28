@@ -26,7 +26,8 @@ fn deploy_xml(xml: &str) -> Result<(), flowable_engine::error::FlowableError> {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let builder = repository_service

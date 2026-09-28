@@ -542,7 +542,8 @@ fn forked_task_listener_field_expression_resolves_process_variable() {
         task_listener_registry: Some(registry),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("p6b-task-listener-field".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("p6b-task-listener-field".to_string(), config).unwrap();
     deploy_and_start(
         &engine,
         TASK_LISTENER_FIELD_FORK_XML,
@@ -573,7 +574,8 @@ fn forked_execution_listener_field_expression_resolves_process_variable() {
         execution_listener_registry: Some(registry),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("p6b-execution-listener-field".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("p6b-execution-listener-field".to_string(), config).unwrap();
     deploy_and_start(
         &engine,
         EXECUTION_LISTENER_FIELD_FORK_XML,

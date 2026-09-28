@@ -49,7 +49,8 @@ fn test_message_wakeup_no_match_is_noop() {
         .unwrap();
 
     let waiting_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(waiting_states.len(), 1);
     assert_eq!(
         waiting_states[0].wait_kind,
@@ -108,7 +109,8 @@ fn test_message_wakeup_only_wakes_one_matching_instance() {
         .unwrap();
 
     let first_waiting_states = process_engine
-        .get_message_style_wait_states_by_process_instance_id(first_process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(first_process_instance.id.clone())
+        .unwrap();
     assert_eq!(first_waiting_states.len(), 1);
     assert_eq!(
         first_waiting_states[0].wait_kind,
@@ -116,7 +118,8 @@ fn test_message_wakeup_only_wakes_one_matching_instance() {
     );
 
     let second_waiting_states = process_engine
-        .get_message_style_wait_states_by_process_instance_id(second_process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(second_process_instance.id.clone())
+        .unwrap();
     assert_eq!(second_waiting_states.len(), 1);
     assert_eq!(
         second_waiting_states[0].wait_kind,
@@ -126,7 +129,8 @@ fn test_message_wakeup_only_wakes_one_matching_instance() {
     process_engine.wake_up_message_by_process_instance_id(first_process_instance.id.clone());
 
     let first_waiting_states = process_engine
-        .get_message_style_wait_states_by_process_instance_id(first_process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(first_process_instance.id.clone())
+        .unwrap();
     assert!(first_waiting_states.is_empty());
 
     let first_tasks = task_service
@@ -135,7 +139,8 @@ fn test_message_wakeup_only_wakes_one_matching_instance() {
     assert!(first_tasks.is_empty());
 
     let second_waiting_states = process_engine
-        .get_message_style_wait_states_by_process_instance_id(second_process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(second_process_instance.id.clone())
+        .unwrap();
     assert_eq!(second_waiting_states.len(), 1);
 
     let second_tasks = task_service
@@ -203,7 +208,8 @@ fn test_message_wakeup_by_message_ref() {
         .unwrap();
 
     let waiting_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(waiting_states.len(), 1);
     assert_eq!(
         waiting_states[0].wait_kind,

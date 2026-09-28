@@ -6,7 +6,7 @@ use crate::bpmn::behavior::error_event_support::resolve_error_event_ref;
 use crate::bpmn::behavior::escalation_event_support::resolve_escalation_event_ref;
 use crate::bpmn::behavior::event_registry_event_support::resolve_event_type_extension;
 use crate::bpmn::event_registry_correlation::{
-    correlation_key_from_base_element, extension_element_text, ELEMENT_EVENT_TYPE,
+    ELEMENT_EVENT_TYPE, correlation_key_from_base_element, extension_element_text,
 };
 use crate::bpmn::job_category::resolve_job_category;
 use crate::delegate::activity_behavior::ActivityBehavior;
@@ -256,16 +256,17 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
                 .and_then(|process| process.flow_element_map.get(&activity_id))
                 .and_then(|flow_element| match flow_element {
                     FlowElementEnum::ReceiveTask(receive_task) => resolve_event_type_extension(
-                        &receive_task.task.activity.flow_node.flow_element.base_element,
+                        &receive_task
+                            .task
+                            .activity
+                            .flow_node
+                            .flow_element
+                            .base_element,
                     ),
                     _ => None,
                 })
         } {
-            return self.execute_event_registry_receive(
-                execution,
-                command_context,
-                &event_type,
-            );
+            return self.execute_event_registry_receive(execution, command_context, &event_type);
         }
 
         let process_instance_id = execution

@@ -115,8 +115,11 @@ fn test_timer_coordination_jwks_profile_mutation() {
     );
 
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config).expect("identity runtime must build");
-    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
+    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config)
+        .expect("identity runtime must build");
+    let handle = service
+        .start(Arc::clone(&stop_signal))
+        .expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     let admin_token = create_token("https://admin.example.com", "test-kid");

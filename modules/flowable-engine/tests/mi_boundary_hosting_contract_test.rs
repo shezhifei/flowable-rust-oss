@@ -495,10 +495,8 @@ fn parallel_mi_receive_message_boundary_registers_once_and_interrupts_whole_mi()
 
     engine
         .get_runtime_service()
-        .trigger_boundary_event_by_message_ref(
-            "cancelMsg".to_string(),
-            process_instance.id.clone(),
-        ).unwrap();
+        .trigger_boundary_event_by_message_ref("cancelMsg".to_string(), process_instance.id.clone())
+        .unwrap();
 
     assert_eq!(
         task_keys(&engine, &process_instance.id),

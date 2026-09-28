@@ -10,8 +10,8 @@ mod ssrf_guard;
 
 pub use client::{RealHttpClient, RealHttpClientConfig};
 pub use ssrf_guard::{
-    safe_url_display, safe_url_for_error, validate_outbound_url, OutboundUrlGuardConfig,
-    OutboundUrlGuardError,
+    OutboundUrlGuardConfig, OutboundUrlGuardError, safe_url_display, safe_url_for_error,
+    validate_outbound_url,
 };
 
 // ── HttpRuntime trait ──────────────────────────────────────────────

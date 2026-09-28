@@ -673,8 +673,9 @@ impl CmmnHistoricCaseInstanceQuery {
                 &item.case_definition_key,
             )
         });
-        items
-            .retain(|item| matches_optional(&self.case_definition_name, &item.case_definition_name));
+        items.retain(|item| {
+            matches_optional(&self.case_definition_name, &item.case_definition_name)
+        });
         items.retain(|item| {
             matches_like_optional(&self.case_definition_name_like, &item.case_definition_name)
         });
@@ -706,7 +707,10 @@ impl CmmnHistoricCaseInstanceQuery {
             matches_optional_option(&self.business_status, item.business_status.as_deref())
         });
         items.retain(|item| {
-            matches_like_optional_option(&self.business_status_like, item.business_status.as_deref())
+            matches_like_optional_option(
+                &self.business_status_like,
+                item.business_status.as_deref(),
+            )
         });
         items.retain(|item| {
             matches_like_ignore_case_optional_option(
@@ -728,7 +732,10 @@ impl CmmnHistoricCaseInstanceQuery {
             self.started_before
                 .is_none_or(|bound| item.started_at <= bound)
         });
-        items.retain(|item| self.started_after.is_none_or(|bound| item.started_at >= bound));
+        items.retain(|item| {
+            self.started_after
+                .is_none_or(|bound| item.started_at >= bound)
+        });
         // Java finishedBefore/After compare END_TIME_, so unfinished cases (null
         // END_TIME_) never satisfy either bound (HistoricCaseInstance.xml:746-751).
         items.retain(|item| {
@@ -741,9 +748,8 @@ impl CmmnHistoricCaseInstanceQuery {
         });
         // Java mapper uses exact equality on END_USER_ID_
         // (`HistoricCaseInstance.xml:845-846`).
-        items.retain(|item| {
-            matches_optional_option(&self.finished_by, item.finished_by.as_deref())
-        });
+        items
+            .retain(|item| matches_optional_option(&self.finished_by, item.finished_by.as_deref()));
         items.retain(|item| {
             self.finished
                 .is_none_or(|finished| item.completed_at.is_some() == finished)
@@ -767,9 +773,8 @@ impl CmmnHistoricCaseInstanceQuery {
                     .as_deref()
                     .is_none_or(|tenant_id| tenant_id.is_empty())
         });
-        items.retain(|item| {
-            matches_optional_option(&self.callback_id, item.callback_id.as_deref())
-        });
+        items
+            .retain(|item| matches_optional_option(&self.callback_id, item.callback_id.as_deref()));
         items.retain(|item| {
             self.callback_ids.as_ref().is_none_or(|callback_ids| {
                 item.callback_id
@@ -892,8 +897,8 @@ impl CmmnHistoricCaseInstanceQuery {
             let Some(json) = row.get_text("DATA_") else {
                 continue;
             };
-            let plan_item = serde_json::from_str::<CmmnPlanItemInstance>(&json)
-                .map_err(CmmnError::from)?;
+            let plan_item =
+                serde_json::from_str::<CmmnPlanItemInstance>(&json).map_err(CmmnError::from)?;
             if plan_item.plan_item_definition_id == definition_id {
                 matching_case_ids.insert(plan_item.case_instance_id);
             }
@@ -909,8 +914,8 @@ impl CmmnHistoricCaseInstanceQuery {
             let Some(json) = row.get_text("DATA_") else {
                 continue;
             };
-            let task = serde_json::from_str::<CmmnHumanTaskInstance>(&json)
-                .map_err(CmmnError::from)?;
+            let task =
+                serde_json::from_str::<CmmnHumanTaskInstance>(&json).map_err(CmmnError::from)?;
             if task.task_definition_id == definition_id {
                 matching_case_ids.insert(task.case_instance_id);
             }
@@ -1215,9 +1220,7 @@ impl CmmnHistoricHumanTaskQuery {
         items.retain(|item| {
             matches_like_ignore_case_optional(&self.name_like_ignore_case, &item.name)
         });
-        items.retain(|item| {
-            matches_optional(&self.task_definition_key, &item.task_definition_id)
-        });
+        items.retain(|item| matches_optional(&self.task_definition_key, &item.task_definition_id));
         items.retain(|item| {
             matches_like_optional(&self.task_definition_key_like, &item.task_definition_id)
         });
@@ -1323,27 +1326,31 @@ impl CmmnHistoricHumanTaskQuery {
                     None => std::collections::HashSet::new(),
                 };
             items.retain(|task| {
-                links_by_task.get(task.task_id.as_str()).is_some_and(|links| {
-                    links.iter().any(|link| {
-                        link.link_type == "candidate"
-                            && (link.user_id.as_deref() == Some(candidate_user.as_str())
-                                || link
-                                    .group_id
-                                    .as_ref()
-                                    .is_some_and(|gid| user_group_ids.contains(gid)))
+                links_by_task
+                    .get(task.task_id.as_str())
+                    .is_some_and(|links| {
+                        links.iter().any(|link| {
+                            link.link_type == "candidate"
+                                && (link.user_id.as_deref() == Some(candidate_user.as_str())
+                                    || link
+                                        .group_id
+                                        .as_ref()
+                                        .is_some_and(|gid| user_group_ids.contains(gid)))
+                        })
                     })
-                })
             });
         }
 
         if let Some(candidate_group) = &self.candidate_group {
             items.retain(|task| {
-                links_by_task.get(task.task_id.as_str()).is_some_and(|links| {
-                    links.iter().any(|link| {
-                        link.link_type == "candidate"
-                            && link.group_id.as_deref() == Some(candidate_group.as_str())
+                links_by_task
+                    .get(task.task_id.as_str())
+                    .is_some_and(|links| {
+                        links.iter().any(|link| {
+                            link.link_type == "candidate"
+                                && link.group_id.as_deref() == Some(candidate_group.as_str())
+                        })
                     })
-                })
             });
         }
 
@@ -1351,15 +1358,17 @@ impl CmmnHistoricHumanTaskQuery {
             let groups: std::collections::HashSet<&str> =
                 candidate_group_in.iter().map(String::as_str).collect();
             items.retain(|task| {
-                links_by_task.get(task.task_id.as_str()).is_some_and(|links| {
-                    links.iter().any(|link| {
-                        link.link_type == "candidate"
-                            && link
-                                .group_id
-                                .as_deref()
-                                .is_some_and(|gid| groups.contains(gid))
+                links_by_task
+                    .get(task.task_id.as_str())
+                    .is_some_and(|links| {
+                        links.iter().any(|link| {
+                            link.link_type == "candidate"
+                                && link
+                                    .group_id
+                                    .as_deref()
+                                    .is_some_and(|gid| groups.contains(gid))
+                        })
                     })
-                })
             });
         }
 
@@ -1370,11 +1379,13 @@ impl CmmnHistoricHumanTaskQuery {
                 {
                     return true;
                 }
-                links_by_task.get(task.task_id.as_str()).is_some_and(|links| {
-                    links
-                        .iter()
-                        .any(|link| link.user_id.as_deref() == Some(involved_user.as_str()))
-                })
+                links_by_task
+                    .get(task.task_id.as_str())
+                    .is_some_and(|links| {
+                        links
+                            .iter()
+                            .any(|link| link.user_id.as_deref() == Some(involved_user.as_str()))
+                    })
             });
         }
 
@@ -1382,13 +1393,15 @@ impl CmmnHistoricHumanTaskQuery {
             let groups: std::collections::HashSet<&str> =
                 involved_groups.iter().map(String::as_str).collect();
             items.retain(|task| {
-                links_by_task.get(task.task_id.as_str()).is_some_and(|links| {
-                    links.iter().any(|link| {
-                        link.group_id
-                            .as_deref()
-                            .is_some_and(|gid| groups.contains(gid))
+                links_by_task
+                    .get(task.task_id.as_str())
+                    .is_some_and(|links| {
+                        links.iter().any(|link| {
+                            link.group_id
+                                .as_deref()
+                                .is_some_and(|gid| groups.contains(gid))
+                        })
                     })
-                })
             });
         }
 
@@ -1512,15 +1525,15 @@ fn matches_like_optional(pattern: &Option<String>, actual: &str) -> bool {
 }
 
 fn matches_like_optional_option(pattern: &Option<String>, actual: Option<&str>) -> bool {
-    pattern.as_ref().is_none_or(|pattern| {
-        actual.is_some_and(|actual| sql_like_matches(actual, pattern))
-    })
+    pattern
+        .as_ref()
+        .is_none_or(|pattern| actual.is_some_and(|actual| sql_like_matches(actual, pattern)))
 }
 
 fn matches_like_ignore_case_optional(pattern: &Option<String>, actual: &str) -> bool {
-    pattern.as_ref().is_none_or(|pattern| {
-        sql_like_matches(&actual.to_lowercase(), &pattern.to_lowercase())
-    })
+    pattern
+        .as_ref()
+        .is_none_or(|pattern| sql_like_matches(&actual.to_lowercase(), &pattern.to_lowercase()))
 }
 
 fn matches_like_ignore_case_optional_option(
@@ -1528,9 +1541,8 @@ fn matches_like_ignore_case_optional_option(
     actual: Option<&str>,
 ) -> bool {
     pattern.as_ref().is_none_or(|pattern| {
-        actual.is_some_and(|actual| {
-            sql_like_matches(&actual.to_lowercase(), &pattern.to_lowercase())
-        })
+        actual
+            .is_some_and(|actual| sql_like_matches(&actual.to_lowercase(), &pattern.to_lowercase()))
     })
 }
 

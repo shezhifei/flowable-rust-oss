@@ -19,9 +19,9 @@
 //! (CorrelationUtil.java:30-67).
 
 use flowable_engine::bpmn::event_registry_correlation::{
-    count_process_instances_for_unique_reference, generate_correlation_key,
-    generate_event_correlation_keys, is_store_as_unique_reference_id,
-    matches_subscription_configuration, should_skip_unique_start, REFERENCE_TYPE_EVENT_PROCESS,
+    REFERENCE_TYPE_EVENT_PROCESS, count_process_instances_for_unique_reference,
+    generate_correlation_key, generate_event_correlation_keys, is_store_as_unique_reference_id,
+    matches_subscription_configuration, should_skip_unique_start,
 };
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::runtime::process_instance_builder::ProcessInstanceBuilder;
@@ -54,10 +54,7 @@ fn deploy_correlated_start(engine: &ProcessEngine, deployment_name: &str) {
             repository
                 .create_deployment()
                 .name(deployment_name.to_string())
-                .add_string(
-                    "corr_start.bpmn20.xml".to_string(),
-                    xml.to_string(),
-                ),
+                .add_string("corr_start.bpmn20.xml".to_string(), xml.to_string()),
         )
         .unwrap();
 }
@@ -195,7 +192,8 @@ fn unique_reference_id_dedup_skips_second_start() {
     // First "start": create PI with referenceId = full correlation key
     // (BpmnEventRegistryEventConsumer.startProcessInstance:242-245).
     let runtime = engine.get_runtime_service();
-    let mut builder = ProcessInstanceBuilder::new().process_definition_key("corrStartProcess".to_string());
+    let mut builder =
+        ProcessInstanceBuilder::new().process_definition_key("corrStartProcess".to_string());
     builder.reference_id = Some(corr_key.clone());
     builder.reference_type = Some(REFERENCE_TYPE_EVENT_PROCESS.to_string());
     let pi = runtime.start_process_instance(builder).unwrap();
@@ -217,13 +215,7 @@ fn unique_reference_id_dedup_skips_second_start() {
         1
     );
     assert!(
-        should_skip_unique_start(
-            &store,
-            &mut session,
-            "corrStartProcess",
-            &corr_key,
-            None,
-        ),
+        should_skip_unique_start(&store, &mut session, "corrStartProcess", &corr_key, None,),
         "second event with same full correlation key must be skipped"
     );
 
@@ -278,7 +270,9 @@ fn intermediate_catch_stores_runtime_correlation_configuration() {
         .variable("customerIdVar".to_string(), json!("cust-42"));
     let pi = runtime.start_process_instance(builder).unwrap();
 
-    let waits = runtime.get_event_wait_states_by_process_instance_id(pi.id.clone()).unwrap();
+    let waits = runtime
+        .get_event_wait_states_by_process_instance_id(pi.id.clone())
+        .unwrap();
     assert_eq!(waits.len(), 1, "one intermediate catch wait state");
     let wait = &waits[0];
     assert_eq!(wait.event_ref.as_deref(), Some("myEvent"));

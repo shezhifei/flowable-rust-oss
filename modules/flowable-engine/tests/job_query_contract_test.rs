@@ -13,7 +13,8 @@ fn test_job_query_deterministic_ordering() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let management_service = process_engine.get_management_service();
 

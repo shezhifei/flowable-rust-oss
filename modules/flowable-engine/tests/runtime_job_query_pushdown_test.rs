@@ -85,7 +85,11 @@ fn due_date_and_executable_gate_pushdown() {
         .executable()
         .list()
         .unwrap();
-    assert_eq!(ids(&executable), vec!["due-past"], "executable = due in the past only");
+    assert_eq!(
+        ids(&executable),
+        vec!["due-past"],
+        "executable = due in the past only"
+    );
 
     let before = query(&engine)
         .family(RuntimeJobFamily::Timer)
@@ -130,13 +134,21 @@ fn retries_exception_and_lock_predicates_pushdown() {
     insert(&engine, c, Some(RuntimeJobType::Timer));
 
     let with_retries = query(&engine).with_retries_left().list().unwrap();
-    assert_eq!(ids(&with_retries), vec!["job-a", "job-c"], "NULL retries counts as retries left");
+    assert_eq!(
+        ids(&with_retries),
+        vec!["job-a", "job-c"],
+        "NULL retries counts as retries left"
+    );
 
     let no_retries = query(&engine).no_retries_left().list().unwrap();
     assert_eq!(ids(&no_retries), vec!["job-b"]);
 
     let with_exception = query(&engine).with_exception().list().unwrap();
-    assert_eq!(ids(&with_exception), vec!["job-b"], "empty error message is not an exception");
+    assert_eq!(
+        ids(&with_exception),
+        vec!["job-b"],
+        "empty error message is not an exception"
+    );
 
     let without_exception = query(&engine).without_exception().list().unwrap();
     assert_eq!(ids(&without_exception), vec!["job-a", "job-c"]);
@@ -225,7 +237,11 @@ fn type_flags_use_job_type_column_with_legacy_fallback() {
 
     let mut je = base_job("flag-e");
     je.job_state = Some("timer".to_string());
-    insert(&engine, je, Some(RuntimeJobType::Other("message".to_string())));
+    insert(
+        &engine,
+        je,
+        Some(RuntimeJobType::Other("message".to_string())),
+    );
 
     let mut jf = base_job("flag-f");
     jf.job_state = Some("deadletter".to_string());
@@ -307,10 +323,7 @@ fn legacy_rows_get_activity_id_backfilled_from_json() {
         legacy.activity_id = "legacy-act".to_string();
         conn.execute(
             "INSERT INTO timer_job_states (id, data) VALUES (?1, ?2)",
-            rusqlite::params![
-                legacy.timer_job_id,
-                serde_json::to_string(&legacy).unwrap()
-            ],
+            rusqlite::params![legacy.timer_job_id, serde_json::to_string(&legacy).unwrap()],
         )
         .unwrap();
     }
@@ -327,7 +340,11 @@ fn legacy_rows_get_activity_id_backfilled_from_json() {
     );
 
     let found = query(&engine).element_id("legacy-act").list().unwrap();
-    assert_eq!(ids(&found), vec!["legacy-1"], "schema upgrade must backfill activity_id");
+    assert_eq!(
+        ids(&found),
+        vec!["legacy-1"],
+        "schema upgrade must backfill activity_id"
+    );
 }
 
 #[test]
@@ -359,10 +376,7 @@ fn legacy_rows_get_category_and_scope_type_backfilled_from_json() {
         for legacy in [&billing, &shipping] {
             conn.execute(
                 "INSERT INTO timer_job_states (id, data) VALUES (?1, ?2)",
-                rusqlite::params![
-                    legacy.timer_job_id,
-                    serde_json::to_string(legacy).unwrap()
-                ],
+                rusqlite::params![legacy.timer_job_id, serde_json::to_string(legacy).unwrap()],
             )
             .unwrap();
         }
@@ -380,13 +394,25 @@ fn legacy_rows_get_category_and_scope_type_backfilled_from_json() {
     );
 
     let exact = query(&engine).category("billing").list().unwrap();
-    assert_eq!(ids(&exact), vec!["legacy-billing"], "category must be backfilled from JSON");
+    assert_eq!(
+        ids(&exact),
+        vec!["legacy-billing"],
+        "category must be backfilled from JSON"
+    );
 
     let like = query(&engine).category_like("ship%").list().unwrap();
-    assert_eq!(ids(&like), vec!["legacy-shipping"], "category LIKE must see backfilled values");
+    assert_eq!(
+        ids(&like),
+        vec!["legacy-shipping"],
+        "category LIKE must see backfilled values"
+    );
 
     let cmmn = query(&engine).scope_type("cmmn").list().unwrap();
-    assert_eq!(ids(&cmmn), vec!["legacy-billing"], "scope_type must be backfilled from JSON");
+    assert_eq!(
+        ids(&cmmn),
+        vec!["legacy-billing"],
+        "scope_type must be backfilled from JSON"
+    );
 
     let scopeless = query(&engine).without_scope_type().list().unwrap();
     assert_eq!(
@@ -442,7 +468,10 @@ fn legacy_backfill_preserves_existing_physical_column_values() {
     let physical = query(&engine).category("physical-cat").list().unwrap();
     assert_eq!(ids(&physical), vec!["legacy-physical"]);
     let json_copy = query(&engine).category("json-cat").count().unwrap();
-    assert_eq!(json_copy, 0, "backfill must not overwrite an existing physical value");
+    assert_eq!(
+        json_copy, 0,
+        "backfill must not overwrite an existing physical value"
+    );
 
     // …while genuinely new columns are still hydrated from JSON.
     let bpmn = query(&engine).scope_type("bpmn").list().unwrap();
@@ -478,7 +507,8 @@ fn cmmn_lookup_failure_propagates_instead_of_empty_result() {
         .list()
         .expect_err("broken CMMN repository must fail the job query");
     assert!(
-        err.to_string().contains("Case definition lookup for job query failed"),
+        err.to_string()
+            .contains("Case definition lookup for job query failed"),
         "unexpected error: {err}"
     );
 }
@@ -500,6 +530,9 @@ fn case_definition_key_without_cmmn_engine_matches_nothing() {
         .case_definition_key("orders")
         .list_page()
         .unwrap();
-    assert_eq!(page.total, 0, "unresolvable case key must never match all jobs");
+    assert_eq!(
+        page.total, 0,
+        "unresolvable case key must never match all jobs"
+    );
     assert!(page.data.is_empty());
 }

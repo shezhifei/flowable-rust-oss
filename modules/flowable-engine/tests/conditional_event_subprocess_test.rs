@@ -115,7 +115,10 @@ fn non_interrupting_conditional_event_subprocess_fires() {
         2,
         "main task + event subprocess task should be present"
     );
-    let keys: Vec<_> = tasks.iter().map(|t| t.task_definition_key.clone()).collect();
+    let keys: Vec<_> = tasks
+        .iter()
+        .map(|t| t.task_definition_key.clone())
+        .collect();
     assert!(keys.contains(&"task".to_string()));
     assert!(keys.contains(&"esTask".to_string()));
 }
@@ -183,11 +186,7 @@ fn non_interrupting_conditional_event_subprocess_is_repeatable() {
 #[test]
 fn interrupting_conditional_event_subprocess_fires_and_cancels_main_flow() {
     let engine = ProcessEngine::new("p11-i-es-fire".to_string()).unwrap();
-    let pi_id = deploy_and_start(
-        &engine,
-        INTERRUPTING_CONDITIONAL_ES_XML,
-        "i_conditional_es",
-    );
+    let pi_id = deploy_and_start(&engine, INTERRUPTING_CONDITIONAL_ES_XML, "i_conditional_es");
 
     let task_service = engine.get_task_service();
     let tasks = task_service

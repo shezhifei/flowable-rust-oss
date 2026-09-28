@@ -47,18 +47,16 @@ fn test_simple_adhoc_subprocess_engine_api() {
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
 
-    repo.deploy(
-        repo.create_deployment()
-            .add_string("simple-adhoc.bpmn20.xml".to_string(), SIMPLE_ADHOC_XML.to_string()),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "simple-adhoc.bpmn20.xml".to_string(),
+        SIMPLE_ADHOC_XML.to_string(),
+    ))
     .unwrap();
 
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();
     let pi = runtime.start_process_instance_by_id(def_id, None).unwrap();
 
-    let adhoc_execs = runtime
-        .get_adhoc_subprocess_executions(&pi.id)
-        .unwrap();
+    let adhoc_execs = runtime.get_adhoc_subprocess_executions(&pi.id).unwrap();
     assert_eq!(adhoc_execs.len(), 1);
     let adhoc_id = adhoc_execs[0].id.clone();
     assert_eq!(
@@ -116,20 +114,15 @@ fn test_sequential_adhoc_blocks_second_execute() {
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 
-    repo.deploy(
-        repo.create_deployment()
-            .add_string(
-                "seq-adhoc.bpmn20.xml".to_string(),
-                SEQUENTIAL_ADHOC_XML.to_string(),
-            ),
-    )
+    repo.deploy(repo.create_deployment().add_string(
+        "seq-adhoc.bpmn20.xml".to_string(),
+        SEQUENTIAL_ADHOC_XML.to_string(),
+    ))
     .unwrap();
 
     let def_id = repo.get_process_definition_ids().unwrap()[0].clone();
     let pi = runtime.start_process_instance_by_id(def_id, None).unwrap();
-    let adhoc_id = runtime
-        .get_adhoc_subprocess_executions(&pi.id)
-        .unwrap()[0]
+    let adhoc_id = runtime.get_adhoc_subprocess_executions(&pi.id).unwrap()[0]
         .id
         .clone();
 

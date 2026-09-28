@@ -180,10 +180,7 @@ fn set_assignee_twice_accumulates_two_historic_rows() {
         2,
         "two setAssignee calls must accumulate two rows: {assignees:?}"
     );
-    let users: Vec<_> = assignees
-        .iter()
-        .map(|l| l.user_id.as_deref())
-        .collect();
+    let users: Vec<_> = assignees.iter().map(|l| l.user_id.as_deref()).collect();
     assert!(users.contains(&Some("alice")));
     assert!(users.contains(&Some("bob")));
     // Distinct ids (not mirrored / not overwritten).
@@ -248,8 +245,7 @@ fn historic_query_and_cascade_delete_cover_assignee_owner_rows() {
     // Initial assignee + owner, then reassign; PI cascade must wipe task-scoped rows
     // even though they carry no process_instance_id (P86a cascade fix).
     let engine = ProcessEngine::new("p86a-cascade".to_string()).unwrap();
-    let (pi_id, task_id) =
-        deploy_and_start(&engine, "p86aCascade", Some("kermit"), Some("fozzie"));
+    let (pi_id, task_id) = deploy_and_start(&engine, "p86aCascade", Some("kermit"), Some("fozzie"));
 
     engine
         .get_task_service()

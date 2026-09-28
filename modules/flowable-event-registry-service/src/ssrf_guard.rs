@@ -110,7 +110,9 @@ pub fn validate_outbound_url(
 
     // Hostname: resolve and require every address to be non-blocked.
     // Known limitation: DNS may change after this check (rebinding).
-    let port = parsed.port.unwrap_or(if parsed.scheme == "https" { 443 } else { 80 });
+    let port = parsed
+        .port
+        .unwrap_or(if parsed.scheme == "https" { 443 } else { 80 });
     let addrs: Vec<SocketAddr> = match (parsed.host.as_str(), port).to_socket_addrs() {
         Ok(iter) => iter.collect(),
         Err(error) => {
@@ -192,9 +194,9 @@ fn scheme_of(url: &str) -> Option<String> {
 }
 
 fn parse_http_url(url: &str) -> Result<ParsedUrl, String> {
-    let scheme_sep = url
-        .find("://")
-        .ok_or_else(|| "Outbound URL is missing a scheme (expected http:// or https://)".to_string())?;
+    let scheme_sep = url.find("://").ok_or_else(|| {
+        "Outbound URL is missing a scheme (expected http:// or https://)".to_string()
+    })?;
     let scheme = url[..scheme_sep].to_ascii_lowercase();
     if scheme.is_empty() {
         return Err("Outbound URL scheme is empty".to_string());
@@ -209,9 +211,7 @@ fn parse_http_url(url: &str) -> Result<ParsedUrl, String> {
         None => rest,
     };
 
-    let authority_end = authority
-        .find(['/', '?', '#'])
-        .unwrap_or(authority.len());
+    let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
     let authority = &authority[..authority_end];
     if authority.is_empty() {
         return Err("Outbound URL is missing a host".to_string());

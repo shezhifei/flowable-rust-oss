@@ -143,7 +143,10 @@ impl RecordingExecutor {
 
 impl SqlExecutor for RecordingExecutor {
     fn execute(&mut self, statement: RenderedStatement) -> Result<ExecuteResult, PersistenceError> {
-        self.executed.lock().unwrap_or_else(|e| e.into_inner()).push(statement.sql);
+        self.executed
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(statement.sql);
         Ok(ExecuteResult {
             rows_affected: self.rows_affected.pop_front().unwrap_or(1),
         })

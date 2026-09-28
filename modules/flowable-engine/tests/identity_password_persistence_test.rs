@@ -56,10 +56,12 @@ fn resaving_a_loaded_user_preserves_the_password() {
     let hash_before = loaded.password.clone().expect("password was stored");
 
     // An unrelated field changes; the password rides along as its stored hash.
-    identity.save_user(User {
-        first_name: Some("Robert".to_string()),
-        ..loaded
-    }).unwrap();
+    identity
+        .save_user(User {
+            first_name: Some("Robert".to_string()),
+            ..loaded
+        })
+        .unwrap();
 
     let after = identity.find_user_by_id("bob").unwrap().unwrap();
     assert_eq!(after.first_name.as_deref(), Some("Robert"));
@@ -80,7 +82,12 @@ fn a_hash_is_not_rehashed_on_resave() {
     let identity = engine.get_identity_service();
 
     identity.save_user(user("bob", Some("hunter2"))).unwrap();
-    let first = identity.find_user_by_id("bob").unwrap().unwrap().password.unwrap();
+    let first = identity
+        .find_user_by_id("bob")
+        .unwrap()
+        .unwrap()
+        .password
+        .unwrap();
 
     // Re-save the loaded entity three times over.
     for _ in 0..3 {
@@ -88,7 +95,12 @@ fn a_hash_is_not_rehashed_on_resave() {
         identity.save_user(loaded).unwrap();
     }
 
-    let last = identity.find_user_by_id("bob").unwrap().unwrap().password.unwrap();
+    let last = identity
+        .find_user_by_id("bob")
+        .unwrap()
+        .unwrap()
+        .password
+        .unwrap();
     assert_eq!(first, last, "re-hashing would change the digest each time");
     assert!(identity.check_password("bob", "hunter2").unwrap());
 }
@@ -101,10 +113,12 @@ fn setting_a_new_plaintext_password_replaces_the_hash() {
     identity.save_user(user("bob", Some("hunter2"))).unwrap();
     let loaded = identity.find_user_by_id("bob").unwrap().unwrap();
 
-    identity.save_user(User {
-        password: Some("newsecret".to_string()),
-        ..loaded
-    }).unwrap();
+    identity
+        .save_user(User {
+            password: Some("newsecret".to_string()),
+            ..loaded
+        })
+        .unwrap();
 
     assert!(identity.check_password("bob", "newsecret").unwrap());
     assert!(!identity.check_password("bob", "hunter2").unwrap());
@@ -120,8 +134,16 @@ fn a_password_shaped_like_a_hash_is_still_hashed() {
     let chosen = "$argon2id$hunter2";
     identity.save_user(user("bob", Some(chosen))).unwrap();
 
-    let stored = identity.find_user_by_id("bob").unwrap().unwrap().password.unwrap();
-    assert_ne!(stored, chosen, "a malformed lookalike must not be stored as-is");
+    let stored = identity
+        .find_user_by_id("bob")
+        .unwrap()
+        .unwrap()
+        .password
+        .unwrap();
+    assert_ne!(
+        stored, chosen,
+        "a malformed lookalike must not be stored as-is"
+    );
     assert!(identity.check_password("bob", chosen).unwrap());
 }
 

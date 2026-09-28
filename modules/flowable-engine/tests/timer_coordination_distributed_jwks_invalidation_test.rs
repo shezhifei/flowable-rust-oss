@@ -79,8 +79,11 @@ fn test_distributed_jwks_invalidation() {
     );
 
     let stop_signal1 = Arc::new(AtomicBool::new(false));
-    let service1 = TimerCoordinationService::new(Arc::clone(&runtime_service1), config1).expect("identity runtime must build");
-    let handle1 = service1.start(Arc::clone(&stop_signal1)).expect("timer coordination listener must bind");
+    let service1 = TimerCoordinationService::new(Arc::clone(&runtime_service1), config1)
+        .expect("identity runtime must build");
+    let handle1 = service1
+        .start(Arc::clone(&stop_signal1))
+        .expect("timer coordination listener must bind");
 
     // --- Node 2 Setup ---
     let engine2 = ProcessEngine::build(
@@ -123,8 +126,11 @@ fn test_distributed_jwks_invalidation() {
     );
 
     let stop_signal2 = Arc::new(AtomicBool::new(false));
-    let service2 = TimerCoordinationService::new(Arc::clone(&runtime_service2), config2).expect("identity runtime must build");
-    let handle2 = service2.start(Arc::clone(&stop_signal2)).expect("timer coordination listener must bind");
+    let service2 = TimerCoordinationService::new(Arc::clone(&runtime_service2), config2)
+        .expect("identity runtime must build");
+    let handle2 = service2
+        .start(Arc::clone(&stop_signal2))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(50));
 

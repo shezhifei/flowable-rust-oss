@@ -389,10 +389,8 @@ fn interrupting_mi_message_boundary_cancels_whole_multi_instance() {
 
     engine
         .get_runtime_service()
-        .trigger_boundary_event_by_message_ref(
-            "cancelMsg".to_string(),
-            process_instance.id.clone(),
-        ).unwrap();
+        .trigger_boundary_event_by_message_ref("cancelMsg".to_string(), process_instance.id.clone())
+        .unwrap();
 
     assert_eq!(
         task_keys(&engine, &process_instance.id),

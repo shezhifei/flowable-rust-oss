@@ -21,9 +21,8 @@ const DMN_NS: &str = "https://www.omg.org/spec/DMN/20191111/MODEL/";
 /// `<definitions>` plus `child_levels` nested `<a>` elements, so the deepest
 /// element sits at depth `child_levels + 1`.
 fn nested(child_levels: usize) -> String {
-    let mut xml = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?><definitions xmlns="{DMN_NS}">"#
-    );
+    let mut xml =
+        format!(r#"<?xml version="1.0" encoding="UTF-8"?><definitions xmlns="{DMN_NS}">"#);
     for _ in 0..child_levels {
         xml.push_str("<a>");
     }
@@ -87,9 +86,8 @@ fn shallow_document_is_not_rejected_for_nesting() {
 #[test]
 fn many_siblings_do_not_accumulate_into_depth() {
     // Depth is nesting, not element count: siblings must not trip the cap.
-    let mut xml = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?><definitions xmlns="{DMN_NS}">"#
-    );
+    let mut xml =
+        format!(r#"<?xml version="1.0" encoding="UTF-8"?><definitions xmlns="{DMN_NS}">"#);
     for _ in 0..(CAP * 20) {
         xml.push_str("<a/>");
     }

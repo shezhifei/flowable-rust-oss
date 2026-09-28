@@ -15,10 +15,10 @@ mod test_support;
 use flowable_content_service::{CreateContentItemRequest, FlowableContentService};
 use flowable_engine::error::FlowableError;
 use flowable_form_service::{
-    default_handlers, FormDeploymentRequest, FormDeploymentResource, FormFieldHandler,
-    FormSubmissionProperty, FormSubmissionRequest, FormSubmissionResult, UploadFieldHandler,
+    FormDeploymentRequest, FormDeploymentResource, FormFieldHandler, FormSubmissionProperty,
+    FormSubmissionRequest, FormSubmissionResult, UploadFieldHandler, default_handlers,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use test_support::runtime_fixture;
@@ -191,7 +191,10 @@ fn upload_submit_associates_content_and_enrichment_replaces_ids() {
         .find(|p| p.id == "files")
         .expect("files field");
     let enriched = files_prop.value.as_ref().expect("enriched value");
-    assert!(enriched.is_array(), "enrichment should yield content array, got {enriched}");
+    assert!(
+        enriched.is_array(),
+        "enrichment should yield content array, got {enriched}"
+    );
     let arr = enriched.as_array().unwrap();
     assert_eq!(arr.len(), 2);
     let names: Vec<_> = arr

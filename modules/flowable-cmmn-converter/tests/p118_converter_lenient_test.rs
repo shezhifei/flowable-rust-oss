@@ -162,10 +162,7 @@ fn still_rejects_missing_required_id() {
 </definitions>"#,
     )
     .expect_err("case without id must fail");
-    assert!(
-        err.to_string().contains("id"),
-        "unexpected error: {err}"
-    );
+    assert!(err.to_string().contains("id"), "unexpected error: {err}");
 }
 
 #[test]
@@ -227,7 +224,10 @@ fn parses_case_file_item_on_part_into_sentry() {
     assert_eq!(on_part.id, "onDocCreate");
     // XSD sourceRef → model case_file_item_ref (CMMN11CaseModel.xsd:1034-1039).
     assert_eq!(on_part.case_file_item_ref, "document");
-    assert_eq!(on_part.standard_event, CaseFileItemOnPart::STANDARD_EVENT_CREATE);
+    assert_eq!(
+        on_part.standard_event,
+        CaseFileItemOnPart::STANDARD_EVENT_CREATE
+    );
 }
 
 #[test]

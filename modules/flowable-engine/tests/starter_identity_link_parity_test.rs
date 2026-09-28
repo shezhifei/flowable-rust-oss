@@ -163,15 +163,17 @@ fn involved_user_matches_any_process_instance_link_type_and_deduplicates() {
         ("task", "candidate", "kermit", None, Some("task-1")),
         ("other", "participant", "fozzie", Some("proc-3"), None),
     ] {
-        identity_link_service.add_identity_link(IdentityLink {
-            id: id.to_string(),
-            link_type: link_type.to_string(),
-            user_id: Some(user_id.to_string()),
-            group_id: None,
-            task_id: task_id.map(str::to_string),
-            process_instance_id: process_instance_id.map(str::to_string),
-            process_definition_id: None,
-        }).unwrap();
+        identity_link_service
+            .add_identity_link(IdentityLink {
+                id: id.to_string(),
+                link_type: link_type.to_string(),
+                user_id: Some(user_id.to_string()),
+                group_id: None,
+                task_id: task_id.map(str::to_string),
+                process_instance_id: process_instance_id.map(str::to_string),
+                process_definition_id: None,
+            })
+            .unwrap();
     }
 
     let store = engine.get_runtime_store();

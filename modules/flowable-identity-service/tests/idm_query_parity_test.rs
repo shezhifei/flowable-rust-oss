@@ -20,38 +20,50 @@ fn setup() -> (Arc<ProcessEngine>, FlowableIdentityService) {
 fn user_query_supports_first_name_last_name_email_and_member_of_group_filters() {
     let (_, facade) = setup();
 
-    facade.save_user(User {
-        id: "kermit".to_string(),
-        first_name: Some("Kermit".to_string()),
-        last_name: Some("Frog".to_string()),
-        email: Some("kermit@muppets.test".to_string()),
-        password: Some("pass".to_string()),
-        tenant_id: None,
-    }).unwrap();
-    facade.save_user(User {
-        id: "fozzie".to_string(),
-        first_name: Some("Fozzie".to_string()),
-        last_name: Some("Bear".to_string()),
-        email: Some("fozzie@muppets.test".to_string()),
-        password: Some("pass".to_string()),
-        tenant_id: None,
-    }).unwrap();
-    facade.save_user(User {
-        id: "gonzo".to_string(),
-        first_name: Some("Gonzo".to_string()),
-        last_name: Some("Great".to_string()),
-        email: Some("gonzo@muppets.test".to_string()),
-        password: Some("pass".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    facade
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: Some("Kermit".to_string()),
+            last_name: Some("Frog".to_string()),
+            email: Some("kermit@muppets.test".to_string()),
+            password: Some("pass".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
+    facade
+        .save_user(User {
+            id: "fozzie".to_string(),
+            first_name: Some("Fozzie".to_string()),
+            last_name: Some("Bear".to_string()),
+            email: Some("fozzie@muppets.test".to_string()),
+            password: Some("pass".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
+    facade
+        .save_user(User {
+            id: "gonzo".to_string(),
+            first_name: Some("Gonzo".to_string()),
+            last_name: Some("Great".to_string()),
+            email: Some("gonzo@muppets.test".to_string()),
+            password: Some("pass".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
-    facade.save_group(Group {
-        id: "performers".to_string(),
-        name: "Performers".to_string(),
-        group_type: Some("assignment".to_string()),
-    }).unwrap();
-    facade.create_membership("kermit".to_string(), "performers".to_string()).unwrap();
-    facade.create_membership("fozzie".to_string(), "performers".to_string()).unwrap();
+    facade
+        .save_group(Group {
+            id: "performers".to_string(),
+            name: "Performers".to_string(),
+            group_type: Some("assignment".to_string()),
+        })
+        .unwrap();
+    facade
+        .create_membership("kermit".to_string(), "performers".to_string())
+        .unwrap();
+    facade
+        .create_membership("fozzie".to_string(), "performers".to_string())
+        .unwrap();
 
     let all_users = facade.create_user_query().list().unwrap();
     assert_eq!(all_users.len(), 3);
@@ -100,14 +112,16 @@ fn user_query_supports_ordering_by_first_name_and_last_name() {
         ("a", "Alice", "Moose"),
         ("b", "Bob", "Ant"),
     ] {
-        facade.save_user(User {
-            id: id.to_string(),
-            first_name: Some(first.to_string()),
-            last_name: Some(last.to_string()),
-            email: None,
-            password: None,
-            tenant_id: None,
-        }).unwrap();
+        facade
+            .save_user(User {
+                id: id.to_string(),
+                first_name: Some(first.to_string()),
+                last_name: Some(last.to_string()),
+                email: None,
+                password: None,
+                tenant_id: None,
+            })
+            .unwrap();
     }
 
     let asc_first = facade
@@ -133,25 +147,33 @@ fn user_query_supports_ordering_by_first_name_and_last_name() {
 fn group_query_supports_name_type_and_member_user_id_filters() {
     let (_, facade) = setup();
 
-    facade.save_group(Group {
-        id: "admin".to_string(),
-        name: "Admin".to_string(),
-        group_type: Some("security-role".to_string()),
-    }).unwrap();
-    facade.save_group(Group {
-        id: "users".to_string(),
-        name: "Users".to_string(),
-        group_type: Some("assignment".to_string()),
-    }).unwrap();
-    facade.save_user(User {
-        id: "kermit".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: None,
-        tenant_id: None,
-    }).unwrap();
-    facade.create_membership("kermit".to_string(), "admin".to_string()).unwrap();
+    facade
+        .save_group(Group {
+            id: "admin".to_string(),
+            name: "Admin".to_string(),
+            group_type: Some("security-role".to_string()),
+        })
+        .unwrap();
+    facade
+        .save_group(Group {
+            id: "users".to_string(),
+            name: "Users".to_string(),
+            group_type: Some("assignment".to_string()),
+        })
+        .unwrap();
+    facade
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: None,
+            tenant_id: None,
+        })
+        .unwrap();
+    facade
+        .create_membership("kermit".to_string(), "admin".to_string())
+        .unwrap();
 
     let by_name = facade
         .create_group_query()
@@ -183,11 +205,13 @@ fn group_query_supports_ordering_by_name() {
     let (_, facade) = setup();
 
     for id in ["gamma", "alpha", "beta"] {
-        facade.save_group(Group {
-            id: id.to_string(),
-            name: id.to_string(),
-            group_type: None,
-        }).unwrap();
+        facade
+            .save_group(Group {
+                id: id.to_string(),
+                name: id.to_string(),
+                group_type: None,
+            })
+            .unwrap();
     }
 
     let asc = facade
@@ -214,14 +238,16 @@ fn user_query_count_returns_correct_number() {
     let (_, facade) = setup();
 
     for i in 0..5 {
-        facade.save_user(User {
-            id: format!("user-{}", i),
-            first_name: Some(format!("User{}", i)),
-            last_name: None,
-            email: None,
-            password: None,
-            tenant_id: None,
-        }).unwrap();
+        facade
+            .save_user(User {
+                id: format!("user-{}", i),
+                first_name: Some(format!("User{}", i)),
+                last_name: None,
+                email: None,
+                password: None,
+                tenant_id: None,
+            })
+            .unwrap();
     }
 
     let count = facade.create_user_query().count().unwrap();
@@ -233,11 +259,13 @@ fn group_query_count_returns_correct_number() {
     let (_, facade) = setup();
 
     for i in 0..3 {
-        facade.save_group(Group {
-            id: format!("group-{}", i),
-            name: format!("Group{}", i),
-            group_type: None,
-        }).unwrap();
+        facade
+            .save_group(Group {
+                id: format!("group-{}", i),
+                name: format!("Group{}", i),
+                group_type: None,
+            })
+            .unwrap();
     }
 
     let count = facade.create_group_query().count().unwrap();

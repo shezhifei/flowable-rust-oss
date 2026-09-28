@@ -117,10 +117,7 @@ impl TimerWorker {
         // (`DbSqlSession.flushInserts`, flowable-engine-common/.../impl/db/DbSqlSession.java:495),
         // which throws on a SQL failure. The worker loop must keep running, so the failure
         // is logged rather than dropped.
-        if let Err(error) = self
-            .runtime_service
-            .heartbeat_timer_node(&self.worker_type)
-        {
+        if let Err(error) = self.runtime_service.heartbeat_timer_node(&self.worker_type) {
             tracing::error!("failed to record timer node heartbeat: {error}");
         }
     }
@@ -158,8 +155,11 @@ impl TimerWorker {
         };
         self.fencing_token
             .store(token, std::sync::atomic::Ordering::Relaxed);
-        self.runtime_service
-            .acquire_timer_work_for_tenants(token, tenant_ids, enabled_job_categories)
+        self.runtime_service.acquire_timer_work_for_tenants(
+            token,
+            tenant_ids,
+            enabled_job_categories,
+        )
     }
 
     pub(crate) fn acquire_due_scheduled_timers_for_tenants(
@@ -191,12 +191,13 @@ impl TimerWorker {
                     max_jobs,
                 )
         } else {
-            self.runtime_service.acquire_scheduled_timer_work_for_tenants(
-                token,
-                tenant_ids,
-                enabled_job_categories,
-                max_jobs,
-            )
+            self.runtime_service
+                .acquire_scheduled_timer_work_for_tenants(
+                    token,
+                    tenant_ids,
+                    enabled_job_categories,
+                    max_jobs,
+                )
         }
     }
 

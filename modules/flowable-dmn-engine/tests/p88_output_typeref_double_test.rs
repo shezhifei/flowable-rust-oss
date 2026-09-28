@@ -16,7 +16,7 @@ use flowable_dmn_engine::{
     DmnHitPolicy, DmnInputClause, DmnModel, DmnOutputClause, DmnRule, DmnRuleInputEntry,
     DmnRuleOutputEntry, DmnUnaryTest,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn deploy(model: DmnModel) -> DmnEngine {
     let engine = DmnEngine::new_in_memory().expect("engine");
@@ -61,11 +61,7 @@ fn number_type_ref_normalizes_integer_literal_to_f64() {
     assert_eq!(result.get_output("amount"), Some(&json!(7.0)));
     assert!(result.get_output("amount").unwrap().as_f64().is_some());
     assert!(
-        result
-            .get_output("amount")
-            .unwrap()
-            .as_i64()
-            .is_none(),
+        result.get_output("amount").unwrap().as_i64().is_none(),
         "must not remain a JSON integer"
     );
 }
@@ -116,27 +112,29 @@ fn double_type_ref_normalizes_feel_arithmetic_to_f64() {
 /// COLLECT Count with typeRef=number yields f64 (Java HitPolicyCollect.java:134-136).
 #[test]
 fn collect_count_with_number_type_ref_yields_f64() {
-    let model = DmnModel::new(vec![DmnDecision::new(
-        "decision-1",
-        "p88Count",
-        "P88 count",
-        DmnHitPolicy::Collect,
-        vec![DmnInputClause::new("in-1", "score")],
-        vec![DmnOutputClause::new("out-1", "hits").with_type_ref("number")],
-        vec![
-            DmnRule::new(
-                "rule-1",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
-                vec![DmnRuleOutputEntry::new(json!(1))],
-            ),
-            DmnRule::new(
-                "rule-2",
-                vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
-                vec![DmnRuleOutputEntry::new(json!(2))],
-            ),
-        ],
-    )
-    .with_collect_operator(CollectOperator::Count)]);
+    let model = DmnModel::new(vec![
+        DmnDecision::new(
+            "decision-1",
+            "p88Count",
+            "P88 count",
+            DmnHitPolicy::Collect,
+            vec![DmnInputClause::new("in-1", "score")],
+            vec![DmnOutputClause::new("out-1", "hits").with_type_ref("number")],
+            vec![
+                DmnRule::new(
+                    "rule-1",
+                    vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
+                    vec![DmnRuleOutputEntry::new(json!(1))],
+                ),
+                DmnRule::new(
+                    "rule-2",
+                    vec![DmnRuleInputEntry::new(DmnUnaryTest::Any)],
+                    vec![DmnRuleOutputEntry::new(json!(2))],
+                ),
+            ],
+        )
+        .with_collect_operator(CollectOperator::Count),
+    ]);
     let engine = deploy(model);
     let result = execute(&engine, "p88Count", json!({"score": 1}));
     assert_eq!(result.get_output("hits"), Some(&json!(2.0)));

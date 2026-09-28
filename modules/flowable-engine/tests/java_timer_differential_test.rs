@@ -13,7 +13,9 @@ use differential::{run_differential_suite, run_rust_operations_case};
 #[test]
 #[ignore = "requires the sibling Flowable Java checkout and its Maven wrapper"]
 fn flowable_java_and_rust_match_timer_contract_fixtures() {
-    run_differential_suite("differential/fixtures/timers", "timers", |dir, fixture, case| {
-        run_rust_operations_case(dir, fixture, case)
-    });
+    run_differential_suite(
+        "differential/fixtures/timers",
+        "timers",
+        |dir, fixture, case| run_rust_operations_case(dir, fixture, case),
+    );
 }

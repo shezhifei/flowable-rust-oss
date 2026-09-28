@@ -28,9 +28,21 @@ fn test_identity_persistence_and_auth() {
     identity_facade.save_user(user).unwrap();
 
     // 2. Test Auth
-    assert!(identity_facade.authenticate_password("kermit", "thegreen").unwrap());
-    assert!(!identity_facade.authenticate_password("kermit", "wrong").unwrap());
-    assert!(!identity_facade.authenticate_password("nonexistent", "any").unwrap());
+    assert!(
+        identity_facade
+            .authenticate_password("kermit", "thegreen")
+            .unwrap()
+    );
+    assert!(
+        !identity_facade
+            .authenticate_password("kermit", "wrong")
+            .unwrap()
+    );
+    assert!(
+        !identity_facade
+            .authenticate_password("nonexistent", "any")
+            .unwrap()
+    );
 
     // 3. Create Group and Membership
     let group = Group {
@@ -39,7 +51,9 @@ fn test_identity_persistence_and_auth() {
         group_type: Some("assignment".to_string()),
     };
     identity_facade.save_group(group).unwrap();
-    identity_facade.create_membership("kermit".to_string(), "muppets".to_string()).unwrap();
+    identity_facade
+        .create_membership("kermit".to_string(), "muppets".to_string())
+        .unwrap();
 
     // 4. Verify Membership
     let groups = engine_identity.get_groups_by_user("kermit").unwrap();
@@ -49,7 +63,11 @@ fn test_identity_persistence_and_auth() {
     let users = identity_facade.get_users_by_group("muppets").unwrap();
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].id, "kermit");
-    assert!(identity_facade.membership_exists("kermit", "muppets").unwrap());
+    assert!(
+        identity_facade
+            .membership_exists("kermit", "muppets")
+            .unwrap()
+    );
 
     let queried_users = identity_facade
         .create_user_query()
@@ -59,7 +77,18 @@ fn test_identity_persistence_and_auth() {
     assert_eq!(queried_users.len(), 1);
     assert_eq!(queried_users[0].id, "kermit");
 
-    identity_facade.delete_membership("kermit", "muppets").unwrap();
-    assert!(!identity_facade.membership_exists("kermit", "muppets").unwrap());
-    assert!(identity_facade.get_users_by_group("muppets").unwrap().is_empty());
+    identity_facade
+        .delete_membership("kermit", "muppets")
+        .unwrap();
+    assert!(
+        !identity_facade
+            .membership_exists("kermit", "muppets")
+            .unwrap()
+    );
+    assert!(
+        identity_facade
+            .get_users_by_group("muppets")
+            .unwrap()
+            .is_empty()
+    );
 }

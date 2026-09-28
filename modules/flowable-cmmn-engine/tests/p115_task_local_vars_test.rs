@@ -19,8 +19,8 @@
 //   TaskHelper.internalDeleteTask.java:109-128)
 
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest,
-    CmmnEngine, CmmnHumanTask, CmmnModel, CmmnPlanItem,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnHumanTask, CmmnModel, CmmnPlanItem,
 };
 use serde_json::json;
 
@@ -135,12 +135,16 @@ fn task_local_variables_set_get_has_remove() {
     assert_eq!(locals.get("beta"), Some(&json!("two")));
 
     // hasVariableLocal
-    assert!(runtime
-        .has_task_variable_local(&task_id, "alpha")
-        .expect("has local alpha"));
-    assert!(!runtime
-        .has_task_variable_local(&task_id, "ghost")
-        .expect("has local ghost"));
+    assert!(
+        runtime
+            .has_task_variable_local(&task_id, "alpha")
+            .expect("has local alpha")
+    );
+    assert!(
+        !runtime
+            .has_task_variable_local(&task_id, "ghost")
+            .expect("has local ghost")
+    );
 
     // removeVariableLocal
     runtime
@@ -160,7 +164,10 @@ fn task_local_variables_set_get_has_remove() {
 
     // case variables are untouched
     let case = runtime.get_case_instance(&case_id).expect("case");
-    assert!(case.variables.is_empty(), "local writes must not touch the case");
+    assert!(
+        case.variables.is_empty(),
+        "local writes must not touch the case"
+    );
 }
 
 #[test]
@@ -196,12 +203,16 @@ fn task_local_variable_shadows_case_variable_on_read() {
             .expect("get shadowed shared"),
         Some(json!("local"))
     );
-    assert!(runtime
-        .has_task_variable(&task_id, "shared")
-        .expect("has shadowed shared"));
+    assert!(
+        runtime
+            .has_task_variable(&task_id, "shared")
+            .expect("has shadowed shared")
+    );
 
     // getVariables merges case + local with local winning on conflicts.
-    let merged = runtime.get_task_variables(&task_id).expect("merged variables");
+    let merged = runtime
+        .get_task_variables(&task_id)
+        .expect("merged variables");
     assert_eq!(merged.get("shared"), Some(&json!("local")));
 
     // The case variable itself is not overwritten by the local write
@@ -223,9 +234,11 @@ fn case_variable_does_not_leak_into_local_scope() {
         .set_case_instance_variables(&case_id, vec![("caseOnly".to_string(), json!(42))])
         .expect("set case-only variable");
 
-    assert!(!runtime
-        .has_task_variable_local(&task_id, "caseOnly")
-        .expect("has caseOnly local"));
+    assert!(
+        !runtime
+            .has_task_variable_local(&task_id, "caseOnly")
+            .expect("has caseOnly local")
+    );
     let locals = runtime
         .get_task_variables_local(&task_id)
         .expect("get locals");
@@ -275,9 +288,11 @@ fn task_completion_clears_local_variables() {
         locals.is_empty(),
         "task-local variables must be cleared on completion"
     );
-    assert!(!runtime
-        .has_task_variable_local(&task_id, "scratch")
-        .expect("has scratch after complete"));
+    assert!(
+        !runtime
+            .has_task_variable_local(&task_id, "scratch")
+            .expect("has scratch after complete")
+    );
 
     // Non-local reads fall through to the case scope, which survives.
     assert_eq!(

@@ -6,8 +6,7 @@ use std::collections::HashSet;
 
 const SEQ_FLOW_INVALID_SRC: &str = "flowable-seq-flow-invalid-src";
 const SEQ_FLOW_INVALID_TARGET: &str = "flowable-seq-flow-invalid-target";
-const EXCLUSIVE_GATEWAY_NO_OUTGOING: &str =
-    "flowable-exclusive-gateway-no-outgoing-seq-flow";
+const EXCLUSIVE_GATEWAY_NO_OUTGOING: &str = "flowable-exclusive-gateway-no-outgoing-seq-flow";
 const EXCLUSIVE_GATEWAY_SINGLE_CONDITION: &str =
     "flowable-exclusive-gateway-condition-not-allowed-on-single-seq-flow";
 const EXCLUSIVE_GATEWAY_DEFAULT_CONDITION: &str =
@@ -329,14 +328,19 @@ fn validate_process_start_events(
     }
 
     for start in starts {
-        if start.event.event_definitions.first().is_some_and(|definition| {
-            !matches!(
-                definition,
-                EventDefinitionEnum::MessageEventDefinition(_)
-                    | EventDefinitionEnum::TimerEventDefinition(_)
-                    | EventDefinitionEnum::SignalEventDefinition(_)
-            )
-        }) {
+        if start
+            .event
+            .event_definitions
+            .first()
+            .is_some_and(|definition| {
+                !matches!(
+                    definition,
+                    EventDefinitionEnum::MessageEventDefinition(_)
+                        | EventDefinitionEnum::TimerEventDefinition(_)
+                        | EventDefinitionEnum::SignalEventDefinition(_)
+                )
+            })
+        {
             errors.push(StructuralValidationError::new(
                 START_EVENT_INVALID_DEFINITION,
                 process_id,
@@ -408,10 +412,22 @@ fn flow_element_base(element: &FlowElementEnum) -> Option<&BaseElement> {
             &value.task.activity.flow_node.flow_element.base_element
         }
         FlowElementEnum::CaseServiceTask(value) => {
-            &value.service_task.task.activity.flow_node.flow_element.base_element
+            &value
+                .service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::SendTask(value) => {
-            &value.service_task.task.activity.flow_node.flow_element.base_element
+            &value
+                .service_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::ScriptTask(value) => {
             &value.task.activity.flow_node.flow_element.base_element
@@ -448,17 +464,30 @@ fn flow_element_base(element: &FlowElementEnum) -> Option<&BaseElement> {
         FlowElementEnum::IntermediateThrowEvent(value) => {
             &value.event.flow_node.flow_element.base_element
         }
-        FlowElementEnum::SubProcess(value) => {
-            &value.activity.flow_node.flow_element.base_element
-        }
+        FlowElementEnum::SubProcess(value) => &value.activity.flow_node.flow_element.base_element,
         FlowElementEnum::Transaction(value) => {
-            &value.sub_process.activity.flow_node.flow_element.base_element
+            &value
+                .sub_process
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::EventSubProcess(value) => {
-            &value.sub_process.activity.flow_node.flow_element.base_element
+            &value
+                .sub_process
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::AdhocSubProcess(value) => {
-            &value.sub_process.activity.flow_node.flow_element.base_element
+            &value
+                .sub_process
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
         }
         FlowElementEnum::CallActivity(value) => &value.activity.flow_node.flow_element.base_element,
         FlowElementEnum::ValuedDataObject(value) => &value.base_element,

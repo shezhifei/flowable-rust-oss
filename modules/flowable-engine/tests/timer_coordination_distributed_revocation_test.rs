@@ -114,7 +114,9 @@ fn test_distributed_revocation_coherence() {
     .expect("identity runtime must build");
 
     let stop_signal1 = Arc::new(AtomicBool::new(false));
-    let handle1 = service1.start(Arc::clone(&stop_signal1)).expect("timer coordination listener must bind");
+    let handle1 = service1
+        .start(Arc::clone(&stop_signal1))
+        .expect("timer coordination listener must bind");
 
     // Setup Node 2
     let port2 = get_free_port();
@@ -158,7 +160,9 @@ fn test_distributed_revocation_coherence() {
     .expect("identity runtime must build");
 
     let stop_signal2 = Arc::new(AtomicBool::new(false));
-    let handle2 = service2.start(Arc::clone(&stop_signal2)).expect("timer coordination listener must bind");
+    let handle2 = service2
+        .start(Arc::clone(&stop_signal2))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(200));
 

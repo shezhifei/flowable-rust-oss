@@ -65,7 +65,10 @@ impl TimerExecutor {
     /// Installs a callback that runs after a lease is acquired but before the
     /// work is executed. Used by tests to hold a genuine in-flight lease.
     pub fn set_before_execute_hook(&self, hook: Option<BeforeExecuteHook>) {
-        *self.before_execute_hook.lock().unwrap_or_else(|e| e.into_inner()) = hook;
+        *self
+            .before_execute_hook
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = hook;
     }
 
     pub fn start(&self, runtime_service: Arc<RuntimeService>) {
@@ -82,7 +85,11 @@ impl TimerExecutor {
         let is_acquiring = Arc::clone(&self.is_acquiring);
         let in_flight_count = Arc::clone(&self.in_flight_count);
         let drain_pair = Arc::clone(&self.drain_pair);
-        let worker_config = self.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let worker_config = self
+            .config
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         let before_execute_hook = Arc::clone(&self.before_execute_hook);
 
         let handle = thread::spawn(move || {
@@ -100,9 +107,7 @@ impl TimerExecutor {
                     Ok(works) => works,
                     Err(error) => {
                         tracing::error!("failed to acquire timer work: {error}");
-                        thread::sleep(Duration::from_millis(
-                            worker_config.poll_interval_ms.max(1),
-                        ));
+                        thread::sleep(Duration::from_millis(worker_config.poll_interval_ms.max(1)));
                         continue;
                     }
                 };
@@ -142,7 +147,11 @@ impl TimerExecutor {
                         }
                     });
 
-                    if let Some(hook) = before_execute_hook.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+                    if let Some(hook) = before_execute_hook
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .clone()
+                    {
                         hook();
                     }
 

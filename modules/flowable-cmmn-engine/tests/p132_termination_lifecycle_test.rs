@@ -5,11 +5,11 @@
 //! `CmmnListenerNotificationHelper.java:103-159`.
 
 use flowable_cmmn_engine::{
-    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest,
-    CmmnEngine, CmmnError, CmmnEventListener, CmmnHumanTask,
-    CmmnHumanTaskCompletionRequest, CmmnHumanTaskState, CmmnLifecycleListenerContext,
-    CmmnLifecycleListenerHandler, CmmnListenerImplementationType, CmmnLifecycleListener,
-    CmmnMilestone, CmmnModel, CmmnPlanItem, CmmnPlanItemOnPart, CmmnSentry, CmmnStage,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnError, CmmnEventListener, CmmnHumanTask, CmmnHumanTaskCompletionRequest,
+    CmmnHumanTaskState, CmmnLifecycleListener, CmmnLifecycleListenerContext,
+    CmmnLifecycleListenerHandler, CmmnListenerImplementationType, CmmnMilestone, CmmnModel,
+    CmmnPlanItem, CmmnPlanItemOnPart, CmmnSentry, CmmnStage,
 };
 use std::sync::{Arc, Mutex};
 
@@ -158,8 +158,13 @@ fn cascaded_stage_child_termination_notifies_humantask_listener() {
         .with_plan_item(CmmnPlanItem::new("plan-source", "task-source"))
         .with_plan_item(CmmnPlanItem::new("plan-keepalive", "task-keepalive"))
         .with_sentry(completion_sentry("exit-stage", "plan-source"));
-    let case = CmmnCase::new("case-cascade", "p132CascadeTerminate", "Cascade", plan_model)
-        .with_plan_item_lifecycle_listener("task-child", listener("ChildTaskAudit", "active"));
+    let case = CmmnCase::new(
+        "case-cascade",
+        "p132CascadeTerminate",
+        "Cascade",
+        plan_model,
+    )
+    .with_plan_item_lifecycle_listener("task-child", listener("ChildTaskAudit", "active"));
     let case_id = deploy_and_start(&engine, case);
 
     complete_task(&engine, &case_id, "task-source");
@@ -196,10 +201,7 @@ fn occurred_milestone_termination_notifies_milestone_listener() {
         "Milestone",
         plan_model,
     )
-    .with_plan_item_lifecycle_listener(
-        "milestone-target",
-        listener("MilestoneAudit", "completed"),
-    );
+    .with_plan_item_lifecycle_listener("milestone-target", listener("MilestoneAudit", "completed"));
     let case_id = deploy_and_start(&engine, case);
 
     complete_task(&engine, &case_id, "task-reach");
@@ -229,11 +231,16 @@ fn timer_event_listener_termination_notifies_actual_definition_type() {
                 .with_exit_criterion("exit-listener"),
         )
         .with_sentry(completion_sentry("exit-listener", "plan-source"));
-    let case = CmmnCase::new("case-listener", "p132ListenerTerminate", "Listener", plan_model)
-        .with_plan_item_lifecycle_listener(
-            "listener-target",
-            listener("EventListenerAudit", "available"),
-        );
+    let case = CmmnCase::new(
+        "case-listener",
+        "p132ListenerTerminate",
+        "Listener",
+        plan_model,
+    )
+    .with_plan_item_lifecycle_listener(
+        "listener-target",
+        listener("EventListenerAudit", "available"),
+    );
     let case_id = deploy_and_start(&engine, case);
 
     complete_task(&engine, &case_id, "task-source");

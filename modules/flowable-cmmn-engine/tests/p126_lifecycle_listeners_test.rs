@@ -281,7 +281,10 @@ fn expression_listener_side_effect_runs_on_both_scopes() {
 
     deploy(&engine, "p126-expression", EXPRESSION_LISTENER_XML);
     let case_instance = engine
-        .start_case_instance_by_key("expressionListenerCase", CmmnCaseInstanceStartRequest::new())
+        .start_case_instance_by_key(
+            "expressionListenerCase",
+            CmmnCaseInstanceStartRequest::new(),
+        )
         .expect("start case");
     let task_id = active_task_id(&engine, &case_instance.id, "Work");
     engine
@@ -445,17 +448,11 @@ const MILESTONE_LISTENER_XML: &str = r#"
 fn milestone_listener_observes_the_materialized_available_source_state() {
     let engine = CmmnEngine::new_in_memory().expect("engine");
     let listener = RecordingListener::default();
-    engine.register_lifecycle_listener(
-        "com.example.MilestoneAudit",
-        Arc::new(listener.clone()),
-    );
+    engine.register_lifecycle_listener("com.example.MilestoneAudit", Arc::new(listener.clone()));
 
     deploy(&engine, "p132-milestone-listener", MILESTONE_LISTENER_XML);
     let case_instance = engine
-        .start_case_instance_by_key(
-            "milestoneListenerCase",
-            CmmnCaseInstanceStartRequest::new(),
-        )
+        .start_case_instance_by_key("milestoneListenerCase", CmmnCaseInstanceStartRequest::new())
         .expect("start case");
 
     let available = engine

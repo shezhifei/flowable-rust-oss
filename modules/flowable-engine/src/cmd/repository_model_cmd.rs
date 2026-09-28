@@ -63,7 +63,10 @@ impl Command<RepositoryModel> for UpdateRepositoryModelCmd {
         let mut model = self.model.clone();
         let now = store.time_source().now().timestamp_millis();
         model.last_update_time = now.max(current.last_update_time + 1);
-        if dm.update_repository_model(model.clone(), session)?.is_none() {
+        if dm
+            .update_repository_model(model.clone(), session)?
+            .is_none()
+        {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Model '{}' was not found",
                 model.id

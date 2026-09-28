@@ -233,7 +233,10 @@ fn task_completer_variable_name_stores_completer_on_complete() {
         .runtime_service()
         .get_case_instance(&case_id)
         .expect("case instance");
-    assert_eq!(case_instance.variables["reviewCompletedBy"], json!("kermit"));
+    assert_eq!(
+        case_instance.variables["reviewCompletedBy"],
+        json!("kermit")
+    );
 }
 
 #[test]

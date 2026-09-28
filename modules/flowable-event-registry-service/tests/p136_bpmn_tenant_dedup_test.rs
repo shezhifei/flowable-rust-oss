@@ -103,11 +103,7 @@ fn service(engine: Arc<ProcessEngine>, fallback: bool) -> FlowableEventRegistryS
     FlowableEventRegistryService::with_bpmn_consumer_config(engine, config)
 }
 
-fn deliver(
-    service: &FlowableEventRegistryService,
-    channel: &str,
-    tenant: Option<&str>,
-) {
+fn deliver(service: &FlowableEventRegistryService, channel: &str, tenant: Option<&str>) {
     let delivery = service
         .process_inbound_channel_event(InboundRawEvent {
             channel_key: channel.to_string(),
@@ -119,7 +115,9 @@ fn deliver(
     assert_eq!(delivery.status, EventInstanceStatus::Processed);
 }
 
-fn process_instances(engine: &ProcessEngine) -> Vec<flowable_engine::runtime::process_instance::ProcessInstance> {
+fn process_instances(
+    engine: &ProcessEngine,
+) -> Vec<flowable_engine::runtime::process_instance::ProcessInstance> {
     let store = engine.get_runtime_store();
     let mut session = store.create_session().expect("session");
     store
@@ -145,12 +143,7 @@ fn different_keys_tenant_and_tenantless_both_start() {
         &process_xml("procA", "dualEvt"),
         Some("T1"),
     );
-    deploy_process(
-        &engine,
-        "procB",
-        &process_xml("procB", "dualEvt"),
-        None,
-    );
+    deploy_process(&engine, "procB", &process_xml("procB", "dualEvt"), None);
 
     deliver(&service, "chDual", Some("T1"));
 
@@ -202,7 +195,8 @@ fn real_default_tenant_does_not_dedup() {
         .fallback_to_default_tenant(true)
         .default_tenant("defaultTenant")
         .build();
-    let service = FlowableEventRegistryService::with_bpmn_consumer_config(Arc::clone(&engine), config);
+    let service =
+        FlowableEventRegistryService::with_bpmn_consumer_config(Arc::clone(&engine), config);
 
     // Deploy event+channel under the default tenant (fallback target for T1 lookups).
     service
