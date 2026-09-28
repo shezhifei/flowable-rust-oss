@@ -50,7 +50,8 @@ impl Fixture {
                 email: None,
                 password: Some("test".to_string()),
                 tenant_id: None,
-            }).unwrap();
+            })
+            .unwrap();
         engine
             .get_repository_service()
             .deploy(

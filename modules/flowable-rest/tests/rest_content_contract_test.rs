@@ -33,24 +33,28 @@ struct MockContentService {
 impl MockContentService {
     fn with_seed() -> Self {
         let service = Self::default();
-        service.items.lock().unwrap_or_else(|e| e.into_inner()).insert(
-            "content-1".to_string(),
-            ContentItemRecord {
-                id: "content-1".to_string(),
-                name: "invoice.pdf".to_string(),
-                mime_type: Some("application/pdf".to_string()),
-                description: None,
-                attachment_type: None,
-                external_url: None,
-                task_id: Some("task-1".to_string()),
-                process_instance_id: Some("process-1".to_string()),
-                scope_type: Some("bpmn".to_string()),
-                scope_id: Some("process-1".to_string()),
-                created: 1_713_674_400_000,
-                modified: 1_713_674_400_000,
-                content_size: 256,
-            },
-        );
+        service
+            .items
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                "content-1".to_string(),
+                ContentItemRecord {
+                    id: "content-1".to_string(),
+                    name: "invoice.pdf".to_string(),
+                    mime_type: Some("application/pdf".to_string()),
+                    description: None,
+                    attachment_type: None,
+                    external_url: None,
+                    task_id: Some("task-1".to_string()),
+                    process_instance_id: Some("process-1".to_string()),
+                    scope_type: Some("bpmn".to_string()),
+                    scope_id: Some("process-1".to_string()),
+                    created: 1_713_674_400_000,
+                    modified: 1_713_674_400_000,
+                    content_size: 256,
+                },
+            );
         service
     }
 }
@@ -80,7 +84,10 @@ impl content::ContentServiceApi for MockContentService {
             modified: 1_713_674_500_000,
             content_size: command.content.as_deref().map(str::len).unwrap_or_default(),
         };
-        self.items.lock().unwrap_or_else(|e| e.into_inner()).insert(id, record.clone());
+        self.items
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, record.clone());
         Ok(record)
     }
 
@@ -88,8 +95,13 @@ impl content::ContentServiceApi for MockContentService {
         &self,
         query: ContentItemQuery,
     ) -> Result<flowable_rest::common::PagedResponse<ContentItemRecord>, ApiError> {
-        let mut items: Vec<ContentItemRecord> =
-            self.items.lock().unwrap_or_else(|e| e.into_inner()).values().cloned().collect();
+        let mut items: Vec<ContentItemRecord> = self
+            .items
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .cloned()
+            .collect();
         items.sort_by(|left, right| left.id.cmp(&right.id));
         let filtered: Vec<ContentItemRecord> = items
             .into_iter()

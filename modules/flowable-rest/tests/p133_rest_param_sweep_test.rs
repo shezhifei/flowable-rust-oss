@@ -47,7 +47,8 @@ async fn spawn_server(name: &str) -> (Arc<ProcessEngine>, String, reqwest::Clien
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     let engine_for_server = Arc::clone(&engine);
@@ -280,9 +281,7 @@ async fn p133_activity_instance_id_alias_hit_and_miss() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/runtime/activity-instances?processInstanceId={process_instance_id}"
-        ),
+        &format!("{base_url}/runtime/activity-instances?processInstanceId={process_instance_id}"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);
@@ -291,9 +290,7 @@ async fn p133_activity_instance_id_alias_hit_and_miss() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/runtime/activity-instances?activityInstanceId={activity_instance_id}"
-        ),
+        &format!("{base_url}/runtime/activity-instances?activityInstanceId={activity_instance_id}"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);
@@ -316,9 +313,7 @@ async fn p133_dmn_decision_definition_id_alias_accepted() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/dmn-history/historic-decision-executions?decisionDefinitionId=dt-1"
-        ),
+        &format!("{base_url}/dmn-history/historic-decision-executions?decisionDefinitionId=dt-1"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);
@@ -431,11 +426,8 @@ async fn p133_model_query_params_hit_and_miss() {
     assert_eq!(status, reqwest::StatusCode::OK);
     assert_eq!(body["total"], 1);
 
-    let (status, body) = get_json(
-        &client,
-        &format!("{base_url}/repository/models?id={id_a}"),
-    )
-    .await;
+    let (status, body) =
+        get_json(&client, &format!("{base_url}/repository/models?id={id_a}")).await;
     assert_eq!(status, reqwest::StatusCode::OK);
     assert_eq!(body["total"], 1);
 
@@ -447,11 +439,8 @@ async fn p133_model_query_params_hit_and_miss() {
     assert_eq!(status, reqwest::StatusCode::OK);
     assert_eq!(body["total"], 2);
 
-    let (status, body) = get_json(
-        &client,
-        &format!("{base_url}/repository/models?version=2"),
-    )
-    .await;
+    let (status, body) =
+        get_json(&client, &format!("{base_url}/repository/models?version=2")).await;
     assert_eq!(status, reqwest::StatusCode::OK);
     assert_eq!(body["total"], 2);
 
@@ -738,9 +727,7 @@ async fn p133_cmmn_event_subscription_created_filters() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/cmmn-runtime/event-subscriptions?createdAfter=2099-01-01T00:00:00Z"
-        ),
+        &format!("{base_url}/cmmn-runtime/event-subscriptions?createdAfter=2099-01-01T00:00:00Z"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);
@@ -748,9 +735,7 @@ async fn p133_cmmn_event_subscription_created_filters() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/cmmn-runtime/event-subscriptions?createdBefore=2000-01-01T00:00:00Z"
-        ),
+        &format!("{base_url}/cmmn-runtime/event-subscriptions?createdBefore=2000-01-01T00:00:00Z"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);
@@ -793,9 +778,7 @@ async fn p133_channel_definition_create_time_filters() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/event-registry-repository/channel-definitions?createTimeAfter=0"
-        ),
+        &format!("{base_url}/event-registry-repository/channel-definitions?createTimeAfter=0"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);
@@ -803,9 +786,7 @@ async fn p133_channel_definition_create_time_filters() {
 
     let (status, body) = get_json(
         &client,
-        &format!(
-            "{base_url}/event-registry-repository/channel-definitions?createTimeBefore=0"
-        ),
+        &format!("{base_url}/event-registry-repository/channel-definitions?createTimeBefore=0"),
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK);

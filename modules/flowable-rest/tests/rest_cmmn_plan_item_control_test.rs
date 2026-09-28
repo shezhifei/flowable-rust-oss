@@ -11,9 +11,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 
 async fn spawn_server() -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
-        "cmmn-plan-item-control-test".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("cmmn-plan-item-control-test".to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -23,7 +21,8 @@ async fn spawn_server() -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

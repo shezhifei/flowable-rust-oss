@@ -66,11 +66,15 @@ impl MockDmnApi {
                 resource_names: vec!["loan-eligibility.dmn".to_string()],
                 tenant_id: None,
             });
-        repository.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
-            "deployment-1".to_string(),
-            "loan-eligibility.dmn".to_string(),
-            b"<definitions />".to_vec(),
-        ));
+        repository
+            .resources
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push((
+                "deployment-1".to_string(),
+                "loan-eligibility.dmn".to_string(),
+                b"<definitions />".to_vec(),
+            ));
         repository
     }
 
@@ -163,21 +167,27 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         };
 
         for resource in &command.resources {
-            self.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
-                deployment_id.clone(),
-                resource.resource_name.clone(),
-                resource.resource.clone().into_bytes(),
-            ));
+            self.resources
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((
+                    deployment_id.clone(),
+                    resource.resource_name.clone(),
+                    resource.resource.clone().into_bytes(),
+                ));
         }
 
         if let Some(resource) = command.resources.first() {
             let decision_id = {
-                let decision_tables = self.decision_tables.lock().unwrap_or_else(|e| e.into_inner());
+                let decision_tables = self
+                    .decision_tables
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 format!("decision-{}", decision_tables.len() + 1)
             };
             self.decision_tables
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push(DecisionTableRecord {
                     id: decision_id,
                     key: resource.resource_name.trim_end_matches(".dmn").to_string(),
@@ -192,7 +202,10 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
                 });
         }
 
-        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
+        self.deployments
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(deployment.clone());
         Ok(deployment)
     }
 
@@ -203,7 +216,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         let mut filtered: Vec<DmnDeploymentRecord> =
             self.deployments
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|deployment| {
                     query
@@ -333,7 +346,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         let mut filtered: Vec<DecisionTableRecord> =
             self.decision_tables
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|decision| {
                     query.id.as_ref().is_none_or(|value| decision.id == *value)
@@ -565,7 +578,8 @@ async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

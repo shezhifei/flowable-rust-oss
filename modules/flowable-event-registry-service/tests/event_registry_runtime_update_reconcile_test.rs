@@ -16,7 +16,7 @@ use flowable_event_registry_service::{
     EventRegistryDeploymentRequest, EventRegistryDeploymentResource, FlowableEventRegistryService,
     InboundEventRequest, OutboundEventRequest,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -33,14 +33,12 @@ fn shared_services(
         label,
         Uuid::new_v4()
     ));
-    let engine_a = Arc::new(ProcessEngine::new_with_db_path(
-        format!("{label}-a"),
-        path.to_str().unwrap(),
-    ).unwrap());
-    let engine_b = Arc::new(ProcessEngine::new_with_db_path(
-        format!("{label}-b"),
-        path.to_str().unwrap(),
-    ).unwrap());
+    let engine_a = Arc::new(
+        ProcessEngine::new_with_db_path(format!("{label}-a"), path.to_str().unwrap()).unwrap(),
+    );
+    let engine_b = Arc::new(
+        ProcessEngine::new_with_db_path(format!("{label}-b"), path.to_str().unwrap()).unwrap(),
+    );
     (
         FlowableEventRegistryService::new(engine_a),
         FlowableEventRegistryService::new(engine_b),
@@ -94,7 +92,13 @@ fn deploy_channel_event(
 #[test]
 fn inbound_runtime_picks_up_cross_instance_event_definition_update() {
     let (service_a, service_b, path) = shared_services("inbound");
-    deploy_channel_event(&service_a, "ordersIn", "inbound", "orderReceived", json!([]));
+    deploy_channel_event(
+        &service_a,
+        "ordersIn",
+        "inbound",
+        "orderReceived",
+        json!([]),
+    );
 
     // B never reconciles explicitly; the runtime request itself must.
     let delivery = service_b
@@ -107,7 +111,11 @@ fn inbound_runtime_picks_up_cross_instance_event_definition_update() {
     assert_eq!(delivery.status, EventInstanceStatus::Processed);
 
     // Runtime resolution populated B's engine-local cache.
-    assert!(service_b.cached_latest_event("orderReceived", None).is_some());
+    assert!(
+        service_b
+            .cached_latest_event("orderReceived", None)
+            .is_some()
+    );
     assert!(service_b.cached_latest_channel("ordersIn", None).is_some());
 
     // A tightens the payload contract via update.
@@ -179,7 +187,11 @@ fn outbound_runtime_picks_up_cross_instance_event_definition_update() {
         })
         .unwrap();
     assert_eq!(delivery.status, EventInstanceStatus::Published);
-    assert!(service_b.cached_latest_event("orderPublished", None).is_some());
+    assert!(
+        service_b
+            .cached_latest_event("orderPublished", None)
+            .is_some()
+    );
 
     let definition_id = service_a
         .cached_latest_event("orderPublished", None)
@@ -230,7 +242,13 @@ fn outbound_runtime_picks_up_cross_instance_event_definition_update() {
 #[test]
 fn local_deploy_does_not_skip_unreconciled_foreign_update() {
     let (service_a, service_b, path) = shared_services("deploy-watermark");
-    deploy_channel_event(&service_a, "ordersIn", "inbound", "orderReceived", json!([]));
+    deploy_channel_event(
+        &service_a,
+        "ordersIn",
+        "inbound",
+        "orderReceived",
+        json!([]),
+    );
 
     // A caches orders v1 through a runtime resolve.
     let delivery = service_a
@@ -261,7 +279,13 @@ fn local_deploy_does_not_skip_unreconciled_foreign_update() {
         .unwrap();
 
     // A deploys an unrelated definition before reconciling B's update.
-    deploy_channel_event(&service_a, "shippingIn", "inbound", "shipmentReceived", json!([]));
+    deploy_channel_event(
+        &service_a,
+        "shippingIn",
+        "inbound",
+        "shipmentReceived",
+        json!([]),
+    );
 
     // A's next runtime resolve must still apply B's update: the empty payload
     // is now invalid.
@@ -287,7 +311,13 @@ fn local_deploy_does_not_skip_unreconciled_foreign_update() {
 #[test]
 fn local_delete_does_not_skip_unreconciled_foreign_update() {
     let (service_a, service_b, path) = shared_services("delete-watermark");
-    deploy_channel_event(&service_a, "ordersIn", "inbound", "orderReceived", json!([]));
+    deploy_channel_event(
+        &service_a,
+        "ordersIn",
+        "inbound",
+        "orderReceived",
+        json!([]),
+    );
     let unrelated = service_a
         .deploy(EventRegistryDeploymentRequest {
             name: "unrelated".to_string(),
@@ -378,7 +408,10 @@ fn channel_update_publishes_change_record_and_refreshes_caches() {
 
     // A's local cache body is replaced right after commit.
     assert_eq!(
-        service_a.cached_latest_channel("orders", None).unwrap().name,
+        service_a
+            .cached_latest_channel("orders", None)
+            .unwrap()
+            .name,
         "Orders renamed"
     );
 
@@ -387,7 +420,10 @@ fn channel_update_publishes_change_record_and_refreshes_caches() {
     assert!(result.applied >= 1);
     assert!(service_b.last_change_revision() > baseline);
     assert_eq!(
-        service_b.cached_latest_channel("orders", None).unwrap().name,
+        service_b
+            .cached_latest_channel("orders", None)
+            .unwrap()
+            .name,
         "Orders renamed"
     );
 

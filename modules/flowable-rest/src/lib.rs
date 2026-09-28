@@ -12,8 +12,6 @@ use axum::{
     http::{HeaderName, Request},
     routing::{delete, get, post},
 };
-use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
-use tower_http::trace::TraceLayer;
 use flowable_app_converter::parse_app_definition;
 use flowable_app_engine::{
     AppDefinitionRecord as EngineAppDefinitionRecord, AppDeployment as EngineAppDeployment,
@@ -29,8 +27,8 @@ use flowable_cmmn_engine::{
     CmmnHistoricHumanTaskInstance, CmmnHistoricMilestoneInstance, CmmnHumanTask,
     CmmnHumanTaskCompletionRequest as EngineCmmnHumanTaskCompletionRequest, CmmnHumanTaskState,
     CmmnHumanTaskUpdate as EngineCmmnHumanTaskUpdate, CmmnIdentityLink, CmmnMigrationDocument,
-    CmmnPlanItemDefinitionWithTargetIds, CmmnStage, CmmnUserGroupResolver,
-    CmmnStageOverview, ReferencedDecision, ReferencedFormDefinition,
+    CmmnPlanItemDefinitionWithTargetIds, CmmnStage, CmmnStageOverview, CmmnUserGroupResolver,
+    ReferencedDecision, ReferencedFormDefinition,
 };
 use flowable_cmmn_image_generator::CmmnSvgGenerator;
 use flowable_content_service::{CreateContentItemRequest, FlowableContentService};
@@ -61,14 +59,16 @@ use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::trace::TraceLayer;
 
 pub mod common;
 pub mod config;
 pub mod error;
 pub mod middleware;
+pub(crate) mod query_variable;
 pub mod routes;
 pub mod security;
-pub(crate) mod query_variable;
 pub(crate) mod variable_types;
 
 #[derive(Clone)]
@@ -3094,7 +3094,11 @@ impl routes::cmmn::CmmnRuntimeApi for CmmnApiAdapter {
         }
 
         // Java: re-fetch; null means case ended → HTTP 204 (CaseInstanceResource.java:122-128)
-        match self.engine.runtime_service().get_case_instance(case_instance_id) {
+        match self
+            .engine
+            .runtime_service()
+            .get_case_instance(case_instance_id)
+        {
             Ok(instance) => Ok(Some(to_case_instance_record(instance))),
             Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
@@ -3142,7 +3146,11 @@ impl routes::cmmn::CmmnRuntimeApi for CmmnApiAdapter {
         }
 
         // Java: re-fetch; null → 204 (PlanItemInstanceResource.java:87-94)
-        match self.engine.runtime_service().get_human_task(plan_item_instance_id) {
+        match self
+            .engine
+            .runtime_service()
+            .get_human_task(plan_item_instance_id)
+        {
             Ok(task) => Ok(Some(to_plan_item_instance_record(task))),
             Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
@@ -3322,9 +3330,7 @@ impl routes::cmmn::CmmnRuntimeApi for CmmnApiAdapter {
                 completion.outcome = action_request.outcome.clone();
                 for variable in &action_request.variables {
                     let name = variable.name.clone().ok_or_else(|| {
-                        crate::error::ApiError::bad_request(
-                            "Variable name is required".to_string(),
-                        )
+                        crate::error::ApiError::bad_request("Variable name is required".to_string())
                     })?;
                     // Java: only an explicit LOCAL scope is task-local; every other
                     // value (null included) is GLOBAL (TaskResource.java:207-211).
@@ -3451,15 +3457,13 @@ impl routes::cmmn::CmmnRuntimeApi for CmmnApiAdapter {
         plan_item_instance_id: &str,
         variables: Vec<routes::cmmn::CmmnVariableUpdate>,
     ) -> Result<(), crate::error::ApiError> {
-        self.engine
-            .runtime_service()
-            .set_task_variables_local(
-                plan_item_instance_id,
-                variables
-                    .into_iter()
-                    .map(|variable| (variable.name, variable.value))
-                    .collect(),
-            )?;
+        self.engine.runtime_service().set_task_variables_local(
+            plan_item_instance_id,
+            variables
+                .into_iter()
+                .map(|variable| (variable.name, variable.value))
+                .collect(),
+        )?;
         Ok(())
     }
 
@@ -4420,10 +4424,7 @@ impl routes::cmmn::CmmnManagementApi for CmmnApiAdapter {
 
     /// Java `moveToHistoryJob` forces history and uses async-history retries
     /// (JobResource.java:330-339). Rust CMMN has one default retry setting (3).
-    fn move_deadletter_job_to_history(
-        &self,
-        job_id: &str,
-    ) -> Result<(), crate::error::ApiError> {
+    fn move_deadletter_job_to_history(&self, job_id: &str) -> Result<(), crate::error::ApiError> {
         self.engine
             .management_service()
             .move_deadletter_job_to_history_job(job_id, 3)?;
@@ -4652,9 +4653,7 @@ fn to_case_instance_record(
 /// are skipped — those rows carry none of these fields, so no mirror row could
 /// match anyway. Java's PlanItemInstanceQuery supports `assignee` etc. with the
 /// same effect (only task plan item instances carry an assignee).
-fn plan_item_query_has_task_specific_filters(
-    query: &routes::cmmn::PlanItemInstanceQuery,
-) -> bool {
+fn plan_item_query_has_task_specific_filters(query: &routes::cmmn::PlanItemInstanceQuery) -> bool {
     query.assignee.is_some()
         || query.assignee_like.is_some()
         || query.owner.is_some()
@@ -5021,11 +5020,8 @@ fn sort_plan_item_records(
             });
         }
         Some("owner") => {
-            records.sort_by(|left, right| {
-                left.owner
-                    .cmp(&right.owner)
-                    .then(left.id.cmp(&right.id))
-            });
+            records
+                .sort_by(|left, right| left.owner.cmp(&right.owner).then(left.id.cmp(&right.id)));
         }
         Some("category") => {
             records.sort_by(|left, right| {
@@ -6556,10 +6552,9 @@ async fn run_server_with_components(
     };
     // Outermost layer: detection must run ahead of Basic auth so even 401s
     // carry the resolved `ApiVersion` extension and echo header.
-    let api_routes =
-        api_routes.layer(axum::middleware::from_fn(
-            middleware::version_detection::version_detection_middleware,
-        ));
+    let api_routes = api_routes.layer(axum::middleware::from_fn(
+        middleware::version_detection::version_detection_middleware,
+    ));
 
     // Layers applied bottom-up on the request path: SetRequestId first, then
     // TraceLayer reads x-request-id into the span, then Propagate echoes it.
@@ -6608,10 +6603,7 @@ async fn run_server_with_components(
             }),
         )
         .layer(PropagateRequestIdLayer::new(request_id_header.clone()))
-        .layer(SetRequestIdLayer::new(
-            request_id_header,
-            MakeRequestUuid,
-        ));
+        .layer(SetRequestIdLayer::new(request_id_header, MakeRequestUuid));
 
     // ConnectInfo is required so auth_middleware can key its per-IP failure
     // window on the real peer address (M2 brute-force lockout).
@@ -6726,9 +6718,8 @@ mod tests {
         use flowable_app_engine::TenantResolutionPolicy;
         use flowable_engine::persistence::runtime_store::EventRegistryEventDefinition;
 
-        let engine = Arc::new(ProcessEngine::new(
-            "rest-app-event-catalog-tenant".to_string(),
-        ).unwrap());
+        let engine =
+            Arc::new(ProcessEngine::new("rest-app-event-catalog-tenant".to_string()).unwrap());
         let event_registry_service = FlowableEventRegistryService::new(Arc::clone(&engine));
         let store = engine.get_runtime_store();
         let mut session = store.create_session().unwrap();

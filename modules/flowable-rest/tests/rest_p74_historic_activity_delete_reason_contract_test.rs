@@ -46,7 +46,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -133,8 +134,5 @@ async fn boundary_interrupt_exposes_delete_reason_on_historic_activity_rest() {
         .iter()
         .find(|a| a["activityId"] == "hostTask")
         .expect("query hostTask");
-    assert_eq!(
-        query_host["deleteReason"].as_str(),
-        Some(expected.as_str())
-    );
+    assert_eq!(query_host["deleteReason"].as_str(), Some(expected.as_str()));
 }

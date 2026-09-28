@@ -25,11 +25,17 @@ struct StageLog {
 
 impl StageLog {
     fn push(&self, stage: &str) {
-        self.stages.lock().unwrap_or_else(|e| e.into_inner()).push(stage.to_string());
+        self.stages
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(stage.to_string());
     }
 
     fn snapshot(&self) -> Vec<String> {
-        self.stages.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.stages
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 
@@ -93,7 +99,9 @@ impl InboundEventTransformer for LoggingTransformer {
     ) -> Result<Value, FlowableError> {
         self.log.push("transform");
         if self.fail {
-            return Err(FlowableError::ExecutionError("transform failed".to_string()));
+            return Err(FlowableError::ExecutionError(
+                "transform failed".to_string(),
+            ));
         }
         Ok(context.payload.clone())
     }
@@ -130,7 +138,10 @@ impl InboundEventConsumer for LoggingConsumer {
         _definition: &EventDefinition,
     ) -> Result<(), FlowableError> {
         self.log.push("consumer");
-        self.seen.lock().unwrap_or_else(|e| e.into_inner()).push(delivery.id.clone());
+        self.seen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(delivery.id.clone());
         if self.fail {
             return Err(FlowableError::ExecutionError("consumer failed".to_string()));
         }
@@ -327,10 +338,7 @@ fn inbound_pipeline_filter_rejection_short_circuits_without_delivery() {
         }
         other => panic!("unexpected error: {other:?}"),
     }
-    assert_eq!(
-        log.snapshot(),
-        vec!["extraction", "filter"]
-    );
+    assert_eq!(log.snapshot(), vec!["extraction", "filter"]);
     assert!(
         service
             .create_event_instance_delivery_query()
@@ -450,7 +458,10 @@ fn inbound_pipeline_payload_validation_failure_marks_no_processed_delivery() {
             tenant_hint: None,
         })
         .unwrap_err();
-    assert!(error.to_string().to_lowercase().contains("invalid") || error.to_string().contains("orderId"));
+    assert!(
+        error.to_string().to_lowercase().contains("invalid")
+            || error.to_string().contains("orderId")
+    );
     assert!(!log.snapshot().contains(&"consumer".to_string()));
 }
 
@@ -490,12 +501,15 @@ fn inbound_pipeline_consumer_failure_persists_failed_after_received() {
     assert_eq!(deliveries[0].status, EventInstanceStatus::Failed);
     assert_eq!(
         deliveries[0].status_history,
-        vec![
-            EventInstanceStatus::Received,
-            EventInstanceStatus::Failed
-        ]
+        vec![EventInstanceStatus::Received, EventInstanceStatus::Failed]
     );
-    assert!(deliveries[0].last_error.as_ref().unwrap().contains("consumer failed"));
+    assert!(
+        deliveries[0]
+            .last_error
+            .as_ref()
+            .unwrap()
+            .contains("consumer failed")
+    );
 }
 
 #[test]
@@ -605,8 +619,14 @@ fn inbound_pipeline_tenant_detection_precedes_definition_resolution() {
         .unwrap();
 
     assert_eq!(delivery.tenant_id.as_deref(), Some("tenant-a"));
-    assert!(log.snapshot().iter().position(|s| s == "tenant").unwrap()
-        < log.snapshot().iter().position(|s| s == "key_detection").unwrap());
+    assert!(
+        log.snapshot().iter().position(|s| s == "tenant").unwrap()
+            < log
+                .snapshot()
+                .iter()
+                .position(|s| s == "key_detection")
+                .unwrap()
+    );
 }
 
 #[test]

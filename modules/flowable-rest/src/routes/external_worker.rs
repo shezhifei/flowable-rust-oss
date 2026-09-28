@@ -266,7 +266,10 @@ impl ExternalWorkerJobView {
         Ok(Self {
             id: state.timer_job_id,
             job_kind: ExternalWorkerJobKindResponse::RuntimeTimer,
-            process_definition_id: process_definition_id(runtime_store, &state.process_instance_id)?,
+            process_definition_id: process_definition_id(
+                runtime_store,
+                &state.process_instance_id,
+            )?,
             process_instance_id: state.process_instance_id,
             execution_id: state.execution_id,
             element_id: state.activity_id,
@@ -491,7 +494,9 @@ pub(crate) async fn bulk_unacquire(
 
     let runtime_store = engine.get_runtime_store();
     let now = runtime_store.time_source().now().timestamp_millis();
-    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = runtime_store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let job_ids = runtime_store
         .snapshot_timer_job_states(&mut session)
         .into_values()
@@ -527,7 +532,9 @@ pub(crate) async fn list(
         .into_iter()
         .filter(|state| filter_job(state, &query, now))
     {
-        jobs.push(ExternalWorkerJobView::from_timer_job_state(&runtime_store, state)?.into_response());
+        jobs.push(
+            ExternalWorkerJobView::from_timer_job_state(&runtime_store, state)?.into_response(),
+        );
     }
 
     jobs.sort_by(|left, right| left.id.cmp(&right.id));

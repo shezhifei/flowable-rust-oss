@@ -58,9 +58,7 @@ const DECISION_DMN: &str = r#"
 "#;
 
 async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-native-endpoint-breadth".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("rest-native-endpoint-breadth".to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -70,7 +68,8 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -186,34 +185,38 @@ async fn decisions_endpoint_rejects_missing_process_definition() {
 async fn management_batch_get_endpoint_returns_single_batch_payload() {
     let (engine, base_url, client) = spawn_server().await;
     let batch_service = engine.get_batch_service();
-    batch_service.create_batch(BatchEntity {
-        id: "batch-breadth-1".to_string(),
-        batch_type: "processMigration".to_string(),
-        search_key: Some("breadth-search".to_string()),
-        search_key2: Some("breadth-search-2".to_string()),
-        status: "in-progress".to_string(),
-        total_items: 1,
-        items_processed: 0,
-        create_time: 1_775_000_000_000,
-        end_time: None,
-        tenant_id: Some("tenant-breadth".to_string()),
-        batch_document_json: Some(r#"{"migration":"breadth"}"#.to_string()),
-    }).unwrap();
-    batch_service.create_batch_part(BatchPartEntity {
-        id: "batch-breadth-part-1".to_string(),
-        batch_id: "batch-breadth-1".to_string(),
-        batch_type: "processMigration".to_string(),
-        search_key: Some("breadth-part-search".to_string()),
-        search_key2: None,
-        scope_id: Some("breadth-scope-1".to_string()),
-        sub_scope_id: None,
-        scope_type: Some("bpmn".to_string()),
-        create_time: 1_775_000_001_000,
-        complete_time: None,
-        status: "waiting".to_string(),
-        tenant_id: Some("tenant-breadth".to_string()),
-        batch_part_document_json: Some(r#"{"part":"breadth"}"#.to_string()),
-    }).unwrap();
+    batch_service
+        .create_batch(BatchEntity {
+            id: "batch-breadth-1".to_string(),
+            batch_type: "processMigration".to_string(),
+            search_key: Some("breadth-search".to_string()),
+            search_key2: Some("breadth-search-2".to_string()),
+            status: "in-progress".to_string(),
+            total_items: 1,
+            items_processed: 0,
+            create_time: 1_775_000_000_000,
+            end_time: None,
+            tenant_id: Some("tenant-breadth".to_string()),
+            batch_document_json: Some(r#"{"migration":"breadth"}"#.to_string()),
+        })
+        .unwrap();
+    batch_service
+        .create_batch_part(BatchPartEntity {
+            id: "batch-breadth-part-1".to_string(),
+            batch_id: "batch-breadth-1".to_string(),
+            batch_type: "processMigration".to_string(),
+            search_key: Some("breadth-part-search".to_string()),
+            search_key2: None,
+            scope_id: Some("breadth-scope-1".to_string()),
+            sub_scope_id: None,
+            scope_type: Some("bpmn".to_string()),
+            create_time: 1_775_000_001_000,
+            complete_time: None,
+            status: "waiting".to_string(),
+            tenant_id: Some("tenant-breadth".to_string()),
+            batch_part_document_json: Some(r#"{"part":"breadth"}"#.to_string()),
+        })
+        .unwrap();
 
     let response = client
         .get(format!("{base_url}/management/batches/batch-breadth-1"))
@@ -250,19 +253,21 @@ async fn management_batch_get_endpoint_returns_single_batch_payload() {
 async fn management_batch_get_endpoint_reflects_completed_status_and_complete_time() {
     let (engine, base_url, client) = spawn_server().await;
     let batch_service = engine.get_batch_service();
-    batch_service.create_batch(BatchEntity {
-        id: "batch-breadth-completed".to_string(),
-        batch_type: "asyncHistory".to_string(),
-        search_key: Some("completed-search".to_string()),
-        search_key2: None,
-        status: "completed".to_string(),
-        total_items: 4,
-        items_processed: 4,
-        create_time: 1_775_000_000_000,
-        end_time: Some(1_775_000_010_000),
-        tenant_id: None,
-        batch_document_json: None,
-    }).unwrap();
+    batch_service
+        .create_batch(BatchEntity {
+            id: "batch-breadth-completed".to_string(),
+            batch_type: "asyncHistory".to_string(),
+            search_key: Some("completed-search".to_string()),
+            search_key2: None,
+            status: "completed".to_string(),
+            total_items: 4,
+            items_processed: 4,
+            create_time: 1_775_000_000_000,
+            end_time: Some(1_775_000_010_000),
+            tenant_id: None,
+            batch_document_json: None,
+        })
+        .unwrap();
 
     let response = client
         .get(format!(
@@ -319,7 +324,7 @@ async fn management_timer_job_exception_stacktrace_endpoint_returns_error_detail
             ),
             category: None,
             ..Default::default()
-},
+        },
         &mut session,
     );
     session.flush_and_commit().unwrap();
@@ -347,7 +352,7 @@ async fn management_timer_job_exception_stacktrace_endpoint_returns_error_detail
             error_details: None,
             category: None,
             ..Default::default()
-},
+        },
         &mut session,
     );
     session.flush_and_commit().unwrap();

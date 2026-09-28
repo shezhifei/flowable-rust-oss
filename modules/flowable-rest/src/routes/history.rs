@@ -541,7 +541,10 @@ pub(crate) async fn get_historic_process_instance_comments(
     Path(process_instance_id): Path<String>,
 ) -> Result<Json<Vec<super::tasks::TaskCommentResponse>>, ApiError> {
     ensure_historic_process_instance_exists(&engine, &process_instance_id)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let comments = engine
         .get_history_service()
         .get_process_instance_comments(&process_instance_id, &mut session)
@@ -557,7 +560,10 @@ pub(crate) async fn get_historic_process_instance_comment(
     Path((process_instance_id, comment_id)): Path<(String, String)>,
 ) -> Result<Json<super::tasks::TaskCommentResponse>, ApiError> {
     ensure_historic_process_instance_exists(&engine, &process_instance_id)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let comment = engine
         .get_history_service()
         .get_comment(&comment_id, &mut session)
@@ -610,7 +616,10 @@ pub(crate) async fn delete_historic_process_instance_comment(
     Path((process_instance_id, comment_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     ensure_historic_process_instance_exists(&engine, &process_instance_id)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let owned = engine
         .get_history_service()
         .get_comment(&comment_id, &mut session)
@@ -1871,7 +1880,10 @@ pub(crate) async fn get_historic_detail_data(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(detail_id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_history_service()
         .get_historic_detail(&detail_id, &mut session);
@@ -1941,7 +1953,10 @@ pub(crate) async fn historic_task_log_entries(
     uri: Uri,
 ) -> Result<Json<PagedResponse<HistoricTaskLogEntryResponse>>, ApiError> {
     let query: HistoricTaskLogEntryListQuery = parse_query(&uri)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut entries = engine
         .get_history_service()
         .get_historic_task_log_entries(&mut session);
@@ -2223,7 +2238,10 @@ fn load_historic_task_instance(
     engine: &ProcessEngine,
     task_id: &str,
 ) -> Result<HistoricTaskInstance, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_runtime_store()
         .get_historic_task_instance(task_id, &mut session);
@@ -3550,7 +3568,10 @@ pub(crate) async fn get_historic_variable_instance_data(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(variable_instance_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_runtime_store()
         .get_historic_variable_instance(&variable_instance_id, &mut session);
@@ -3635,7 +3656,10 @@ pub(crate) async fn cleanup_history(
     let deleted_variable_instances = 0;
     let deleted_details = 0;
 
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if let Some(process_instance_ids) = command.process_instance_ids {
         for chunk in process_instance_ids.chunks(batch_size) {
             for id in chunk {
@@ -3713,7 +3737,9 @@ pub(crate) async fn cleanup_history(
             deleted_process_instances += 1;
         }
     }
-    session.flush_and_commit().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    session
+        .flush_and_commit()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     let duration = start_time.elapsed();
     let duration_ms = duration.as_millis() as u64;
@@ -3723,9 +3749,8 @@ pub(crate) async fn cleanup_history(
         cleanup_type: cleanup_type.to_string(),
         before_date: before_date
             .map(|ts| {
-                chrono::DateTime::from_timestamp_millis(ts).ok_or_else(|| {
-                    ApiError::BadRequest(format!("Invalid beforeDate millis: {ts}"))
-                })
+                chrono::DateTime::from_timestamp_millis(ts)
+                    .ok_or_else(|| ApiError::BadRequest(format!("Invalid beforeDate millis: {ts}")))
             })
             .transpose()?,
         records_deleted: deleted_process_instances,
@@ -3735,11 +3760,16 @@ pub(crate) async fn cleanup_history(
         timestamp: chrono::Utc::now(),
     };
     {
-        let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let mut session = engine
+            .get_runtime_store()
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         engine
             .get_runtime_store()
             .insert_cleanup_log(log, &mut session);
-        session.flush_and_commit().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        session
+            .flush_and_commit()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     }
 
     Ok(Json(CleanupResultResponse {
@@ -3788,11 +3818,16 @@ pub(crate) async fn configure_cleanup_strategy(
         cleanup_schedule: strategy.cleanup_schedule.clone(),
     };
     {
-        let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let mut session = engine
+            .get_runtime_store()
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         engine
             .get_runtime_store()
             .set_cleanup_strategy_config(&config, &mut session);
-        session.flush_and_commit().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        session
+            .flush_and_commit()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     }
 
     Ok(Json(CleanupStrategyResponse {

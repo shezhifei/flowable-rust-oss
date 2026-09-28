@@ -42,26 +42,34 @@ const CANDIDATE_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
     // Identity fixture: charlie/carol belong to `managers`.
-    engine.get_identity_service().save_group(Group {
-        id: "managers".to_string(),
-        name: "Managers".to_string(),
-        group_type: None,
-    }).unwrap();
     engine
         .get_identity_service()
-        .create_membership("charlie".to_string(), "managers".to_string()).unwrap();
+        .save_group(Group {
+            id: "managers".to_string(),
+            name: "Managers".to_string(),
+            group_type: None,
+        })
+        .unwrap();
     engine
         .get_identity_service()
-        .create_membership("carol".to_string(), "managers".to_string()).unwrap();
+        .create_membership("charlie".to_string(), "managers".to_string())
+        .unwrap();
+    engine
+        .get_identity_service()
+        .create_membership("carol".to_string(), "managers".to_string())
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -73,10 +81,7 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
     (engine, base_url, reqwest::Client::new())
 }
 
-async fn deploy_and_start_case(
-    base_url: &str,
-    client: &reqwest::Client,
-) -> String {
+async fn deploy_and_start_case(base_url: &str, client: &reqwest::Client) -> String {
     let deploy_response = client
         .post(format!("{base_url}/cmmn-repository/deployments"))
         .basic_auth("admin", Some("test"))
@@ -131,11 +136,7 @@ async fn get_task_names(base_url: &str, client: &reqwest::Client, query: &str) -
     names
 }
 
-async fn post_query_names(
-    base_url: &str,
-    client: &reqwest::Client,
-    body: Value,
-) -> Vec<String> {
+async fn post_query_names(base_url: &str, client: &reqwest::Client, body: Value) -> Vec<String> {
     let response = client
         .post(format!("{base_url}/cmmn-query/tasks"))
         .basic_auth("admin", Some("test"))
@@ -177,7 +178,9 @@ async fn t1_candidate_user_direct_and_group_expansion() {
     );
     // Unknown user → empty.
     assert_eq!(
-        get_task_names(&base_url, &client, "?candidateUser=nobody").await.len(),
+        get_task_names(&base_url, &client, "?candidateUser=nobody")
+            .await
+            .len(),
         0
     );
 }
@@ -241,12 +244,19 @@ async fn t3_ignore_assignee_via_rest() {
 
     // Default: assigned candidate task is excluded.
     assert_eq!(
-        get_task_names(&base_url, &client, "?candidateUser=alice").await.len(),
+        get_task_names(&base_url, &client, "?candidateUser=alice")
+            .await
+            .len(),
         0
     );
     // ignoreAssignee=true keeps it.
     assert_eq!(
-        get_task_names(&base_url, &client, "?candidateUser=alice&ignoreAssignee=true").await,
+        get_task_names(
+            &base_url,
+            &client,
+            "?candidateUser=alice&ignoreAssignee=true"
+        )
+        .await,
         vec!["Review"]
     );
 }

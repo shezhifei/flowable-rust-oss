@@ -22,22 +22,28 @@ use tokio::net::TcpListener;
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
 
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
-    engine.get_identity_service().save_user(User {
-        id: "alice".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: Some("tenant-a".to_string()),
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "alice".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: Some("tenant-a".to_string()),
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

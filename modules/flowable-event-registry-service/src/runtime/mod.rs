@@ -1,20 +1,18 @@
 pub(crate) mod delivery;
 
+use crate::FlowableEventRegistryService;
 use crate::models::{
     ChannelDefinition, EventDefinition, EventDirection, EventInstanceDelivery,
     EventInstanceRequest, EventInstanceStatus, EventPayload, InboundEventRequest,
     OutboundEventRequest,
 };
 use crate::pipeline::{
-    dispatch_outbound_event, validate_event_payload, InboundEventContext, InboundRawEvent,
+    InboundEventContext, InboundRawEvent, dispatch_outbound_event, validate_event_payload,
 };
-use crate::query::{
-    latest_event_definition_for_tenant_with_policy, EventInstanceDeliveryQuery,
-};
+use crate::query::{EventInstanceDeliveryQuery, latest_event_definition_for_tenant_with_policy};
 use crate::runtime::delivery::{
     clear_delivery_failure, mark_delivery_failed, transition_delivery_status,
 };
-use crate::FlowableEventRegistryService;
 use flowable_engine::error::FlowableError;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -311,7 +309,9 @@ impl FlowableEventRegistryService {
         // The persisted payload is already extracted/transformed; re-run
         // validation and consumer dispatch like the original pipeline, without
         // holding a store session across host code.
-        let consumer = self.configuration.resolve_consumer(&channel.configuration)?;
+        let consumer = self
+            .configuration
+            .resolve_consumer(&channel.configuration)?;
         let outcome = validate_event_payload(&definition, &delivery.payload)
             .and_then(|_| consumer.consume(&delivery, &definition));
 
@@ -446,7 +446,9 @@ impl FlowableEventRegistryService {
         // Host processors are invoked without holding store sessions/locks.
         let channel_config = channel.configuration.clone();
 
-        let extractor = self.configuration.resolve_payload_extractor(&channel_config)?;
+        let extractor = self
+            .configuration
+            .resolve_payload_extractor(&channel_config)?;
         let mut context = InboundEventContext::from_raw(&raw);
         context.payload = extractor.extract(&raw, &channel_config)?;
 

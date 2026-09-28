@@ -19,17 +19,13 @@ mod ssrf_guard;
 mod tenant_fallback;
 
 pub use adapter::{
-    boxed_outbound_adapter, InMemoryInboundAdapter, InMemoryOutboundAdapter, InboundChannelAdapter,
-    OutboundChannelAdapter, RestChannelAdapter, RestOutboundAdapter,
+    InMemoryInboundAdapter, InMemoryOutboundAdapter, InboundChannelAdapter, OutboundChannelAdapter,
+    RestChannelAdapter, RestOutboundAdapter, boxed_outbound_adapter,
 };
-pub use ssrf_guard::{
-    safe_url_display, safe_url_for_error, validate_outbound_url, OutboundUrlGuardConfig,
-    OutboundUrlGuardError,
-};
-pub use bpmn_consumer::{BpmnEventRegistryConsumer, BPMN_EVENT_CONSUMER_KEY};
-pub use cmmn_consumer::{CmmnEventRegistryConsumer, CMMN_EVENT_CONSUMER_KEY};
+pub use bpmn_consumer::{BPMN_EVENT_CONSUMER_KEY, BpmnEventRegistryConsumer};
 pub use cache::DefinitionCache;
 pub use change_detection::{ChangeDetectionResult, DEFAULT_CHANGE_POLL_LIMIT};
+pub use cmmn_consumer::{CMMN_EVENT_CONSUMER_KEY, CmmnEventRegistryConsumer};
 pub use models::{
     ChannelDefinition, ChannelDefinitionUpdateRequest, EventDefinition,
     EventDefinitionUpdateRequest, EventDeliveryRetry, EventDirection, EventInstanceDelivery,
@@ -38,6 +34,7 @@ pub use models::{
     EventRegistryError, EventRegistryResourceData, EventRetryPolicy, InboundEventRequest,
     OutboundEventRequest, PagedResult, ValidationError,
 };
+pub use outbound_engine_bridge::ConfigurationBackedOutboundEventDispatch;
 pub use pipeline::{
     DefaultEventKeyDetector, DefaultInboundFilter, DefaultInboundTransformer,
     DefaultTenantDetector, EventPayloadValidator, EventRegistryConfiguration,
@@ -50,10 +47,13 @@ pub use query::{
     ChannelDefinitionQuery, EventDefinitionQuery, EventInstanceDeliveryQuery,
     EventRegistryDeploymentQuery,
 };
-pub use outbound_engine_bridge::ConfigurationBackedOutboundEventDispatch;
+pub use ssrf_guard::{
+    OutboundUrlGuardConfig, OutboundUrlGuardError, safe_url_display, safe_url_for_error,
+    validate_outbound_url,
+};
 pub use tenant_fallback::{
-    dedup_definition_level_subscriptions_by_key, resolve_definition_with_fallback,
-    subscription_matches_event_tenant, TenantFallbackPolicy, NO_TENANT_ID,
+    NO_TENANT_ID, TenantFallbackPolicy, dedup_definition_level_subscriptions_by_key,
+    resolve_definition_with_fallback, subscription_matches_event_tenant,
 };
 
 use flowable_cmmn_engine::CmmnEngine;
@@ -172,7 +172,10 @@ impl FlowableEventRegistryService {
 
     /// High-water mark of the durable change log observed by this service instance.
     pub fn last_change_revision(&self) -> u64 {
-        *self.last_change_revision.lock().unwrap_or_else(|e| e.into_inner())
+        *self
+            .last_change_revision
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
     }
 
     /// Snapshot of cached latest channel definition for tenant+key, if present.
@@ -213,11 +216,20 @@ impl FlowableEventRegistryService {
         limit: usize,
     ) -> Result<ChangeDetectionResult, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let after = *self.last_change_revision.lock().unwrap_or_else(|e| e.into_inner());
-        let mut cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
+        let after = *self
+            .last_change_revision
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let mut cache = self
+            .definition_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let result =
             change_detection::detect_and_reconcile_changes(&store, &mut cache, after, limit)?;
-        *self.last_change_revision.lock().unwrap_or_else(|e| e.into_inner()) = result.last_revision;
+        *self
+            .last_change_revision
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = result.last_revision;
         Ok(result)
     }
 

@@ -39,14 +39,17 @@ const CASE_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 async fn spawn_server() -> (String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new("rest-cmmn-case-query".to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -72,11 +75,7 @@ async fn deploy(base_url: &str, client: &reqwest::Client, deployment_name: &str)
     assert!(response.status().is_success());
 }
 
-async fn start_case(
-    base_url: &str,
-    client: &reqwest::Client,
-    body: Value,
-) -> String {
+async fn start_case(base_url: &str, client: &reqwest::Client, body: Value) -> String {
     let response = client
         .post(format!("{base_url}/cmmn-runtime/case-instances"))
         .basic_auth("admin", Some("test"))
@@ -130,28 +129,44 @@ async fn cmmn_case_query_filters_by_definition_key_and_name() {
         Vec::<String>::new()
     );
     assert_eq!(
-        case_ids(&base_url, &client, &format!("?ids={id_a},{id_b}")).await.len(),
+        case_ids(&base_url, &client, &format!("?ids={id_a},{id_b}"))
+            .await
+            .len(),
         2
     );
 
     assert_eq!(
-        case_ids(&base_url, &client, "?caseDefinitionKey=queryCase").await.len(),
+        case_ids(&base_url, &client, "?caseDefinitionKey=queryCase")
+            .await
+            .len(),
         2
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?caseDefinitionKeyLike=query%").await.len(),
+        case_ids(&base_url, &client, "?caseDefinitionKeyLike=query%")
+            .await
+            .len(),
         2
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?caseDefinitionKeyLikeIgnoreCase=QUERY%").await.len(),
+        case_ids(
+            &base_url,
+            &client,
+            "?caseDefinitionKeyLikeIgnoreCase=QUERY%"
+        )
+        .await
+        .len(),
         2
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?caseDefinitionName=Query Case").await.len(),
+        case_ids(&base_url, &client, "?caseDefinitionName=Query Case")
+            .await
+            .len(),
         2
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?caseDefinitionNameLike=Query%").await.len(),
+        case_ids(&base_url, &client, "?caseDefinitionNameLike=Query%")
+            .await
+            .len(),
         2
     );
 
@@ -164,11 +179,15 @@ async fn cmmn_case_query_filters_by_definition_key_and_name() {
         2
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?nameLikeIgnoreCase=order%").await.len(),
+        case_ids(&base_url, &client, "?nameLikeIgnoreCase=order%")
+            .await
+            .len(),
         2
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?businessKeyLike=bk-1%").await.len(),
+        case_ids(&base_url, &client, "?businessKeyLike=bk-1%")
+            .await
+            .len(),
         1
     );
     assert_eq!(
@@ -215,11 +234,15 @@ async fn cmmn_case_query_filters_by_tenant() {
         vec![id_b.clone()]
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?tenantIdLike=tenant-%").await.len(),
+        case_ids(&base_url, &client, "?tenantIdLike=tenant-%")
+            .await
+            .len(),
         1
     );
     assert_eq!(
-        case_ids(&base_url, &client, "?tenantIdLikeIgnoreCase=TENANT-X").await.len(),
+        case_ids(&base_url, &client, "?tenantIdLikeIgnoreCase=TENANT-X")
+            .await
+            .len(),
         1
     );
     assert_eq!(
@@ -260,7 +283,9 @@ async fn cmmn_case_query_sort_and_include_variables() {
 
     // Invalid sort → 400 (PaginateListUtil.java:119-121).
     let response = client
-        .get(format!("{base_url}/cmmn-runtime/case-instances?sort=banana"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/case-instances?sort=banana"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -269,7 +294,9 @@ async fn cmmn_case_query_sort_and_include_variables() {
 
     // Seed a case variable, then verify includeCaseVariables and the names variant.
     client
-        .put(format!("{base_url}/cmmn-runtime/case-instances/{id}/variables"))
+        .put(format!(
+            "{base_url}/cmmn-runtime/case-instances/{id}/variables"
+        ))
         .basic_auth("admin", Some("test"))
         .json(&json!([{ "name": "priority", "value": "high" }, { "name": "extra", "value": 1 }]))
         .send()
@@ -277,7 +304,9 @@ async fn cmmn_case_query_sort_and_include_variables() {
         .unwrap();
 
     let response = client
-        .get(format!("{base_url}/cmmn-runtime/case-instances?includeCaseVariables=true&name=First"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/case-instances?includeCaseVariables=true&name=First"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -320,7 +349,9 @@ async fn cmmn_plan_item_query_filters_by_case_definition_id_and_element() {
     .await;
 
     let defs = client
-        .get(format!("{base_url}/cmmn-repository/case-definitions?key=queryCase"))
+        .get(format!(
+            "{base_url}/cmmn-repository/case-definitions?key=queryCase"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await

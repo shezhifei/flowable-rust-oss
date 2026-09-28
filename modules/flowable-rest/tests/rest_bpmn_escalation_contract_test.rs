@@ -12,9 +12,7 @@ use tokio::net::TcpListener;
 
 /// Helper: boot a REST server, return (base_url, engine, client).
 async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-escalation-contract".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("rest-bpmn-escalation-contract".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -25,7 +23,8 @@ async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

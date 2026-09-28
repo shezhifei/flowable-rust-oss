@@ -348,7 +348,12 @@ fn random_base64(size: usize) -> String {
 /// `secure` follows Java's `CustomPersistentRememberMeServices.setCookie`: the
 /// `X-Forwarded-Proto` header wins when present, otherwise the transport of the
 /// request itself decides.
-fn build_set_cookie(config: &UiAuthConfig, series: &str, token_value: &str, secure: bool) -> String {
+fn build_set_cookie(
+    config: &UiAuthConfig,
+    series: &str,
+    token_value: &str,
+    secure: bool,
+) -> String {
     let mut cookie = format!(
         "{COOKIE_NAME}={}; Path=/; Max-Age={}; HttpOnly; SameSite=Lax",
         encode_cookie_value(series, token_value),
@@ -606,7 +611,10 @@ pub async fn auth_middleware(
         return next.run(request).await;
     }
 
-    let secure = request_is_secure(request.headers(), request.uri().scheme() == Some(&axum::http::uri::Scheme::HTTPS));
+    let secure = request_is_secure(
+        request.headers(),
+        request.uri().scheme() == Some(&axum::http::uri::Scheme::HTTPS),
+    );
     let cookie_raw = cookie_from_headers(request.headers(), COOKIE_NAME);
 
     let mut refreshed_cookie: Option<String> = None;
@@ -644,10 +652,7 @@ pub async fn auth_middleware(
                     }
                     Err(error) => {
                         tracing::error!("identity scope lookup failed: {error}");
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            "Internal Server Error",
-                        )
+                        return (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
                             .into_response();
                     }
                 }
@@ -671,8 +676,7 @@ pub async fn auth_middleware(
                 None
             } else {
                 Some(
-                    UiError::Forbidden(format!("Privilege '{privilege}' required"))
-                        .into_response(),
+                    UiError::Forbidden(format!("Privilege '{privilege}' required")).into_response(),
                 )
             }
         }
@@ -770,7 +774,9 @@ where
             .extensions
             .get::<AuthenticatedScope>()
             .map(|scope| UiAuth(scope.0.clone()))
-            .ok_or_else(|| UiError::Unauthorized("Request did not contain valid authorization".to_string()))
+            .ok_or_else(|| {
+                UiError::Unauthorized("Request did not contain valid authorization".to_string())
+            })
     }
 }
 
@@ -957,10 +963,16 @@ mod tests {
             // Privilege prefixes.
             ("/app/rest/tasks", Access::Privilege(ACCESS_TASK)),
             ("/workflow/", Access::Privilege(ACCESS_TASK)),
-            ("/admin-app/rest/server-configs", Access::Privilege(ACCESS_ADMIN)),
+            (
+                "/admin-app/rest/server-configs",
+                Access::Privilege(ACCESS_ADMIN),
+            ),
             ("/admin/", Access::Privilege(ACCESS_ADMIN)),
             ("/idm-app/rest/admin/users", Access::Privilege(ACCESS_IDM)),
-            ("/modeler-app/rest/models", Access::Privilege(ACCESS_MODELER)),
+            (
+                "/modeler-app/rest/models",
+                Access::Privilege(ACCESS_MODELER),
+            ),
             ("/modeler/", Access::Privilege(ACCESS_MODELER)),
             // Modeler `/api/editor/**` servlet surface (see the rule above).
             ("/api/editor/import-process-model", Access::Authenticated),

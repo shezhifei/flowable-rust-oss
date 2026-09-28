@@ -8,7 +8,7 @@
 //! Java: `DefaultOutboundEventProcessor.java:32-66` (transform + adapter).
 
 use crate::models::{ChannelDefinition, EventPayload};
-use crate::pipeline::{dispatch_outbound_event, EventRegistryConfiguration};
+use crate::pipeline::{EventRegistryConfiguration, dispatch_outbound_event};
 use flowable_engine::engine::outbound_event_dispatch::{
     OutboundEventDispatchHook, OutboundEventDispatchRequest,
 };

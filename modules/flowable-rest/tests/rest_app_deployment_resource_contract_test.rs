@@ -57,8 +57,8 @@ impl apps::AppRepositoryApi for RealAppRepository {
                     .map_err(|error| ApiError::bad_request(error.to_string()))?,
             )
             .map_err(|error| ApiError::bad_request(error.to_string()))?;
-            let model =
-                EngineAppModel::new().with_app_definition(canonical_definition_to_engine(definition));
+            let model = EngineAppModel::new()
+                .with_app_definition(canonical_definition_to_engine(definition));
             request = request.with_resource_bytes(
                 resource.resource_name,
                 model,
@@ -564,13 +564,18 @@ async fn cold_cache_rehydrates_model_and_composition_from_real_app_engine() {
     assert_eq!(deploy.status(), reqwest::StatusCode::CREATED);
 
     let definitions = client
-        .get(format!("{base_url}/app-repository/app-definitions?key=orders-app"))
+        .get(format!(
+            "{base_url}/app-repository/app-definitions?key=orders-app"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
         .unwrap();
     let definitions_body: Value = definitions.json().await.unwrap();
-    let app_definition_id = definitions_body["data"][0]["id"].as_str().unwrap().to_string();
+    let app_definition_id = definitions_body["data"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     // Warm then explicitly cold-cache the engine.
     engine

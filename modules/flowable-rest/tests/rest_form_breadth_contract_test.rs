@@ -52,7 +52,10 @@ impl MockFormRepository {
                 tenant_id: None,
                 active: Some(true),
             });
-        *repository.versions.lock().unwrap_or_else(|e| e.into_inner()) = vec![
+        *repository
+            .versions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = vec![
             FormDefinitionVersionRecord {
                 id: "form-1".to_string(),
                 key: "expenseApproval".to_string(),
@@ -74,12 +77,19 @@ impl MockFormRepository {
                 active: Some(true),
             },
         ];
-        *repository.layout.lock().unwrap_or_else(|e| e.into_inner()) = json!({"row": 1, "col": 2, "colSpan": 6});
-        *repository.outcomes.lock().unwrap_or_else(|e| e.into_inner()) = vec![FormOutcome {
+        *repository.layout.lock().unwrap_or_else(|e| e.into_inner()) =
+            json!({"row": 1, "col": 2, "colSpan": 6});
+        *repository
+            .outcomes
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = vec![FormOutcome {
             id: Some("approve".to_string()),
             name: Some("Approve".to_string()),
         }];
-        *repository.active_latest_version.lock().unwrap_or_else(|e| e.into_inner()) = 2;
+        *repository
+            .active_latest_version
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = 2;
         repository
     }
 }
@@ -105,7 +115,10 @@ impl forms::FormRepositoryApi for MockFormRepository {
         &self,
         query: FormDefinitionQuery,
     ) -> Result<flowable_rest::common::PagedResponse<FormDefinitionRecord>, ApiError> {
-        let requested_version = *self.active_latest_version.lock().unwrap_or_else(|e| e.into_inner());
+        let requested_version = *self
+            .active_latest_version
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let defs: Vec<FormDefinitionRecord> = self
             .definitions
             .lock()
@@ -126,7 +139,10 @@ impl forms::FormRepositoryApi for MockFormRepository {
         &self,
         form_definition_id: &str,
     ) -> Result<FormDefinitionRecord, ApiError> {
-        let requested_version = *self.active_latest_version.lock().unwrap_or_else(|e| e.into_inner());
+        let requested_version = *self
+            .active_latest_version
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         self.definitions
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -148,18 +164,30 @@ impl forms::FormRepositoryApi for MockFormRepository {
         &self,
         _form_definition_id: &str,
     ) -> Result<Vec<FormDefinitionVersionRecord>, ApiError> {
-        Ok(self.versions.lock().unwrap_or_else(|e| e.into_inner()).clone())
+        Ok(self
+            .versions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone())
     }
 
     fn get_form_definition_layout(&self, _form_definition_id: &str) -> Result<Value, ApiError> {
-        Ok(self.layout.lock().unwrap_or_else(|e| e.into_inner()).clone())
+        Ok(self
+            .layout
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone())
     }
 
     fn get_form_definition_outcomes(
         &self,
         _form_definition_id: &str,
     ) -> Result<Vec<FormOutcome>, ApiError> {
-        Ok(self.outcomes.lock().unwrap_or_else(|e| e.into_inner()).clone())
+        Ok(self
+            .outcomes
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone())
     }
 
     fn delete_form_definitions(&self, query: FormDeleteQuery) -> Result<usize, ApiError> {
@@ -182,7 +210,10 @@ impl forms::FormRepositoryApi for MockFormRepository {
                 "Form definition '{form_definition_id}' was not found"
             )));
         }
-        *self.active_latest_version.lock().unwrap_or_else(|e| e.into_inner()) = if active { 2 } else { 1 };
+        *self
+            .active_latest_version
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = if active { 2 } else { 1 };
         // Update the active flag on the stored definition so get_form_definition reflects it
         if let Some(d) = self
             .definitions
@@ -240,7 +271,8 @@ async fn spawn_real_server() -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

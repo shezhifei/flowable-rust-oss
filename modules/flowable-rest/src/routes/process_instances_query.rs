@@ -59,7 +59,10 @@ struct ProcessInstanceListQuery {
     name: Option<String>,
     #[serde(rename = "nameLike", alias = "processInstanceNameLike")]
     name_like: Option<String>,
-    #[serde(rename = "nameLikeIgnoreCase", alias = "processInstanceNameLikeIgnoreCase")]
+    #[serde(
+        rename = "nameLikeIgnoreCase",
+        alias = "processInstanceNameLikeIgnoreCase"
+    )]
     name_like_ignore_case: Option<String>,
     #[serde(rename = "processDefinitionName")]
     process_definition_name: Option<String>,
@@ -114,13 +117,19 @@ struct ProcessInstanceListQuery {
     business_key: Option<String>,
     #[serde(rename = "businessKeyLike", alias = "processBusinessKeyLike")]
     business_key_like: Option<String>,
-    #[serde(rename = "businessKeyLikeIgnoreCase", alias = "processBusinessKeyLikeIgnoreCase")]
+    #[serde(
+        rename = "businessKeyLikeIgnoreCase",
+        alias = "processBusinessKeyLikeIgnoreCase"
+    )]
     business_key_like_ignore_case: Option<String>,
     #[serde(rename = "businessStatus", alias = "processBusinessStatus")]
     business_status: Option<String>,
     #[serde(rename = "businessStatusLike", alias = "processBusinessStatusLike")]
     business_status_like: Option<String>,
-    #[serde(rename = "businessStatusLikeIgnoreCase", alias = "processBusinessStatusLikeIgnoreCase")]
+    #[serde(
+        rename = "businessStatusLikeIgnoreCase",
+        alias = "processBusinessStatusLikeIgnoreCase"
+    )]
     business_status_like_ignore_case: Option<String>,
     // Java ProcessInstanceQueryRequest.java:58-59: CMMN scope semantics,
     // accepted without effect in the BPMN-only store (tasks.rs:206-210
@@ -377,7 +386,10 @@ fn query_process_instances_from_store(
                     .is_some_and(|category| sql_like_matches(pattern, category))
             });
         }
-        if let Some(pattern) = query.process_definition_category_like_ignore_case.as_deref() {
+        if let Some(pattern) = query
+            .process_definition_category_like_ignore_case
+            .as_deref()
+        {
             let pattern = pattern.to_lowercase();
             instances.retain(|instance| {
                 definitions
@@ -548,12 +560,12 @@ fn query_process_instances_from_store(
                 .find(|execution| execution.id == sub_process_instance_id)
                 .and_then(|execution| execution.super_execution_id.as_deref())
                 .and_then(|super_execution_id| {
-                    executions.iter().find(|execution| execution.id == super_execution_id)
+                    executions
+                        .iter()
+                        .find(|execution| execution.id == super_execution_id)
                 })
                 .and_then(|execution| execution.process_instance_id.as_deref());
-            instances.retain(|instance| {
-                Some(instance.id.as_str()) == parent_process_instance_id
-            });
+            instances.retain(|instance| Some(instance.id.as_str()) == parent_process_instance_id);
         }
     }
     // Java Execution.xml:827-829 excludeSubprocesses — no super execution.
@@ -642,9 +654,10 @@ fn query_process_instances_from_store(
     )?;
 
     let include_process_variables = query.include_process_variables == Some(true);
-    let included_process_variable_names = query.include_process_variables_names.as_ref().map(
-        |names| names.iter().map(String::as_str).collect::<HashSet<_>>(),
-    );
+    let included_process_variable_names = query
+        .include_process_variables_names
+        .as_ref()
+        .map(|names| names.iter().map(String::as_str).collect::<HashSet<_>>());
     let result = instances
         .into_iter()
         .map(|instance| {
@@ -675,9 +688,8 @@ fn to_process_instance_response_with_process_variables(
         .into_iter()
         .filter(|variable| variable.process_instance_id == instance.id.as_str())
         .filter(|variable| {
-            included_process_variable_names.is_none_or(|names| {
-                names.contains(variable.name.as_str())
-            })
+            included_process_variable_names
+                .is_none_or(|names| names.contains(variable.name.as_str()))
         })
         .map(|variable| {
             let mut response =
@@ -932,7 +944,9 @@ pub(crate) async fn get_execution(
     Path(execution_id): Path<String>,
 ) -> Result<Json<ExecutionResponse>, ApiError> {
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = store.find_execution(&execution_id, &mut session);
     let execution = ApiError::found_or_not_found(&mut session, found, || {
         ApiError::NotFound(format!("Execution '{}' was not found", execution_id))
@@ -946,7 +960,9 @@ pub(crate) async fn get_execution_active_activities(
     Path(execution_id): Path<String>,
 ) -> Result<Json<Vec<String>>, ApiError> {
     let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = runtime_store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = runtime_store.find_execution(&execution_id, &mut session);
     ApiError::found_or_not_found(&mut session, found, || {
         ApiError::NotFound(format!("Execution '{}' was not found", execution_id))
@@ -1735,8 +1751,8 @@ mod tests {
     #[test]
     fn variable_nameless_non_equals_and_boolean_comparison_are_400() {
         // Same shared validators the PI/execution filter functions apply.
-        let nameless_error = validate_name_less_equals(None, QueryVariableOperation::NotEquals)
-            .unwrap_err();
+        let nameless_error =
+            validate_name_less_equals(None, QueryVariableOperation::NotEquals).unwrap_err();
         assert!(matches!(
             nameless_error,
             ApiError::BadRequest(message) if message ==
@@ -1744,11 +1760,9 @@ mod tests {
         ));
         assert!(validate_name_less_equals(Some("v"), QueryVariableOperation::NotEquals).is_ok());
 
-        let bool_error = validate_operation_value(
-            QueryVariableOperation::GreaterThanOrEquals,
-            &json!(true),
-        )
-        .unwrap_err();
+        let bool_error =
+            validate_operation_value(QueryVariableOperation::GreaterThanOrEquals, &json!(true))
+                .unwrap_err();
         assert!(matches!(
             bool_error,
             ApiError::BadRequest(message) if message ==

@@ -91,7 +91,8 @@ async fn spawn_server() -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -132,13 +133,11 @@ async fn start_case(base_url: &str, client: &reqwest::Client) -> String {
         .to_string()
 }
 
-async fn plan_items(
-    base_url: &str,
-    client: &reqwest::Client,
-    query: &str,
-) -> Vec<Value> {
+async fn plan_items(base_url: &str, client: &reqwest::Client, query: &str) -> Vec<Value> {
     let response = client
-        .get(format!("{base_url}/cmmn-runtime/plan-item-instances{query}"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/plan-item-instances{query}"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -177,12 +176,7 @@ async fn unified_endpoint_returns_stage_milestone_eventlistener_and_humantask() 
     );
 
     // Type filter for the event listener.
-    let listeners = plan_items(
-        &base_url,
-        &client,
-        "?planItemDefinitionType=eventlistener",
-    )
-    .await;
+    let listeners = plan_items(&base_url, &client, "?planItemDefinitionType=eventlistener").await;
     assert_eq!(listeners.len(), 1);
     assert_eq!(listeners[0]["state"], "AVAILABLE");
     assert_eq!(listeners[0]["elementId"], "planItemListener");
@@ -263,9 +257,7 @@ async fn unified_endpoint_returns_stage_milestone_eventlistener_and_humantask() 
     let ended_milestones = plan_items(
         &base_url,
         &client,
-        &format!(
-            "?caseInstanceId={case_id}&planItemDefinitionType=milestone&includeEnded=true"
-        ),
+        &format!("?caseInstanceId={case_id}&planItemDefinitionType=milestone&includeEnded=true"),
     )
     .await;
     assert_eq!(ended_milestones.len(), 1);
@@ -345,7 +337,10 @@ async fn terminated_stage_is_runtime_hidden_and_historic_visible() {
         &format!("?caseInstanceId={case_id}&planItemDefinitionType=stage"),
     )
     .await;
-    assert!(runtime.is_empty(), "terminal rows are absent from runtime queries");
+    assert!(
+        runtime.is_empty(),
+        "terminal rows are absent from runtime queries"
+    );
 
     let history_response = client
         .get(format!(
@@ -369,7 +364,10 @@ async fn terminated_stage_is_runtime_hidden_and_historic_visible() {
         .await
         .unwrap();
     assert!(case_response.status().is_success());
-    assert_eq!(case_response.json::<Value>().await.unwrap()["state"], "ACTIVE");
+    assert_eq!(
+        case_response.json::<Value>().await.unwrap()["state"],
+        "ACTIVE"
+    );
 }
 
 #[tokio::test]

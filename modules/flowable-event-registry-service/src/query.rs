@@ -2,7 +2,7 @@ use crate::models::{
     ChannelDefinition, EventDefinition, EventDirection, EventInstanceDelivery, EventInstanceStatus,
     EventRegistryDeployment, PagedResult, page_items,
 };
-use crate::tenant_fallback::{resolve_definition_with_fallback, TenantFallbackPolicy};
+use crate::tenant_fallback::{TenantFallbackPolicy, resolve_definition_with_fallback};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use std::collections::BTreeMap;
@@ -938,9 +938,7 @@ pub(crate) fn latest_channel_definitions(
     latest
 }
 
-pub(crate) fn latest_event_definitions(
-    definitions: Vec<EventDefinition>,
-) -> Vec<EventDefinition> {
+pub(crate) fn latest_event_definitions(definitions: Vec<EventDefinition>) -> Vec<EventDefinition> {
     let mut latest = Vec::<EventDefinition>::new();
     for definition in definitions {
         if let Some(existing) = latest.iter_mut().find(|candidate| {

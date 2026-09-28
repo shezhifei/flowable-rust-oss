@@ -52,7 +52,8 @@ fn build_engine(test_name: &str) -> (Arc<ProcessEngine>, Arc<TestTimeSource>) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     (engine, time_source)
 }
@@ -338,14 +339,16 @@ async fn management_table_data_matches_sort_and_default_paging_contract() {
         "user-09", "user-08", "user-07", "user-06", "user-05", "user-04", "user-03", "user-02",
         "user-01", "user-00", "user-10",
     ] {
-        identity_service.save_user(flowable_engine::identity::entities::User {
-            id: id.to_string(),
-            first_name: None,
-            last_name: None,
-            email: None,
-            password: None,
-            tenant_id: None,
-        }).unwrap();
+        identity_service
+            .save_user(flowable_engine::identity::entities::User {
+                id: id.to_string(),
+                first_name: None,
+                last_name: None,
+                email: None,
+                password: None,
+                tenant_id: None,
+            })
+            .unwrap();
     }
 
     let (base_url, client) = spawn_server(Arc::clone(&engine)).await;
@@ -1942,47 +1945,53 @@ async fn management_executable_job_execute_triggers_timer_wait_job() {
 async fn management_batches_expose_real_batch_documents_and_parts() {
     let (engine, _time_source) = build_engine("rest-management-batches");
     let batch_service = engine.get_batch_service();
-    batch_service.create_batch(BatchEntity {
-        id: "batch-1".to_string(),
-        batch_type: "processMigration".to_string(),
-        search_key: Some("batch-search".to_string()),
-        search_key2: Some("batch-search-2".to_string()),
-        status: "in-progress".to_string(),
-        total_items: 1,
-        items_processed: 0,
-        create_time: 1_775_000_000_000,
-        end_time: None,
-        tenant_id: Some("tenant-a".to_string()),
-        batch_document_json: Some(r#"{"migration":"planned"}"#.to_string()),
-    }).unwrap();
-    batch_service.create_batch(BatchEntity {
-        id: "batch-without-tenant".to_string(),
-        batch_type: "asyncHistory".to_string(),
-        search_key: Some("without-tenant-search".to_string()),
-        search_key2: None,
-        status: "completed".to_string(),
-        total_items: 1,
-        items_processed: 1,
-        create_time: 1_775_000_002_000,
-        end_time: Some(1_775_000_003_000),
-        tenant_id: None,
-        batch_document_json: None,
-    }).unwrap();
-    batch_service.create_batch_part(BatchPartEntity {
-        id: "batch-part-1".to_string(),
-        batch_id: "batch-1".to_string(),
-        batch_type: "processMigration".to_string(),
-        search_key: Some("part-search".to_string()),
-        search_key2: Some("part-search-2".to_string()),
-        scope_id: Some("scope-1".to_string()),
-        sub_scope_id: Some("sub-scope-1".to_string()),
-        scope_type: Some("bpmn".to_string()),
-        create_time: 1_775_000_001_000,
-        complete_time: None,
-        status: "waiting".to_string(),
-        tenant_id: Some("tenant-a".to_string()),
-        batch_part_document_json: Some(r#"{"part":"ready"}"#.to_string()),
-    }).unwrap();
+    batch_service
+        .create_batch(BatchEntity {
+            id: "batch-1".to_string(),
+            batch_type: "processMigration".to_string(),
+            search_key: Some("batch-search".to_string()),
+            search_key2: Some("batch-search-2".to_string()),
+            status: "in-progress".to_string(),
+            total_items: 1,
+            items_processed: 0,
+            create_time: 1_775_000_000_000,
+            end_time: None,
+            tenant_id: Some("tenant-a".to_string()),
+            batch_document_json: Some(r#"{"migration":"planned"}"#.to_string()),
+        })
+        .unwrap();
+    batch_service
+        .create_batch(BatchEntity {
+            id: "batch-without-tenant".to_string(),
+            batch_type: "asyncHistory".to_string(),
+            search_key: Some("without-tenant-search".to_string()),
+            search_key2: None,
+            status: "completed".to_string(),
+            total_items: 1,
+            items_processed: 1,
+            create_time: 1_775_000_002_000,
+            end_time: Some(1_775_000_003_000),
+            tenant_id: None,
+            batch_document_json: None,
+        })
+        .unwrap();
+    batch_service
+        .create_batch_part(BatchPartEntity {
+            id: "batch-part-1".to_string(),
+            batch_id: "batch-1".to_string(),
+            batch_type: "processMigration".to_string(),
+            search_key: Some("part-search".to_string()),
+            search_key2: Some("part-search-2".to_string()),
+            scope_id: Some("scope-1".to_string()),
+            sub_scope_id: Some("sub-scope-1".to_string()),
+            scope_type: Some("bpmn".to_string()),
+            create_time: 1_775_000_001_000,
+            complete_time: None,
+            status: "waiting".to_string(),
+            tenant_id: Some("tenant-a".to_string()),
+            batch_part_document_json: Some(r#"{"part":"ready"}"#.to_string()),
+        })
+        .unwrap();
 
     let (base_url, client) = spawn_server(Arc::clone(&engine)).await;
 

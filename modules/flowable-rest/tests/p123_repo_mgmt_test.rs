@@ -40,7 +40,7 @@ use flowable_cmmn_engine::{
 };
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_rest::run_server;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
@@ -77,7 +77,8 @@ async fn spawn_server(test_name: &str) -> (Arc<CmmnEngine>, String, reqwest::Cli
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let cmmn_engine = engine
         .get_config()
@@ -283,7 +284,11 @@ async fn management_timer_job_query_filters() {
             format!("{base_url}/cmmn-management/timer-jobs?{query}"),
         )
         .await;
-        assert_eq!(body["total"].as_u64(), Some(1), "filter `{query}` should match");
+        assert_eq!(
+            body["total"].as_u64(),
+            Some(1),
+            "filter `{query}` should match"
+        );
     }
 
     // Non-matching filters exclude it.
@@ -301,7 +306,11 @@ async fn management_timer_job_query_filters() {
             format!("{base_url}/cmmn-management/timer-jobs?{query}"),
         )
         .await;
-        assert_eq!(body["total"].as_u64(), Some(0), "filter `{query}` should not match");
+        assert_eq!(
+            body["total"].as_u64(),
+            Some(0),
+            "filter `{query}` should not match"
+        );
     }
 
     // dueBefore/dueAfter bracket the due date (the timer is PT2H out).

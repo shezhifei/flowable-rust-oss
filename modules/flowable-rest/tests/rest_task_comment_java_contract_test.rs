@@ -34,7 +34,8 @@ async fn start_test_server(test_name: &str) -> (reqwest::Client, String, Arc<Pro
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -249,10 +250,7 @@ async fn comment_keeps_full_message_event_is_normalized() {
                     .unwrap_or(false)
         })
         .expect("truncated AddComment event");
-    assert_eq!(
-        long_event["message"][0].as_str().unwrap().len(),
-        163
-    );
+    assert_eq!(long_event["message"][0].as_str().unwrap().len(), 163);
 }
 
 #[tokio::test]
@@ -340,8 +338,7 @@ async fn comments_and_events_readable_after_task_completion() {
 #[tokio::test]
 async fn comments_list_is_newest_first() {
     let (client, base_url, engine) = start_test_server("rest-comment-order").await;
-    let task_id =
-        deploy_and_start_user_task(&client, &base_url, &engine, "restCommentOrder").await;
+    let task_id = deploy_and_start_user_task(&client, &base_url, &engine, "restCommentOrder").await;
 
     for msg in ["first", "second", "third"] {
         let resp = client
@@ -421,10 +418,7 @@ async fn missing_task_and_comment_return_not_found() {
         .send()
         .await
         .unwrap();
-    assert_eq!(
-        create_missing_task.status(),
-        reqwest::StatusCode::NOT_FOUND
-    );
+    assert_eq!(create_missing_task.status(), reqwest::StatusCode::NOT_FOUND);
 }
 
 // ── P65-comment-type ────────────────────────────────────────────────────────

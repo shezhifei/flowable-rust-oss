@@ -125,7 +125,9 @@ pub(crate) fn value_matches(
                 Some(Ordering::Greater | Ordering::Equal)
             )
         }
-        QueryVariableOperation::LessThan => compare_values(actual, expected) == Some(Ordering::Less),
+        QueryVariableOperation::LessThan => {
+            compare_values(actual, expected) == Some(Ordering::Less)
+        }
         QueryVariableOperation::LessThanOrEquals => {
             matches!(
                 compare_values(actual, expected),
@@ -265,7 +267,10 @@ mod tests {
             parse("likeIgnoreCase"),
             Some(QueryVariableOperation::LikeIgnoreCase)
         );
-        assert_eq!(parse("greaterThan"), Some(QueryVariableOperation::GreaterThan));
+        assert_eq!(
+            parse("greaterThan"),
+            Some(QueryVariableOperation::GreaterThan)
+        );
         assert_eq!(
             parse("greaterThanOrEquals"),
             Some(QueryVariableOperation::GreaterThanOrEquals)
@@ -284,15 +289,47 @@ mod tests {
 
     #[test]
     fn equals_and_not_equals_numeric_string_bool() {
-        assert!(value_matches(&json!(10), QueryVariableOperation::Equals, &json!(10)));
-        assert!(!value_matches(&json!(10), QueryVariableOperation::Equals, &json!(11)));
-        assert!(value_matches(&json!(10), QueryVariableOperation::NotEquals, &json!(11)));
-        assert!(!value_matches(&json!(10), QueryVariableOperation::NotEquals, &json!(10)));
-        assert!(value_matches(&json!("Hello"), QueryVariableOperation::Equals, &json!("Hello")));
-        assert!(value_matches(&json!(true), QueryVariableOperation::Equals, &json!(true)));
-        assert!(!value_matches(&json!(true), QueryVariableOperation::Equals, &json!(false)));
+        assert!(value_matches(
+            &json!(10),
+            QueryVariableOperation::Equals,
+            &json!(10)
+        ));
+        assert!(!value_matches(
+            &json!(10),
+            QueryVariableOperation::Equals,
+            &json!(11)
+        ));
+        assert!(value_matches(
+            &json!(10),
+            QueryVariableOperation::NotEquals,
+            &json!(11)
+        ));
+        assert!(!value_matches(
+            &json!(10),
+            QueryVariableOperation::NotEquals,
+            &json!(10)
+        ));
+        assert!(value_matches(
+            &json!("Hello"),
+            QueryVariableOperation::Equals,
+            &json!("Hello")
+        ));
+        assert!(value_matches(
+            &json!(true),
+            QueryVariableOperation::Equals,
+            &json!(true)
+        ));
+        assert!(!value_matches(
+            &json!(true),
+            QueryVariableOperation::Equals,
+            &json!(false)
+        ));
         // Number vs string never equals.
-        assert!(!value_matches(&json!(5), QueryVariableOperation::Equals, &json!("5")));
+        assert!(!value_matches(
+            &json!(5),
+            QueryVariableOperation::Equals,
+            &json!("5")
+        ));
     }
 
     #[test]
@@ -328,59 +365,125 @@ mod tests {
 
     #[test]
     fn greater_less_numeric_and_string() {
-        assert!(value_matches(&json!(10), QueryVariableOperation::GreaterThan, &json!(5)));
+        assert!(value_matches(
+            &json!(10),
+            QueryVariableOperation::GreaterThan,
+            &json!(5)
+        ));
         assert!(value_matches(
             &json!(10),
             QueryVariableOperation::GreaterThanOrEquals,
             &json!(10)
         ));
-        assert!(value_matches(&json!(10), QueryVariableOperation::LessThan, &json!(20)));
+        assert!(value_matches(
+            &json!(10),
+            QueryVariableOperation::LessThan,
+            &json!(20)
+        ));
         assert!(value_matches(
             &json!(10),
             QueryVariableOperation::LessThanOrEquals,
             &json!(10)
         ));
-        assert!(!value_matches(&json!(10), QueryVariableOperation::GreaterThan, &json!(10)));
-        assert!(!value_matches(&json!(10), QueryVariableOperation::LessThan, &json!(10)));
+        assert!(!value_matches(
+            &json!(10),
+            QueryVariableOperation::GreaterThan,
+            &json!(10)
+        ));
+        assert!(!value_matches(
+            &json!(10),
+            QueryVariableOperation::LessThan,
+            &json!(10)
+        ));
         // String lexicographic.
-        assert!(value_matches(&json!("m"), QueryVariableOperation::GreaterThan, &json!("a")));
-        assert!(value_matches(&json!("m"), QueryVariableOperation::LessThan, &json!("z")));
+        assert!(value_matches(
+            &json!("m"),
+            QueryVariableOperation::GreaterThan,
+            &json!("a")
+        ));
+        assert!(value_matches(
+            &json!("m"),
+            QueryVariableOperation::LessThan,
+            &json!("z")
+        ));
         // Incomparable (number vs string) → false.
-        assert!(!value_matches(&json!(10), QueryVariableOperation::GreaterThan, &json!("5")));
+        assert!(!value_matches(
+            &json!(10),
+            QueryVariableOperation::GreaterThan,
+            &json!("5")
+        ));
         // Bool with comparison → false (incomparable).
-        assert!(!value_matches(&json!(true), QueryVariableOperation::GreaterThan, &json!(false)));
+        assert!(!value_matches(
+            &json!(true),
+            QueryVariableOperation::GreaterThan,
+            &json!(false)
+        ));
     }
 
     #[test]
     fn like_and_like_ignore_case() {
-        assert!(value_matches(&json!("HelloWorld"), QueryVariableOperation::Like, &json!("Hello%")));
+        assert!(value_matches(
+            &json!("HelloWorld"),
+            QueryVariableOperation::Like,
+            &json!("Hello%")
+        ));
         assert!(value_matches(
             &json!("HelloWorld"),
             QueryVariableOperation::LikeIgnoreCase,
             &json!("hello%")
         ));
-        assert!(!value_matches(&json!("HelloWorld"), QueryVariableOperation::Like, &json!("Nope%")));
+        assert!(!value_matches(
+            &json!("HelloWorld"),
+            QueryVariableOperation::Like,
+            &json!("Nope%")
+        ));
         // Single-char wildcard.
-        assert!(value_matches(&json!("HelloWorld"), QueryVariableOperation::Like, &json!("Hello_orld")));
+        assert!(value_matches(
+            &json!("HelloWorld"),
+            QueryVariableOperation::Like,
+            &json!("Hello_orld")
+        ));
         // `%` in the middle.
-        assert!(value_matches(&json!("abcXdef"), QueryVariableOperation::Like, &json!("abc%def")));
+        assert!(value_matches(
+            &json!("abcXdef"),
+            QueryVariableOperation::Like,
+            &json!("abc%def")
+        ));
         // Non-string actual → like false.
-        assert!(!value_matches(&json!(7), QueryVariableOperation::Like, &json!("%")));
+        assert!(!value_matches(
+            &json!(7),
+            QueryVariableOperation::Like,
+            &json!("%")
+        ));
     }
 
     #[test]
     fn name_less_equals_any_value_uses_same_matrix() {
         // nameLess equals is implemented by callers as "any variable equals";
         // the value matrix itself is unchanged.
-        assert!(value_matches(&json!(1), QueryVariableOperation::Equals, &json!(1)));
-        assert!(!value_matches(&json!(1), QueryVariableOperation::Equals, &json!(99)));
+        assert!(value_matches(
+            &json!(1),
+            QueryVariableOperation::Equals,
+            &json!(1)
+        ));
+        assert!(!value_matches(
+            &json!(1),
+            QueryVariableOperation::Equals,
+            &json!(99)
+        ));
     }
 
     #[test]
     fn string_ops_reject_non_string_query_values() {
         for (operation, detail) in [
-            (QueryVariableOperation::EqualsIgnoreCase, "when ignoring casing"),
-            (QueryVariableOperation::NotEqualsIgnoreCase, "when ignoring casing"),
+            (
+                QueryVariableOperation::EqualsIgnoreCase,
+                "when ignoring casing",
+            ),
+            (
+                QueryVariableOperation::NotEqualsIgnoreCase,
+                "when ignoring casing",
+            ),
             (QueryVariableOperation::Like, "using like"),
             (QueryVariableOperation::LikeIgnoreCase, "using like"),
         ] {
@@ -390,16 +493,25 @@ mod tests {
                 "op {operation:?} detail was: {detail}"
             );
         }
-        assert!(validate_operation_value(QueryVariableOperation::EqualsIgnoreCase, &json!("ok")).is_ok());
+        assert!(
+            validate_operation_value(QueryVariableOperation::EqualsIgnoreCase, &json!("ok"))
+                .is_ok()
+        );
     }
 
     #[test]
     fn bool_and_null_rejected_for_comparison_ops() {
         for (operation, clause) in [
             (QueryVariableOperation::GreaterThan, "greater than"),
-            (QueryVariableOperation::GreaterThanOrEquals, "greater than or equal"),
+            (
+                QueryVariableOperation::GreaterThanOrEquals,
+                "greater than or equal",
+            ),
             (QueryVariableOperation::LessThan, "less than"),
-            (QueryVariableOperation::LessThanOrEquals, "less than or equal"),
+            (
+                QueryVariableOperation::LessThanOrEquals,
+                "less than or equal",
+            ),
         ] {
             for value in [Value::Bool(true), Value::Null] {
                 let error = validate_operation_value(operation, &value).unwrap_err();

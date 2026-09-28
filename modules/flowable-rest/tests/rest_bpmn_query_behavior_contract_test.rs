@@ -21,7 +21,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -559,12 +560,15 @@ async fn process_definitions_contract_covers_tenant_latest_sort_and_structured_e
             id: "definition-query-starters".to_string(),
             name: "Definition query starters".to_string(),
             group_type: None,
-        }).unwrap();
+        })
+        .unwrap();
     engine
         .get_identity_service()
-        .create_membership("erica".to_string(), "definition-query-starters".to_string()).unwrap();
-    engine.get_identity_link_service().add_identity_link(
-        flowable_engine::identity::entities::IdentityLink {
+        .create_membership("erica".to_string(), "definition-query-starters".to_string())
+        .unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(flowable_engine::identity::entities::IdentityLink {
             id: "process-definition:child:users:erica:type:starter".to_string(),
             link_type: "starter".to_string(),
             user_id: Some("erica".to_string()),
@@ -572,10 +576,11 @@ async fn process_definitions_contract_covers_tenant_latest_sort_and_structured_e
             task_id: None,
             process_instance_id: None,
             process_definition_id: Some(child_definition_id),
-        },
-    ).unwrap();
-    engine.get_identity_link_service().add_identity_link(
-        flowable_engine::identity::entities::IdentityLink {
+        })
+        .unwrap();
+    engine
+        .get_identity_link_service()
+        .add_identity_link(flowable_engine::identity::entities::IdentityLink {
             id: "process-definition:peer:groups:definition-query-starters:type:starter".to_string(),
             link_type: "starter".to_string(),
             user_id: None,
@@ -583,8 +588,8 @@ async fn process_definitions_contract_covers_tenant_latest_sort_and_structured_e
             task_id: None,
             process_instance_id: None,
             process_definition_id: Some(peer_definition_id),
-        },
-    ).unwrap();
+        })
+        .unwrap();
 
     let startable_by_user = client
         .get(format!(

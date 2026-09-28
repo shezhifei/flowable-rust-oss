@@ -11,14 +11,12 @@
 //! + `EventInstanceBpmnUtil.handleEventInstanceOutParameters` (:122-134).
 
 use flowable_engine::engine::process_engine::ProcessEngine;
-use flowable_engine::persistence::runtime_store::{
-    EventSubscriptionKind, RuntimeEventWaitKind,
-};
+use flowable_engine::persistence::runtime_store::{EventSubscriptionKind, RuntimeEventWaitKind};
 use flowable_event_registry_service::{
     EventInstanceStatus, EventRegistryDeploymentRequest, EventRegistryDeploymentResource,
     FlowableEventRegistryService, InboundRawEvent,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -160,9 +158,17 @@ fn bpmn_consumer_routes_send_event_task_and_maps_out_parameters() {
 
     let wait = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
-    assert_eq!(wait.len(), 1, "send-event triggerable must register a wait state");
-    assert_eq!(wait[0].wait_kind, flowable_engine::engine::task_service::EventWaitKind::SendEventTask);
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
+    assert_eq!(
+        wait.len(),
+        1,
+        "send-event triggerable must register a wait state"
+    );
+    assert_eq!(
+        wait[0].wait_kind,
+        flowable_engine::engine::task_service::EventWaitKind::SendEventTask
+    );
     assert_eq!(wait[0].event_ref.as_deref(), Some("orderAccepted"));
     assert_eq!(wait[0].activity_id.as_deref(), Some("sendEventTask"));
 
@@ -193,7 +199,8 @@ fn bpmn_consumer_routes_send_event_task_and_maps_out_parameters() {
 
     let wait_after = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert!(
         wait_after.is_empty(),
         "inbound consumer must consume the send-event wait state"

@@ -126,20 +126,19 @@ fn broadcast_definition_start_creates_case_instance() {
         .expect("cmmn");
     let service = service_with_cmmn(Arc::clone(&process_engine), Arc::clone(&cmmn), false);
     deploy_event(&service, "broadcastStart", "chBroadcast");
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("bc").with_resource(
-            "case.cmmn",
-            start_case_model("broadcastCase", "broadcastStart", false),
-        ),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("bc").with_resource(
+        "case.cmmn",
+        start_case_model("broadcastCase", "broadcastStart", false),
+    ))
     .expect("deploy case");
 
-    assert!(cmmn
-        .runtime_service()
-        .create_case_instance_query()
-        .list()
-        .unwrap()
-        .is_empty());
+    assert!(
+        cmmn.runtime_service()
+            .create_case_instance_query()
+            .list()
+            .unwrap()
+            .is_empty()
+    );
 
     deliver(&service, "chBroadcast", json!({ "orderId": "x" }), None);
 
@@ -163,12 +162,10 @@ fn store_as_unique_reference_id_first_starts_second_skips() {
         .expect("cmmn");
     let service = service_with_cmmn(Arc::clone(&process_engine), Arc::clone(&cmmn), false);
     deploy_event(&service, "uniqueStart", "chUnique");
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("uq").with_resource(
-            "case.cmmn",
-            start_case_model("uniqueCase", "uniqueStart", true),
-        ),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("uq").with_resource(
+        "case.cmmn",
+        start_case_model("uniqueCase", "uniqueStart", true),
+    ))
     .expect("deploy");
 
     let body = json!({ "orderId": "ORD-42", "customerId": "c1" });
@@ -202,12 +199,10 @@ fn tenant_override_on_started_case() {
         .expect("cmmn");
     let service = service_with_cmmn(Arc::clone(&process_engine), Arc::clone(&cmmn), true);
     deploy_event(&service, "tenantStart", "chTenant");
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("tn").with_resource(
-            "case.cmmn",
-            start_case_model("tenantCase", "tenantStart", false),
-        ),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("tn").with_resource(
+        "case.cmmn",
+        start_case_model("tenantCase", "tenantStart", false),
+    ))
     .expect("deploy");
 
     deliver(
@@ -241,12 +236,10 @@ fn same_key_tenant_and_tenantless_dedup_starts_once() {
     let service = service_with_cmmn(Arc::clone(&process_engine), Arc::clone(&cmmn), true);
     deploy_event(&service, "dedupStart", "chDedup");
 
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("global").with_resource(
-            "case.cmmn",
-            start_case_model("sharedKey", "dedupStart", false),
-        ),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("global").with_resource(
+        "case.cmmn",
+        start_case_model("sharedKey", "dedupStart", false),
+    ))
     .expect("deploy global");
     cmmn.deploy(
         CmmnDeploymentRequest::new("tenant")
@@ -258,12 +251,7 @@ fn same_key_tenant_and_tenantless_dedup_starts_once() {
     )
     .expect("deploy tenant");
 
-    deliver(
-        &service,
-        "chDedup",
-        json!({ "orderId": "d1" }),
-        Some("T1"),
-    );
+    deliver(&service, "chDedup", json!({ "orderId": "d1" }), Some("T1"));
 
     let instances = cmmn
         .runtime_service()

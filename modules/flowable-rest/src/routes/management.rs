@@ -944,9 +944,7 @@ async fn list_tables(
 ) -> Result<Json<Vec<TableResponse>>, ApiError> {
     let mut tables = table_names(&engine)?
         .into_iter()
-        .map(|name| {
-            count_table_rows(&engine, &name).map(|count| table_response(name, count))
-        })
+        .map(|name| count_table_rows(&engine, &name).map(|count| table_response(name, count)))
         .collect::<Result<Vec<_>, ApiError>>()?;
     tables.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(Json(tables))
@@ -994,7 +992,12 @@ async fn list_jobs(
     uri: Uri,
 ) -> Result<Json<PagedResponse<ManagementJobResponse>>, ApiError> {
     let query: ManagementListQuery = parse_query(&uri)?;
-    list_management_jobs(&engine, &query, JobFamily::Executable, executable_job_to_management_job)
+    list_management_jobs(
+        &engine,
+        &query,
+        JobFamily::Executable,
+        executable_job_to_management_job,
+    )
 }
 
 async fn get_job(
@@ -1087,7 +1090,12 @@ async fn list_timer_jobs(
     uri: Uri,
 ) -> Result<Json<PagedResponse<ManagementJobResponse>>, ApiError> {
     let query: ManagementListQuery = parse_query(&uri)?;
-    list_management_jobs(&engine, &query, JobFamily::Timer, timer_job_to_management_job)
+    list_management_jobs(
+        &engine,
+        &query,
+        JobFamily::Timer,
+        timer_job_to_management_job,
+    )
 }
 
 async fn get_timer_job(
@@ -1289,12 +1297,9 @@ async fn post_deadletter_job(
         }
         "moveToHistoryJob" | "move-to-history-job" | "moveToHistory" | "move-to-history" => {
             // Java JobResource: moveToHistoryJob uses asyncHistoryExecutorNumberOfRetries.
-            let retries = request.retries.unwrap_or_else(|| {
-                engine
-                    .get_config()
-                    .async_history
-                    .number_of_retries
-            });
+            let retries = request
+                .retries
+                .unwrap_or_else(|| engine.get_config().async_history.number_of_retries);
             engine
                 .get_management_service()
                 .move_deadletter_job_to_history_job(&job_id, retries)
@@ -1583,7 +1588,9 @@ fn jmx_runtime_ledger_response(
     ensure_runtime_ledger_enabled(&state.operations_support_contract)?;
 
     let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = runtime_store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let process_instance_count = runtime_store.snapshot_process_instances(&mut session).len();
     let execution_count = runtime_store.snapshot_executions(&mut session).len();
     let task_count = engine
@@ -1841,7 +1848,10 @@ fn directory_reconcile_response(
     let mut removed_memberships = 0;
 
     if apply {
-        let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let mut session = engine
+            .get_runtime_store()
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         match mode {
             DirectoryReconcileMode::LiveWins => {
                 for membership in &shadowed_memberships {

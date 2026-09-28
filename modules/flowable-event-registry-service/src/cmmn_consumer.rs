@@ -23,14 +23,14 @@
 use crate::models::{EventDefinition, EventInstanceDelivery};
 use crate::pipeline::InboundEventConsumer;
 use crate::tenant_fallback::{
-    dedup_definition_level_subscriptions_by_key, subscription_matches_event_tenant,
-    TenantFallbackPolicy,
+    TenantFallbackPolicy, dedup_definition_level_subscriptions_by_key,
+    subscription_matches_event_tenant,
 };
 use flowable_cmmn_engine::{
+    CmmnCaseInstanceStartRequest, CmmnEngine, CmmnError, CmmnEventSubscription,
+    REFERENCE_TYPE_EVENT_CASE, START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID,
     correlation_params_from_payload, generate_correlation_key, generate_event_correlation_keys,
-    matches_subscription_configuration, CmmnCaseInstanceStartRequest, CmmnEngine, CmmnError,
-    CmmnEventSubscription, REFERENCE_TYPE_EVENT_CASE,
-    START_EVENT_CORRELATION_STORE_AS_UNIQUE_REFERENCE_ID,
+    matches_subscription_configuration,
 };
 use flowable_engine::error::FlowableError;
 use std::collections::BTreeMap;
@@ -181,10 +181,9 @@ impl InboundEventConsumer for CmmnEventRegistryConsumer {
             // Apply payload → variables via out-params, then occur.
             // Java: transientVariable(EVENT_INSTANCE) + trigger()
             // (CmmnEventRegistryEventConsumer.java:128-129).
-            match runtime.occur_event_subscription_with_payload(
-                &subscription.id,
-                Some(&delivery.payload),
-            ) {
+            match runtime
+                .occur_event_subscription_with_payload(&subscription.id, Some(&delivery.payload))
+            {
                 Ok(()) => {}
                 // Already deleted / concurrent occur: treat as no-op (idempotent).
                 Err(CmmnError::NotFound { .. }) => {}
@@ -212,10 +211,9 @@ fn handle_definition_level_start(
     delivery: &EventInstanceDelivery,
     correlation_params: &BTreeMap<String, Option<String>>,
 ) -> Result<(), FlowableError> {
-    let case_definition_id = subscription
-        .case_definition_id
-        .as_deref()
-        .ok_or_else(|| FlowableError::Internal("definition-level sub missing case_definition_id".into()))?;
+    let case_definition_id = subscription.case_definition_id.as_deref().ok_or_else(|| {
+        FlowableError::Internal("definition-level sub missing case_definition_id".into())
+    })?;
 
     let case_definition = cmmn_engine
         .repository_service()

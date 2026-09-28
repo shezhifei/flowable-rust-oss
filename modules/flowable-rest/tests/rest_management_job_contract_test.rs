@@ -60,7 +60,8 @@ fn build_engine(test_name: &str) -> Arc<ProcessEngine> {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     engine
 }

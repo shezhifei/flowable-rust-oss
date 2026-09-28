@@ -817,8 +817,8 @@ pub async fn get_form_instance_values(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(form_instance_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let bytes =
-        FlowableFormService::new(Arc::clone(&engine))?.get_form_instance_values(&form_instance_id)?;
+    let bytes = FlowableFormService::new(Arc::clone(&engine))?
+        .get_form_instance_values(&form_instance_id)?;
     Ok((
         StatusCode::OK,
         [(header::CONTENT_TYPE, "application/json")],

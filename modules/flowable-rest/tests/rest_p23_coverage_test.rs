@@ -70,7 +70,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -793,8 +794,9 @@ async fn historic_process_instance_query_runtime_join_parameters() {
     // involvedUser matches historic process-instance identity links
     // (Java HistoricProcessInstance.xml → ACT_HI_IDENTITYLINK; P77).
     // Use IdentityLinkService so the AUDIT historic mirror is written.
-    engine.get_identity_link_service().add_identity_link(
-        flowable_engine::identity::entities::IdentityLink {
+    engine
+        .get_identity_link_service()
+        .add_identity_link(flowable_engine::identity::entities::IdentityLink {
             id: "p23-involved-link".to_string(),
             link_type: "participant".to_string(),
             user_id: Some("kermit".to_string()),
@@ -802,8 +804,8 @@ async fn historic_process_instance_query_runtime_join_parameters() {
             task_id: None,
             process_instance_id: Some(parent_pi.clone()),
             process_definition_id: None,
-        },
-    ).unwrap();
+        })
+        .unwrap();
     let (_, body) = post_query(&client, &base_url, path, json!({"involvedUser": "kermit"})).await;
     assert_eq!(returned_ids(&body), vec![parent_pi.clone()]);
 

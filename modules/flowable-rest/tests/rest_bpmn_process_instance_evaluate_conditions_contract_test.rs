@@ -12,9 +12,7 @@ use tokio::net::TcpListener;
 
 #[tokio::test]
 async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-evaluate-conditions".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("rest-bpmn-evaluate-conditions".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -25,7 +23,8 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -100,8 +99,7 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
         evaluate_without_variables_response.json().await.unwrap();
     // 5xx details are generic (no internal exception text echo).
     assert_eq!(
-        evaluate_without_variables_body["details"],
-        "Internal server error",
+        evaluate_without_variables_body["details"], "Internal server error",
         "unexpected null-condition error body: {evaluate_without_variables_body}"
     );
 
@@ -212,8 +210,7 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
     let non_boolean_body: Value = non_boolean_response.json().await.unwrap();
     // 5xx details are generic (no non-Boolean condition text echo).
     assert_eq!(
-        non_boolean_body["details"],
-        "Internal server error",
+        non_boolean_body["details"], "Internal server error",
         "unexpected non-Boolean error body: {non_boolean_body}"
     );
     assert_eq!(
@@ -251,8 +248,7 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
     let suspended_body: Value = suspended_response.json().await.unwrap();
     // 5xx details are generic (no suspended-execution message echo).
     assert_eq!(
-        suspended_body["details"],
-        "Internal server error",
+        suspended_body["details"], "Internal server error",
         "unexpected suspended error body: {suspended_body}"
     );
 

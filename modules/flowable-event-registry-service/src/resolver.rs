@@ -11,13 +11,13 @@
 //! (Java `AbstractEngineConfiguration.java:324` / `GetEventModelCmd.java:82-90` /
 //! `GetChannelModelCmd.java:82-90`).
 
+use crate::FlowableEventRegistryService;
 use crate::models::{ChannelDefinition, EventDefinition};
 use crate::query::{
     latest_channel_definition_matching_tenant, latest_event_definition_for_tenant_with_policy,
     latest_event_definition_matching_tenant,
 };
 use crate::tenant_fallback::resolve_definition_with_fallback;
-use crate::FlowableEventRegistryService;
 use flowable_engine::error::FlowableError;
 use flowable_engine::persistence::db_session::DbSession;
 
@@ -59,7 +59,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .register_channel(definition.clone());
         }
         Ok(loaded)
@@ -85,7 +85,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .register_event(definition.clone());
         }
         Ok(loaded)
@@ -103,7 +103,10 @@ impl FlowableEventRegistryService {
         let policy = self.configuration.tenant_fallback_policy();
 
         {
-            let cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let cache = self
+                .definition_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let hit = resolve_definition_with_fallback(tenant_id, &policy, |lookup_tenant| {
                 cache.latest_channel(key, lookup_tenant).cloned()
             });
@@ -128,7 +131,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .register_channel(definition.clone());
         }
         Ok(loaded)
@@ -146,7 +149,10 @@ impl FlowableEventRegistryService {
         let policy = self.configuration.tenant_fallback_policy();
 
         {
-            let cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let cache = self
+                .definition_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let hit = resolve_definition_with_fallback(tenant_id, &policy, |lookup_tenant| {
                 cache.latest_event(key, lookup_tenant).cloned()
             });
@@ -169,7 +175,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .register_event(definition.clone());
         }
         Ok(loaded)
@@ -201,7 +207,10 @@ impl FlowableEventRegistryService {
         self.reconcile_before_resolve()?;
         let policy = self.configuration.tenant_fallback_policy();
         {
-            let cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let cache = self
+                .definition_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let hit = resolve_definition_with_fallback(tenant_id, &policy, |lookup_tenant| {
                 cache
                     .latest_event(event_key, lookup_tenant)
@@ -229,9 +238,7 @@ impl FlowableEventRegistryService {
         }
 
         let resolved = latest_event_definition_for_tenant_with_policy(
-            candidates,
-            tenant_id,
-            &policy,
+            candidates, tenant_id, &policy,
         )
         .ok_or_else(|| {
             FlowableError::NotFound(format!(

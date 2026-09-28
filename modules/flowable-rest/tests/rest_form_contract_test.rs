@@ -85,19 +85,25 @@ impl forms::FormRepositoryApi for MockFormRepository {
                 let definitions = self.definitions.lock().unwrap_or_else(|e| e.into_inner());
                 format!("form-{}", definitions.len() + 1)
             };
-            self.definitions.lock().unwrap_or_else(|e| e.into_inner()).push(FormDefinitionRecord {
-                id: form_id,
-                key: resource.resource_name.trim_end_matches(".form").to_string(),
-                name: resource.resource_name.trim_end_matches(".form").to_string(),
-                version: 1,
-                deployment_id: deployment.id.clone(),
-                resource_name: resource.resource_name.clone(),
-                tenant_id: None,
-                active: Some(true),
-            });
+            self.definitions
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(FormDefinitionRecord {
+                    id: form_id,
+                    key: resource.resource_name.trim_end_matches(".form").to_string(),
+                    name: resource.resource_name.trim_end_matches(".form").to_string(),
+                    version: 1,
+                    deployment_id: deployment.id.clone(),
+                    resource_name: resource.resource_name.clone(),
+                    tenant_id: None,
+                    active: Some(true),
+                });
         }
 
-        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
+        self.deployments
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(deployment.clone());
         Ok(deployment)
     }
 

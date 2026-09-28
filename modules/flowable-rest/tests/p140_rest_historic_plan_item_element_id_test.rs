@@ -50,7 +50,8 @@ async fn spawn_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -118,7 +119,11 @@ async fn start_case(client: &reqwest::Client, base_url: &str, case_definition_ke
         .to_string()
 }
 
-async fn active_task_id(client: &reqwest::Client, base_url: &str, case_instance_id: &str) -> String {
+async fn active_task_id(
+    client: &reqwest::Client,
+    base_url: &str,
+    case_instance_id: &str,
+) -> String {
     let body = get_ok(
         client,
         base_url,
@@ -151,9 +156,7 @@ fn historic_human_task_row(data: &[Value], element_id: &str) -> Value {
         })
         .cloned()
         .unwrap_or_else(|| {
-            panic!(
-                "expected historic humantask with elementId={element_id}, got: {data:?}"
-            )
+            panic!("expected historic humantask with elementId={element_id}, got: {data:?}")
         })
 }
 

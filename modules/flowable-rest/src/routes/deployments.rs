@@ -306,7 +306,11 @@ fn is_multipart(request: &Request) -> bool {
         .headers()
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_ascii_lowercase().starts_with("multipart/form-data"))
+        .map(|value| {
+            value
+                .to_ascii_lowercase()
+                .starts_with("multipart/form-data")
+        })
         .unwrap_or(false)
 }
 
@@ -423,8 +427,8 @@ async fn parse_upload_deployment_form(
             MAX_MULTIPART_REQUEST_BYTES,
         )
         .await?;
-        let text = String::from_utf8(text_bytes)
-            .map_err(|err| ApiError::bad_request(err.to_string()))?;
+        let text =
+            String::from_utf8(text_bytes).map_err(|err| ApiError::bad_request(err.to_string()))?;
         if field_name.eq_ignore_ascii_case("tenantId") {
             form.tenant_id = Some(text);
         }
@@ -501,7 +505,11 @@ fn deployment_builder_from_upload(
 
     // Java: `deploymentKey` applies when present and non-empty
     // (DeploymentCollectionResource.java:225-227).
-    if let Some(key) = query.deployment_key.as_deref().filter(|key| !key.is_empty()) {
+    if let Some(key) = query
+        .deployment_key
+        .as_deref()
+        .filter(|key| !key.is_empty())
+    {
         builder = builder.key(key.to_string());
     }
 
@@ -521,8 +529,9 @@ fn add_zip_entries(
     bytes: &[u8],
 ) -> Result<DeploymentBuilder, ApiError> {
     let cursor = std::io::Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor)
-        .map_err(|error| ApiError::bad_request(format!("problem reading zip input stream: {error}")))?;
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|error| {
+        ApiError::bad_request(format!("problem reading zip input stream: {error}"))
+    })?;
     let mut builder = builder;
     let mut entry_count = 0usize;
     let mut total_uncompressed = 0usize;
@@ -625,10 +634,7 @@ mod tests {
 
     #[test]
     fn p142c_zip_within_limits_ok() {
-        let bytes = zip_bytes(&[(
-            "process.bpmn20.xml".to_string(),
-            b"<definitions/>".to_vec(),
-        )]);
+        let bytes = zip_bytes(&[("process.bpmn20.xml".to_string(), b"<definitions/>".to_vec())]);
         match add_zip_entries(DeploymentBuilder::new(), &bytes) {
             Ok(_) => {}
             Err(err) => panic!("small zip must succeed, got {err:?}"),

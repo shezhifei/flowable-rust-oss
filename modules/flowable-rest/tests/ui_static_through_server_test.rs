@@ -42,7 +42,8 @@ async fn spawn(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -86,11 +87,7 @@ async fn task_bundle_assets_are_served_from_the_root() {
 async fn idm_bundle_is_served_under_its_prefix() {
     let (base_url, client) = spawn("static_server_idm_prefix").await;
 
-    let response = client
-        .get(format!("{base_url}/idm/"))
-        .send()
-        .await
-        .unwrap();
+    let response = client.get(format!("{base_url}/idm/")).send().await.unwrap();
 
     assert_eq!(response.status(), 200);
     assert!(
@@ -142,11 +139,7 @@ async fn the_root_requires_authentication_but_the_login_app_does_not() {
     let response = client.get(format!("{base_url}/")).send().await.unwrap();
     assert_eq!(response.status(), 401, "the root must require a session");
 
-    let response = client
-        .get(format!("{base_url}/idm/"))
-        .send()
-        .await
-        .unwrap();
+    let response = client.get(format!("{base_url}/idm/")).send().await.unwrap();
     assert_eq!(
         response.status(),
         200,

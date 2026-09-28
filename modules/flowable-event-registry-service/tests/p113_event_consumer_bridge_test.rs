@@ -17,15 +17,15 @@
 //! - No match → silent discard (empty processing info, not an error)
 
 use flowable_cmmn_engine::{
-    generate_correlation_key, CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel,
-    CmmnDeploymentRequest, CmmnEngine, CmmnEventCorrelationParameter, CmmnEventListener,
-    CmmnEventOutParameter, CmmnHumanTask, CmmnHumanTaskState, CmmnModel, CmmnPlanItem,
-    CmmnPlanItemOnPart, CmmnSentry,
+    CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
+    CmmnEventCorrelationParameter, CmmnEventListener, CmmnEventOutParameter, CmmnHumanTask,
+    CmmnHumanTaskState, CmmnModel, CmmnPlanItem, CmmnPlanItemOnPart, CmmnSentry,
+    generate_correlation_key,
 };
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_event_registry_service::{
-    EventInstanceStatus, EventRegistryDeploymentRequest, EventRegistryDeploymentResource,
-    FlowableEventRegistryService, InboundRawEvent, CMMN_EVENT_CONSUMER_KEY,
+    CMMN_EVENT_CONSUMER_KEY, EventInstanceStatus, EventRegistryDeploymentRequest,
+    EventRegistryDeploymentResource, FlowableEventRegistryService, InboundRawEvent,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -129,17 +129,16 @@ fn no_correlation_case_model(case_key: &str, event_key: &str) -> CmmnModel {
         CmmnCasePlanModel::new("case-plan-model", "Case plan model")
             .with_human_task(CmmnHumanTask::new("task-a", "A"))
             .with_plan_item(CmmnPlanItem::new("plan-item-a", "task-a"))
-            .with_event_listener(CmmnEventListener::new("event-listener", event_key).with_name(
-                "myEventListener",
-            ))
+            .with_event_listener(
+                CmmnEventListener::new("event-listener", event_key).with_name("myEventListener"),
+            )
             .with_plan_item(CmmnPlanItem::new(
                 "plan-item-event-listener",
                 "event-listener",
             ))
             .with_human_task(CmmnHumanTask::new("task-b", "B"))
             .with_plan_item(
-                CmmnPlanItem::new("plan-item-b", "task-b")
-                    .with_entry_criterion("sentry-on-event"),
+                CmmnPlanItem::new("plan-item-b", "task-b").with_entry_criterion("sentry-on-event"),
             )
             .with_sentry(CmmnSentry::new(
                 "sentry-on-event",
@@ -176,8 +175,7 @@ fn correlation_case_model(case_key: &str, event_key: &str) -> CmmnModel {
             ))
             .with_human_task(CmmnHumanTask::new("task-b", "B"))
             .with_plan_item(
-                CmmnPlanItem::new("plan-item-b", "task-b")
-                    .with_entry_criterion("sentry-on-event"),
+                CmmnPlanItem::new("plan-item-b", "task-b").with_entry_criterion("sentry-on-event"),
             )
             .with_sentry(CmmnSentry::new(
                 "sentry-on-event",
@@ -238,8 +236,10 @@ fn inbound_event_hits_subscription_and_triggers_sentry_task() {
         .cmmn_engine
         .clone()
         .expect("ProcessEngine default wires a CmmnEngine");
-    let service =
-        FlowableEventRegistryService::with_cmmn_consumer(Arc::clone(&process_engine), Arc::clone(&cmmn));
+    let service = FlowableEventRegistryService::with_cmmn_consumer(
+        Arc::clone(&process_engine),
+        Arc::clone(&cmmn),
+    );
 
     assert!(
         service
@@ -299,8 +299,10 @@ fn correlation_match_triggers_only_matching_case() {
         .cmmn_engine
         .clone()
         .expect("cmmn");
-    let service =
-        FlowableEventRegistryService::with_cmmn_consumer(Arc::clone(&process_engine), Arc::clone(&cmmn));
+    let service = FlowableEventRegistryService::with_cmmn_consumer(
+        Arc::clone(&process_engine),
+        Arc::clone(&cmmn),
+    );
 
     deploy_event_and_channel(
         &service,
@@ -309,12 +311,10 @@ fn correlation_match_triggers_only_matching_case() {
         &[("customerId", "string")],
     );
 
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("p113-corr").with_resource(
-            "case.cmmn",
-            correlation_case_model("singleCorrelationCase", "myEvent"),
-        ),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("p113-corr").with_resource(
+        "case.cmmn",
+        correlation_case_model("singleCorrelationCase", "myEvent"),
+    ))
     .expect("deploy");
 
     let kermit = cmmn
@@ -328,8 +328,7 @@ fn correlation_match_triggers_only_matching_case() {
     let gonzo = cmmn
         .start_case_instance_by_key(
             "singleCorrelationCase",
-            CmmnCaseInstanceStartRequest::new()
-                .with_variables(json!({ "customerIdVar": "gonzo" })),
+            CmmnCaseInstanceStartRequest::new().with_variables(json!({ "customerIdVar": "gonzo" })),
         )
         .expect("gonzo")
         .id;
@@ -392,8 +391,10 @@ fn no_subscription_is_silently_discarded() {
         .cmmn_engine
         .clone()
         .expect("cmmn");
-    let service =
-        FlowableEventRegistryService::with_cmmn_consumer(Arc::clone(&process_engine), Arc::clone(&cmmn));
+    let service = FlowableEventRegistryService::with_cmmn_consumer(
+        Arc::clone(&process_engine),
+        Arc::clone(&cmmn),
+    );
 
     deploy_event_and_channel(
         &service,
@@ -419,8 +420,10 @@ fn payload_maps_to_case_variables_via_out_parameters() {
         .cmmn_engine
         .clone()
         .expect("cmmn");
-    let service =
-        FlowableEventRegistryService::with_cmmn_consumer(Arc::clone(&process_engine), Arc::clone(&cmmn));
+    let service = FlowableEventRegistryService::with_cmmn_consumer(
+        Arc::clone(&process_engine),
+        Arc::clone(&cmmn),
+    );
 
     deploy_event_and_channel(
         &service,
@@ -429,12 +432,10 @@ fn payload_maps_to_case_variables_via_out_parameters() {
         &[("customerId", "string"), ("payload1", "string")],
     );
 
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("p113-payload").with_resource(
-            "case.cmmn",
-            payload_case_model("payloadCase", "payloadEvent"),
-        ),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("p113-payload").with_resource(
+        "case.cmmn",
+        payload_case_model("payloadCase", "payloadEvent"),
+    ))
     .expect("deploy");
 
     let case_id = cmmn
@@ -488,8 +489,10 @@ fn multi_subscription_hit_triggers_all_broadcast_cases() {
         .cmmn_engine
         .clone()
         .expect("cmmn");
-    let service =
-        FlowableEventRegistryService::with_cmmn_consumer(Arc::clone(&process_engine), Arc::clone(&cmmn));
+    let service = FlowableEventRegistryService::with_cmmn_consumer(
+        Arc::clone(&process_engine),
+        Arc::clone(&cmmn),
+    );
 
     deploy_event_and_channel(
         &service,
@@ -498,10 +501,10 @@ fn multi_subscription_hit_triggers_all_broadcast_cases() {
         &[("note", "string")],
     );
 
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("p113-multi")
-            .with_resource("case.cmmn", no_correlation_case_model("broadcastCase", "broadcastEvent")),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("p113-multi").with_resource(
+        "case.cmmn",
+        no_correlation_case_model("broadcastCase", "broadcastEvent"),
+    ))
     .expect("deploy");
 
     let case_a = cmmn
@@ -533,8 +536,10 @@ fn second_delivery_is_idempotent_after_subscription_consumed() {
         .cmmn_engine
         .clone()
         .expect("cmmn");
-    let service =
-        FlowableEventRegistryService::with_cmmn_consumer(Arc::clone(&process_engine), Arc::clone(&cmmn));
+    let service = FlowableEventRegistryService::with_cmmn_consumer(
+        Arc::clone(&process_engine),
+        Arc::clone(&cmmn),
+    );
 
     deploy_event_and_channel(
         &service,
@@ -543,10 +548,10 @@ fn second_delivery_is_idempotent_after_subscription_consumed() {
         &[("id", "string")],
     );
 
-    cmmn.deploy(
-        CmmnDeploymentRequest::new("p113-idem")
-            .with_resource("case.cmmn", no_correlation_case_model("onceCase", "onceEvent")),
-    )
+    cmmn.deploy(CmmnDeploymentRequest::new("p113-idem").with_resource(
+        "case.cmmn",
+        no_correlation_case_model("onceCase", "onceEvent"),
+    ))
     .expect("deploy");
 
     let case_id = cmmn
@@ -573,7 +578,10 @@ fn default_service_still_uses_noop_not_cmmn_consumer() {
         "default consumer remains registered"
     );
     assert!(
-        service.configuration().consumer(CMMN_EVENT_CONSUMER_KEY).is_none(),
+        service
+            .configuration()
+            .consumer(CMMN_EVENT_CONSUMER_KEY)
+            .is_none(),
         "cmmnEventConsumer is opt-in via with_cmmn_consumer"
     );
 }

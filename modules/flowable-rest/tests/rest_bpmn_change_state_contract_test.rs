@@ -21,7 +21,8 @@ async fn start_server(name: &str) -> (Arc<ProcessEngine>, String) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1037,7 +1038,11 @@ async fn process_instance_change_state_enable_event_subprocess_start_event() {
         &process_instance_id,
         &mut session,
     );
-    assert_eq!(subs.len(), 1, "exactly one subscription after enable: {subs:?}");
+    assert_eq!(
+        subs.len(),
+        1,
+        "exactly one subscription after enable: {subs:?}"
+    );
     assert_eq!(subs[0].start_event_id, "messageEventSubProcessStart");
     assert_eq!(subs[0].event_ref, "myMessage");
 }

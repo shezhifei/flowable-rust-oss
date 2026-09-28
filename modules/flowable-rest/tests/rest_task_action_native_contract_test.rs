@@ -65,9 +65,9 @@ static ENGINE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine_id = ENGINE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let engine = Arc::new(ProcessEngine::new(format!(
-        "rest-task-action-native-contract-{engine_id}"
-    )).unwrap());
+    let engine = Arc::new(
+        ProcessEngine::new(format!("rest-task-action-native-contract-{engine_id}")).unwrap(),
+    );
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -77,7 +77,8 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -829,7 +830,8 @@ async fn task_action_complete_with_form_definition_persists_instance_and_outcome
     );
 
     // Outcome variable written to process
-    let form_service = flowable_form_service::FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let form_service =
+        flowable_form_service::FlowableFormService::new(Arc::clone(&engine)).unwrap();
     let stored = form_service
         .create_form_instance_query()
         .task_id(task_id.clone())
@@ -959,7 +961,8 @@ async fn task_action_complete_with_form_unsupported_field_is_bad_request_and_rol
     let remaining_tasks = tasks_for_process(&client, &base_url, process_instance_id).await;
     assert_eq!(remaining_tasks["total"], 1);
 
-    let form_service = flowable_form_service::FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let form_service =
+        flowable_form_service::FlowableFormService::new(Arc::clone(&engine)).unwrap();
     assert!(
         form_service
             .create_form_instance_query()

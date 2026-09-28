@@ -41,14 +41,17 @@ const TASK_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 async fn spawn_server() -> (String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new("rest-cmmn-task-local-vars".to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -172,7 +175,9 @@ async fn cmmn_task_local_variables_crud() {
 
     // GET single local variable.
     let get_one = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables/alpha?scope=local"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables/alpha?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -182,7 +187,9 @@ async fn cmmn_task_local_variables_crud() {
 
     // PUT local → 200 (TaskVariableBaseResource.java:241-242 setVariableLocal).
     let update = client
-        .put(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables/alpha?scope=local"))
+        .put(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables/alpha?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .json(&json!({ "name": "alpha", "value": 42 }))
         .send()
@@ -193,7 +200,9 @@ async fn cmmn_task_local_variables_crud() {
 
     // PUT a missing local variable → 404 (TaskVariableBaseResource.java:229-231).
     let update_missing = client
-        .put(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables/ghost?scope=local"))
+        .put(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables/ghost?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .json(&json!({ "name": "ghost", "value": 1 }))
         .send()
@@ -203,14 +212,18 @@ async fn cmmn_task_local_variables_crud() {
 
     // DELETE single local → 204; then GET → 404 (TaskVariableResource.java:152-161).
     let delete_one = client
-        .delete(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables/beta?scope=local"))
+        .delete(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables/beta?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
         .unwrap();
     assert_eq!(delete_one.status().as_u16(), 204);
     let get_deleted = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables/beta?scope=local"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables/beta?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -237,7 +250,9 @@ async fn cmmn_task_local_variable_shadows_case_variable_on_unspecified_scope() {
 
     // A case (GLOBAL) variable under the same name.
     let set_case = client
-        .post(format!("{base_url}/cmmn-runtime/case-instances/{case_id}/variables"))
+        .post(format!(
+            "{base_url}/cmmn-runtime/case-instances/{case_id}/variables"
+        ))
         .basic_auth("admin", Some("test"))
         .json(&json!([{ "name": "shared", "value": "case", "scope": "global" }]))
         .send()
@@ -271,11 +286,17 @@ async fn cmmn_task_local_variable_shadows_case_variable_on_unspecified_scope() {
         .iter()
         .find(|variable| variable["name"] == "shared")
         .expect("shared present in merged list");
-    assert_eq!(shared["value"], json!("local"), "local shadows case on merged GET");
+    assert_eq!(
+        shared["value"],
+        json!("local"),
+        "local shadows case on merged GET"
+    );
 
     // GET single with no scope → local first (TaskVariableBaseResource.java:73-87).
     let single: Value = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables/shared"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables/shared"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -291,7 +312,9 @@ async fn cmmn_task_local_variable_shadows_case_variable_on_unspecified_scope() {
         vec!["shared"]
     );
     let globals: Value = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables?scope=global"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_id}/variables?scope=global"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -305,11 +328,17 @@ async fn cmmn_task_local_variable_shadows_case_variable_on_unspecified_scope() {
         .iter()
         .find(|variable| variable["name"] == "shared")
         .expect("shared in global list");
-    assert_eq!(global_shared["value"], json!("case"), "case value untouched");
+    assert_eq!(
+        global_shared["value"],
+        json!("case"),
+        "case value untouched"
+    );
 
     // The case variable is not overwritten by the local write.
     let case_vars: Value = client
-        .get(format!("{base_url}/cmmn-runtime/case-instances/{case_id}/variables"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/case-instances/{case_id}/variables"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -382,7 +411,9 @@ async fn cmmn_task_local_variables_are_isolated_between_tasks() {
     assert_eq!(create_b.status().as_u16(), 201);
 
     let a: Value = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_a}/variables/shared?scope=local"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_a}/variables/shared?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -391,7 +422,9 @@ async fn cmmn_task_local_variables_are_isolated_between_tasks() {
         .await
         .unwrap();
     let b: Value = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_b}/variables/shared?scope=local"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_b}/variables/shared?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -404,14 +437,18 @@ async fn cmmn_task_local_variables_are_isolated_between_tasks() {
 
     // Deleting from task A leaves task B untouched.
     let delete_a = client
-        .delete(format!("{base_url}/cmmn-runtime/tasks/{task_a}/variables/shared?scope=local"))
+        .delete(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_a}/variables/shared?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
         .unwrap();
     assert_eq!(delete_a.status().as_u16(), 204);
     let get_b: Value = client
-        .get(format!("{base_url}/cmmn-runtime/tasks/{task_b}/variables/shared?scope=local"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks/{task_b}/variables/shared?scope=local"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await

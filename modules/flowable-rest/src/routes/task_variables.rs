@@ -376,11 +376,14 @@ async fn update_task_variable(
                 "Variable name in the body should be equal to the name used in the requested URL.",
             ));
         }
-        (value, resolve_write_scope(form_scope.as_deref(), query_scope)?)
+        (
+            value,
+            resolve_write_scope(form_scope.as_deref(), query_scope)?,
+        )
     } else {
         let body = request_body_string(request).await?;
-        let request: VariableRequest = serde_json::from_str(&body)
-            .map_err(|err| ApiError::BadRequest(err.to_string()))?;
+        let request: VariableRequest =
+            serde_json::from_str(&body).map_err(|err| ApiError::BadRequest(err.to_string()))?;
         if let Some(name) = request.name.as_deref()
             && name != variable_name
         {
@@ -410,9 +413,11 @@ async fn delete_task_variable(
 ) -> Result<StatusCode, ApiError> {
     let task = super::tasks::load_task(&engine, &id)?;
     let scope = requested_variable_scope(&uri)?.unwrap_or(TaskVariableScope::Local);
-    engine
-        .get_task_service()
-        .remove_task_variable_on_scope(task.id.clone(), scope, variable_name)?;
+    engine.get_task_service().remove_task_variable_on_scope(
+        task.id.clone(),
+        scope,
+        variable_name,
+    )?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -493,7 +498,11 @@ fn is_multipart(request: &Request) -> bool {
         .headers()
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_ascii_lowercase().starts_with("multipart/form-data"))
+        .map(|value| {
+            value
+                .to_ascii_lowercase()
+                .starts_with("multipart/form-data")
+        })
         .unwrap_or(false)
 }
 
@@ -591,8 +600,8 @@ async fn parse_binary_variable_form(
             MAX_MULTIPART_REQUEST_BYTES,
         )
         .await?;
-        let text = String::from_utf8(text_bytes)
-            .map_err(|err| ApiError::bad_request(err.to_string()))?;
+        let text =
+            String::from_utf8(text_bytes).map_err(|err| ApiError::bad_request(err.to_string()))?;
         if field_name.eq_ignore_ascii_case("scope") {
             form.scope = Some(text);
         } else if field_name.eq_ignore_ascii_case("name") {
@@ -611,12 +620,12 @@ async fn parse_binary_variable_form(
 fn binary_variable_from_form(
     form: BinaryVariableForm,
 ) -> Result<(String, Value, Option<String>), ApiError> {
-    let bytes = form.file_bytes.ok_or_else(|| {
-        ApiError::bad_request("No file content was found in request body.")
-    })?;
-    let name = form.name.ok_or_else(|| {
-        ApiError::bad_request("No variable name was found in request body.")
-    })?;
+    let bytes = form
+        .file_bytes
+        .ok_or_else(|| ApiError::bad_request("No file content was found in request body."))?;
+    let name = form
+        .name
+        .ok_or_else(|| ApiError::bad_request("No variable name was found in request body."))?;
     let variable_type = match form.variable_type.as_deref() {
         // Java: an omitted type defaults to binary.
         None => "binary",

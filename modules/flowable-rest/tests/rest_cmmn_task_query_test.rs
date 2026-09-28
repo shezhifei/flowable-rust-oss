@@ -43,14 +43,17 @@ const TASK_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 async fn spawn_server() -> (String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new("rest-cmmn-task-query".to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -61,10 +64,7 @@ async fn spawn_server() -> (String, reqwest::Client) {
     (base_url, reqwest::Client::new())
 }
 
-async fn deploy_and_start_case(
-    base_url: &str,
-    client: &reqwest::Client,
-) -> (String, String) {
+async fn deploy_and_start_case(base_url: &str, client: &reqwest::Client) -> (String, String) {
     let deploy_response = client
         .post(format!("{base_url}/cmmn-repository/deployments"))
         .basic_auth("admin", Some("test"))
@@ -147,7 +147,9 @@ async fn cmmn_task_query_filters_by_name_and_assignee() {
         vec!["Alpha review"]
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?nameLike=%review").await.len(),
+        get_task_names(&base_url, &client, "?nameLike=%review")
+            .await
+            .len(),
         2
     );
 
@@ -164,7 +166,9 @@ async fn cmmn_task_query_filters_by_name_and_assignee() {
         vec!["Beta review"]
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?ownerLike=%er%").await.len(),
+        get_task_names(&base_url, &client, "?ownerLike=%er%")
+            .await
+            .len(),
         2
     );
 
@@ -177,7 +181,9 @@ async fn cmmn_task_query_filters_by_name_and_assignee() {
 
     // scopeId maps to the case instance id.
     assert_eq!(
-        get_task_names(&base_url, &client, &format!("?scopeId={case_id}")).await.len(),
+        get_task_names(&base_url, &client, &format!("?scopeId={case_id}"))
+            .await
+            .len(),
         3
     );
 }
@@ -192,11 +198,15 @@ async fn cmmn_task_query_filters_by_category() {
         vec!["Alpha review"]
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?categoryIn=work,personal").await.len(),
+        get_task_names(&base_url, &client, "?categoryIn=work,personal")
+            .await
+            .len(),
         2
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?categoryNotIn=personal").await.len(),
+        get_task_names(&base_url, &client, "?categoryNotIn=personal")
+            .await
+            .len(),
         2,
         "work + no-category survive"
     );
@@ -216,13 +226,17 @@ async fn cmmn_task_query_filters_by_task_definition_key_and_case_definition() {
         vec!["Beta review"]
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?taskDefinitionKeyLike=reviewTask%").await.len(),
+        get_task_names(&base_url, &client, "?taskDefinitionKeyLike=reviewTask%")
+            .await
+            .len(),
         3
     );
 
     // caseDefinitionId requires the deployed definition id — fetch it first.
     let defs_response = client
-        .get(format!("{base_url}/cmmn-repository/case-definitions?key=taskQueryCase"))
+        .get(format!(
+            "{base_url}/cmmn-repository/case-definitions?key=taskQueryCase"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -241,11 +255,15 @@ async fn cmmn_task_query_filters_by_task_definition_key_and_case_definition() {
         3
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?caseDefinitionKey=taskQueryCase").await.len(),
+        get_task_names(&base_url, &client, "?caseDefinitionKey=taskQueryCase")
+            .await
+            .len(),
         3
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?caseDefinitionKeyLike=taskQuery%").await.len(),
+        get_task_names(&base_url, &client, "?caseDefinitionKeyLike=taskQuery%")
+            .await
+            .len(),
         3
     );
     assert_eq!(
@@ -326,17 +344,23 @@ async fn cmmn_task_query_filters_by_created_time() {
 
     // createdBefore a far-future instant returns all three tasks.
     assert_eq!(
-        get_task_names(&base_url, &client, "?createdBefore=2099-01-01T00:00:00Z").await.len(),
+        get_task_names(&base_url, &client, "?createdBefore=2099-01-01T00:00:00Z")
+            .await
+            .len(),
         3
     );
     // createdAfter a far-past instant returns all three tasks.
     assert_eq!(
-        get_task_names(&base_url, &client, "?createdAfter=2000-01-01T00:00:00Z").await.len(),
+        get_task_names(&base_url, &client, "?createdAfter=2000-01-01T00:00:00Z")
+            .await
+            .len(),
         3
     );
     // createdOn a far-future instant returns none.
     assert_eq!(
-        get_task_names(&base_url, &client, "?createdOn=2099-01-01T00:00:00Z").await.len(),
+        get_task_names(&base_url, &client, "?createdOn=2099-01-01T00:00:00Z")
+            .await
+            .len(),
         0
     );
 }
@@ -348,11 +372,15 @@ async fn cmmn_task_query_filters_by_active_and_delegation_state() {
 
     // active=true → all (Rust never suspends); active=false (suspended) → none.
     assert_eq!(
-        get_task_names(&base_url, &client, "?active=true").await.len(),
+        get_task_names(&base_url, &client, "?active=true")
+            .await
+            .len(),
         3
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?active=false").await.len(),
+        get_task_names(&base_url, &client, "?active=false")
+            .await
+            .len(),
         0
     );
 
@@ -377,13 +405,17 @@ async fn cmmn_task_query_filters_by_active_and_delegation_state() {
         vec!["Alpha review"]
     );
     assert_eq!(
-        get_task_names(&base_url, &client, "?delegationState=resolved").await.len(),
+        get_task_names(&base_url, &client, "?delegationState=resolved")
+            .await
+            .len(),
         0
     );
 
     // Invalid delegationState → 400 (TaskBaseResource.java:82-83).
     let response = client
-        .get(format!("{base_url}/cmmn-runtime/tasks?delegationState=banana"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks?delegationState=banana"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -398,7 +430,9 @@ async fn cmmn_task_query_include_process_variables() {
 
     // Seed a case variable.
     client
-        .put(format!("{base_url}/cmmn-runtime/case-instances/{case_id}/variables"))
+        .put(format!(
+            "{base_url}/cmmn-runtime/case-instances/{case_id}/variables"
+        ))
         .basic_auth("admin", Some("test"))
         .json(&json!([{ "name": "requester", "value": "alice" }]))
         .send()
@@ -424,9 +458,7 @@ async fn cmmn_task_query_include_process_variables() {
 
     // Without the include flag the variables array is absent/empty.
     let response = client
-        .get(format!(
-            "{base_url}/cmmn-runtime/tasks?name=Alpha%"
-        ))
+        .get(format!("{base_url}/cmmn-runtime/tasks?name=Alpha%"))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -453,7 +485,9 @@ async fn cmmn_task_query_sort_and_order() {
     // Sort by priority ascending — Rust stores the task priority as an optional
     // string, so a task with no priority (None) sorts before any set priority.
     let response = client
-        .get(format!("{base_url}/cmmn-runtime/tasks?sort=priority&order=asc"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks?sort=priority&order=asc"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -465,7 +499,10 @@ async fn cmmn_task_query_sort_and_order() {
         .iter()
         .map(|task| task["name"].as_str().unwrap().to_string())
         .collect::<Vec<_>>();
-    assert_eq!(sorted, vec!["Gamma deep dive", "Alpha review", "Beta review"]);
+    assert_eq!(
+        sorted,
+        vec!["Gamma deep dive", "Alpha review", "Beta review"]
+    );
 
     // Invalid sort field → 400 (PaginateListUtil.java:119-121).
     let response = client
@@ -478,7 +515,9 @@ async fn cmmn_task_query_sort_and_order() {
 
     // Invalid order → 400 (PaginateListUtil.java:128-129).
     let response = client
-        .get(format!("{base_url}/cmmn-runtime/tasks?sort=name&order=sideways"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks?sort=name&order=sideways"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await

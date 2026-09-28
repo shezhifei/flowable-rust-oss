@@ -21,8 +21,8 @@ use flowable_event_registry_service::{
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct RecordingAdapter {
     destinations: Mutex<Vec<String>>,
@@ -64,9 +64,7 @@ impl InboundEventConsumer for CountingConsumer {
         self.invocations.fetch_add(1, Ordering::SeqCst);
         if self.fail_times.load(Ordering::SeqCst) > 0 {
             self.fail_times.fetch_sub(1, Ordering::SeqCst);
-            return Err(FlowableError::ExecutionError(
-                "consumer failed".to_string(),
-            ));
+            return Err(FlowableError::ExecutionError("consumer failed".to_string()));
         }
         Ok(())
     }
@@ -230,7 +228,14 @@ fn retry_published_outbound_is_rejected_without_redispatch() {
         })
         .unwrap();
     assert_eq!(delivery.status, EventInstanceStatus::Published);
-    assert_eq!(adapter.destinations.lock().unwrap_or_else(|e| e.into_inner()).len(), 1);
+    assert_eq!(
+        adapter
+            .destinations
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len(),
+        1
+    );
 
     let error = service.retry_event_delivery(&delivery.id).unwrap_err();
     assert!(
@@ -239,7 +244,14 @@ fn retry_published_outbound_is_rejected_without_redispatch() {
     );
 
     // No re-dispatch and no state mutation happened.
-    assert_eq!(adapter.destinations.lock().unwrap_or_else(|e| e.into_inner()).len(), 1);
+    assert_eq!(
+        adapter
+            .destinations
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len(),
+        1
+    );
     let unchanged = service.get_event_instance_delivery(&delivery.id).unwrap();
     assert_eq!(unchanged.status, EventInstanceStatus::Published);
     assert_eq!(unchanged.status_history, delivery.status_history);
@@ -324,7 +336,13 @@ fn retry_failed_inbound_consumer_failure_keeps_failed_and_records_retry() {
     let still_failed = service.get_event_instance_delivery(&failed.id).unwrap();
     assert_eq!(still_failed.status, EventInstanceStatus::Failed);
     assert_eq!(still_failed.retry_count, 1);
-    assert!(still_failed.last_error.as_ref().unwrap().contains("consumer failed"));
+    assert!(
+        still_failed
+            .last_error
+            .as_ref()
+            .unwrap()
+            .contains("consumer failed")
+    );
 }
 
 #[test]
@@ -369,7 +387,11 @@ fn outbound_retry_replays_against_original_channel_version() {
         Some(original_channel_id.as_str())
     );
     assert_eq!(
-        adapter.destinations.lock().unwrap_or_else(|e| e.into_inner()).as_slice(),
+        adapter
+            .destinations
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_slice(),
         &["dest-v1", "dest-v1"],
         "retry must dispatch through the original channel version"
     );

@@ -11,7 +11,7 @@
 
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_rest::run_server;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
@@ -46,7 +46,8 @@ async fn spawn_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

@@ -113,9 +113,12 @@ pub async fn auth_middleware(
         // page calls engine endpoints with the session cookie instead of Basic
         // credentials. A presented UI session authenticates the request with
         // the same strength as a password check (the cookie was issued by one).
-        let cookie_scope =
-            flowable_ui_rest::auth::scope_from_cookie_headers(&engine, &state.ui_auth, req.headers())
-                .map_err(ApiError::from)?;
+        let cookie_scope = flowable_ui_rest::auth::scope_from_cookie_headers(
+            &engine,
+            &state.ui_auth,
+            req.headers(),
+        )
+        .map_err(ApiError::from)?;
         if let Some(scope) = cookie_scope {
             if requires_admin(req.method(), req.uri().path()) && !auth.is_admin_user(&scope.user_id)
             {
@@ -278,14 +281,8 @@ mod tests {
         assert!(requires_admin(&Method::POST, "/idm/users"));
         assert!(requires_admin(&Method::PUT, "/idm/users/u1"));
         assert!(requires_admin(&Method::DELETE, "/idm/groups/g1"));
-        assert!(requires_admin(
-            &Method::POST,
-            "/management/jobs/job-1"
-        ));
-        assert!(requires_admin(
-            &Method::DELETE,
-            "/management/jobs/job-1"
-        ));
+        assert!(requires_admin(&Method::POST, "/management/jobs/job-1"));
+        assert!(requires_admin(&Method::DELETE, "/management/jobs/job-1"));
     }
 
     #[test]
@@ -297,10 +294,7 @@ mod tests {
 
     #[test]
     fn ordinary_runtime_writes_do_not_require_admin() {
-        assert!(!requires_admin(
-            &Method::POST,
-            "/runtime/process-instances"
-        ));
+        assert!(!requires_admin(&Method::POST, "/runtime/process-instances"));
         assert!(!requires_admin(&Method::POST, "/runtime/tasks/t1"));
     }
 
@@ -349,10 +343,7 @@ mod tests {
     #[test]
     fn cmmn_management_reads_do_not_require_admin() {
         assert!(!requires_admin(&Method::GET, "/cmmn-management/jobs"));
-        assert!(!requires_admin(
-            &Method::GET,
-            "/cmmn-management/jobs/job-1"
-        ));
+        assert!(!requires_admin(&Method::GET, "/cmmn-management/jobs/job-1"));
     }
 
     #[test]

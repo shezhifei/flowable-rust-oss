@@ -23,7 +23,8 @@ async fn runtime_signals_trigger_waiting_signal_events_and_validate_payloads() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

@@ -19,9 +19,8 @@ use tokio::net::TcpListener;
 /// leaving the other tenant's instance waiting.
 #[tokio::test]
 async fn runtime_signals_broadcast_scopes_delivery_by_tenant_id() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-runtime-signal-tenant".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("rest-bpmn-runtime-signal-tenant".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -32,7 +31,8 @@ async fn runtime_signals_broadcast_scopes_delivery_by_tenant_id() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

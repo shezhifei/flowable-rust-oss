@@ -50,7 +50,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -78,7 +79,12 @@ async fn deploy(client: &reqwest::Client, base_url: &str, name: &str, resource: 
     assert_eq!(response.status(), reqwest::StatusCode::CREATED);
 }
 
-async fn start_by_key(engine: &Arc<ProcessEngine>, client: &reqwest::Client, base_url: &str, key: &str) {
+async fn start_by_key(
+    engine: &Arc<ProcessEngine>,
+    client: &reqwest::Client,
+    base_url: &str,
+    key: &str,
+) {
     let process_definition_id = engine
         .get_repository_service()
         .latest_process_definition_by_key(key, None)
@@ -118,14 +124,18 @@ async fn t1_candidate_user_group_expansion_via_rest() {
     deploy(&client, &base_url, "P49 Cand Group", CAND_GROUP_BPMN).await;
     start_by_key(&engine, &client, &base_url, "p49CandGroup").await;
 
-    engine.get_identity_service().save_group(Group {
-        id: "sales".to_string(),
-        name: "Sales".to_string(),
-        group_type: None,
-    }).unwrap();
     engine
         .get_identity_service()
-        .create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
+        .save_group(Group {
+            id: "sales".to_string(),
+            name: "Sales".to_string(),
+            group_type: None,
+        })
+        .unwrap();
+    engine
+        .get_identity_service()
+        .create_membership("aSalesUser".to_string(), "sales".to_string())
+        .unwrap();
 
     let body = get_tasks(&client, &base_url, "candidateUser=aSalesUser").await;
     assert_eq!(body["total"], 1);

@@ -82,22 +82,36 @@ struct MockRenderingApi {
 impl MockRenderingApi {
     fn with_seed() -> Self {
         let api = Self::default();
-        api.process_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
-            "process-1".to_string(),
-            r#"<svg xmlns="http://www.w3.org/2000/svg"><text>process-1</text></svg>"#.to_string(),
-        );
-        api.decision_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
-            "decision-1".to_string(),
-            r#"<svg xmlns="http://www.w3.org/2000/svg"><text>decision-1</text></svg>"#.to_string(),
-        );
-        api.case_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
-            "case-1".to_string(),
-            r#"<svg xmlns="http://www.w3.org/2000/svg"><text>case-1</text></svg>"#.to_string(),
-        );
-        api.app_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
-            "app-1".to_string(),
-            r#"<svg xmlns="http://www.w3.org/2000/svg"><text>app-1</text></svg>"#.to_string(),
-        );
+        api.process_images
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                "process-1".to_string(),
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><text>process-1</text></svg>"#
+                    .to_string(),
+            );
+        api.decision_images
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                "decision-1".to_string(),
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><text>decision-1</text></svg>"#
+                    .to_string(),
+            );
+        api.case_images
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                "case-1".to_string(),
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><text>case-1</text></svg>"#.to_string(),
+            );
+        api.app_images
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(
+                "app-1".to_string(),
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><text>app-1</text></svg>"#.to_string(),
+            );
         api
     }
 
@@ -217,7 +231,8 @@ async fn spawn_real_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqw
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

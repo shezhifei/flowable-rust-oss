@@ -31,7 +31,8 @@ struct Fixture {
 }
 
 async fn setup() -> Fixture {
-    let process_engine = Arc::new(ProcessEngine::new("rest-p137-case-reference".to_string()).unwrap());
+    let process_engine =
+        Arc::new(ProcessEngine::new("rest-p137-case-reference".to_string()).unwrap());
     process_engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -41,7 +42,8 @@ async fn setup() -> Fixture {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
     let cmmn_engine = process_engine
         .get_config()
         .cmmn_engine

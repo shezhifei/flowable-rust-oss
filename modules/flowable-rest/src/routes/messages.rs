@@ -75,8 +75,7 @@ pub(crate) async fn message_event_received(
                 process_instance_id_owned.as_deref(),
                 business_key_owned.as_deref(),
                 &variables,
-            )
-            {
+            ) {
                 tracing::error!(
                     error = ?error,
                     message_name = %message_name_owned,
@@ -133,7 +132,9 @@ fn correlate_message(
     let mut matched_any = false;
 
     let (mut execution_ids, receive_task_ids, boundary_process_ids, event_subprocess_ids) = {
-        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let mut session = runtime_store
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         let event_wait_states = runtime_store.snapshot_event_wait_states(&mut session);
         let execution_ids: Vec<String> = event_wait_states
             .values()
@@ -269,7 +270,8 @@ fn correlate_message(
                 .get_variable_service()
                 .set_variable(pid.clone(), name.clone(), value.clone())?;
         }
-        runtime_service.trigger_event_subprocess_by_message(message_name.to_string(), pid.clone())?;
+        runtime_service
+            .trigger_event_subprocess_by_message(message_name.to_string(), pid.clone())?;
         matched_any = true;
     }
 

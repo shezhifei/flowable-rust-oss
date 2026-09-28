@@ -27,7 +27,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -183,13 +184,7 @@ async fn rest_collection_get_excludes_pending_future_id_marker() {
 #[tokio::test]
 async fn rest_durable_put_not_shadowed_by_prior_transient() {
     let (_engine, base_url, client) = spawn_server("p45-rest-shadow").await;
-    deploy_xml(
-        &client,
-        &base_url,
-        "p45Shadow",
-        one_task_xml("p45Shadow"),
-    )
-    .await;
+    deploy_xml(&client, &base_url, "p45Shadow", one_task_xml("p45Shadow")).await;
 
     let response = client
         .post(format!("{base_url}/runtime/process-instances"))

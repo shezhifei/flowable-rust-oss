@@ -13,20 +13,24 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
-fn shared_services(label: &str) -> (FlowableEventRegistryService, FlowableEventRegistryService, PathBuf) {
+fn shared_services(
+    label: &str,
+) -> (
+    FlowableEventRegistryService,
+    FlowableEventRegistryService,
+    PathBuf,
+) {
     let path = std::env::temp_dir().join(format!(
         "event-registry-change-{}-{}.sqlite",
         label,
         Uuid::new_v4()
     ));
-    let engine_a = Arc::new(ProcessEngine::new_with_db_path(
-        format!("{label}-a"),
-        path.to_str().unwrap(),
-    ).unwrap());
-    let engine_b = Arc::new(ProcessEngine::new_with_db_path(
-        format!("{label}-b"),
-        path.to_str().unwrap(),
-    ).unwrap());
+    let engine_a = Arc::new(
+        ProcessEngine::new_with_db_path(format!("{label}-a"), path.to_str().unwrap()).unwrap(),
+    );
+    let engine_b = Arc::new(
+        ProcessEngine::new_with_db_path(format!("{label}-b"), path.to_str().unwrap()).unwrap(),
+    );
     (
         FlowableEventRegistryService::new(engine_a),
         FlowableEventRegistryService::new(engine_b),
@@ -189,7 +193,10 @@ fn tenant_isolation_is_preserved_in_cache_and_change_detection() {
     service_b.detect_and_reconcile_changes().unwrap();
 
     assert_eq!(
-        service_b.cached_latest_channel("orders", None).unwrap().tenant_id,
+        service_b
+            .cached_latest_channel("orders", None)
+            .unwrap()
+            .tenant_id,
         None
     );
     assert_eq!(
@@ -214,11 +221,15 @@ fn repeated_polling_is_idempotent_and_bounded() {
     let (service_a, service_b, path) = shared_services("idempotent");
 
     deploy_channel_event(&service_a, "v1", "orders", "orderEvent", None);
-    let first = service_b.detect_and_reconcile_changes_with_limit(10).unwrap();
+    let first = service_b
+        .detect_and_reconcile_changes_with_limit(10)
+        .unwrap();
     assert!(first.applied > 0);
     let revision = service_b.last_change_revision();
 
-    let second = service_b.detect_and_reconcile_changes_with_limit(10).unwrap();
+    let second = service_b
+        .detect_and_reconcile_changes_with_limit(10)
+        .unwrap();
     assert_eq!(second.applied, 0);
     assert_eq!(second.last_revision, revision);
     assert!(second.exhausted);
@@ -251,7 +262,9 @@ fn failed_deployment_does_not_publish_change_records() {
             }],
         })
         .unwrap_err();
-    assert!(error.to_string().contains("not-a-real-adapter") || error.to_string().contains("Unknown"));
+    assert!(
+        error.to_string().contains("not-a-real-adapter") || error.to_string().contains("Unknown")
+    );
     assert_eq!(service_a.last_change_revision(), before);
 
     let result = service_b.detect_and_reconcile_changes().unwrap();

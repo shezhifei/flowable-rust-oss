@@ -14,13 +14,16 @@ use tokio::net::TcpListener;
 /// Helper: boot a REST server, return (base_url, engine, client).
 async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
     // Explicit opt-in: shell tasks disabled by default (security deviation from Java).
-    let engine = Arc::new(ProcessEngine::new_with_config(
-        "rest-bpmn-shell-http-contract".to_string(),
-        ProcessEngineConfiguration {
-            shell_tasks_enabled: true,
-            ..Default::default()
-        },
-    ).unwrap());
+    let engine = Arc::new(
+        ProcessEngine::new_with_config(
+            "rest-bpmn-shell-http-contract".to_string(),
+            ProcessEngineConfiguration {
+                shell_tasks_enabled: true,
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
 
     engine
         .get_identity_service()
@@ -31,7 +34,8 @@ async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

@@ -1,6 +1,6 @@
 use crate::models::{EventPayload, EventRegistryError};
 use crate::ssrf_guard::{
-    safe_url_display, validate_outbound_url, OutboundUrlGuardConfig, OutboundUrlGuardError,
+    OutboundUrlGuardConfig, OutboundUrlGuardError, safe_url_display, validate_outbound_url,
 };
 use flowable_engine::error::FlowableError;
 use reqwest::{Certificate, Client};
@@ -121,13 +121,11 @@ impl RestChannelAdapter {
         if let Some(token) = dispatch_token.as_deref() {
             request = request.header(DISPATCH_TOKEN_HEADER, token);
         }
-        let response = request
-            .json(&event)
-            .send()
-            .await
-            .map_err(|e| EventRegistryError::OutboundError(format!(
+        let response = request.json(&event).send().await.map_err(|e| {
+            EventRegistryError::OutboundError(format!(
                 "REST outbound dispatch to '{safe_url}' failed: {e}"
-            )))?;
+            ))
+        })?;
         let status = response.status();
         if !status.is_success() {
             return Err(EventRegistryError::OutboundError(format!(
@@ -190,15 +188,11 @@ async fn send_outbound_with_configuration(
     if let Some(token) = dispatch_token.as_deref() {
         request = request.header(DISPATCH_TOKEN_HEADER, token);
     }
-    let response = request
-        .json(&event)
-        .send()
-        .await
-        .map_err(|e| {
-            EventRegistryError::OutboundError(format!(
-                "REST outbound dispatch to '{safe_url}' failed: {e}"
-            ))
-        })?;
+    let response = request.json(&event).send().await.map_err(|e| {
+        EventRegistryError::OutboundError(format!(
+            "REST outbound dispatch to '{safe_url}' failed: {e}"
+        ))
+    })?;
     let status = response.status();
     if !status.is_success() {
         return Err(EventRegistryError::OutboundError(format!(

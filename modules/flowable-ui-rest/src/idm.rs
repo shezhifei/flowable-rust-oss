@@ -106,11 +106,7 @@ impl UserRepresentation {
         }
     }
 
-    fn with_groups_and_privileges(
-        mut self,
-        groups: Vec<Group>,
-        privileges: Vec<String>,
-    ) -> Self {
+    fn with_groups_and_privileges(mut self, groups: Vec<Group>, privileges: Vec<String>) -> Self {
         self.groups = groups
             .into_iter()
             .map(GroupRepresentation::from_group)
@@ -179,11 +175,12 @@ pub fn router() -> Router {
         )
         .route(
             "/idm-app/rest/admin/groups/:group_id",
-            get(get_group)
-                .put(update_group)
-                .delete(delete_group),
+            get(get_group).put(update_group).delete(delete_group),
         )
-        .route("/idm-app/rest/admin/groups/:group_id/users", get(group_users))
+        .route(
+            "/idm-app/rest/admin/groups/:group_id/users",
+            get(group_users),
+        )
         .route(
             "/idm-app/rest/admin/groups/:group_id/members/:user_id",
             post(add_group_member).delete(delete_group_member),
@@ -209,8 +206,14 @@ pub fn router() -> Router {
             "/idm-app/rest/admin/privileges/:privilege_id/groups/:group_id",
             axum::routing::delete(delete_group_privilege),
         )
-        .route("/idm-app/rest/admin/profile", get(get_profile).post(update_profile))
-        .route("/idm-app/rest/admin/profile-password", post(change_password))
+        .route(
+            "/idm-app/rest/admin/profile",
+            get(get_profile).post(update_profile),
+        )
+        .route(
+            "/idm-app/rest/admin/profile-password",
+            post(change_password),
+        )
         .route(
             "/idm-app/rest/admin/profile-picture",
             get(get_profile_picture).post(upload_profile_picture),
@@ -374,7 +377,10 @@ async fn list_users(
         size: page.len() as i32,
         total,
         start,
-        data: page.into_iter().map(UserRepresentation::from_user).collect(),
+        data: page
+            .into_iter()
+            .map(UserRepresentation::from_user)
+            .collect(),
     }))
 }
 
@@ -424,7 +430,9 @@ async fn create_user(
             .create_user_query()
             .email(email.to_string())
             .list()
-            .map_err(|error| UiError::Internal(format!("Could not query users by email: {error}")))?;
+            .map_err(|error| {
+                UiError::Internal(format!("Could not query users by email: {error}"))
+            })?;
         if !existing.is_empty() {
             return Err(UiError::conflict(
                 "User already registered",
@@ -629,7 +637,9 @@ async fn group_users(
         .unwrap_or(DEFAULT_GROUP_USERS_PAGE_SIZE as i32)
         .max(0);
 
-    let mut users = engine.get_identity_service().get_users_by_group(&group_id)?;
+    let mut users = engine
+        .get_identity_service()
+        .get_users_by_group(&group_id)?;
     if let Some(filter) = query.filter.as_deref().filter(|value| !value.is_empty()) {
         users.retain(|user| full_name_matches(user, filter));
     }
@@ -642,7 +652,10 @@ async fn group_users(
         size: slice.len() as i32,
         total,
         start,
-        data: slice.into_iter().map(UserRepresentation::from_user).collect(),
+        data: slice
+            .into_iter()
+            .map(UserRepresentation::from_user)
+            .collect(),
     }))
 }
 
@@ -662,7 +675,11 @@ async fn create_group(
     let group = Group {
         id: request.id.unwrap_or_default(),
         name,
-        group_type: Some(request.group_type.unwrap_or_else(|| TYPE_ASSIGNMENT.to_string())),
+        group_type: Some(
+            request
+                .group_type
+                .unwrap_or_else(|| TYPE_ASSIGNMENT.to_string()),
+        ),
     };
     engine.get_identity_service().save_group(group.clone())?;
 
@@ -1028,7 +1045,10 @@ async fn get_profile_picture(
     auth: UiAuth,
     axum::Extension(engine): EngineState,
 ) -> Result<Response, UiError> {
-    let Some(picture) = engine.get_identity_service().get_user_picture(auth.user_id())? else {
+    let Some(picture) = engine
+        .get_identity_service()
+        .get_user_picture(auth.user_id())?
+    else {
         return Err(UiError::not_found());
     };
 

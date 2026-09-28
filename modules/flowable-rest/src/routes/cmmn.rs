@@ -1,9 +1,6 @@
 use crate::common::{PagedResponse, PagingQuery, parse_query};
 use crate::error::ApiError;
 use crate::routes::{dmn::DecisionTableRecord, forms::FormDefinitionRecord};
-use flowable_cmmn_engine::{
-    CMMN_SCOPE_TYPE, CmmnHumanTaskUpdate, QueryVariableCondition, QueryVariableOperation,
-};
 use axum::{
     Extension, Json, Router,
     body::Bytes,
@@ -13,6 +10,9 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use flowable_cmmn_engine::{
+    CMMN_SCOPE_TYPE, CmmnHumanTaskUpdate, QueryVariableCondition, QueryVariableOperation,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc};
@@ -2420,8 +2420,6 @@ impl CmmnEventSubscriptionQueryParams {
     }
 }
 
-
-
 /// Java `HistoricCaseInstanceCollectionResource.getHistoricCaseInstances`
 /// (HistoricCaseInstanceCollectionResource.java:108-300). Dates go through
 /// `RequestUtil.getDate`, which throws `FlowableIllegalArgumentException` → 400
@@ -2463,7 +2461,10 @@ fn historic_case_instance_query_from_params(
             "startedBefore",
             query.started_before.as_deref(),
         )?,
-        started_after: parse_optional_flowable_date("startedAfter", query.started_after.as_deref())?,
+        started_after: parse_optional_flowable_date(
+            "startedAfter",
+            query.started_after.as_deref(),
+        )?,
         finished: query.finished,
         finished_before: parse_optional_flowable_date(
             "finishedBefore",
@@ -2481,9 +2482,7 @@ fn historic_case_instance_query_from_params(
         callback_id: query.callback_id,
         callback_ids: query.callback_ids,
         callback_type: query.callback_type,
-        without_callback_id: query
-            .without_case_instance_callback_id
-            .unwrap_or(false),
+        without_callback_id: query.without_case_instance_callback_id.unwrap_or(false),
         involved_user: query.involved_user,
         active_plan_item_definition_id: query.active_plan_item_definition_id,
         include_case_variables: query.include_case_variables.unwrap_or(false),
@@ -2550,9 +2549,9 @@ impl CmmnManagementJobQueryParams {
         let forces_cmmn_scope = self.case_instance_id.is_some()
             || self.plan_item_instance_id.is_some()
             || self.scope_definition_id.is_some();
-        let scope_type = self.scope_type.or_else(|| {
-            forces_cmmn_scope.then(|| CMMN_SCOPE_TYPE.to_string())
-        });
+        let scope_type = self
+            .scope_type
+            .or_else(|| forces_cmmn_scope.then(|| CMMN_SCOPE_TYPE.to_string()));
 
         Ok(CmmnManagementJobQuery {
             paging: PagingQuery {
@@ -4335,13 +4334,8 @@ pub async fn create_task_variables(
         shared_scope = Some(scope);
         // Java: creating an existing variable in the same scope → 409
         // (TaskVariableCollectionResource.java:174-176 hasVariableOnScope).
-        if load_plan_item_variable(
-            runtime.as_ref(),
-            &plan_item_instance_id,
-            &name,
-            Some(scope),
-        )
-        .is_ok()
+        if load_plan_item_variable(runtime.as_ref(), &plan_item_instance_id, &name, Some(scope))
+            .is_ok()
         {
             return Err(ApiError::Conflict(format!(
                 "Variable '{name}' is already present on task '{plan_item_instance_id}'."
@@ -4404,12 +4398,14 @@ pub async fn update_task_variable(
             runtime.update_task_variable(&plan_item_instance_id, &variable_name, update)?;
         }
     }
-    Ok(Json(normalize_cmmn_variable_record(load_plan_item_variable(
-        runtime.as_ref(),
-        &plan_item_instance_id,
-        &variable_name,
-        Some(scope),
-    )?)))
+    Ok(Json(normalize_cmmn_variable_record(
+        load_plan_item_variable(
+            runtime.as_ref(),
+            &plan_item_instance_id,
+            &variable_name,
+            Some(scope),
+        )?,
+    )))
 }
 
 // Java: TaskVariableResource.java:138-167 — DELETE single variable. The scope
@@ -4747,7 +4743,10 @@ fn plan_item_query_from_params(
         // the same TaskQuery.candidateGroupIn filter.
         candidate_user: query.candidate_user,
         candidate_group: query.candidate_group,
-        candidate_group_in: query.candidate_groups.or(query.candidate_group_in).unwrap_or_default(),
+        candidate_group_in: query
+            .candidate_groups
+            .or(query.candidate_group_in)
+            .unwrap_or_default(),
         candidate_or_assigned: query.candidate_or_assigned,
         ignore_assignee: query.ignore_assignee,
         scope_id: query.scope_id,
@@ -4778,13 +4777,12 @@ fn plan_item_query_from_params(
 fn parse_query_variables(
     variables: &[RestQueryVariable],
 ) -> Result<Vec<QueryVariableCondition>, ApiError> {
-    variables
-        .iter()
-        .map(parse_one_query_variable)
-        .collect()
+    variables.iter().map(parse_one_query_variable).collect()
 }
 
-fn parse_one_query_variable(variable: &RestQueryVariable) -> Result<QueryVariableCondition, ApiError> {
+fn parse_one_query_variable(
+    variable: &RestQueryVariable,
+) -> Result<QueryVariableCondition, ApiError> {
     let operation = parse_query_variable_operation(variable)?;
     let value = variable.value.as_ref().ok_or_else(|| {
         ApiError::bad_request(format!(
@@ -4882,7 +4880,9 @@ fn json_value_type_name(value: &Value) -> &'static str {
 
 fn parse_priority_param(value: &str) -> Result<i64, ApiError> {
     value.parse::<i64>().map_err(|_| {
-        ApiError::bad_request(format!("Invalid priority value '{value}': must be an integer"))
+        ApiError::bad_request(format!(
+            "Invalid priority value '{value}': must be an integer"
+        ))
     })
 }
 
@@ -5126,8 +5126,12 @@ fn set_plan_item_variable_data(
         // Java TaskVariableDataResource writes the local task variable; the
         // variable must already exist locally with a binary/bytes/serializable
         // type (TaskVariableBaseResource.setVariable isNew=false path).
-        let variable =
-            load_plan_item_variable(runtime, plan_item_instance_id, variable_name, Some(VariableScope::Local))?;
+        let variable = load_plan_item_variable(
+            runtime,
+            plan_item_instance_id,
+            variable_name,
+            Some(VariableScope::Local),
+        )?;
         let variable_type =
             super::process_instances::variable_data_type(&variable.value).ok_or_else(|| {
                 ApiError::BadRequest(format!(

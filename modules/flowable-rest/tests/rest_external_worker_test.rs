@@ -1425,7 +1425,8 @@ async fn external_worker_list_get_hide_jobs_while_process_suspended_and_restore_
 }
 
 #[tokio::test]
-async fn external_worker_failure_omitted_retries_decrements_and_malformed_retry_timeout_is_bad_request() {
+async fn external_worker_failure_omitted_retries_decrements_and_malformed_retry_timeout_is_bad_request()
+ {
     let (engine, time_source) = build_engine("rest-external-worker-failure-defaults");
     let (base_url, client) = spawn_server(Arc::clone(&engine)).await;
     start_timer_wait_process(&engine);

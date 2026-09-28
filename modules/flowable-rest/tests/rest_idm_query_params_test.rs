@@ -38,7 +38,8 @@ fn build_engine(test_name: &str) -> Arc<ProcessEngine> {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     engine
 }
@@ -91,9 +92,7 @@ async fn user_query_params_filter_by_display_name_and_tenant() {
 
     // displayName no-match.
     let resp = client
-        .get(format!(
-            "{base_url}/identity/users?displayName=Kermit Frog"
-        ))
+        .get(format!("{base_url}/identity/users?displayName=Kermit Frog"))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -117,9 +116,7 @@ async fn user_query_params_filter_by_display_name_and_tenant() {
 
     // tenantId exact (Java :132).
     let resp = client
-        .get(format!(
-            "{base_url}/identity/users?tenantId=tenant-a"
-        ))
+        .get(format!("{base_url}/identity/users?tenantId=tenant-a"))
         .basic_auth("admin", Some("test"))
         .send()
         .await

@@ -85,7 +85,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -175,7 +176,11 @@ async fn start_case(fixture_client: &reqwest::Client, base_url: &str, body: Valu
         .to_string()
 }
 
-async fn active_task_id(client: &reqwest::Client, base_url: &str, case_instance_id: &str) -> String {
+async fn active_task_id(
+    client: &reqwest::Client,
+    base_url: &str,
+    case_instance_id: &str,
+) -> String {
     let body = get_ok(
         client,
         base_url,
@@ -381,7 +386,10 @@ async fn historic_case_instance_query_params_are_accepted_and_filter() {
         case_total(&fixture, "caseDefinitionCategoryLikeIgnoreCase=FINANCE%25").await,
         3
     );
-    assert_eq!(case_total(&fixture, "caseDefinitionCategory=other").await, 0);
+    assert_eq!(
+        case_total(&fixture, "caseDefinitionCategory=other").await,
+        0
+    );
 
     // caseDefinitionName family.
     assert_eq!(
@@ -537,7 +545,10 @@ async fn historic_task_instance_query_params_are_accepted_and_filter() {
     assert_eq!(by_task_id["data"][0]["caseInstanceId"], fixture.assigned);
     // Java CmmnRestResponseFactory.java:901-902 serialises the definitionRef
     // target, matching PlanItemInstanceEntityManagerImpl.java:92-95.
-    assert_eq!(by_task_id["data"][0]["planItemDefinitionId"], "assignedTask");
+    assert_eq!(
+        by_task_id["data"][0]["planItemDefinitionId"],
+        "assignedTask"
+    );
 
     // caseInstanceId / caseDefinitionId.
     assert_eq!(
@@ -618,7 +629,10 @@ async fn historic_task_instance_query_params_are_accepted_and_filter() {
     )
     .await;
     assert_eq!(total(&by_candidate_group), 1);
-    assert_eq!(ids(&by_candidate_group), vec![fixture.candidate_task.clone()]);
+    assert_eq!(
+        ids(&by_candidate_group),
+        vec![fixture.candidate_task.clone()]
+    );
 
     // ignoreTaskAssignee drops that gate
     // (HistoricTaskInstanceCollectionResource.java:289-291).
@@ -642,7 +656,10 @@ async fn historic_task_instance_query_params_are_accepted_and_filter() {
     )
     .await;
     assert_eq!(total(&involved_candidate), 1);
-    assert_eq!(ids(&involved_candidate), vec![fixture.candidate_task.clone()]);
+    assert_eq!(
+        ids(&involved_candidate),
+        vec![fixture.candidate_task.clone()]
+    );
     assert_eq!(
         involved_candidate["data"][0]["caseInstanceId"],
         fixture.candidate
@@ -687,7 +704,10 @@ async fn historic_query_params_outside_the_rust_model_stay_rejected() {
             "/cmmn-history/historic-task-instances",
             "taskDescription=whatever",
         ),
-        ("/cmmn-history/historic-task-instances", "dueDateAfter=2000-01-01T00:00:00Z"),
+        (
+            "/cmmn-history/historic-task-instances",
+            "dueDateAfter=2000-01-01T00:00:00Z",
+        ),
         // Java's CMMN historic task resource never parses these; only the shared
         // engine interface has them.
         (

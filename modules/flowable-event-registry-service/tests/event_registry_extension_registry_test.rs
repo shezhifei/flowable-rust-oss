@@ -46,7 +46,10 @@ impl OutboundChannelAdapter for TaggedOutboundAdapter {
         _event: EventPayload,
         _channel_config: &Value,
     ) -> Result<(), FlowableError> {
-        self.sink.lock().unwrap_or_else(|e| e.into_inner()).push(self.tag.clone());
+        self.sink
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(self.tag.clone());
         Ok(())
     }
 }
@@ -68,7 +71,11 @@ struct MarkerInboundAdapter;
 
 impl InboundChannelAdapter for MarkerInboundAdapter {}
 
-fn channel_resource(key: &str, channel_type: &str, implementation: &str) -> EventRegistryDeploymentResource {
+fn channel_resource(
+    key: &str,
+    channel_type: &str,
+    implementation: &str,
+) -> EventRegistryDeploymentResource {
     EventRegistryDeploymentResource {
         resource_name: format!("{key}.channel"),
         resource: json!({
@@ -112,9 +119,9 @@ fn channel_with_processors(
 
 #[test]
 fn default_configuration_accepts_in_memory_and_rest_adapters() {
-    let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
-        "event-registry-default-adapters".to_string(),
-    ).unwrap()));
+    let service = FlowableEventRegistryService::new(Arc::new(
+        ProcessEngine::new("event-registry-default-adapters".to_string()).unwrap(),
+    ));
 
     service
         .deploy(EventRegistryDeploymentRequest {
@@ -133,9 +140,9 @@ fn default_configuration_accepts_in_memory_and_rest_adapters() {
 
 #[test]
 fn deployment_rejects_unknown_adapter_with_channel_key_and_allowed_names() {
-    let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
-        "event-registry-unknown-adapter".to_string(),
-    ).unwrap()));
+    let service = FlowableEventRegistryService::new(Arc::new(
+        ProcessEngine::new("event-registry-unknown-adapter".to_string()).unwrap(),
+    ));
 
     let error = service
         .deploy(EventRegistryDeploymentRequest {
@@ -169,9 +176,9 @@ fn deployment_rejects_unknown_adapter_with_channel_key_and_allowed_names() {
 
 #[test]
 fn deployment_rejects_unknown_processor_names_with_allowed_names() {
-    let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
-        "event-registry-unknown-processor".to_string(),
-    ).unwrap()));
+    let service = FlowableEventRegistryService::new(Arc::new(
+        ProcessEngine::new("event-registry-unknown-processor".to_string()).unwrap(),
+    ));
 
     let error = service
         .deploy(EventRegistryDeploymentRequest {
@@ -283,10 +290,28 @@ fn two_services_can_register_different_implementations_under_same_name_without_l
         })
         .unwrap();
 
-    assert_eq!(sink_a.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &["service-a".to_string()]);
-    assert_eq!(sink_b.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &["service-b".to_string()]);
-    assert!(sink_a.lock().unwrap_or_else(|e| e.into_inner()).iter().all(|tag| tag != "service-b"));
-    assert!(sink_b.lock().unwrap_or_else(|e| e.into_inner()).iter().all(|tag| tag != "service-a"));
+    assert_eq!(
+        sink_a.lock().unwrap_or_else(|e| e.into_inner()).as_slice(),
+        &["service-a".to_string()]
+    );
+    assert_eq!(
+        sink_b.lock().unwrap_or_else(|e| e.into_inner()).as_slice(),
+        &["service-b".to_string()]
+    );
+    assert!(
+        sink_a
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .all(|tag| tag != "service-b")
+    );
+    assert!(
+        sink_b
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .all(|tag| tag != "service-a")
+    );
 }
 
 #[test]
@@ -295,7 +320,10 @@ fn configuration_registry_lookups_are_local_to_service_instance() {
         sends: AtomicUsize::new(0),
     });
     let mut config = EventRegistryConfiguration::default();
-    config.register_outbound_adapter("in-memory", Arc::clone(&counter) as Arc<dyn OutboundChannelAdapter>);
+    config.register_outbound_adapter(
+        "in-memory",
+        Arc::clone(&counter) as Arc<dyn OutboundChannelAdapter>,
+    );
 
     let service = FlowableEventRegistryService::with_configuration(
         Arc::new(ProcessEngine::new("event-registry-local-registry".to_string()).unwrap()),
@@ -373,11 +401,41 @@ fn configuration_exposes_immutable_name_maps_after_build() {
         .collect();
     assert!(outbound_names.contains_key("in-memory"));
     assert!(outbound_names.contains_key("rest"));
-    assert!(config.inbound_adapter_names().iter().any(|name| name == "in-memory"));
-    assert!(config.payload_extractor_names().iter().any(|name| name == "json"));
+    assert!(
+        config
+            .inbound_adapter_names()
+            .iter()
+            .any(|name| name == "in-memory")
+    );
+    assert!(
+        config
+            .payload_extractor_names()
+            .iter()
+            .any(|name| name == "json")
+    );
     assert!(config.filter_names().iter().any(|name| name == "default"));
-    assert!(config.tenant_detector_names().iter().any(|name| name == "default"));
-    assert!(config.inbound_transformer_names().iter().any(|name| name == "default"));
-    assert!(config.key_detector_names().iter().any(|name| name == "default"));
-    assert!(config.outbound_transformer_names().iter().any(|name| name == "json"));
+    assert!(
+        config
+            .tenant_detector_names()
+            .iter()
+            .any(|name| name == "default")
+    );
+    assert!(
+        config
+            .inbound_transformer_names()
+            .iter()
+            .any(|name| name == "default")
+    );
+    assert!(
+        config
+            .key_detector_names()
+            .iter()
+            .any(|name| name == "default")
+    );
+    assert!(
+        config
+            .outbound_transformer_names()
+            .iter()
+            .any(|name| name == "json")
+    );
 }

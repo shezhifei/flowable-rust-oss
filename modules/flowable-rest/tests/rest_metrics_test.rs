@@ -21,7 +21,8 @@ async fn spawn_authenticated_metrics_server(name: &str) -> (String, reqwest::Cli
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

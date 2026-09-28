@@ -81,11 +81,9 @@ pub(super) async fn process_instance_debugger_model_json(
 fn cmmn_engine(
     engine: &ProcessEngine,
 ) -> Result<std::sync::Arc<flowable_cmmn_engine::CmmnEngine>, TaskError> {
-    engine
-        .get_config()
-        .cmmn_engine
-        .clone()
-        .ok_or_else(|| TaskError::bad_request("CMMN engine is not configured on this process engine"))
+    engine.get_config().cmmn_engine.clone().ok_or_else(|| {
+        TaskError::bad_request("CMMN engine is not configured on this process engine")
+    })
 }
 
 /// `GET /app/rest/case-definitions/:case_definition_id/model-json`
@@ -126,20 +124,18 @@ pub(super) async fn case_instance_history_model_json(
     case_display(&engine, &case_instance_id)
 }
 
-fn case_display(
-    engine: &ProcessEngine,
-    case_instance_id: &str,
-) -> Result<Json<Value>, TaskError> {
+fn case_display(engine: &ProcessEngine, case_instance_id: &str) -> Result<Json<Value>, TaskError> {
     let cmmn = cmmn_engine(engine)?;
     let case_definition_id = match cmmn.runtime_service().get_case_instance(case_instance_id) {
         Ok(instance) => instance.case_definition_id,
         // Java parity: only a genuine "not found" falls through to the historic read; a
         // storage failure must surface (500), not be masked as a completed/historic case.
-        Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => cmmn
-            .history_service()
-            .get_historic_case_instance(case_instance_id)
-            .map_err(TaskError::from_engine)?
-            .case_definition_id,
+        Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => {
+            cmmn.history_service()
+                .get_historic_case_instance(case_instance_id)
+                .map_err(TaskError::from_engine)?
+                .case_definition_id
+        }
         Err(error) => return Err(TaskError::from_engine(error)),
     };
     let definition = cmmn

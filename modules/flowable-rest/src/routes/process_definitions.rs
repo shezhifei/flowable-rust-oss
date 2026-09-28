@@ -797,7 +797,9 @@ fn migrate_instances_for_process_definition(
         .get_process_definition(&target_definition_id)?;
 
     let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = runtime_store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut matching_instances = runtime_store
         .snapshot_process_instances(&mut session)
         .into_values()
@@ -998,7 +1000,9 @@ fn collect_form_keys_from_elements(elements: &[FlowElementEnum], keys: &mut BTre
             FlowElementEnum::StartEvent(event) => insert_non_empty(&event.form_key, keys),
             FlowElementEnum::UserTask(task) => insert_non_empty(&task.form_key, keys),
             FlowElementEnum::ServiceTask(task) => insert_non_empty(&task.form_key, keys),
-            FlowElementEnum::CaseServiceTask(task) => insert_non_empty(&task.service_task.form_key, keys),
+            FlowElementEnum::CaseServiceTask(task) => {
+                insert_non_empty(&task.service_task.form_key, keys)
+            }
             FlowElementEnum::SubProcess(sub_process) => {
                 collect_form_keys_from_elements(&sub_process.flow_elements, keys)
             }

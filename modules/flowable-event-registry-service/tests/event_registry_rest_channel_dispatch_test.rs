@@ -12,11 +12,11 @@ use flowable_event_registry_service::{
     EventRegistryDeploymentRequest, EventRegistryDeploymentResource, FlowableEventRegistryService,
     OutboundEventRequest,
 };
-use std::sync::Arc;
 use native_tls::{Identity, TlsAcceptor};
 use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, channel};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -409,9 +409,9 @@ fn rest_outbound_channel_posts_event_payload_to_configured_endpoint() {
 fn rest_outbound_ssrf_guard_rejects_private_destination_without_path_echo() {
     // Production-default service (strict SSRF) — not the test_support helper which
     // opts into private networks for local mock servers.
-    let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
-        "event-registry-rest-ssrf-guard".to_string(),
-    ).unwrap()));
+    let service = FlowableEventRegistryService::new(Arc::new(
+        ProcessEngine::new("event-registry-rest-ssrf-guard".to_string()).unwrap(),
+    ));
     service
         .deploy(EventRegistryDeploymentRequest {
             name: "REST SSRF guard deployment".to_string(),

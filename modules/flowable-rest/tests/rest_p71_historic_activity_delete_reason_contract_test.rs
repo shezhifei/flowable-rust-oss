@@ -54,7 +54,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -120,17 +121,21 @@ async fn event_gateway_cancel_exposes_delete_reason_on_historic_activity_rest() 
 
     let wait_states = engine
         .get_task_service()
-        .get_event_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     let msg_wait = wait_states
         .iter()
         .find(|ws| ws.event_ref.as_deref() == Some("msg1"))
         .expect("message wait state");
 
-    engine.get_runtime_service().trigger_event_intermediate_catch(
-        EventSubscriptionKind::Message,
-        "msg1".to_string(),
-        msg_wait.execution_id.clone(),
-    ).unwrap();
+    engine
+        .get_runtime_service()
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::Message,
+            "msg1".to_string(),
+            msg_wait.execution_id.clone(),
+        )
+        .unwrap();
 
     let post = client
         .get(format!(

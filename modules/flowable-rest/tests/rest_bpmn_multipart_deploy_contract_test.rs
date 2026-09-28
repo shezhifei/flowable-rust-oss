@@ -38,7 +38,7 @@ fn second_process_xml() -> String {
         <endEvent id="end" />
     </process>
 </definitions>"#
-    .to_string()
+        .to_string()
 }
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
@@ -52,7 +52,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -76,8 +77,7 @@ async fn multipart_single_bpmn_deploys_with_full_response() {
 
     let form = Form::new().part(
         "file",
-        Part::bytes(BPMN_PROCESS.as_bytes().to_vec())
-            .file_name("multipart_process.bpmn20.xml"),
+        Part::bytes(BPMN_PROCESS.as_bytes().to_vec()).file_name("multipart_process.bpmn20.xml"),
     );
     let response = client
         .post(format!(
@@ -102,7 +102,9 @@ async fn multipart_single_bpmn_deploys_with_full_response() {
 
     let deployment_id = body["id"].as_str().unwrap();
     let resources = client
-        .get(format!("{base_url}/repository/deployments/{deployment_id}/resources"))
+        .get(format!(
+            "{base_url}/repository/deployments/{deployment_id}/resources"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -111,16 +113,23 @@ async fn multipart_single_bpmn_deploys_with_full_response() {
     let resources: Value = resources.json().await.unwrap();
     assert_eq!(resources.as_array().unwrap().len(), 1);
     assert_eq!(
-        resources[0]["id"],
-        "multipart_process.bpmn20.xml",
+        resources[0]["id"], "multipart_process.bpmn20.xml",
         "the uploaded file is stored under its original file name"
     );
 
-    let definitions = engine.get_repository_service().get_process_definition_ids().unwrap();
+    let definitions = engine
+        .get_repository_service()
+        .get_process_definition_ids()
+        .unwrap();
     assert_eq!(definitions.len(), 1);
-    assert!(engine.get_repository_service().get_process_definition_ids().unwrap().iter().any(
-        |id| id.starts_with("multipartContractProcess:")
-    ));
+    assert!(
+        engine
+            .get_repository_service()
+            .get_process_definition_ids()
+            .unwrap()
+            .iter()
+            .any(|id| id.starts_with("multipartContractProcess:"))
+    );
 }
 
 #[tokio::test]
@@ -152,12 +161,10 @@ async fn multipart_tenant_id_form_field_passthrough() {
     // it from the form when no query parameter is present.
     let (_, base_url, client) = spawn_server("rest-multipart-deploy-tenant-form").await;
 
-    let form = Form::new()
-        .text("tenantId", "tenant-form")
-        .part(
-            "file",
-            Part::bytes(BPMN_PROCESS.as_bytes().to_vec()).file_name("tenant_form.bpmn20.xml"),
-        );
+    let form = Form::new().text("tenantId", "tenant-form").part(
+        "file",
+        Part::bytes(BPMN_PROCESS.as_bytes().to_vec()).file_name("tenant_form.bpmn20.xml"),
+    );
     let response = client
         .post(format!("{base_url}/repository/deployments"))
         .basic_auth("admin", Some("test"))
@@ -217,13 +224,13 @@ async fn multipart_zip_with_two_bpmn_files_registers_two_definitions() {
 
     let zip_bytes = build_zip(&[
         ("processes/first.bpmn20.xml", BPMN_PROCESS.as_bytes()),
-        ("processes/second.bpmn20.xml", second_process_xml().as_bytes()),
+        (
+            "processes/second.bpmn20.xml",
+            second_process_xml().as_bytes(),
+        ),
     ]);
 
-    let form = Form::new().part(
-        "file",
-        Part::bytes(zip_bytes).file_name("processes.zip"),
-    );
+    let form = Form::new().part("file", Part::bytes(zip_bytes).file_name("processes.zip"));
     let response = client
         .post(format!("{base_url}/repository/deployments"))
         .basic_auth("admin", Some("test"))
@@ -238,7 +245,9 @@ async fn multipart_zip_with_two_bpmn_files_registers_two_definitions() {
 
     let deployment_id = body["id"].as_str().unwrap();
     let resources = client
-        .get(format!("{base_url}/repository/deployments/{deployment_id}/resources"))
+        .get(format!(
+            "{base_url}/repository/deployments/{deployment_id}/resources"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -253,8 +262,16 @@ async fn multipart_zip_with_two_bpmn_files_registers_two_definitions() {
         .get_process_definition_ids()
         .unwrap();
     assert_eq!(definitions.len(), 2);
-    assert!(definitions.iter().any(|id| id.starts_with("multipartContractProcess:")));
-    assert!(definitions.iter().any(|id| id.starts_with("multipartZipSecondProcess:")));
+    assert!(
+        definitions
+            .iter()
+            .any(|id| id.starts_with("multipartContractProcess:"))
+    );
+    assert!(
+        definitions
+            .iter()
+            .any(|id| id.starts_with("multipartZipSecondProcess:"))
+    );
 }
 
 #[tokio::test]

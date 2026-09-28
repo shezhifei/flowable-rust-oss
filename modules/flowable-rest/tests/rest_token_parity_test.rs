@@ -13,14 +13,17 @@ use tokio::net::TcpListener;
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -38,22 +41,28 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
 async fn rest_token_crud_and_query_parity() {
     let (engine, base_url, client) = spawn_server("rest-token-parity").await;
 
-    engine.get_identity_service().save_user(User {
-        id: "kermit".to_string(),
-        first_name: Some("Kermit".to_string()),
-        last_name: None,
-        email: None,
-        password: Some("pass".to_string()),
-        tenant_id: None,
-    }).unwrap();
-    engine.get_identity_service().save_user(User {
-        id: "fozzie".to_string(),
-        first_name: Some("Fozzie".to_string()),
-        last_name: None,
-        email: None,
-        password: Some("pass".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: Some("Kermit".to_string()),
+            last_name: None,
+            email: None,
+            password: Some("pass".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "fozzie".to_string(),
+            first_name: Some("Fozzie".to_string()),
+            last_name: None,
+            email: None,
+            password: Some("pass".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let resp = client
         .post(format!("{}/identity/tokens", base_url))

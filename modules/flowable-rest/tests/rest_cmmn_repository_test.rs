@@ -66,11 +66,15 @@ impl MockCmmnApi {
                 resource_names: vec!["loan-approval-case.cmmn".to_string()],
                 tenant_id: None,
             });
-        repository.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
-            "deployment-1".to_string(),
-            "loan-approval-case.cmmn".to_string(),
-            b"<definitions />".to_vec(),
-        ));
+        repository
+            .resources
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push((
+                "deployment-1".to_string(),
+                "loan-approval-case.cmmn".to_string(),
+                b"<definitions />".to_vec(),
+            ));
         repository
     }
 }
@@ -98,21 +102,27 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         };
 
         for resource in &command.resources {
-            self.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
-                deployment_id.clone(),
-                resource.resource_name.clone(),
-                resource.resource.clone().into_bytes(),
-            ));
+            self.resources
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((
+                    deployment_id.clone(),
+                    resource.resource_name.clone(),
+                    resource.resource.clone().into_bytes(),
+                ));
         }
 
         if let Some(resource) = command.resources.first() {
             let case_definition_id = {
-                let case_definitions = self.case_definitions.lock().unwrap_or_else(|e| e.into_inner());
+                let case_definitions = self
+                    .case_definitions
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 format!("case-definition-{}", case_definitions.len() + 1)
             };
             self.case_definitions
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push(CaseDefinitionRecord {
                     id: case_definition_id,
                     key: resource.resource_name.trim_end_matches(".cmmn").to_string(),
@@ -127,7 +137,10 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
                 });
         }
 
-        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
+        self.deployments
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(deployment.clone());
         Ok(deployment)
     }
 
@@ -138,7 +151,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         let filtered =
             self.deployments
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|deployment| {
                     query
@@ -404,7 +417,8 @@ async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

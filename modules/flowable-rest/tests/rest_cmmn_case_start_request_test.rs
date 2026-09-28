@@ -33,14 +33,17 @@ const CASE_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 async fn spawn_server() -> (String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new("rest-cmmn-case-start".to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -164,7 +167,9 @@ async fn cmmn_case_start_transient_variables_visible_but_not_persisted() {
 
     // The expression-resolved assignee saw the transient variable.
     let tasks = client
-        .get(format!("{base_url}/cmmn-runtime/tasks?caseInstanceId={case_id}"))
+        .get(format!(
+            "{base_url}/cmmn-runtime/tasks?caseInstanceId={case_id}"
+        ))
         .basic_auth("admin", Some("test"))
         .send()
         .await

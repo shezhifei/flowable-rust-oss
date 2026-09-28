@@ -363,16 +363,26 @@ async fn read_model_upload(mut multipart: Multipart) -> Result<ModelUpload, UiEr
                 found_file = true;
             }
             Some("name") => {
-                upload.name = field.text().await.ok().filter(|value| !value.trim().is_empty());
+                upload.name = field
+                    .text()
+                    .await
+                    .ok()
+                    .filter(|value| !value.trim().is_empty());
             }
             Some("key") => {
-                upload.key = field.text().await.ok().filter(|value| !value.trim().is_empty());
+                upload.key = field
+                    .text()
+                    .await
+                    .ok()
+                    .filter(|value| !value.trim().is_empty());
             }
             _ => {}
         }
     }
     if !found_file {
-        return Err(UiError::BadRequest("No file found in POST body".to_string()));
+        return Err(UiError::BadRequest(
+            "No file found in POST body".to_string(),
+        ));
     }
     Ok(upload)
 }
@@ -454,10 +464,7 @@ async fn api_import_process_model(
     .map(Json)
 }
 
-fn required_upload_file_name(
-    file_name: Option<String>,
-    message: &str,
-) -> Result<String, UiError> {
+fn required_upload_file_name(file_name: Option<String>, message: &str) -> Result<String, UiError> {
     file_name
         .filter(|name| !name.is_empty())
         .ok_or_else(|| UiError::BadRequest(message.to_string()))
@@ -577,8 +584,9 @@ fn import_dmn_model(
             )));
         }
     }
-    let xml = std::str::from_utf8(&bytes)
-        .map_err(|error| UiError::BadRequest(format!("Could not import decision table model: {error}")))?;
+    let xml = std::str::from_utf8(&bytes).map_err(|error| {
+        UiError::BadRequest(format!("Could not import decision table model: {error}"))
+    })?;
     let document = decode_dmn_xml(xml).map_err(|error| {
         UiError::BadRequest(format!("Could not import decision table model: {error}"))
     })?;
@@ -769,10 +777,15 @@ async fn clone_model(
     let name = request.name.unwrap_or_else(|| {
         format!(
             "{} (copy)",
-            original.name.clone().unwrap_or_else(|| original.key.clone())
+            original
+                .name
+                .clone()
+                .unwrap_or_else(|| original.key.clone())
         )
     });
-    let models = repository.get_repository_models().map_err(repository_error)?;
+    let models = repository
+        .get_repository_models()
+        .map_err(repository_error)?;
     if models.iter().any(|model| model.key == key) {
         return Err(UiError::Conflict {
             message: format!("Provided model key already exists: {key}"),

@@ -42,10 +42,8 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
     // 故显式以 FULL 级别起引擎——与 P112 前(默认 Full)的可观测行为一致。
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::Full;
-    let engine = Arc::new(ProcessEngine::new_with_config(
-        "rest-form-runtime".to_string(),
-        config,
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new_with_config("rest-form-runtime".to_string(), config).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -55,7 +53,8 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

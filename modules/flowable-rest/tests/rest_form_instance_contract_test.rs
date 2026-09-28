@@ -12,7 +12,7 @@
 
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_rest::run_server;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
@@ -40,7 +40,8 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -167,9 +168,7 @@ async fn form_instance_values_and_delete_lifecycle_extension() {
 
     // Rust-owned extension: DELETE instance
     let delete = client
-        .delete(format!(
-            "{base_url}/form/form-instances/{form_instance_id}"
-        ))
+        .delete(format!("{base_url}/form/form-instances/{form_instance_id}"))
         .basic_auth("admin", Some("test"))
         .send()
         .await
@@ -177,9 +176,7 @@ async fn form_instance_values_and_delete_lifecycle_extension() {
     assert_eq!(delete.status(), reqwest::StatusCode::NO_CONTENT);
 
     let missing = client
-        .get(format!(
-            "{base_url}/form/form-instances/{form_instance_id}"
-        ))
+        .get(format!("{base_url}/form/form-instances/{form_instance_id}"))
         .basic_auth("admin", Some("test"))
         .send()
         .await

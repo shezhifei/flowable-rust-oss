@@ -34,9 +34,8 @@ const MESSAGE_CATCH_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[tokio::test]
 async fn event_subscription_query_params_filter_by_activity_execution_instance_and_configuration() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-event-subscription-query".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("rest-bpmn-event-subscription-query".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -47,7 +46,8 @@ async fn event_subscription_query_params_filter_by_activity_execution_instance_a
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

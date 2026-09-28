@@ -24,17 +24,20 @@ const PROCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-process-definition-identity-links".to_string(),
-    ).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    let engine = Arc::new(
+        ProcessEngine::new("rest-bpmn-process-definition-identity-links".to_string()).unwrap(),
+    );
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -71,33 +74,39 @@ async fn process_definition_identity_links_are_listed_and_deleted_without_touchi
         .id;
 
     let identity_link_service = engine.get_identity_link_service();
-    identity_link_service.add_identity_link(IdentityLink {
-        id: format!("process-definition:{process_definition_id}:users:kermit"),
-        link_type: "candidate".to_string(),
-        user_id: Some("kermit".to_string()),
-        group_id: None,
-        task_id: None,
-        process_instance_id: None,
-        process_definition_id: Some(process_definition_id.clone()),
-    }).unwrap();
-    identity_link_service.add_identity_link(IdentityLink {
-        id: format!("process-definition:{process_definition_id}:groups:management"),
-        link_type: "candidate".to_string(),
-        user_id: None,
-        group_id: Some("management".to_string()),
-        task_id: None,
-        process_instance_id: None,
-        process_definition_id: Some(process_definition_id.clone()),
-    }).unwrap();
-    identity_link_service.add_identity_link(IdentityLink {
-        id: "runtime-task:groups:management".to_string(),
-        link_type: "candidate".to_string(),
-        user_id: None,
-        group_id: Some("management".to_string()),
-        task_id: Some("task-1".to_string()),
-        process_instance_id: None,
-        process_definition_id: None,
-    }).unwrap();
+    identity_link_service
+        .add_identity_link(IdentityLink {
+            id: format!("process-definition:{process_definition_id}:users:kermit"),
+            link_type: "candidate".to_string(),
+            user_id: Some("kermit".to_string()),
+            group_id: None,
+            task_id: None,
+            process_instance_id: None,
+            process_definition_id: Some(process_definition_id.clone()),
+        })
+        .unwrap();
+    identity_link_service
+        .add_identity_link(IdentityLink {
+            id: format!("process-definition:{process_definition_id}:groups:management"),
+            link_type: "candidate".to_string(),
+            user_id: None,
+            group_id: Some("management".to_string()),
+            task_id: None,
+            process_instance_id: None,
+            process_definition_id: Some(process_definition_id.clone()),
+        })
+        .unwrap();
+    identity_link_service
+        .add_identity_link(IdentityLink {
+            id: "runtime-task:groups:management".to_string(),
+            link_type: "candidate".to_string(),
+            user_id: None,
+            group_id: Some("management".to_string()),
+            task_id: Some("task-1".to_string()),
+            process_instance_id: None,
+            process_definition_id: None,
+        })
+        .unwrap();
 
     let list_response = client
         .get(format!(
@@ -329,7 +338,8 @@ async fn task_identity_links_hyphen_paths_use_camel_case_and_service_aliases() {
             task_id: Some("unrelated-task".to_string()),
             process_instance_id: None,
             process_definition_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let create_user_response = client
         .post(format!("{base_url}/runtime/tasks/{task_id}/identity-links"))
@@ -495,7 +505,8 @@ async fn process_instance_identity_links_match_user_only_participant_contract() 
             task_id: None,
             process_instance_id: Some("unrelated-process-instance".to_string()),
             process_definition_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let create_response = client
         .post(format!(

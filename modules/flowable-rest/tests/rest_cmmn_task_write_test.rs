@@ -35,14 +35,17 @@ const TASK_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 async fn spawn_server() -> (String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new("rest-cmmn-task-write".to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -169,7 +172,11 @@ async fn cmmn_task_action_complete_writes_variables_and_outcome() {
         .send()
         .await
         .unwrap();
-    assert_eq!(complete_response.status().as_u16(), 200, "complete → 200 empty body");
+    assert_eq!(
+        complete_response.status().as_u16(),
+        200,
+        "complete → 200 empty body"
+    );
 
     // GLOBAL completion variables land on the case (CompleteTaskCmd.java:100-101).
     let variables = client
@@ -437,7 +444,11 @@ async fn cmmn_task_variables_create_conflict_scope_and_delete() {
         .send()
         .await
         .unwrap();
-    assert_eq!(local_get.status().as_u16(), 404, "global variable is not in local scope");
+    assert_eq!(
+        local_get.status().as_u16(),
+        404,
+        "global variable is not in local scope"
+    );
     let local_put = client
         .put(format!(
             "{base_url}/cmmn-runtime/tasks/{task_id}/variables/alpha?scope=local"
@@ -497,6 +508,9 @@ async fn cmmn_task_variables_create_conflict_scope_and_delete() {
         .iter()
         .filter_map(|v| v["name"].as_str())
         .collect();
-    assert!(names.contains(&"alpha"), "G7/G9 do not touch GLOBAL case variables");
+    assert!(
+        names.contains(&"alpha"),
+        "G7/G9 do not touch GLOBAL case variables"
+    );
     assert!(!names.contains(&"beta"), "beta deleted by G9");
 }

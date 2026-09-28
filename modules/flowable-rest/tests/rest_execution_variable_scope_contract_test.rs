@@ -39,7 +39,8 @@ async fn start_test_server(test_name: &str) -> (reqwest::Client, String, Arc<Pro
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

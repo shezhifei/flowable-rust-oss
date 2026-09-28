@@ -462,10 +462,7 @@ fn parse_direction(value: &str) -> Result<EventDirection, ApiError> {
 }
 
 /// P133: Java `RequestUtil.getDate` → epoch millis for channel createTime filters.
-fn parse_optional_epoch_millis(
-    param: &str,
-    value: Option<&str>,
-) -> Result<Option<i64>, ApiError> {
+fn parse_optional_epoch_millis(param: &str, value: Option<&str>) -> Result<Option<i64>, ApiError> {
     let Some(raw) = value.map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
@@ -727,7 +724,9 @@ pub async fn list_channel_definitions(
     }
     // P133: createTime / createTimeAfter / createTimeBefore
     // (ChannelDefinitionCollectionResource.java:126-133)
-    if let Some(create_time) = parse_optional_epoch_millis("createTime", params.create_time.as_deref())? {
+    if let Some(create_time) =
+        parse_optional_epoch_millis("createTime", params.create_time.as_deref())?
+    {
         query = query.create_time(create_time);
     }
     if let Some(create_time_after) =
@@ -922,7 +921,8 @@ pub async fn receive_inbound_event(
     Json(request): Json<InboundEventRequestBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     let service = service(engine);
-    let delivery = if let Some(channel_key) = request.channel_key.filter(|value| !value.is_empty()) {
+    let delivery = if let Some(channel_key) = request.channel_key.filter(|value| !value.is_empty())
+    {
         // Prefer channel-keyed raw processing when channel semantics are present.
         service.process_inbound_channel_event(InboundRawEvent {
             channel_key,

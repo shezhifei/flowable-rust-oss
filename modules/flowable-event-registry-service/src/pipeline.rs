@@ -4,7 +4,7 @@ use crate::adapter::{
 };
 use crate::models::{EventDefinition, EventInstanceDelivery, EventPayload, ValidationError};
 use crate::ssrf_guard::OutboundUrlGuardConfig;
-use crate::tenant_fallback::{TenantFallbackPolicy, NO_TENANT_ID};
+use crate::tenant_fallback::{NO_TENANT_ID, TenantFallbackPolicy};
 use flowable_engine::error::FlowableError;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -169,11 +169,7 @@ impl InboundTenantDetector for DefaultTenantDetector {
             if let Some(value) = context.headers.get(header_name) {
                 return Ok(Some(value.clone()));
             }
-            if let Some(value) = context
-                .payload
-                .get(header_name)
-                .and_then(Value::as_str)
-            {
+            if let Some(value) = context.payload.get(header_name).and_then(Value::as_str) {
                 return Ok(Some(value.to_string()));
             }
         }
@@ -323,7 +319,11 @@ impl EventRegistryConfiguration {
         self.payload_extractors.insert(name.into(), extractor);
     }
 
-    pub fn register_filter(&mut self, name: impl Into<String>, filter: Arc<dyn InboundEventFilter>) {
+    pub fn register_filter(
+        &mut self,
+        name: impl Into<String>,
+        filter: Arc<dyn InboundEventFilter>,
+    ) {
         self.filters.insert(name.into(), filter);
     }
 
@@ -767,11 +767,7 @@ impl EventRegistryConfigurationBuilder {
         self
     }
 
-    pub fn filter(
-        mut self,
-        name: impl Into<String>,
-        filter: Arc<dyn InboundEventFilter>,
-    ) -> Self {
+    pub fn filter(mut self, name: impl Into<String>, filter: Arc<dyn InboundEventFilter>) -> Self {
         self.filters.insert(name.into(), filter);
         self
     }

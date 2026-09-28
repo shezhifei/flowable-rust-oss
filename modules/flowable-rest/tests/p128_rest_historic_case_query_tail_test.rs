@@ -45,7 +45,8 @@ async fn setup(test_name: &str) -> Fixture {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
     let cmmn_engine = process_engine
         .get_config()
         .cmmn_engine

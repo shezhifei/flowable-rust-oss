@@ -52,9 +52,7 @@ impl InboundEventConsumer for CountingConsumer {
         self.invocations.fetch_add(1, Ordering::SeqCst);
         if self.fail_times.load(Ordering::SeqCst) > 0 {
             self.fail_times.fetch_sub(1, Ordering::SeqCst);
-            return Err(FlowableError::ExecutionError(
-                "consumer failed".to_string(),
-            ));
+            return Err(FlowableError::ExecutionError("consumer failed".to_string()));
         }
         Ok(())
     }
@@ -152,8 +150,7 @@ fn raw_event(tenant_hint: Option<&str>) -> InboundRawEvent {
 
 #[test]
 fn raw_inbound_addressing_rejects_foreign_tenant_channel() {
-    let (_engine, service, consumer) =
-        inbound_fixture("channel-tenant-isolation-foreign", 0);
+    let (_engine, service, consumer) = inbound_fixture("channel-tenant-isolation-foreign", 0);
     // The channel exists only under tenant-a; there is no tenantless default.
     deploy_inbound_for_tenant(&service, Some("tenant-a"), "tenant-a");
 
@@ -205,8 +202,7 @@ fn raw_inbound_addressing_falls_back_to_tenantless_default_channel() {
 
 #[test]
 fn legacy_retry_resolves_strictly_by_delivery_tenant() {
-    let (engine, service, consumer) =
-        inbound_fixture("channel-tenant-isolation-legacy-retry", 2);
+    let (engine, service, consumer) = inbound_fixture("channel-tenant-isolation-legacy-retry", 2);
     // The channel exists only under tenant-a.
     deploy_inbound_for_tenant(&service, Some("tenant-a"), "tenant-a");
 

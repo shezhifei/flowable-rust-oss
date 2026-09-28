@@ -14,7 +14,7 @@ use flowable_cmmn_engine::{
     CmmnCase, CmmnCasePlanModel, CmmnCaseTask, CmmnDecisionTask, CmmnEventListener, CmmnHumanTask,
     CmmnMilestone, CmmnPlanItem, CmmnProcessTask, CmmnStage,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
 /// Build admin UI display JSON for a process definition model.
@@ -166,7 +166,9 @@ fn process_elements(
                     "name": fe.name,
                 });
                 if let Some(c) = completed {
-                    if let Some(obj) = node.as_object_mut() { obj.insert("completed".into(), json!(c.contains(&id))); }
+                    if let Some(obj) = node.as_object_mut() {
+                        obj.insert("completed".into(), json!(c.contains(&id)));
+                    }
                 }
                 let waypoints = model
                     .flow_location_map
@@ -178,9 +180,18 @@ fn process_elements(
                     let mut p = json!({});
                     fill_graphic(&mut p, gi, false);
                     wp.push(p);
-                    expand_diagram(gi, diagram_x, diagram_y, diagram_right, diagram_bottom, first);
+                    expand_diagram(
+                        gi,
+                        diagram_x,
+                        diagram_y,
+                        diagram_right,
+                        diagram_bottom,
+                        first,
+                    );
                 }
-                if let Some(obj) = node.as_object_mut() { obj.insert("waypoints".into(), json!(wp)); }
+                if let Some(obj) = node.as_object_mut() {
+                    obj.insert("waypoints".into(), json!(wp));
+                }
                 flows.push(node);
             }
             other => {
@@ -191,14 +202,25 @@ fn process_elements(
                     "type": type_name,
                 });
                 if let Some(c) = completed {
-                    if let Some(obj) = node.as_object_mut() { obj.insert("completed".into(), json!(c.contains(&id))); }
+                    if let Some(obj) = node.as_object_mut() {
+                        obj.insert("completed".into(), json!(c.contains(&id)));
+                    }
                 }
                 if let Some(c) = current {
-                    if let Some(obj) = node.as_object_mut() { obj.insert("current".into(), json!(c.contains(&id))); }
+                    if let Some(obj) = node.as_object_mut() {
+                        obj.insert("current".into(), json!(c.contains(&id)));
+                    }
                 }
                 if let Some(gi) = model.location_map.get(&id) {
                     fill_graphic(&mut node, gi, true);
-                    expand_diagram(gi, diagram_x, diagram_y, diagram_right, diagram_bottom, first);
+                    expand_diagram(
+                        gi,
+                        diagram_x,
+                        diagram_y,
+                        diagram_right,
+                        diagram_bottom,
+                        first,
+                    );
                 }
                 elements.push(node);
                 if let Some(children) = nested {
@@ -234,7 +256,12 @@ fn act_meta(act: &Activity) -> (String, Option<String>) {
 
 fn element_meta(
     el: &FlowElementEnum,
-) -> (String, Option<String>, &'static str, Option<&[FlowElementEnum]>) {
+) -> (
+    String,
+    Option<String>,
+    &'static str,
+    Option<&[FlowElementEnum]>,
+) {
     match el {
         FlowElementEnum::StartEvent(e) => {
             let (id, name) = fe_meta(&e.event.flow_node.flow_element);
@@ -629,26 +656,53 @@ impl PlanItemContainer for CmmnStage {
 /// Java plan item definition simple class name (e.g. `HumanTask`, `Stage`) plus
 /// the definition name, looked up by `PlanItem.definition_ref`.
 #[allow(dead_code)]
-fn cmmn_definition_meta(container: &dyn PlanItemContainer, definition_ref: &str) -> (&'static str, Option<String>) {
-    if let Some(d) = container.human_tasks().iter().find(|d| d.id == definition_ref) {
+fn cmmn_definition_meta(
+    container: &dyn PlanItemContainer,
+    definition_ref: &str,
+) -> (&'static str, Option<String>) {
+    if let Some(d) = container
+        .human_tasks()
+        .iter()
+        .find(|d| d.id == definition_ref)
+    {
         return ("HumanTask", Some(d.name.clone()));
     }
     if let Some(d) = container.stages().iter().find(|d| d.id == definition_ref) {
         return ("Stage", Some(d.name.clone()));
     }
-    if let Some(d) = container.decision_tasks().iter().find(|d| d.id == definition_ref) {
+    if let Some(d) = container
+        .decision_tasks()
+        .iter()
+        .find(|d| d.id == definition_ref)
+    {
         return ("DecisionTask", Some(d.name.clone()));
     }
-    if let Some(d) = container.process_tasks().iter().find(|d| d.id == definition_ref) {
+    if let Some(d) = container
+        .process_tasks()
+        .iter()
+        .find(|d| d.id == definition_ref)
+    {
         return ("ProcessTask", Some(d.name.clone()));
     }
-    if let Some(d) = container.case_tasks().iter().find(|d| d.id == definition_ref) {
+    if let Some(d) = container
+        .case_tasks()
+        .iter()
+        .find(|d| d.id == definition_ref)
+    {
         return ("CaseTask", Some(d.name.clone()));
     }
-    if let Some(d) = container.milestones().iter().find(|d| d.id == definition_ref) {
+    if let Some(d) = container
+        .milestones()
+        .iter()
+        .find(|d| d.id == definition_ref)
+    {
         return ("Milestone", Some(d.name.clone()));
     }
-    if let Some(d) = container.event_listeners().iter().find(|d| d.id == definition_ref) {
+    if let Some(d) = container
+        .event_listeners()
+        .iter()
+        .find(|d| d.id == definition_ref)
+    {
         let type_name = if d.event_type == "timer" {
             "TimerEventListener"
         } else {
@@ -675,7 +729,8 @@ fn process_cmmn_container(
     first: &mut bool,
 ) {
     for plan_item in container.plan_items() {
-        let (type_name, definition_name) = cmmn_definition_meta(container, &plan_item.definition_ref);
+        let (type_name, definition_name) =
+            cmmn_definition_meta(container, &plan_item.definition_ref);
         let name = plan_item.name.clone().or(definition_name);
         let mut node = json!({
             "id": plan_item.id,
@@ -685,17 +740,39 @@ fn process_cmmn_container(
         });
         // Java highlights on planItemDefinitionId, not the plan item id.
         if let Some(c) = completed {
-            if let Some(obj) = node.as_object_mut() { obj.insert("completed".into(), json!(c.contains(&plan_item.definition_ref))); }
+            if let Some(obj) = node.as_object_mut() {
+                obj.insert(
+                    "completed".into(),
+                    json!(c.contains(&plan_item.definition_ref)),
+                );
+            }
         }
         if let Some(c) = current {
-            if let Some(obj) = node.as_object_mut() { obj.insert("current".into(), json!(c.contains(&plan_item.definition_ref))); }
+            if let Some(obj) = node.as_object_mut() {
+                obj.insert(
+                    "current".into(),
+                    json!(c.contains(&plan_item.definition_ref)),
+                );
+            }
         }
         if let Some(c) = available {
-            if let Some(obj) = node.as_object_mut() { obj.insert("available".into(), json!(c.contains(&plan_item.definition_ref))); }
+            if let Some(obj) = node.as_object_mut() {
+                obj.insert(
+                    "available".into(),
+                    json!(c.contains(&plan_item.definition_ref)),
+                );
+            }
         }
         if let Some(gi) = graphics.get(&plan_item.id) {
             fill_graphic(&mut node, gi, true);
-            expand_diagram(gi, diagram_x, diagram_y, diagram_right, diagram_bottom, first);
+            expand_diagram(
+                gi,
+                diagram_x,
+                diagram_y,
+                diagram_right,
+                diagram_bottom,
+                first,
+            );
         }
         elements.push(node);
 
@@ -703,7 +780,12 @@ fn process_cmmn_container(
             .entry_criterion_ids
             .iter()
             .map(|id| (id, "EntryCriterion"))
-            .chain(plan_item.exit_criterion_ids.iter().map(|id| (id, "ExitCriterion")))
+            .chain(
+                plan_item
+                    .exit_criterion_ids
+                    .iter()
+                    .map(|id| (id, "ExitCriterion")),
+            )
         {
             let mut criterion_node = json!({
                 "id": criterion_id.0,
@@ -711,7 +793,14 @@ fn process_cmmn_container(
             });
             if let Some(gi) = graphics.get(criterion_id.0) {
                 fill_graphic(&mut criterion_node, gi, true);
-                expand_diagram(gi, diagram_x, diagram_y, diagram_right, diagram_bottom, first);
+                expand_diagram(
+                    gi,
+                    diagram_x,
+                    diagram_y,
+                    diagram_right,
+                    diagram_bottom,
+                    first,
+                );
             }
             elements.push(criterion_node);
         }
@@ -770,9 +859,7 @@ mod tests {
         let mut ut = UserTask::default();
         ut.task.activity.flow_node.flow_element.base_element.id = Some("task1".into());
         ut.task.activity.flow_node.flow_element.name = Some("Do it".into());
-        process
-            .flow_elements
-            .push(FlowElementEnum::UserTask(ut));
+        process.flow_elements.push(FlowElementEnum::UserTask(ut));
         model.processes.push(process);
         let v = build_process_definition_display(&model);
         assert_eq!(v["elements"].as_array().unwrap().len(), 1);
@@ -885,8 +972,16 @@ mod tests {
         assert_eq!(human["type"], "HumanTask");
         assert_eq!(human["name"], "Do work");
         assert_eq!(human["planItemDefinitionId"], "humanTaskDef");
-        assert!(elements.iter().any(|e| e["id"] == "entry1" && e["type"] == "EntryCriterion"));
-        assert!(elements.iter().any(|e| e["id"] == "exit1" && e["type"] == "ExitCriterion"));
+        assert!(
+            elements
+                .iter()
+                .any(|e| e["id"] == "entry1" && e["type"] == "EntryCriterion")
+        );
+        assert!(
+            elements
+                .iter()
+                .any(|e| e["id"] == "exit1" && e["type"] == "ExitCriterion")
+        );
         // Nested stage contents are flattened into the same elements list.
         let milestone = elements.iter().find(|e| e["id"] == "planItem2").unwrap();
         assert_eq!(milestone["type"], "Milestone");

@@ -32,17 +32,19 @@ const USER_TASK_PROCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-process-definition-actions".to_string(),
-    ).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    let engine =
+        Arc::new(ProcessEngine::new("rest-bpmn-process-definition-actions".to_string()).unwrap());
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

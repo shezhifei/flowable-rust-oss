@@ -27,14 +27,17 @@ const ECHO_HEADER: &str = "x-flowable-api-version";
 
 async fn spawn_server(test_name: &str) -> (String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -60,7 +63,9 @@ async fn get_definitions(
     version: Option<&str>,
 ) -> reqwest::Response {
     let mut request = client
-        .get(format!("{base_url}/repository/process-definitions?start=0&size=1"))
+        .get(format!(
+            "{base_url}/repository/process-definitions?start=0&size=1"
+        ))
         .basic_auth("admin", Some("test"));
     if let Some(value) = version {
         request = request.header(VERSION_HEADER, value);

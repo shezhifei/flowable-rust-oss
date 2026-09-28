@@ -73,7 +73,9 @@ pub async fn version_detection_middleware(mut req: Request, next: Next) -> Respo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{Router, body::Body, extract::Extension, http::Request as HttpRequest, routing::get};
+    use axum::{
+        Router, body::Body, extract::Extension, http::Request as HttpRequest, routing::get,
+    };
     use tower::ServiceExt;
 
     fn detect_from(header: Option<&str>) -> ApiVersion {
@@ -126,7 +128,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            response.headers().get(ECHO_HEADER_NAME).map(HeaderValue::as_bytes),
+            response
+                .headers()
+                .get(ECHO_HEADER_NAME)
+                .map(HeaderValue::as_bytes),
             Some(b"6.8".as_slice())
         );
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -144,7 +149,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            fallback.headers().get(ECHO_HEADER_NAME).map(HeaderValue::as_bytes),
+            fallback
+                .headers()
+                .get(ECHO_HEADER_NAME)
+                .map(HeaderValue::as_bytes),
             Some(b"8.0".as_slice())
         );
     }

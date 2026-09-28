@@ -13,22 +13,28 @@ use tokio::net::TcpListener;
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
-    engine.get_identity_service().save_user(User {
-        id: "kermit".to_string(),
-        first_name: Some("Kermit".to_string()),
-        last_name: None,
-        email: Some("kermit@muppets.test".to_string()),
-        password: Some("thegreen".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "kermit".to_string(),
+            first_name: Some("Kermit".to_string()),
+            last_name: None,
+            email: Some("kermit@muppets.test".to_string()),
+            password: Some("thegreen".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

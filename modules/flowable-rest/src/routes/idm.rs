@@ -365,7 +365,11 @@ async fn get_rest_user(
         .get_user_picture(&user.id)?
         .is_some();
     let base_url = request_base_url(None);
-    Ok(Json(RestUserResponse::from_user(user, &base_url, has_picture)))
+    Ok(Json(RestUserResponse::from_user(
+        user,
+        &base_url,
+        has_picture,
+    )))
 }
 
 #[derive(Deserialize)]
@@ -469,7 +473,11 @@ async fn update_rest_user(
         .get_user_picture(&user.id)?
         .is_some();
     let base_url = request_base_url(None);
-    Ok(Json(RestUserResponse::from_user(user, &base_url, has_picture)))
+    Ok(Json(RestUserResponse::from_user(
+        user,
+        &base_url,
+        has_picture,
+    )))
 }
 
 async fn delete_user(
@@ -774,7 +782,10 @@ async fn get_group(
         return Ok(Json(GroupResponse::from(group)));
     }
 
-    let group = engine.0.get_identity_service().find_group_by_id(&group_id)?;
+    let group = engine
+        .0
+        .get_identity_service()
+        .find_group_by_id(&group_id)?;
     match group {
         Some(g) => Ok(Json(GroupResponse::from(g))),
         None => Err(ApiError::NotFound(format!(
@@ -1058,7 +1069,9 @@ pub async fn list_privileges(
     params: AxumQuery<PrivilegeQueryParams>,
 ) -> Result<Json<DataResponse<PrivilegeResponse>>, ApiError> {
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut privileges = store.list_privileges(&mut session);
     if let Some(id) = params.id.as_deref() {
         privileges.retain(|privilege| privilege.id == id);
@@ -1110,7 +1123,9 @@ pub async fn get_privilege(
     Path(privilege_id): Path<String>,
 ) -> Result<Json<PrivilegeResponse>, ApiError> {
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .0
         .get_identity_service()
@@ -1215,7 +1230,9 @@ async fn list_privilege_users(
 ) -> Result<Json<Vec<UserResponse>>, ApiError> {
     ensure_privilege_exists(&engine.0, &privilege_id)?;
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut users = store
         .find_privilege_mappings_by_privilege(&privilege_id, &mut session)
         .into_iter()
@@ -1263,7 +1280,9 @@ async fn list_privilege_groups(
 ) -> Result<Json<Vec<GroupResponse>>, ApiError> {
     ensure_privilege_exists(&engine.0, &privilege_id)?;
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut groups = store
         .find_privilege_mappings_by_privilege(&privilege_id, &mut session)
         .into_iter()
@@ -1544,7 +1563,9 @@ fn query_engine_groups(
     Ok(groups
         .into_iter()
         .filter(|group| group_matches(group, params))
-        .map(|group| group_membership_matches(engine, &group, params).map(|matched| (group, matched)))
+        .map(|group| {
+            group_membership_matches(engine, &group, params).map(|matched| (group, matched))
+        })
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .filter_map(|(group, matched)| matched.then_some(group))
@@ -1763,7 +1784,8 @@ fn potential_starter_group_ids(
     let mut session = store
         .create_session()
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
-    let links = store.find_identity_links_by_process_definition(process_definition_id, &mut session);
+    let links =
+        store.find_identity_links_by_process_definition(process_definition_id, &mut session);
     // Read the sticky slot before rolling back: the store records a failed read
     // there and hands back an empty Vec (`DbSession::rollback_read`). Without
     // this, an unreachable store would look like "no potential starter groups",

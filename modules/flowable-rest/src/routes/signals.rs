@@ -112,7 +112,9 @@ pub(crate) fn trigger_signal(
     let runtime_store = engine.get_runtime_store();
     let runtime_service = engine.get_runtime_service();
     let (mut execution_ids, boundary_process_ids, event_subprocess_process_ids) = {
-        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let mut session = runtime_store
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         let execution_ids: Vec<String> = runtime_store
             .snapshot_event_wait_states(&mut session)
             .into_values()
@@ -205,11 +207,7 @@ pub(crate) fn trigger_signal(
         {
             continue;
         }
-        if matches_definition_tenant(
-            &engine,
-            &subscription.process_definition_id,
-            tenant_id,
-        )? {
+        if matches_definition_tenant(&engine, &subscription.process_definition_id, tenant_id)? {
             start_subscriptions.push(subscription);
         }
     }

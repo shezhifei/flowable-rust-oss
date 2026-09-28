@@ -592,11 +592,7 @@ async fn event_registry_runtime_routes_return_structured_errors_without_bpmn_fal
     assert_eq!(missing_delivery_body["code"], "NOT_FOUND");
 }
 
-async fn deploy_pipeline_channel(
-    client: &reqwest::Client,
-    base_url: &str,
-    channel_extra: Value,
-) {
+async fn deploy_pipeline_channel(client: &reqwest::Client, base_url: &str, channel_extra: Value) {
     let mut channel = json!({
         "key": "pipelineInbound",
         "name": "Pipeline inbound",
@@ -648,8 +644,7 @@ async fn deploy_pipeline_channel(
 
 #[tokio::test]
 async fn rest_inbound_channel_pipeline_filter_failure_and_delivery_status() {
-    let (_engine, base_url, client) =
-        spawn_server("rest-event-registry-pipeline-filter").await;
+    let (_engine, base_url, client) = spawn_server("rest-event-registry-pipeline-filter").await;
     deploy_pipeline_channel(&client, &base_url, json!({ "rejectAll": true })).await;
 
     let response = client
@@ -692,8 +687,7 @@ async fn rest_inbound_channel_pipeline_filter_failure_and_delivery_status() {
 
 #[tokio::test]
 async fn rest_inbound_channel_pipeline_transform_failure() {
-    let (_engine, base_url, client) =
-        spawn_server("rest-event-registry-pipeline-transform").await;
+    let (_engine, base_url, client) = spawn_server("rest-event-registry-pipeline-transform").await;
     deploy_pipeline_channel(&client, &base_url, json!({ "failTransform": true })).await;
 
     let response = client
@@ -727,8 +721,7 @@ async fn rest_inbound_channel_pipeline_transform_failure() {
 
 #[tokio::test]
 async fn rest_inbound_channel_pipeline_key_detection_failure() {
-    let (_engine, base_url, client) =
-        spawn_server("rest-event-registry-pipeline-key").await;
+    let (_engine, base_url, client) = spawn_server("rest-event-registry-pipeline-key").await;
     deploy_pipeline_channel(&client, &base_url, json!({})).await;
 
     let response = client
@@ -783,7 +776,9 @@ async fn rest_outbound_publish_exposes_dispatch_token_and_delivery_status() {
     let body: Value = outbound_response.json().await.unwrap();
     assert_eq!(body["status"], "PUBLISHED");
     assert!(
-        body["dispatchToken"].as_str().is_some_and(|token| token.starts_with("dispatch:")),
+        body["dispatchToken"]
+            .as_str()
+            .is_some_and(|token| token.starts_with("dispatch:")),
         "dispatchToken should be present: {body}"
     );
 
@@ -805,8 +800,7 @@ async fn rest_outbound_publish_exposes_dispatch_token_and_delivery_status() {
 
 #[tokio::test]
 async fn rest_inbound_channel_pipeline_success_and_status_retrieval() {
-    let (_engine, base_url, client) =
-        spawn_server("rest-event-registry-pipeline-success").await;
+    let (_engine, base_url, client) = spawn_server("rest-event-registry-pipeline-success").await;
     deploy_pipeline_channel(&client, &base_url, json!({})).await;
 
     let response = client
@@ -828,10 +822,7 @@ async fn rest_inbound_channel_pipeline_success_and_status_retrieval() {
     let body: Value = response.json().await.unwrap();
     assert_eq!(body["status"], "PROCESSED");
     assert_eq!(body["channelKey"], "pipelineInbound");
-    assert_eq!(
-        body["statusHistory"],
-        json!(["RECEIVED", "PROCESSED"])
-    );
+    assert_eq!(body["statusHistory"], json!(["RECEIVED", "PROCESSED"]));
 
     let delivery_id = body["id"].as_str().unwrap();
     let get_delivery = client

@@ -34,7 +34,8 @@ async fn setup() -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -95,9 +96,7 @@ async fn finished_by_get_and_post_are_valid_filters_with_no_rest_actor_data() {
 
     let (status, response) = body(
         client
-            .post(format!(
-                "{base_url}/cmmn-query/historic-case-instances"
-            ))
+            .post(format!("{base_url}/cmmn-query/historic-case-instances"))
             .basic_auth("admin", Some("test"))
             .json(&json!({ "finishedBy": "admin" }))
             .send()

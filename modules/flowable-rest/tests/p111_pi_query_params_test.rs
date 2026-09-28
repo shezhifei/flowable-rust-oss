@@ -108,7 +108,10 @@ async fn deploy_and_start(
         .unwrap();
     assert!(tasks.status().is_success());
     let tasks_body: Value = tasks.json().await.unwrap();
-    let execution_id = tasks_body["data"][0]["executionId"].as_str().unwrap().to_string();
+    let execution_id = tasks_body["data"][0]["executionId"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     TestContext {
         base_url: base_url.to_string(),
@@ -178,7 +181,11 @@ async fn p111_get_process_instance_query_params() {
         .send()
         .await
         .unwrap();
-    assert!(update.status().is_success(), "update failed: {}", update.status());
+    assert!(
+        update.status().is_success(),
+        "update failed: {}",
+        update.status()
+    );
 
     // activeActivityId — instance is waiting at userTask task1.
     let body = get_pi(&client, &ctx.base_url, "activeActivityId=task1").await;
@@ -191,7 +198,10 @@ async fn p111_get_process_instance_query_params() {
 
     // includeProcessVariablesNames — only the named variable is returned.
     let body = get_pi(&client, &ctx.base_url, "includeProcessVariablesNames=route").await;
-    assert_eq!(body["total"], 1, "includeProcessVariablesNames body: {body}");
+    assert_eq!(
+        body["total"], 1,
+        "includeProcessVariablesNames body: {body}"
+    );
     assert_eq!(
         body["data"][0]["variables"],
         json!([{
@@ -219,7 +229,10 @@ async fn p111_get_process_instance_query_params() {
         "subProcessInstanceId=does-not-exist",
     ] {
         let res = client
-            .get(format!("{}/runtime/process-instances?{query}", ctx.base_url))
+            .get(format!(
+                "{}/runtime/process-instances?{query}",
+                ctx.base_url
+            ))
             .basic_auth("admin", Some("test"))
             .send()
             .await
@@ -259,17 +272,32 @@ async fn p111_post_process_instance_query_params() {
     assert!(update.status().is_success());
 
     // POST field-name alignment: Java names and legacy aliases both work.
-    let body = post_pi(&client, &ctx.base_url, json!({"processInstanceName": "My Instance"})).await;
+    let body = post_pi(
+        &client,
+        &ctx.base_url,
+        json!({"processInstanceName": "My Instance"}),
+    )
+    .await;
     assert_eq!(body["total"], 1, "processInstanceName body: {body}");
     let body = post_pi(&client, &ctx.base_url, json!({"name": "My Instance"})).await;
     assert_eq!(body["total"], 1, "name alias body: {body}");
 
-    let body = post_pi(&client, &ctx.base_url, json!({"processBusinessKey": "My Key"})).await;
+    let body = post_pi(
+        &client,
+        &ctx.base_url,
+        json!({"processBusinessKey": "My Key"}),
+    )
+    .await;
     assert_eq!(body["total"], 1, "processBusinessKey body: {body}");
     let body = post_pi(&client, &ctx.base_url, json!({"businessKey": "My Key"})).await;
     assert_eq!(body["total"], 1, "businessKey alias body: {body}");
 
-    let body = post_pi(&client, &ctx.base_url, json!({"processBusinessStatus": "Ready"})).await;
+    let body = post_pi(
+        &client,
+        &ctx.base_url,
+        json!({"processBusinessStatus": "Ready"}),
+    )
+    .await;
     assert_eq!(body["total"], 1, "processBusinessStatus body: {body}");
     let body = post_pi(&client, &ctx.base_url, json!({"businessStatus": "Ready"})).await;
     assert_eq!(body["total"], 1, "businessStatus alias body: {body}");
@@ -299,7 +327,12 @@ async fn p111_post_process_instance_query_params() {
     .await;
     assert_eq!(body["total"], 1, "deploymentId body: {body}");
 
-    let body = post_pi(&client, &ctx.base_url, json!({"activeActivityIds": ["task1"]})).await;
+    let body = post_pi(
+        &client,
+        &ctx.base_url,
+        json!({"activeActivityIds": ["task1"]}),
+    )
+    .await;
     assert_eq!(body["total"], 1, "activeActivityIds body: {body}");
 
     let body = post_pi(
@@ -316,7 +349,10 @@ async fn p111_post_process_instance_query_params() {
         json!({"excludeProcessDefinitionKeys": ["other"]}),
     )
     .await;
-    assert_eq!(body["total"], 1, "excludeProcessDefinitionKeys body: {body}");
+    assert_eq!(
+        body["total"], 1,
+        "excludeProcessDefinitionKeys body: {body}"
+    );
 
     let body = post_pi(
         &client,

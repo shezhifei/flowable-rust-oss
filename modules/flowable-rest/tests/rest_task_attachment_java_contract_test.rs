@@ -33,7 +33,8 @@ async fn start_test_server(test_name: &str) -> (reqwest::Client, String, Arc<Pro
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -151,12 +152,7 @@ approved payload\r\n\
     assert_eq!(body["description"], "Review note");
     assert_eq!(body["type"], "text/plain");
     assert!(body["taskUrl"].as_str().unwrap().ends_with(&task_id));
-    assert!(
-        body["contentUrl"]
-            .as_str()
-            .unwrap()
-            .ends_with("/content")
-    );
+    assert!(body["contentUrl"].as_str().unwrap().ends_with("/content"));
     assert!(body["externalUrl"].is_null());
     assert_eq!(body["userId"], "admin");
     assert!(body["time"].as_str().is_some());
@@ -283,8 +279,7 @@ async fn create_mid_failure_leaves_no_orphan_content_or_event() {
 #[tokio::test]
 async fn delete_clears_attachment_and_missing_is_404() {
     let (client, base_url, engine) = start_test_server("rest-attach-delete").await;
-    let task_id =
-        deploy_and_start_user_task(&client, &base_url, &engine, "restAttachDelete").await;
+    let task_id = deploy_and_start_user_task(&client, &base_url, &engine, "restAttachDelete").await;
 
     let create = client
         .post(format!("{base_url}/runtime/tasks/{task_id}/attachments"))
@@ -386,7 +381,15 @@ async fn after_completion_get_ok_post_delete_not_found() {
         .await
         .unwrap();
     assert_eq!(list.status(), reqwest::StatusCode::OK);
-    assert_eq!(list.json::<Value>().await.unwrap().as_array().unwrap().len(), 1);
+    assert_eq!(
+        list.json::<Value>()
+            .await
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 
     let get = client
         .get(format!(
@@ -508,5 +511,13 @@ async fn suspended_task_create_rejected_without_side_effects() {
         .await
         .unwrap();
     assert_eq!(list.status(), reqwest::StatusCode::OK);
-    assert_eq!(list.json::<Value>().await.unwrap().as_array().unwrap().len(), 0);
+    assert_eq!(
+        list.json::<Value>()
+            .await
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
 }

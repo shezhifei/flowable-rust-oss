@@ -290,8 +290,7 @@ mod tests {
 
     #[tokio::test]
     async fn not_found_and_conflict_details_still_echo() {
-        let (status, body) =
-            response_json(ApiError::NotFound("Task not found".to_string())).await;
+        let (status, body) = response_json(ApiError::NotFound("Task not found".to_string())).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(body["details"], "Task not found");
 

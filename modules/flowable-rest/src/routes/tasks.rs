@@ -548,10 +548,7 @@ pub(crate) struct TaskEventResponse {
     pub user_id: Option<String>,
 }
 
-fn to_task_response(
-    engine: &ProcessEngine,
-    task: Task,
-) -> Result<TaskResponse, ApiError> {
+fn to_task_response(engine: &ProcessEngine, task: Task) -> Result<TaskResponse, ApiError> {
     let (candidate_users, candidate_groups) = candidate_identity_ids(engine, &task.id)?;
     // Java parity: REST returns "active" or "suspended" string
     let suspension_state = if task.is_suspended() {
@@ -944,7 +941,8 @@ fn tasks_for_query(
     if needs_process_instance_filter {
         let store = engine.get_runtime_store();
         tasks.retain(|task| {
-            let pi = match store.find_process_instance(&task.process_instance_id, &mut read_session) {
+            let pi = match store.find_process_instance(&task.process_instance_id, &mut read_session)
+            {
                 Ok(Some(pi)) => pi,
                 Ok(None) => return false,
                 Err(error) => {
@@ -1401,10 +1399,7 @@ pub(crate) async fn create_task(
     );
     apply_task_request_fields(request, &mut task)?;
     let task = engine.get_task_service().create_task(task)?;
-    Ok((
-        StatusCode::CREATED,
-        Json(to_task_response(&engine, task)?),
-    ))
+    Ok((StatusCode::CREATED, Json(to_task_response(&engine, task)?)))
 }
 
 /// Java `TaskRequest` setter semantics: only fields present in the JSON body
@@ -1863,7 +1858,9 @@ pub(crate) async fn create_task_attachment(
 
     // Java parity: CreateAttachmentCmd.verifyExecutionParameters checks execution.isSuspended()
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if let Some(pi) = store.find_process_instance(&task.process_instance_id, &mut session)? {
         if pi.is_suspended {
             return Err(ApiError::InternalServerError(format!(
@@ -1910,9 +1907,7 @@ pub(crate) async fn list_task_attachments(
     let attachments = content_service
         .list_task_attachments(&task.id)?
         .into_iter()
-        .map(|item| {
-            super::attachments::task_attachment_response_from_record(&task.id, item)
-        })
+        .map(|item| super::attachments::task_attachment_response_from_record(&task.id, item))
         .collect();
     Ok(Json(attachments))
 }
@@ -2000,7 +1995,10 @@ pub(crate) async fn list_task_comments(
     // List uses historic task so comments remain readable after completion
     // (Java `TaskCommentCollectionResource.getComments` → getHistoricTaskFromRequest).
     let task = load_historic_task(&engine, &id)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let comments = engine
         .get_history_service()
         .get_task_comments(&task.id, &mut session)
@@ -2044,7 +2042,10 @@ pub(crate) async fn list_task_events(
 ) -> Result<Json<Vec<TaskEventResponse>>, ApiError> {
     // List uses historic task (Java `TaskEventCollectionResource.getEvents`).
     let task = load_historic_task(&engine, &id)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let events = engine
         .get_history_service()
         .get_task_events(&task.id, &mut session)
@@ -2060,7 +2061,10 @@ pub(crate) async fn get_task_event(
 ) -> Result<Json<TaskEventResponse>, ApiError> {
     // Get uses historic task (Java `TaskEventResource.getEvent`).
     let task = load_historic_task(&engine, &id)?;
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_history_service()
         .get_task_event(&task.id, &event_id, &mut session);
@@ -2094,10 +2098,11 @@ pub(crate) async fn delete_task_event(
 }
 
 pub(crate) fn load_task(engine: &ProcessEngine, id: &str) -> Result<Task, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-    let found = engine
+    let mut session = engine
         .get_runtime_store()
-        .find_task(id, &mut session)?;
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine.get_runtime_store().find_task(id, &mut session)?;
     ApiError::found_or_not_found(&mut session, found, || {
         ApiError::NotFound(format!("Task '{}' was not found", id))
     })
@@ -2106,7 +2111,10 @@ pub(crate) fn load_task(engine: &ProcessEngine, id: &str) -> Result<Task, ApiErr
 /// Resolve a historic task instance for comment/event list/get.
 /// Java: `TaskBaseResource.getHistoricTaskFromRequest`.
 fn load_historic_task(engine: &ProcessEngine, id: &str) -> Result<HistoricTaskInstance, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_runtime_store()
         .get_historic_task_instance(id, &mut session);
@@ -2138,7 +2146,10 @@ fn task_comment_for_historic(
     task: &HistoricTaskInstance,
     comment_id: &str,
 ) -> Result<flowable_engine::history::historic_entities::HistoricComment, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_history_service()
         .get_comment(comment_id, &mut session);
@@ -2246,12 +2257,9 @@ mod tests {
     #[test]
     fn task_variable_nameless_non_equals_is_400() {
         let variable = query_variable(json!({"operation": "notEquals", "value": "x"}));
-        let error = validate_query_variable(
-            &variable,
-            QueryVariableOperation::NotEquals,
-            &json!("x"),
-        )
-        .unwrap_err();
+        let error =
+            validate_query_variable(&variable, QueryVariableOperation::NotEquals, &json!("x"))
+                .unwrap_err();
         assert!(matches!(
             error,
             ApiError::BadRequest(message) if message ==
@@ -2262,12 +2270,15 @@ mod tests {
     #[test]
     fn task_variable_boolean_comparison_is_400() {
         for (operation, clause, value) in [
-            (QueryVariableOperation::GreaterThan, "greater than", json!(true)),
+            (
+                QueryVariableOperation::GreaterThan,
+                "greater than",
+                json!(true),
+            ),
             (QueryVariableOperation::LessThan, "less than", json!(null)),
         ] {
             let variable = query_variable(json!({"name": "v", "value": value}));
-            let error =
-                validate_query_variable(&variable, operation, &value).unwrap_err();
+            let error = validate_query_variable(&variable, operation, &value).unwrap_err();
             assert!(matches!(
                 error,
                 ApiError::BadRequest(message) if message == format!("Booleans and null cannot be used in '{clause}' condition")

@@ -117,9 +117,10 @@ fn activate_adhoc_task_for_process_instance(
 ) -> Result<(), ApiError> {
     let runtime_store = engine.get_runtime_store();
     let (process_instance, mut candidate_execution_ids) = {
-        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-        let found = runtime_store
-            .find_process_instance(process_instance_id, &mut session)?;
+        let mut session = runtime_store
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let found = runtime_store.find_process_instance(process_instance_id, &mut session)?;
         let process_instance = ApiError::found_or_not_found(&mut session, found, || {
             ApiError::NotFound(format!(
                 "Process instance '{}' was not found",
@@ -177,9 +178,10 @@ fn complete_active_adhoc_task_for_process_instance(
 ) -> Result<(), ApiError> {
     {
         let runtime_store = engine.get_runtime_store();
-        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-        let found = runtime_store
-            .find_process_instance(process_instance_id, &mut session)?;
+        let mut session = runtime_store
+            .create_session()
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let found = runtime_store.find_process_instance(process_instance_id, &mut session)?;
         ApiError::found_or_not_found(&mut session, found.map(|_| ()), || {
             ApiError::NotFound(format!(
                 "Process instance '{}' was not found",

@@ -1,9 +1,9 @@
+use crate::FlowableEventRegistryService;
 use crate::models::{
     ChannelDefinition, ChannelDefinitionUpdateRequest, EventDefinition,
     EventDefinitionUpdateRequest, EventRegistryDeployment, EventRegistryDeploymentRequest,
     EventRegistryDeploymentResource, EventRegistryResourceData,
 };
-use crate::FlowableEventRegistryService;
 use flowable_engine::error::FlowableError;
 use flowable_engine::persistence::runtime_store::{
     EventRegistryChangeRecord, EventRegistryChannelDefinition,
@@ -214,7 +214,10 @@ impl FlowableEventRegistryService {
 
         // Local cache is updated only after commit.
         {
-            let mut cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let mut cache = self
+                .definition_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             for definition in channel_definitions {
                 cache.register_channel(definition);
             }
@@ -336,7 +339,10 @@ impl FlowableEventRegistryService {
         session.flush_and_commit()?;
 
         {
-            let mut cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let mut cache = self
+                .definition_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             for definition in &channels {
                 cache.unregister_channel_id(&definition.id);
             }

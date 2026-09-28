@@ -38,7 +38,8 @@ fn build_engine(test_name: &str) -> (Arc<ProcessEngine>, Arc<CmmnEngine>) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
     let cmmn = engine
         .get_config()
         .cmmn_engine
@@ -186,16 +187,14 @@ async fn deadletter_move_routes_by_job_type_and_executes_revived_job() {
         .insert_job(history)
         .expect("history deadletter");
 
-    let mut wrong_destination =
-        CmmnJob::new("deadletter-wrong-rest", CmmnJobFamily::Deadletter);
+    let mut wrong_destination = CmmnJob::new("deadletter-wrong-rest", CmmnJobFamily::Deadletter);
     wrong_destination.job_type = Some("message".to_string());
     cmmn.management_service()
         .insert_job(wrong_destination)
         .expect("wrong destination fixture");
 
     let (base_url, client) = spawn_server(engine).await;
-    let deadletter_url =
-        |id: &str| format!("{base_url}/cmmn-management/deadletter-jobs/{id}");
+    let deadletter_url = |id: &str| format!("{base_url}/cmmn-management/deadletter-jobs/{id}");
 
     // Java JobResource.java:306-323 routes non-history jobType to executable.
     let moved = client

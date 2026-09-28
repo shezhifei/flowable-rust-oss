@@ -189,14 +189,12 @@ pub(crate) async fn list_event_subscriptions(
         subscriptions.retain(|subscription| subscription.event_name.as_deref() == Some(event_name));
     }
     if let Some(activity_id) = query.activity_id.as_deref() {
-        subscriptions.retain(|subscription| {
-            subscription.activity_id.as_deref() == Some(activity_id)
-        });
+        subscriptions
+            .retain(|subscription| subscription.activity_id.as_deref() == Some(activity_id));
     }
     if let Some(execution_id) = query.execution_id.as_deref() {
-        subscriptions.retain(|subscription| {
-            subscription.execution_id.as_deref() == Some(execution_id)
-        });
+        subscriptions
+            .retain(|subscription| subscription.execution_id.as_deref() == Some(execution_id));
     }
     if let Some(process_instance_id) = query.process_instance_id.as_deref() {
         subscriptions.retain(|subscription| {
@@ -210,9 +208,8 @@ pub(crate) async fn list_event_subscriptions(
         subscriptions.retain(|subscription| subscription.process_instance_id.is_none());
     }
     if let Some(configuration) = query.configuration.as_deref() {
-        subscriptions.retain(|subscription| {
-            subscription.configuration.as_deref() == Some(configuration)
-        });
+        subscriptions
+            .retain(|subscription| subscription.configuration.as_deref() == Some(configuration));
     }
     // Java :147 `query.withoutConfiguration()` — rows with no configuration
     // value (the common case for BPMN message/signal/timer subscriptions).

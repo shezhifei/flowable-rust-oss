@@ -112,9 +112,11 @@ async fn read_multipart_field_limited(
     request_limit: usize,
 ) -> Result<Vec<u8>, ApiError> {
     let mut buf = Vec::new();
-    while let Some(chunk) = field.chunk().await.map_err(|err| {
-        ApiError::bad_request(format!("Failed to read multipart field: {err}"))
-    })? {
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|err| ApiError::bad_request(format!("Failed to read multipart field: {err}")))?
+    {
         let n = chunk.len();
         if buf.len().saturating_add(n) > per_field_limit {
             return Err(ApiError::payload_too_large(format!(
@@ -175,9 +177,10 @@ pub(crate) async fn parse_multipart_attachment(
                 );
             }
             "description" => {
-                description = Some(String::from_utf8(data).map_err(|_| {
-                    ApiError::bad_request("Attachment description must be UTF-8")
-                })?);
+                description =
+                    Some(String::from_utf8(data).map_err(|_| {
+                        ApiError::bad_request("Attachment description must be UTF-8")
+                    })?);
             }
             "type" => {
                 attachment_type = Some(

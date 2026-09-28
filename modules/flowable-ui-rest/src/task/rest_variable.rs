@@ -155,9 +155,7 @@ pub fn rest_variable_value(var: &RestVariable) -> Result<Option<Value>, RestVari
                 .as_i64()
                 .map(|i| Some(Value::Number(i.into())))
                 .ok_or_else(|| RestVariableError("Converter can only convert longs".into())),
-            _ => Err(RestVariableError(
-                "Converter can only convert longs".into(),
-            )),
+            _ => Err(RestVariableError("Converter can only convert longs".into())),
         },
         "short" => match raw {
             Value::Number(n) => n
@@ -184,21 +182,19 @@ pub fn rest_variable_value(var: &RestVariable) -> Result<Option<Value>, RestVari
             )),
         },
         "date" => match raw {
-            Value::String(s) => {
-                parse_iso_date(s)
-                    .map(|dt| Some(Value::String(dt.to_rfc3339())))
-                    .ok_or_else(|| {
-                        RestVariableError(format!(
-                            "The given variable value is not a date: '{s}'"
-                        ))
-                    })
-            }
+            Value::String(s) => parse_iso_date(s)
+                .map(|dt| Some(Value::String(dt.to_rfc3339())))
+                .ok_or_else(|| {
+                    RestVariableError(format!("The given variable value is not a date: '{s}'"))
+                }),
             _ => Err(RestVariableError(
                 "Converter can only convert string to date".into(),
             )),
         },
         BINARY | SERIALIZABLE => Ok(Some(raw.clone())),
-        other => Err(RestVariableError(format!("Unknown variable type '{other}'"))),
+        other => Err(RestVariableError(format!(
+            "Unknown variable type '{other}'"
+        ))),
     }
 }
 
@@ -226,7 +222,12 @@ mod tests {
 
     #[test]
     fn string_roundtrip() {
-        let rv = create_rest_variable("a", Some(json!("hello")), Some(RestVariableScope::Local), true);
+        let rv = create_rest_variable(
+            "a",
+            Some(json!("hello")),
+            Some(RestVariableScope::Local),
+            true,
+        );
         assert_eq!(rv.r#type.as_deref(), Some("string"));
         assert_eq!(rv.scope.as_deref(), Some("local"));
         let v = rest_variable_value(&rv).unwrap().unwrap();

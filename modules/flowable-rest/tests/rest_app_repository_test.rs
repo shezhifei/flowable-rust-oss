@@ -115,7 +115,10 @@ impl apps::AppRepositoryApi for MockAppRepository {
 
         if let Some(resource) = command.resources.first() {
             let app_definition_id = {
-                let definitions = self.app_definitions.lock().unwrap_or_else(|e| e.into_inner());
+                let definitions = self
+                    .app_definitions
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 format!("app-{}", definitions.len() + 1)
             };
             let resource_json: Value = serde_json::from_slice(&resource.resource)
@@ -129,7 +132,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
 
             self.app_definitions
                 .lock()
-            .unwrap_or_else(|e| e.into_inner())
+                .unwrap_or_else(|e| e.into_inner())
                 .push(AppDefinitionRecord {
                     id: app_definition_id,
                     key: key.to_string(),
@@ -145,7 +148,10 @@ impl apps::AppRepositoryApi for MockAppRepository {
                 });
         }
 
-        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
+        self.deployments
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(deployment.clone());
         Ok(deployment)
     }
 
@@ -642,7 +648,7 @@ async fn app_repository_routes_accept_definition_filters() {
     repository
         .deployments
         .lock()
-            .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or_else(|e| e.into_inner())
         .push(AppDeploymentRecord {
             id: "deployment-3".to_string(),
             name: "Employee apps v2".to_string(),
@@ -654,7 +660,7 @@ async fn app_repository_routes_accept_definition_filters() {
     repository
         .app_definitions
         .lock()
-            .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or_else(|e| e.into_inner())
         .push(AppDefinitionRecord {
             id: "app-3".to_string(),
             key: "employee-portal".to_string(),

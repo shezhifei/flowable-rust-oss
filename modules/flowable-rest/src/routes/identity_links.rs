@@ -480,7 +480,10 @@ fn user_id_from_basic_auth(headers: &HeaderMap) -> Option<String> {
 }
 
 fn ensure_task_exists(engine: &ProcessEngine, task_id: &str) -> Result<(), ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_runtime_store()
         .find_task(task_id, &mut session)
@@ -493,7 +496,10 @@ fn ensure_task_exists(engine: &ProcessEngine, task_id: &str) -> Result<(), ApiEr
 /// Java parity: `AddIdentityLinkCmd` / `DeleteIdentityLinkCmd` extend
 /// `NeedsActiveTaskCmd` — loading the task AND rejecting suspended tasks.
 fn ensure_task_active(engine: &ProcessEngine, task_id: &str) -> Result<(), ApiError> {
-    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let found = engine
         .get_runtime_store()
         .find_task(task_id, &mut session)

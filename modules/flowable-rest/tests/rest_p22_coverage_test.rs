@@ -82,7 +82,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -706,10 +707,12 @@ async fn task_query_candidate_or_assigned() {
             id: "hr".to_string(),
             name: "HR".to_string(),
             group_type: None,
-        }).unwrap();
+        })
+        .unwrap();
     engine
         .get_identity_service()
-        .create_membership("fozzie".to_string(), "hr".to_string()).unwrap();
+        .create_membership("fozzie".to_string(), "hr".to_string())
+        .unwrap();
     let body = get_tasks(&client, &base_url, "candidateOrAssigned=fozzie").await;
     assert_eq!(body["total"], 1);
     assert_eq!(body["data"][0]["name"], "beta check");

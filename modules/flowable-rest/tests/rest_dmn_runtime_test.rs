@@ -105,7 +105,10 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
             row.insert("gObject".to_string(), json!({"nested": 1}));
             row.insert("hArray".to_string(), json!([1, "two"]));
             return Ok(DecisionExecutionRecord {
-                id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
+                id: format!(
+                    "execution-{}",
+                    self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1
+                ),
                 decision_table_id: "types-1".to_string(),
                 deployment_id: "deployment-1".to_string(),
                 decision_key: command.decision_key.clone(),
@@ -133,7 +136,10 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
             );
             row2.insert("priority".to_string(), json!(20));
             return Ok(DecisionExecutionRecord {
-                id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
+                id: format!(
+                    "execution-{}",
+                    self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1
+                ),
                 decision_table_id: "collect-1".to_string(),
                 deployment_id: "deployment-1".to_string(),
                 decision_key: command.decision_key.clone(),
@@ -155,7 +161,10 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
         // P82d: zero-hit decision for single-result empty 201
         if command.decision_key == "emptyHits" {
             return Ok(DecisionExecutionRecord {
-                id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
+                id: format!(
+                    "execution-{}",
+                    self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1
+                ),
                 decision_table_id: "empty-1".to_string(),
                 deployment_id: "deployment-1".to_string(),
                 decision_key: command.decision_key.clone(),
@@ -193,7 +202,10 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
         let result_variables = vec![row];
 
         let execution = DecisionExecutionRecord {
-            id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
+            id: format!(
+                "execution-{}",
+                self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1
+            ),
             decision_table_id: "decision-1".to_string(),
             deployment_id: "deployment-1".to_string(),
             decision_key: command.decision_key.clone(),
@@ -213,10 +225,8 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
             rule_executions: Vec::new(),
         };
 
-        self.history
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .push(HistoricDecisionExecutionRecord {
+        self.history.lock().unwrap_or_else(|e| e.into_inner()).push(
+            HistoricDecisionExecutionRecord {
                 id: execution.id.clone(),
                 decision_table_id: execution.decision_table_id.clone(),
                 deployment_id: "deployment-1".to_string(),
@@ -235,7 +245,8 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
                 execution_id: None,
                 activity_id: None,
                 scope_type: None,
-            });
+            },
+        );
 
         Ok(execution)
     }
@@ -697,8 +708,7 @@ async fn p82d_single_result_collect_multi_row_returns_500() {
         assert_eq!(body["code"], "INTERNAL_SERVER_ERROR");
         // 5xx details are generic (no multi-row / decision-key text echo).
         assert_eq!(
-            body["details"],
-            "Internal server error",
+            body["details"], "Internal server error",
             "path {path} unexpected details"
         );
     }

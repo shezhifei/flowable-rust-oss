@@ -39,7 +39,8 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -67,7 +68,11 @@ async fn deploy_process(client: &reqwest::Client, base_url: &str) {
     assert_eq!(response.status(), reqwest::StatusCode::CREATED);
 }
 
-async fn start_process(client: &reqwest::Client, base_url: &str, process_definition_id: &str) -> String {
+async fn start_process(
+    client: &reqwest::Client,
+    base_url: &str,
+    process_definition_id: &str,
+) -> String {
     let response = client
         .post(format!("{base_url}/runtime/process-instances"))
         .basic_auth("admin", Some("test"))
@@ -115,14 +120,9 @@ async fn process_attachment_routes_create_list_get_content_delete_and_isolate() 
     assert_eq!(create_body["name"], "proc-note.txt");
     assert_eq!(create_body["description"], "Process note");
     assert_eq!(create_body["type"], "text/plain");
-    assert!(
-        create_body["url"]
-            .as_str()
-            .unwrap()
-            .contains(&format!(
-                "/runtime/process-instances/{process_instance_id_a}/attachments/"
-            ))
-    );
+    assert!(create_body["url"].as_str().unwrap().contains(&format!(
+        "/runtime/process-instances/{process_instance_id_a}/attachments/"
+    )));
     assert!(
         create_body["contentUrl"]
             .as_str()

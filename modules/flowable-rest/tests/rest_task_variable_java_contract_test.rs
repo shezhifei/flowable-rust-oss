@@ -40,7 +40,8 @@ async fn start_test_server(test_name: &str) -> (reqwest::Client, String, Arc<Pro
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -156,7 +157,13 @@ async fn get_task_variables(
         .await
         .unwrap();
     assert_eq!(response.status(), reqwest::StatusCode::OK);
-    response.json::<Value>().await.unwrap().as_array().unwrap().clone()
+    response
+        .json::<Value>()
+        .await
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .clone()
 }
 
 fn variable_named<'a>(variables: &'a [Value], name: &str) -> Option<&'a Value> {
@@ -186,7 +193,13 @@ fn multipart_text_field(body: &mut Vec<u8>, boundary: &str, name: &str, value: &
     body.extend_from_slice(b"\r\n");
 }
 
-fn multipart_file_field(body: &mut Vec<u8>, boundary: &str, name: &str, filename: &str, bytes: &[u8]) {
+fn multipart_file_field(
+    body: &mut Vec<u8>,
+    boundary: &str,
+    name: &str,
+    filename: &str,
+    bytes: &[u8],
+) {
     body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
     body.extend_from_slice(
         format!("Content-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\n")
@@ -741,7 +754,10 @@ async fn multipart_binary_variable_lifecycle() {
             .unwrap(),
         "application/octet-stream"
     );
-    assert_eq!(data.bytes().await.unwrap().as_ref(), updated_bytes.as_slice());
+    assert_eq!(
+        data.bytes().await.unwrap().as_ref(),
+        updated_bytes.as_slice()
+    );
 }
 
 #[tokio::test]
@@ -760,7 +776,13 @@ async fn multipart_serializable_variable_round_trips_opaque_bytes() {
     let mut post_body = Vec::new();
     multipart_text_field(&mut post_body, boundary, "name", "serializedObject");
     multipart_text_field(&mut post_body, boundary, "type", "serializable");
-    multipart_file_field(&mut post_body, boundary, "file", "object.ser", &opaque_bytes);
+    multipart_file_field(
+        &mut post_body,
+        boundary,
+        "file",
+        "object.ser",
+        &opaque_bytes,
+    );
     multipart_close(&mut post_body, boundary);
 
     let create = send_multipart(

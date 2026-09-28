@@ -24,7 +24,8 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -328,8 +329,7 @@ async fn query_executions_filters_by_variables_and_process_instance_variables() 
     assert_eq!(like_ignore_case.status(), reqwest::StatusCode::OK);
     let like_ignore_case_body: Value = like_ignore_case.json().await.unwrap();
     assert_eq!(
-        like_ignore_case_body["total"],
-        1,
+        like_ignore_case_body["total"], 1,
         "body was: {like_ignore_case_body}"
     );
     assert_eq!(like_ignore_case_body["data"][0]["id"], alpha_execution_id);
@@ -347,7 +347,10 @@ async fn query_executions_filters_by_variables_and_process_instance_variables() 
         .unwrap();
     assert_eq!(greater_than.status(), reqwest::StatusCode::OK);
     let greater_than_body: Value = greater_than.json().await.unwrap();
-    assert_eq!(greater_than_body["total"], 1, "body was: {greater_than_body}");
+    assert_eq!(
+        greater_than_body["total"], 1,
+        "body was: {greater_than_body}"
+    );
     assert_eq!(greater_than_body["data"][0]["id"], alpha_execution_id);
 
     let greater_than_miss = client
@@ -378,11 +381,13 @@ async fn query_executions_filters_by_variables_and_process_instance_variables() 
     assert_eq!(less_than_or_equals.status(), reqwest::StatusCode::OK);
     let less_than_or_equals_body: Value = less_than_or_equals.json().await.unwrap();
     assert_eq!(
-        less_than_or_equals_body["total"],
-        1,
+        less_than_or_equals_body["total"], 1,
         "body was: {less_than_or_equals_body}"
     );
-    assert_eq!(less_than_or_equals_body["data"][0]["id"], alpha_execution_id);
+    assert_eq!(
+        less_than_or_equals_body["data"][0]["id"],
+        alpha_execution_id
+    );
 }
 
 #[tokio::test]

@@ -12,9 +12,8 @@ use tokio::net::TcpListener;
 
 #[tokio::test]
 async fn bpmn_event_subscription_paths_are_available() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-event-subscription-contract".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("rest-bpmn-event-subscription-contract".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -25,7 +24,8 @@ async fn bpmn_event_subscription_paths_are_available() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

@@ -23,7 +23,8 @@ async fn runtime_process_instance_inject_creates_dynamic_user_task() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -319,9 +320,7 @@ async fn runtime_process_instance_inject_creates_dynamic_user_task() {
 
 #[tokio::test]
 async fn runtime_process_instance_inject_start_before_moves_current_wait_state() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-inject-start-before".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("rest-bpmn-inject-start-before".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -332,7 +331,8 @@ async fn runtime_process_instance_inject_start_before_moves_current_wait_state()
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -460,9 +460,7 @@ async fn runtime_process_instance_inject_start_before_moves_current_wait_state()
 
 #[tokio::test]
 async fn runtime_process_instance_inject_start_after_moves_to_single_successor_user_task() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-inject-start-after".to_string(),
-    ).unwrap());
+    let engine = Arc::new(ProcessEngine::new("rest-bpmn-inject-start-after".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -473,7 +471,8 @@ async fn runtime_process_instance_inject_start_after_moves_to_single_successor_u
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -562,9 +561,8 @@ async fn runtime_process_instance_inject_start_after_moves_to_single_successor_u
 
 #[tokio::test]
 async fn runtime_process_instance_inject_start_after_rejects_multiple_successors() {
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-bpmn-inject-start-after-branch".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("rest-bpmn-inject-start-after-branch".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -575,7 +573,8 @@ async fn runtime_process_instance_inject_start_after_rejects_multiple_successors
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

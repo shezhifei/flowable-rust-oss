@@ -203,13 +203,11 @@ impl RestConfig {
         if self.security.admin_seed.enabled
             && self.security.admin_seed.password == DEFAULT_ADMIN_PASSWORD
         {
-            return Err(
-                "Refusing to seed REST admin with password \"admin\". \
+            return Err("Refusing to seed REST admin with password \"admin\". \
                  Set security.admin_seed.password (or FLOWABLE_REST_ADMIN_PASSWORD) \
                  to a non-default value when admin_seed.enabled is true \
                  (security deviation from Java weak default admin/admin)."
-                    .to_string(),
-            );
+                .to_string());
         }
 
         if !self.security.auth.mode.is_enforced() {
@@ -237,13 +235,11 @@ impl RestConfig {
         }
 
         if self.security.admin_seed.password == DEFAULT_ADMIN_PASSWORD {
-            return Err(
-                "Refusing to seed REST admin with password \"admin\". \
+            return Err("Refusing to seed REST admin with password \"admin\". \
                  Set security.admin_seed.password (or FLOWABLE_REST_ADMIN_PASSWORD) \
                  to a non-default value when admin_seed.enabled is true \
                  (security deviation from Java weak default admin/admin)."
-                    .to_string(),
-            );
+                .to_string());
         }
 
         engine

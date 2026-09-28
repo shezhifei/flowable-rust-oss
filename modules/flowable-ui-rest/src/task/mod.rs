@@ -8,15 +8,15 @@ mod display_json;
 mod rest_variable;
 
 use axum::{
+    Json, Router,
     body::Bytes,
     extract::{Extension, Multipart, Path, Query},
     http::{
-        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
         HeaderMap, HeaderValue, StatusCode,
+        header::{CONTENT_DISPOSITION, CONTENT_TYPE},
     },
     response::{IntoResponse, Response},
     routing::{get, post, put},
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use flowable_cmmn_engine::CmmnCaseInstanceStartRequest;
@@ -28,12 +28,12 @@ use flowable_engine::identity::entities::User;
 use flowable_engine::runtime::process_instance_builder::ProcessInstanceBuilder;
 use flowable_engine::task::Task;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use rest_variable::{
-    create_rest_variable, rest_variable_value, RestVariable, RestVariableScope,
+    RestVariable, RestVariableScope, create_rest_variable, rest_variable_value,
 };
 
 use crate::auth::UiAuth;
@@ -325,7 +325,6 @@ pub fn router() -> Router {
             get(get_raw_content),
         )
 }
-
 
 // ---------------------------------------------------------------------------
 // Models (UI JSON shapes)
@@ -1158,7 +1157,10 @@ async fn delete_process_instance(
 ) -> Result<impl IntoResponse, TaskError> {
     engine
         .get_runtime_service()
-        .bulk_delete_process_instances(vec![process_instance_id], Some("Deleted via task UI".into()))
+        .bulk_delete_process_instances(
+            vec![process_instance_id],
+            Some("Deleted via task UI".into()),
+        )
         .map_err(TaskError::from_engine)?;
     Ok(StatusCode::OK)
 }
@@ -1223,10 +1225,7 @@ async fn list_process_definitions(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, TaskError> {
-    let latest = params
-        .get("latest")
-        .map(|v| v == "true")
-        .unwrap_or(true);
+    let latest = params.get("latest").map(|v| v == "true").unwrap_or(true);
     let defs = engine
         .get_repository_service()
         .get_process_definitions()
@@ -1265,7 +1264,9 @@ async fn list_process_definitions(
     }
     let total = data.len() as i64;
     Ok(Json(ResultListDataRepresentation::from_page(
-        data, 0, Some(total),
+        data,
+        0,
+        Some(total),
     )))
 }
 
@@ -1278,14 +1279,10 @@ async fn process_definition_start_form(
 
 // ---- Case ----
 
-fn cmmn_engine(
-    engine: &ProcessEngine,
-) -> Result<Arc<flowable_cmmn_engine::CmmnEngine>, TaskError> {
-    engine
-        .get_config()
-        .cmmn_engine
-        .clone()
-        .ok_or_else(|| TaskError::bad_request("CMMN engine is not configured on this process engine"))
+fn cmmn_engine(engine: &ProcessEngine) -> Result<Arc<flowable_cmmn_engine::CmmnEngine>, TaskError> {
+    engine.get_config().cmmn_engine.clone().ok_or_else(|| {
+        TaskError::bad_request("CMMN engine is not configured on this process engine")
+    })
 }
 
 async fn list_case_definitions(
@@ -1312,7 +1309,9 @@ async fn list_case_definitions(
         .collect();
     let total = data.len() as i64;
     Ok(Json(ResultListDataRepresentation::from_page(
-        data, 0, Some(total),
+        data,
+        0,
+        Some(total),
     )))
 }
 
@@ -1396,9 +1395,7 @@ fn plan_items_by_type_and_states(
     if include_ended {
         query = query.include_ended();
     }
-    let items = query
-        .list()
-        .map_err(TaskError::from_engine)?;
+    let items = query.list().map_err(TaskError::from_engine)?;
     let wanted: Vec<String> = states.iter().map(|s| s.to_ascii_uppercase()).collect();
     Ok(items
         .into_iter()
@@ -1570,9 +1567,7 @@ async fn trigger_user_event_listener(
 ) -> Result<impl IntoResponse, TaskError> {
     let cmmn = cmmn_engine(&engine)?;
     if user_event_listener_id.is_empty() {
-        return Err(TaskError::bad_request(
-            "userEventListenerId is required",
-        ));
+        return Err(TaskError::bad_request("userEventListenerId is required"));
     }
     // Ensure the case exists (matches Java NotFoundException path).
     let _ = resolve_case_definition_id(&cmmn, &case_instance_id)?;
@@ -1965,18 +1960,16 @@ async fn get_content(
     Path(content_id): Path<String>,
 ) -> Result<impl IntoResponse, TaskError> {
     let svc = content_service(engine);
-    let item = svc
-        .get_content_item(&content_id)
-        .map_err(|e| {
-            let s = e.to_string();
-            if s.to_lowercase().contains("not found") {
-                TaskError::not_found(format!("Content {content_id}"))
-            } else {
-                // Java parity: a storage failure in the content-item read is a 500, not a
-                // client 400 (AbstractDataManager.findById -> DbSqlSession.selectById throws).
-                TaskError::internal(s)
-            }
-        })?;
+    let item = svc.get_content_item(&content_id).map_err(|e| {
+        let s = e.to_string();
+        if s.to_lowercase().contains("not found") {
+            TaskError::not_found(format!("Content {content_id}"))
+        } else {
+            // Java parity: a storage failure in the content-item read is a 500, not a
+            // client 400 (AbstractDataManager.findById -> DbSqlSession.selectById throws).
+            TaskError::internal(s)
+        }
+    })?;
     Ok(Json(content_item_json(item)))
 }
 
@@ -2050,7 +2043,7 @@ fn create_raw_content_item(
     } else if let Ok(text) = std::str::from_utf8(&upload.bytes) {
         Some(text.to_string())
     } else {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+        use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
         Some(B64.encode(&upload.bytes))
     };
     content_service(engine)
@@ -2092,9 +2085,8 @@ fn guess_mime_from_name(name: &str) -> Option<String> {
 }
 
 fn content_json_text(item: &flowable_content_service::ContentItem) -> Result<String, TaskError> {
-    serde_json::to_string(&content_item_json(item.clone())).map_err(|e| {
-        TaskError::internal(format!("ContentItem could not be serialized: {e}"))
-    })
+    serde_json::to_string(&content_item_json(item.clone()))
+        .map_err(|e| TaskError::internal(format!("ContentItem could not be serialized: {e}")))
 }
 
 async fn add_task_raw_content(
@@ -2291,10 +2283,7 @@ async fn get_raw_content(
     if let Ok(v) = HeaderValue::from_str(mime) {
         headers.insert(CONTENT_TYPE, v);
     }
-    let disposition = format!(
-        "attachment; filename=\"{}\"",
-        item.name.replace('"', "_")
-    );
+    let disposition = format!("attachment; filename=\"{}\"", item.name.replace('"', "_"));
     if let Ok(v) = HeaderValue::from_str(&disposition) {
         headers.insert(CONTENT_DISPOSITION, v);
     }
@@ -2342,7 +2331,12 @@ fn require_debugger() -> Result<(), TaskError> {
 async fn list_breakpoints() -> Result<impl IntoResponse, TaskError> {
     require_debugger()?;
     // In-memory breakpoints live in a process-local static.
-    Ok(Json(DEBUG_BREAKPOINTS.lock().unwrap_or_else(|e| e.into_inner()).clone()))
+    Ok(Json(
+        DEBUG_BREAKPOINTS
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone(),
+    ))
 }
 
 /// Java `DebuggerResource.continueExecution` — remove breakpoints for the
@@ -2401,7 +2395,10 @@ async fn add_breakpoint(Json(body): Json<Value>) -> Result<impl IntoResponse, Ta
             "property flowable.experimental.debugger.enabled is not enabled",
         ));
     }
-    DEBUG_BREAKPOINTS.lock().unwrap_or_else(|e| e.into_inner()).push(body);
+    DEBUG_BREAKPOINTS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .push(body);
     Ok(StatusCode::OK)
 }
 
@@ -2520,7 +2517,9 @@ async fn workflow_users(
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
 
-async fn workflow_groups(Extension(engine): Extension<Arc<ProcessEngine>>) -> Result<impl IntoResponse, TaskError> {
+async fn workflow_groups(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+) -> Result<impl IntoResponse, TaskError> {
     let groups = engine
         .get_identity_service()
         .create_group_query()
@@ -2670,7 +2669,9 @@ impl From<flowable_engine::error::FlowableError> for TaskError {
         use flowable_engine::error::FlowableError as E;
         match error {
             E::NotFound(message) => Self::not_found(message),
-            E::BadRequest(message) | E::DeploymentValidationError(message) => Self::bad_request(message),
+            E::BadRequest(message) | E::DeploymentValidationError(message) => {
+                Self::bad_request(message)
+            }
             other => Self::internal(other.to_string()),
         }
     }

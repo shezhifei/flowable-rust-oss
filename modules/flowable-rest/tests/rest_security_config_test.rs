@@ -126,7 +126,8 @@ async fn configured_admin_seed_bootstraps_basic_auth_credentials() {
 
     let seeded_user = engine
         .get_identity_service()
-        .find_user_by_id("seed-admin").unwrap()
+        .find_user_by_id("seed-admin")
+        .unwrap()
         .expect("seed admin should be present");
     assert_eq!(
         seeded_user.email.as_deref(),
@@ -135,7 +136,8 @@ async fn configured_admin_seed_bootstraps_basic_auth_credentials() {
     assert!(
         engine
             .get_identity_service()
-            .check_password("seed-admin", "seed-secret").unwrap()
+            .check_password("seed-admin", "seed-secret")
+            .unwrap()
     );
 }
 
@@ -156,7 +158,8 @@ async fn disabled_admin_seed_does_not_create_default_admin_user() {
     assert!(
         engine
             .get_identity_service()
-            .find_user_by_id("admin").unwrap()
+            .find_user_by_id("admin")
+            .unwrap()
             .is_none(),
         "default admin should not be seeded when disabled"
     );
@@ -189,9 +192,8 @@ async fn admin_seed_with_default_password_fails_startup() {
         email: None,
     };
 
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-admin-seed-default-password".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("rest-admin-seed-default-password".to_string()).unwrap());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let err = run_server_with_config(engine, listener, config)
         .await
@@ -220,14 +222,17 @@ async fn non_admin_deployment_returns_forbidden() {
     };
 
     let (engine, base_url, client) = spawn_server("rest-non-admin-deploy", config).await;
-    engine.get_identity_service().save_user(flowable_engine::identity::entities::User {
-        id: "regular".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("user-secret".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(flowable_engine::identity::entities::User {
+            id: "regular".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("user-secret".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let response = client
         .post(format!("{}/repository/deployments", base_url))
@@ -300,14 +305,17 @@ async fn get_paths_do_not_require_admin_role() {
     };
 
     let (engine, base_url, client) = spawn_server("rest-get-no-admin", config).await;
-    engine.get_identity_service().save_user(flowable_engine::identity::entities::User {
-        id: "regular".to_string(),
-        first_name: None,
-        last_name: None,
-        email: None,
-        password: Some("user-secret".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(flowable_engine::identity::entities::User {
+            id: "regular".to_string(),
+            first_name: None,
+            last_name: None,
+            email: None,
+            password: Some("user-secret".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let response = client
         .get(format!("{}/history/historic-process-instances", base_url))
@@ -332,9 +340,8 @@ async fn auth_disabled_on_non_loopback_fails_startup() {
         ..Default::default()
     };
 
-    let engine = Arc::new(ProcessEngine::new(
-        "rest-auth-disabled-non-loopback".to_string(),
-    ).unwrap());
+    let engine =
+        Arc::new(ProcessEngine::new("rest-auth-disabled-non-loopback".to_string()).unwrap());
     // Listener is loopback; validation uses config.bind_address.
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let err = run_server_with_config(engine, listener, config)
@@ -412,7 +419,8 @@ async fn ui_session_cookie_authenticates_engine_requests() {
             email: None,
             password: Some("worker-secret".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
 
     // Sanity: no credentials at all is still rejected.
     let anonymous = client
