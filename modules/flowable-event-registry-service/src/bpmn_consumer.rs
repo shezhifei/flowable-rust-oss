@@ -14,8 +14,8 @@
 use crate::models::{EventDefinition, EventInstanceDelivery};
 use crate::pipeline::InboundEventConsumer;
 use crate::tenant_fallback::{
-    dedup_definition_level_subscriptions_by_key, subscription_matches_event_tenant,
-    TenantFallbackPolicy,
+    TenantFallbackPolicy, dedup_definition_level_subscriptions_by_key,
+    subscription_matches_event_tenant,
 };
 use flowable_engine::bpmn::event_registry_correlation::{
     correlation_params_from_payload, generate_event_correlation_keys,
@@ -109,12 +109,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
             .filter(|(_, pi)| {
                 // Boundary / event-subprocess targets are instance-level
                 // (BaseEventRegistryEventConsumer.java:198-201).
-                subscription_matches_event_tenant(
-                    tenant_id,
-                    pi.tenant_id.as_deref(),
-                    true,
-                    policy,
-                )
+                subscription_matches_event_tenant(tenant_id, pi.tenant_id.as_deref(), true, policy)
             })
             .map(|(id, _)| id)
             .collect();
@@ -136,12 +131,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                 .find_process_instance(&wait_state.process_instance_id, &mut session)?
                 .and_then(|pi| pi.tenant_id);
             drop(session);
-            if !subscription_matches_event_tenant(
-                tenant_id,
-                pi_tenant.as_deref(),
-                true,
-                policy,
-            ) {
+            if !subscription_matches_event_tenant(tenant_id, pi_tenant.as_deref(), true, policy) {
                 continue;
             }
 
@@ -302,7 +292,25 @@ fn trigger_process_start(
         } else if let Some(sub_tenant) = sub.tenant_id.clone().filter(|t| !t.is_empty()) {
             cmd = cmd.with_tenant_id(sub_tenant);
         }
-        let _ = executor.execute(&cmd);
+        // Java parity: `BpmnEventRegistryEventConsumer.startProcessInstance(...)`
+        // (flowable-engine/.../impl/eventregistry/BpmnEventRegistryEventConsumer.java:228-269)
+        // calls `processInstanceBuilder.start()` with no surrounding try/catch and the
+        // event-subscription handler returns immediately afterwards (:197-198/:205). A
+        // start failure must therefore abort the delivery and propagate to the channel
+        // adapter (JMS/Kafka retry/reject) instead of being swallowed while the event is
+        // acknowledged, which would silently lose the message. Fail on the first error
+        // (one subscription per transaction, Java :81-84); the outer message carries the
+        // event definition key + subscription identity for retry diagnostics and the
+        // typed engine error is retained as the cause.
+        let effective_tenant = event_tenant.or_else(|| sub.tenant_id.as_deref());
+        executor.execute(&cmd).map_err(|error| {
+            FlowableError::ExecutionError(format!(
+                "Failed to start process instance for inbound event definition '{}' via start \
+                 subscription (processDefinitionId='{}', startEventId='{}', tenantId={:?}): {}",
+                event_key, sub.process_definition_id, sub.start_event_id, effective_tenant, error
+            ))
+            .caused_by(error)
+        })?;
     }
     Ok(())
 }
