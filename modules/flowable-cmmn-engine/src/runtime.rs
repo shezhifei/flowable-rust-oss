@@ -4839,8 +4839,9 @@ fn sentry_if_part_satisfied(
 /// a sentry part instance once satisfied, independently of the onPart
 /// status (AbstractEvaluationCriteriaOperation.java:550-566 — in default
 /// mode the ifPart branch runs on every cycle, not only when all onParts
-/// are satisfied). Evaluation failures count as not-satisfied, matching
-/// the `unwrap_or(false)` convention of `CmmnSentry::evaluate_for_event`.
+/// are satisfied). An ifPart evaluation/parse error propagates so the
+/// case operation fails (Java throws) instead of silently skipping the
+/// sentry; only a genuinely unsatisfied ifPart yields no marker.
 fn record_satisfied_sentry_if_parts(
     session: &mut DbSession,
     case_definition: &CmmnCaseDefinition,
@@ -4871,7 +4872,7 @@ fn record_satisfied_sentry_if_parts_in_container(
         )? {
             continue;
         }
-        if matches!(sentry_if_part_matches(sentry, case_instance), Ok(true)) {
+        if sentry_if_part_matches(sentry, case_instance)? {
             record_sentry_if_part_satisfied(session, &case_instance.id, &sentry.id)?;
         }
     }
@@ -5084,10 +5085,11 @@ fn evaluate_to_bool_depth(
                 variables,
                 collection_variable_name,
                 case_instance,
-            );
-            let value = resolve_if_part_literal_value(variables, value).or_else(|| {
-                resolve_if_part_literal_value_expression(variables, value, case_instance)
-            });
+            )?;
+            let value = match resolve_if_part_literal_value(variables, value) {
+                Some(literal) => Some(literal),
+                None => resolve_if_part_literal_value_expression(variables, value, case_instance)?,
+            };
             Ok(if_part_contains(collection.as_ref(), value.as_ref()) == *expected)
         }
         CmmnSentryIfPartExpression::StartsWith {
@@ -5131,7 +5133,7 @@ fn evaluate_to_bool_depth(
                 variables,
                 collection_variable_name,
                 case_instance,
-            );
+            )?;
             let size = value.as_ref().and_then(if_part_size).unwrap_or(0) as i64;
             let expected = resolve_if_part_literal_number(variables, literal);
             Ok(compare_numbers(size, *operator, expected))
@@ -5142,7 +5144,7 @@ fn evaluate_to_bool_depth(
             literal,
         } => {
             let value =
-                resolve_if_part_path_or_value_expression(variables, variable_name, case_instance);
+                resolve_if_part_path_or_value_expression(variables, variable_name, case_instance)?;
             let length = value.as_ref().and_then(if_part_length).unwrap_or(0) as i64;
             let expected = resolve_if_part_literal_number(variables, literal);
             Ok(compare_numbers(length, *operator, expected))
@@ -5199,14 +5201,14 @@ fn evaluate_to_json_value_depth(
             args: _,
         } => {
             if method == "size" || method == "length" {
-                let size = object
-                    .as_ref()
-                    .and_then(|obj| {
-                        resolve_if_part_path_or_value_expression(variables, obj, case_instance)
-                    })
-                    .as_ref()
-                    .and_then(if_part_size)
-                    .unwrap_or(0);
+                let size = if let Some(obj) = object {
+                    resolve_if_part_path_or_value_expression(variables, obj, case_instance)?
+                        .as_ref()
+                        .and_then(if_part_size)
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
                 return Ok(Value::Number(size.into()));
             }
 
@@ -5320,9 +5322,9 @@ fn evaluate_if_part_comparison(
         &case_instance.variables,
         &condition.variable_name,
         case_instance,
-    );
+    )?;
     let expected =
-        resolve_if_part_literal(&case_instance.variables, &condition.literal, case_instance);
+        resolve_if_part_literal(&case_instance.variables, &condition.literal, case_instance)?;
 
     Ok(match condition.operator {
         CmmnSentryIfPartOperator::Equal => actual == expected,
@@ -5358,56 +5360,66 @@ fn resolve_if_part_comparison_operand(
     variables: &serde_json::Map<String, Value>,
     operand: &str,
     case_instance: &CmmnCaseInstance,
-) -> Option<IfPartComparableValue> {
+) -> Result<Option<IfPartComparableValue>, CmmnError> {
     if let Some(variable_name) = operand
         .strip_prefix("size(")
         .and_then(|value| value.strip_suffix(')'))
     {
-        return resolve_if_part_path_or_value_expression(variables, variable_name, case_instance)
-            .as_ref()
-            .and_then(if_part_size)
-            .map(|size| IfPartComparableValue::Number(size as f64));
+        return Ok(resolve_if_part_path_or_value_expression(
+            variables,
+            variable_name,
+            case_instance,
+        )?
+        .as_ref()
+        .and_then(if_part_size)
+        .map(|size| IfPartComparableValue::Number(size as f64)));
     }
     if let Some(variable_name) = operand
         .strip_prefix("length(")
         .and_then(|value| value.strip_suffix(')'))
     {
-        return resolve_if_part_path_or_value_expression(variables, variable_name, case_instance)
-            .as_ref()
-            .and_then(if_part_length)
-            .map(|size| IfPartComparableValue::Number(size as f64));
+        return Ok(resolve_if_part_path_or_value_expression(
+            variables,
+            variable_name,
+            case_instance,
+        )?
+        .as_ref()
+        .and_then(if_part_length)
+        .map(|size| IfPartComparableValue::Number(size as f64)));
     }
 
     if let Some(value) = resolve_if_part_variable_path(variables, operand) {
-        return json_value_to_if_part_comparable(Some(value));
+        return Ok(json_value_to_if_part_comparable(Some(value)));
     }
 
-    resolve_if_part_value_expression(variables, operand, case_instance)
-        .ok()
-        .and_then(|value| json_value_to_if_part_comparable(Some(&value)))
+    // Missing variable → null comparison (lenient false); expression
+    // evaluation/parse errors must surface to the sentry evaluation.
+    let value = resolve_if_part_value_expression(variables, operand, case_instance)?;
+    Ok(json_value_to_if_part_comparable(Some(&value)))
 }
 
 fn resolve_if_part_literal(
     variables: &serde_json::Map<String, Value>,
     literal: &CmmnSentryIfPartLiteral,
     case_instance: &CmmnCaseInstance,
-) -> Option<IfPartComparableValue> {
+) -> Result<Option<IfPartComparableValue>, CmmnError> {
     match literal {
-        CmmnSentryIfPartLiteral::Boolean(value) => Some(IfPartComparableValue::Boolean(*value)),
+        CmmnSentryIfPartLiteral::Boolean(value) => Ok(Some(IfPartComparableValue::Boolean(*value))),
         CmmnSentryIfPartLiteral::String(value) => {
-            Some(IfPartComparableValue::String(value.clone()))
+            Ok(Some(IfPartComparableValue::String(value.clone())))
         }
         CmmnSentryIfPartLiteral::Number(value) => {
-            value.parse::<f64>().ok().map(IfPartComparableValue::Number)
+            Ok(value.parse::<f64>().ok().map(IfPartComparableValue::Number))
         }
-        CmmnSentryIfPartLiteral::Null => Some(IfPartComparableValue::Null),
+        CmmnSentryIfPartLiteral::Null => Ok(Some(IfPartComparableValue::Null)),
         CmmnSentryIfPartLiteral::Variable(variable_name) => {
             if let Some(value) = resolve_if_part_variable_path(variables, variable_name) {
-                return json_value_to_if_part_comparable(Some(value));
+                return Ok(json_value_to_if_part_comparable(Some(value)));
             }
-            resolve_if_part_value_expression(variables, variable_name, case_instance)
-                .ok()
-                .and_then(|value| json_value_to_if_part_comparable(Some(&value)))
+            // A missing variable evaluates to null (lenient false), but a
+            // failing expression must propagate to the sentry evaluation.
+            let value = resolve_if_part_value_expression(variables, variable_name, case_instance)?;
+            Ok(json_value_to_if_part_comparable(Some(&value)))
         }
     }
 }
@@ -5430,27 +5442,47 @@ fn resolve_if_part_literal_value(
     }
 }
 
+/// Resolve a literal that may itself be an evaluable value expression.
+///
+/// Returns `Ok(None)` only for non-variable literals; a missing case
+/// variable evaluates to JSON null (`Some(Value::Null)`), keeping the
+/// lenient "unresolved variable → ifPart not satisfied" semantics.
+/// Expression parse/evaluation failures propagate as `Err` so a sentry
+/// evaluation surfaces the error instead of silently evaluating to false.
 fn resolve_if_part_literal_value_expression(
     variables: &serde_json::Map<String, Value>,
     literal: &CmmnSentryIfPartLiteral,
     case_instance: &CmmnCaseInstance,
-) -> Option<Value> {
+) -> Result<Option<Value>, CmmnError> {
     match literal {
-        CmmnSentryIfPartLiteral::Variable(expression) => {
-            resolve_if_part_value_expression(variables, expression, case_instance).ok()
-        }
-        _ => None,
+        CmmnSentryIfPartLiteral::Variable(expression) => Ok(Some(
+            resolve_if_part_value_expression(variables, expression, case_instance)?,
+        )),
+        _ => Ok(None),
     }
 }
 
+/// Resolve a variable path first, then fall back to evaluating the token as
+/// a value expression.
+///
+/// A missing variable (neither path nor expression resolves to a value)
+/// stays lenient: the expression evaluator returns JSON null, which makes
+/// the surrounding ifPart condition false. Genuine expression errors
+/// (parse failure, registered method failure, ...) must propagate instead
+/// of being collapsed into "variable missing".
 fn resolve_if_part_path_or_value_expression(
     variables: &serde_json::Map<String, Value>,
     expression: &str,
     case_instance: &CmmnCaseInstance,
-) -> Option<Value> {
-    resolve_if_part_variable_path(variables, expression)
-        .cloned()
-        .or_else(|| resolve_if_part_value_expression(variables, expression, case_instance).ok())
+) -> Result<Option<Value>, CmmnError> {
+    if let Some(value) = resolve_if_part_variable_path(variables, expression) {
+        return Ok(Some(value.clone()));
+    }
+    Ok(Some(resolve_if_part_value_expression(
+        variables,
+        expression,
+        case_instance,
+    )?))
 }
 
 fn resolve_if_part_value_expression(
@@ -12710,5 +12742,178 @@ mod completion_rule_tests {
             true,
             true
         ));
+    }
+}
+
+#[cfg(test)]
+mod sentry_if_part_error_propagation_tests {
+    //! P2 parity: these tests pin the sentry ifPart error-propagation
+    //! contract directly at the evaluation surface. The error branch cannot
+    //! be exercised end to end: the only evaluator error reachable from a
+    //! parser-accepted ifPart AST is the depth guard (64 nested nodes), and
+    //! such a model fails deployment hydration (serde_json recursion cap)
+    //! before the runtime evaluates it, so the parsed AST is constructed
+    //! here without storage round-trip. The reachable end-to-end outcomes
+    //! (missing variable -> lenient false; satisfied -> guarded task
+    //! activates) live in
+    //! `tests/c1_sentry_if_part_error_propagation_test.rs`.
+
+    use super::*;
+    use serde_json::{Map, Value};
+
+    fn case_instance_with(variables: Map<String, Value>) -> CmmnCaseInstance {
+        CmmnCaseInstance {
+            id: "case-1".to_string(),
+            case_definition_id: "case-def-1".to_string(),
+            deployment_id: "deployment-1".to_string(),
+            case_definition_key: "if-part-errors".to_string(),
+            case_definition_name: "ifPart errors".to_string(),
+            case_definition_version: 1,
+            business_key: None,
+            name: "ifPart errors".to_string(),
+            tenant_id: None,
+            started_by: None,
+            reference_id: None,
+            reference_type: None,
+            started_at: chrono::Utc::now(),
+            ended_at: None,
+            state: CmmnCaseInstanceState::Active,
+            business_status: None,
+            variables,
+            case_file_items: vec![],
+            callback_id: None,
+            callback_type: None,
+        }
+    }
+
+    fn sentry_with_if_part(expression: &str) -> CmmnSentry {
+        CmmnSentry {
+            id: "sentry-1".to_string(),
+            plan_item_on_parts: vec![],
+            case_file_item_on_parts: vec![],
+            trigger_mode: None,
+            if_part: Some(CmmnSentryIfPartExpression::parse(expression).expect("parse ifPart")),
+        }
+    }
+
+    #[test]
+    fn sentry_without_if_part_always_matches() {
+        let sentry = CmmnSentry {
+            id: "sentry-no-if".to_string(),
+            plan_item_on_parts: vec![],
+            case_file_item_on_parts: vec![],
+            trigger_mode: None,
+            if_part: None,
+        };
+        let case_instance = case_instance_with(Map::new());
+        assert!(
+            sentry_if_part_matches(&sentry, &case_instance).expect("no ifPart matches"),
+            "a sentry without ifPart matches unconditionally"
+        );
+    }
+
+    #[test]
+    fn missing_variable_evaluates_lenient_false() {
+        // Java/UEL parity: an unresolved variable is null; the ifPart is
+        // unsatisfied, not an error. The previous `.ok()` swallowing and the
+        // propagated `?` implementation must agree here.
+        let sentry = sentry_with_if_part("approved == true");
+        let case_instance = case_instance_with(Map::new());
+        assert!(
+            !sentry_if_part_matches(&sentry, &case_instance)
+                .expect("missing variable is not an error"),
+            "an unresolved variable is a lenient false, not an error"
+        );
+    }
+
+    #[test]
+    fn satisfied_if_part_matches_true() {
+        let sentry = sentry_with_if_part("approved == true");
+        let mut variables = Map::new();
+        variables.insert("approved".to_string(), Value::Bool(true));
+        let case_instance = case_instance_with(variables);
+        assert!(
+            sentry_if_part_matches(&sentry, &case_instance).expect("satisfied ifPart"),
+            "a true variable satisfies the ifPart"
+        );
+    }
+
+    #[test]
+    fn over_depth_if_part_expression_returns_error_instead_of_false() {
+        // 64 negations parse successfully (logical Not does not consume the
+        // parser's parenthesis/ternary nesting allowance), but evaluation
+        // crosses MAX_IF_PART_EVAL_DEPTH. Java would throw here; the Rust
+        // runtime must return Err so the case operation aborts rather than
+        // silently treating the sentry as unsatisfied.
+        let expression = format!("{}approved", "!".repeat(64));
+        let sentry = sentry_with_if_part(&expression);
+        let case_instance = case_instance_with(Map::new());
+        let error = sentry_if_part_matches(&sentry, &case_instance)
+            .expect_err("depth-guarded evaluation must surface an error");
+        assert!(
+            error.to_string().contains("maximum depth"),
+            "expected evaluation-depth error, got: {error}"
+        );
+    }
+
+    #[test]
+    fn path_or_value_expression_missing_variable_is_null() {
+        // Lenient semantics are preserved by the Result refactor: a missing
+        // variable comes back as JSON null wrapped in Ok, not as Err.
+        let case_instance = case_instance_with(Map::new());
+        let resolved = resolve_if_part_path_or_value_expression(
+            &case_instance.variables,
+            "approved",
+            &case_instance,
+        )
+        .expect("missing variable resolves to null");
+        assert_eq!(resolved, Some(Value::Null));
+    }
+
+    #[test]
+    fn path_or_value_expression_propagates_parse_error() {
+        // A token accepted as a Variable literal by the boolean parser but
+        // invalid for the value-expression parser must surface its parse
+        // error; the previous `.ok()` collapsed this into `None` and the
+        // surrounding comparison silently evaluated to false.
+        let case_instance = case_instance_with(Map::new());
+        let error = resolve_if_part_path_or_value_expression(
+            &case_instance.variables,
+            "1 +",
+            &case_instance,
+        )
+        .expect_err("malformed value expression must propagate");
+        assert!(
+            !error.to_string().is_empty(),
+            "propagated error must carry a message"
+        );
+    }
+
+    #[test]
+    fn literal_value_expression_propagates_parse_error() {
+        let case_instance = case_instance_with(Map::new());
+        let error = resolve_if_part_literal_value_expression(
+            &case_instance.variables,
+            &CmmnSentryIfPartLiteral::Variable("1 +".to_string()),
+            &case_instance,
+        )
+        .expect_err("malformed variable expression must propagate");
+        assert!(
+            !error.to_string().is_empty(),
+            "propagated error must carry a message"
+        );
+    }
+
+    #[test]
+    fn plain_literal_value_expression_stays_none() {
+        // Non-variable literals do not take the value-expression path.
+        let case_instance = case_instance_with(Map::new());
+        let resolved = resolve_if_part_literal_value_expression(
+            &case_instance.variables,
+            &CmmnSentryIfPartLiteral::Boolean(true),
+            &case_instance,
+        )
+        .expect("plain literal");
+        assert_eq!(resolved, None);
     }
 }
