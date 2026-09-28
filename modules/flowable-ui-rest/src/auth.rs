@@ -503,11 +503,39 @@ fn roll_token(
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Option<Token> {
-    let replacement = create_token(engine, user_id, ip_address, user_agent).ok()?;
+    let replacement = replacement_or_retain(
+        user_id,
+        create_token(engine, user_id, ip_address, user_agent),
+    )?;
     if let Err(error) = engine.get_identity_service().delete_token(&previous.id) {
         tracing::error!("token delete during roll failed: {error}");
     }
     Some(replacement)
+}
+
+/// Maps a rolling-refresh issuance attempt to the cookie outcome.
+///
+/// `None` means the request keeps being served with the existing cookie: a
+/// failure to issue the replacement must not clear a session that is still
+/// within its max age (no security regression — the old row is untouched until
+/// a later roll succeeds). The failure is logged so a storage outage during
+/// silent rotation is observable; only the user id is recorded, never token
+/// material or credentials.
+fn replacement_or_retain(
+    user_id: &str,
+    issued: Result<Token, flowable_engine::error::FlowableError>,
+) -> Option<Token> {
+    match issued {
+        Ok(token) => Some(token),
+        Err(error) => {
+            tracing::warn!(
+                user_id = %user_id,
+                "remember-me token roll failed to issue a replacement; \
+                 retaining the existing cookie: {error}"
+            );
+            None
+        }
+    }
 }
 
 // ── URL → privilege table ──
@@ -1007,5 +1035,40 @@ mod tests {
         // the idm prefix rules, which do not match `/idm/`, so it is public too.
         // Stated because the pair looks like an oversight otherwise.
         assert_eq!(required_access("/idm/"), Access::Public);
+    }
+
+    /// P3: a failed replacement-token issuance during a rolling refresh must
+    /// retain the existing cookie (`None` at the roll seam) rather than clear
+    /// the session; a successful issuance passes through.
+    ///
+    /// The in-memory identity backend offers no failure-injection seam for
+    /// `save_token`, so the branch is covered at this pure mapping point — the
+    /// logging itself is not asserted.
+    #[test]
+    fn failed_roll_issuance_retains_existing_cookie() {
+        let outcome = replacement_or_retain(
+            "alice",
+            Err(flowable_engine::error::FlowableError::Internal(
+                "token store unavailable".to_string(),
+            )),
+        );
+        assert!(
+            outcome.is_none(),
+            "an issuance failure must retain the old cookie, not clear the session"
+        );
+
+        let token = Token {
+            id: "rolled-series".to_string(),
+            token_value: "rolled-value".to_string(),
+            user_id: Some("alice".to_string()),
+            token_date: None,
+            ip_address: None,
+            user_agent: None,
+        };
+        assert!(
+            replacement_or_retain("alice", Ok(token.clone())).is_some_and(|issued| issued.id
+                == token.id
+                && issued.token_value == token.token_value)
+        );
     }
 }
