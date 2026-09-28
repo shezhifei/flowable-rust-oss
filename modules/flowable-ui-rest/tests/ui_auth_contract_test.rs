@@ -34,19 +34,23 @@ async fn spawn_with_config(
     config: UiAuthConfig,
 ) -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".to_string(),
-        first_name: Some("Ad".to_string()),
-        last_name: Some("Min".to_string()),
-        email: Some("admin@example.com".to_string()),
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".to_string(),
+            first_name: Some("Ad".to_string()),
+            last_name: Some("Min".to_string()),
+            email: Some("admin@example.com".to_string()),
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
 
     let app = flowable_ui_rest::ui_router_with_config(Arc::new(config))
+        .expect("test ui router")
         .layer(Extension(Arc::clone(&engine)));
 
     tokio::spawn(async move {
@@ -60,14 +64,23 @@ async fn spawn_with_config(
 /// Grants a privilege directly to a user.
 fn grant_user_privilege(engine: &Arc<ProcessEngine>, privilege_id: &str, user_id: &str) {
     let identity = engine.get_identity_service();
-    identity.save_privilege(Privilege {
-        id: privilege_id.to_string(),
-        name: privilege_id.to_string(),
-    }).unwrap();
-    identity.add_user_privilege_mapping(privilege_id.to_string(), user_id.to_string()).unwrap();
+    identity
+        .save_privilege(Privilege {
+            id: privilege_id.to_string(),
+            name: privilege_id.to_string(),
+        })
+        .unwrap();
+    identity
+        .add_user_privilege_mapping(privilege_id.to_string(), user_id.to_string())
+        .unwrap();
 }
 
-async fn login(client: &reqwest::Client, base_url: &str, user: &str, password: &str) -> reqwest::Response {
+async fn login(
+    client: &reqwest::Client,
+    base_url: &str,
+    user: &str,
+    password: &str,
+) -> reqwest::Response {
     client
         .post(format!("{base_url}/app/authentication"))
         .header("content-type", "application/x-www-form-urlencoded")
@@ -150,10 +163,10 @@ async fn missing_and_empty_credentials_are_rejected() {
     let (_engine, base_url, client) = spawn("ui_auth_login_empty").await;
 
     for body in [
-        "j_username=admin",                  // no password field at all
-        "j_username=admin&j_password=",      // present but empty
-        "j_username=&j_password=test",       // empty username
-        "",                                  // nothing
+        "j_username=admin",             // no password field at all
+        "j_username=admin&j_password=", // present but empty
+        "j_username=&j_password=test",  // empty username
+        "",                             // nothing
     ] {
         let response = client
             .post(format!("{base_url}/app/authentication"))
@@ -162,7 +175,11 @@ async fn missing_and_empty_credentials_are_rejected() {
             .send()
             .await
             .unwrap();
-        assert_eq!(response.status(), 401, "body {body:?} should not authenticate");
+        assert_eq!(
+            response.status(),
+            401,
+            "body {body:?} should not authenticate"
+        );
     }
 }
 
@@ -222,9 +239,15 @@ async fn garbage_and_tampered_cookies_are_rejected() {
     for candidate in [
         "not-base64-at-all!!".to_string(),
         // Valid base64, but not `series:value`.
-        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, "onlyonepart"),
+        base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            "onlyonepart",
+        ),
         // Unknown series.
-        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, "nosuchseries:value"),
+        base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            "nosuchseries:value",
+        ),
         forged.clone(),
     ] {
         let response = client
@@ -233,7 +256,11 @@ async fn garbage_and_tampered_cookies_are_rejected() {
             .send()
             .await
             .unwrap();
-        assert_eq!(response.status(), 401, "cookie {candidate:?} should be rejected");
+        assert_eq!(
+            response.status(),
+            401,
+            "cookie {candidate:?} should be rejected"
+        );
     }
 
     // Theft detection invalidated the series, so the originally valid cookie is
@@ -262,12 +289,17 @@ fn backdate_token(engine: &Arc<ProcessEngine>, cookie: &str, age: std::time::Dur
     let series = decoded.split(':').next().unwrap();
 
     let identity = engine.get_identity_service();
-    let token = identity.find_token_by_id(series).unwrap().expect("token row missing");
+    let token = identity
+        .find_token_by_id(series)
+        .unwrap()
+        .expect("token row missing");
     let issued_at = token.token_date.expect("token had no date") - age.as_millis() as i64;
-    identity.save_token(flowable_engine::identity::entities::Token {
-        token_date: Some(issued_at),
-        ..token
-    }).unwrap();
+    identity
+        .save_token(flowable_engine::identity::entities::Token {
+            token_date: Some(issued_at),
+            ..token
+        })
+        .unwrap();
 }
 
 #[tokio::test]
@@ -276,7 +308,11 @@ async fn cookie_is_rolled_once_past_the_refresh_age() {
 
     let first = remember_me_cookie(&login(&client, &base_url, "admin", "test").await);
     // Two days old against the one-day default refresh age.
-    backdate_token(&engine, &first, std::time::Duration::from_secs(2 * 24 * 60 * 60));
+    backdate_token(
+        &engine,
+        &first,
+        std::time::Duration::from_secs(2 * 24 * 60 * 60),
+    );
 
     let response = client
         .get(format!("{base_url}/idm-app/rest/account"))
@@ -287,7 +323,10 @@ async fn cookie_is_rolled_once_past_the_refresh_age() {
 
     assert_eq!(response.status(), 200);
     let rolled = remember_me_cookie(&response);
-    assert_ne!(rolled, first, "a request past refresh age must issue a new cookie");
+    assert_ne!(
+        rolled, first,
+        "a request past refresh age must issue a new cookie"
+    );
 
     // The new cookie works.
     let response = client
@@ -336,7 +375,11 @@ async fn expired_cookie_is_rejected() {
 
     let cookie = remember_me_cookie(&login(&client, &base_url, "admin", "test").await);
     // 32 days old against the 31-day default max age.
-    backdate_token(&engine, &cookie, std::time::Duration::from_secs(32 * 24 * 60 * 60));
+    backdate_token(
+        &engine,
+        &cookie,
+        std::time::Duration::from_secs(32 * 24 * 60 * 60),
+    );
 
     let response = client
         .get(format!("{base_url}/idm-app/rest/account"))
@@ -425,7 +468,11 @@ async fn account_and_authenticate_need_no_privilege() {
             .send()
             .await
             .unwrap();
-        assert_eq!(response.status(), 200, "{path} must not require a privilege");
+        assert_eq!(
+            response.status(),
+            200,
+            "{path} must not require a privilege"
+        );
     }
 }
 
@@ -453,17 +500,25 @@ async fn privilege_inherited_through_a_group_is_honoured() {
     let (engine, base_url, client) = spawn("ui_auth_group_privilege").await;
     let identity = engine.get_identity_service();
 
-    identity.save_group(Group {
-        id: "idm-users".to_string(),
-        name: "IDM users".to_string(),
-        group_type: Some("security-role".to_string()),
-    }).unwrap();
-    identity.create_membership("admin".to_string(), "idm-users".to_string()).unwrap();
-    identity.save_privilege(Privilege {
-        id: "access-idm".to_string(),
-        name: "access-idm".to_string(),
-    }).unwrap();
-    identity.add_group_privilege_mapping("access-idm".to_string(), "idm-users".to_string()).unwrap();
+    identity
+        .save_group(Group {
+            id: "idm-users".to_string(),
+            name: "IDM users".to_string(),
+            group_type: Some("security-role".to_string()),
+        })
+        .unwrap();
+    identity
+        .create_membership("admin".to_string(), "idm-users".to_string())
+        .unwrap();
+    identity
+        .save_privilege(Privilege {
+            id: "access-idm".to_string(),
+            name: "access-idm".to_string(),
+        })
+        .unwrap();
+    identity
+        .add_group_privilege_mapping("access-idm".to_string(), "idm-users".to_string())
+        .unwrap();
 
     let cookie = remember_me_cookie(&login(&client, &base_url, "admin", "test").await);
 

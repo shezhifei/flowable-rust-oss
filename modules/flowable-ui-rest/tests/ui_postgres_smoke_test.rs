@@ -189,6 +189,7 @@ async fn spawn(test_name: &str) -> Option<TestApp> {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     let app = flowable_ui_rest::ui_router_with_config(Arc::new(UiAuthConfig::default()))
+        .expect("test ui router")
         .layer(Extension(Arc::clone(&engine)));
 
     tokio::spawn(async move {
@@ -321,7 +322,8 @@ async fn token_remember_me_fields_round_trip_through_postgres() {
 
     let token = app
         .identity()
-        .find_token_by_id(&series_of(&cookie)).unwrap()
+        .find_token_by_id(&series_of(&cookie))
+        .unwrap()
         .expect("token row");
 
     assert_eq!(token.user_id.as_deref(), Some(app.admin_id.as_str()));
@@ -368,7 +370,11 @@ async fn user_crud_round_trips_through_postgres() {
         .unwrap();
     assert_eq!(response.status(), 200);
 
-    let updated = app.identity().find_user_by_id(&dave).unwrap().expect("user");
+    let updated = app
+        .identity()
+        .find_user_by_id(&dave)
+        .unwrap()
+        .expect("user");
     assert_eq!(updated.first_name.as_deref(), Some("David"));
     // Java calls every setter unconditionally, so an omitted field is written as
     // null rather than left alone. Worth pinning on a real backend: the column

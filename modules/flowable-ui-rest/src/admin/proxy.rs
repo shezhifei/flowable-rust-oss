@@ -3,10 +3,10 @@
 use super::server_config::ServerConfig;
 use axum::{
     body::Body,
-    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use bytes::Bytes;
 use std::time::Duration;
 use thiserror::Error;
@@ -41,7 +41,11 @@ pub fn build_server_url(config: &ServerConfig, uri: &str) -> String {
     let context = strip_slashes(&config.context_root);
     let rest = strip_slashes(&config.rest_root);
 
-    let mut base = format!("{}:{}", config.server_address.trim_end_matches('/'), config.port);
+    let mut base = format!(
+        "{}:{}",
+        config.server_address.trim_end_matches('/'),
+        config.port
+    );
     if !context.is_empty() {
         base.push('/');
         base.push_str(&context);
@@ -73,7 +77,14 @@ pub struct ProxyClient {
 }
 
 impl ProxyClient {
-    pub fn new() -> Self {
+    /// Builds the proxy client, failing when the underlying HTTP/TLS stack
+    /// cannot be initialized.
+    ///
+    /// Typed constructor (P2 parity): Java's admin client beans fail context
+    /// startup on construction rather than panicking on first use, so the
+    /// `reqwest::Error` propagates up the router-building chain to the process
+    /// startup boundary instead of an `.expect("reqwest client")` panic.
+    pub fn try_new() -> Result<Self, reqwest::Error> {
         let preemptive = std::env::var("FLOWABLE_ADMIN_PREEMPTIVE_BASIC")
             .map(|v| !v.eq_ignore_ascii_case("false"))
             .unwrap_or(true);
@@ -81,12 +92,11 @@ impl ProxyClient {
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(10))
             .danger_accept_invalid_certs(true)
-            .build()
-            .expect("reqwest client");
-        Self {
+            .build()?;
+        Ok(Self {
             client,
             preemptive_basic: preemptive,
-        }
+        })
     }
 
     pub async fn execute_json(
@@ -156,7 +166,10 @@ impl ProxyClient {
         }
 
         // Align with Java extractError: prefer JSON "exception" field.
-        let message = extract_error(&bytes, &format!("An error occurred while calling Flowable: {status}"));
+        let message = extract_error(
+            &bytes,
+            &format!("An error occurred while calling Flowable: {status}"),
+        );
         Err(ProxyError::Message(message))
     }
 
@@ -187,8 +200,7 @@ impl ProxyClient {
         }
 
         let mut builder = self.client.request(
-            reqwest::Method::from_bytes(method.as_str().as_bytes())
-                .unwrap_or(reqwest::Method::GET),
+            reqwest::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(reqwest::Method::GET),
             &url,
         );
 
@@ -206,10 +218,7 @@ impl ProxyClient {
         let status =
             StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
         if status == StatusCode::UNAUTHORIZED {
-            let bytes = response
-                .bytes()
-                .await
-                .unwrap_or_default();
+            let bytes = response.bytes().await.unwrap_or_default();
             let message = extract_error(
                 &bytes,
                 "An error occurred while calling Flowable: 401 Unauthorized",
@@ -222,12 +231,6 @@ impl ProxyClient {
             .await
             .map_err(|e| ProxyError::Other(e.to_string()))?;
         Ok(build_axum_response(status, &headers, bytes))
-    }
-}
-
-impl Default for ProxyClient {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

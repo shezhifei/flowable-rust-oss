@@ -43,13 +43,21 @@ pub mod task;
 ///
 /// The caller must have an `Extension<Arc<ProcessEngine>>` in scope for these
 /// routes; `flowable-rest` already applies one to the whole application.
-pub fn ui_router() -> Router {
+///
+/// Fallible: the admin subsystem validates its credentials-cipher env config
+/// and builds its HTTP client during assembly; a misconfiguration or client
+/// init failure is returned as [`admin::AdminStateError`] so the process can
+/// abort at the startup boundary (matching Java bean-construction failure),
+/// instead of panicking or silently using default secrets.
+pub fn ui_router() -> Result<Router, admin::AdminStateError> {
     ui_router_with_config(Arc::new(auth::UiAuthConfig::from_env()))
 }
 
 /// [`ui_router`] with an explicit config, for tests that need to drive cookie
 /// ages or the disabled mode without touching process environment.
-pub fn ui_router_with_config(config: Arc<auth::UiAuthConfig>) -> Router {
+pub fn ui_router_with_config(
+    config: Arc<auth::UiAuthConfig>,
+) -> Result<Router, admin::AdminStateError> {
     ui_router_from_parts(config, static_srv::router())
 }
 
@@ -58,14 +66,17 @@ pub fn ui_router_with_config(config: Arc<auth::UiAuthConfig>) -> Router {
 pub fn ui_router_with_config_and_static(
     config: Arc<auth::UiAuthConfig>,
     static_root: &std::path::Path,
-) -> Router {
+) -> Result<Router, admin::AdminStateError> {
     ui_router_from_parts(config, static_srv::router_from(static_root))
 }
 
-fn ui_router_from_parts(config: Arc<auth::UiAuthConfig>, static_routes: Router) -> Router {
+fn ui_router_from_parts(
+    config: Arc<auth::UiAuthConfig>,
+    static_routes: Router,
+) -> Result<Router, admin::AdminStateError> {
     let routes = Router::new()
         .merge(idm::router())
-        .merge(admin::router())
+        .merge(admin::router()?)
         .merge(task::router())
         .merge(modeler::router())
         .merge(auth::router(Arc::clone(&config)))
@@ -78,8 +89,8 @@ fn ui_router_from_parts(config: Arc<auth::UiAuthConfig>, static_routes: Router) 
     // paths map to `Public` — instead of by the API's Basic-auth layer, turning
     // its 401 into a bare 404. `route_layer` runs only for paths this router
     // actually claims, which is all the UI surface needs.
-    routes.route_layer(middleware::from_fn_with_state(
+    Ok(routes.route_layer(middleware::from_fn_with_state(
         config,
         auth::auth_middleware,
-    ))
+    )))
 }

@@ -62,6 +62,7 @@ async fn spawn_with_config(
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     let app = flowable_ui_rest::ui_router_with_config(Arc::new(config))
+        .expect("test ui router")
         .layer(Extension(Arc::clone(&engine)));
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
@@ -354,14 +355,17 @@ fn bpmn_upload(file_name: &str, content: &str) -> reqwest::multipart::Form {
 }
 
 fn save_user(engine: &Arc<ProcessEngine>, id: &str, first: Option<&str>, last: Option<&str>) {
-    engine.get_identity_service().save_user(User {
-        id: id.to_string(),
-        first_name: first.map(str::to_string),
-        last_name: last.map(str::to_string),
-        email: None,
-        password: Some("test".to_string()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: id.to_string(),
+            first_name: first.map(str::to_string),
+            last_name: last.map(str::to_string),
+            email: None,
+            password: Some("test".to_string()),
+            tenant_id: None,
+        })
+        .unwrap();
 }
 
 #[tokio::test]
@@ -506,16 +510,22 @@ async fn editor_users_and_groups_list_idm_entries_with_optional_filter() {
     let (engine, base_url, client) = spawn("ui-modeler-editor-users").await;
     save_user(&engine, "bob", Some("Bob"), Some("Baker"));
     save_user(&engine, "carol", Some("Carol"), Some("Smith"));
-    engine.get_identity_service().save_group(Group {
-        id: "sales".to_string(),
-        name: "Sales".to_string(),
-        group_type: Some("assignment".to_string()),
-    }).unwrap();
-    engine.get_identity_service().save_group(Group {
-        id: "engineering".to_string(),
-        name: "Engineering".to_string(),
-        group_type: Some("assignment".to_string()),
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_group(Group {
+            id: "sales".to_string(),
+            name: "Sales".to_string(),
+            group_type: Some("assignment".to_string()),
+        })
+        .unwrap();
+    engine
+        .get_identity_service()
+        .save_group(Group {
+            id: "engineering".to_string(),
+            name: "Engineering".to_string(),
+            group_type: Some("assignment".to_string()),
+        })
+        .unwrap();
 
     let users: Value = client
         .get(format!("{base_url}/modeler-app/rest/editor-users"))
@@ -533,7 +543,9 @@ async fn editor_users_and_groups_list_idm_entries_with_optional_filter() {
     assert_eq!(bob["fullName"], "Bob Baker");
 
     let filtered: Value = client
-        .get(format!("{base_url}/modeler-app/rest/editor-users?filter=carol"))
+        .get(format!(
+            "{base_url}/modeler-app/rest/editor-users?filter=carol"
+        ))
         .send()
         .await
         .unwrap()

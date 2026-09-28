@@ -6584,7 +6584,10 @@ async fn run_server_with_components(
         // `ui_surface_wiring_test::unknown_paths_stay_behind_the_api_auth_layer`
         // guards this.
         // Stream B fills `admin`/`task` modules inside `ui_router()`.
-        .merge(flowable_ui_rest::ui_router())
+        // Fail-closed: an invalid admin credentials-cipher config or an HTTP
+        // client init failure aborts startup here instead of silently
+        // downgrading to the public default cipher / panicking later.
+        .merge(flowable_ui_rest::ui_router()?)
         .merge(api_routes)
         .layer(Extension(directory_read_state))
         .layer(Extension(dmn_engine))

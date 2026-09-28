@@ -40,13 +40,13 @@
 use std::sync::{Arc, OnceLock};
 
 use axum::{
+    Json, Router,
     extract::{Extension, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
 };
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_engine::identity::entities::{Privilege, User};
@@ -56,7 +56,7 @@ use flowable_engine::service::config::{
 };
 use flowable_ui_rest::admin::{self, AdminState, EndpointType, ServerConfig, ServerConfigStore};
 use flowable_ui_rest::auth::UiAuthConfig;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use uuid::Uuid;
 
@@ -202,6 +202,7 @@ async fn spawn_ui(test_name: &str, privileges: &[&str]) -> Option<(UiApp, String
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     let app = flowable_ui_rest::ui_router_with_config(Arc::new(UiAuthConfig::default()))
+        .expect("test ui router")
         .layer(Extension(Arc::clone(&engine)));
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
@@ -372,7 +373,10 @@ async fn admin_proxy_list_deployments_reads_postgres_engine() {
     let (deployment_id, _) = deploy_smoke_process(&engine, &key, "nobody");
 
     // Engine REST responder over the same pg engine.
-    let expected_auth = format!("Basic {}", B64.encode(format!("{REST_USER}:{REST_PASSWORD}")));
+    let expected_auth = format!(
+        "Basic {}",
+        B64.encode(format!("{REST_USER}:{REST_PASSWORD}"))
+    );
     let responder = Router::new()
         .route("/repository/deployments", get(list_deployments_endpoint))
         .with_state(EngineRestState {
@@ -409,7 +413,9 @@ async fn admin_proxy_list_deployments_reads_postgres_engine() {
 
     let admin_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let admin_base = format!("http://{}", admin_listener.local_addr().unwrap());
-    let admin_app = admin::router_with_state(AdminState::with_store(Arc::clone(&store)));
+    let admin_app = admin::router_with_state(
+        AdminState::with_store(Arc::clone(&store)).expect("test admin state"),
+    );
     tokio::spawn(async move {
         axum::serve(admin_listener, admin_app).await.unwrap();
     });
@@ -559,7 +565,10 @@ async fn completed_task_leaves_the_runtime_aggregation_on_postgres() {
 
     let response = app
         .client
-        .put(format!("{}/app/rest/tasks/{task_id}/action/complete", app.base_url))
+        .put(format!(
+            "{}/app/rest/tasks/{task_id}/action/complete",
+            app.base_url
+        ))
         .header("cookie", app.cookie_header(&cookie))
         .send()
         .await

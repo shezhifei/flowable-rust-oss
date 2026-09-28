@@ -45,7 +45,8 @@ async fn spawn(test_name: &str) -> (String, reqwest::Client) {
             email: Some("admin@example.com".to_string()),
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
     let config = UiAuthConfig {
         mode: AuthMode::Disabled,
         ..UiAuthConfig::default()
@@ -54,6 +55,7 @@ async fn spawn(test_name: &str) -> (String, reqwest::Client) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     let app = flowable_ui_rest::ui_router_with_config_and_static(Arc::new(config), &legacy_root())
+        .expect("test ui router")
         .layer(Extension(engine));
 
     tokio::spawn(async move {
@@ -94,7 +96,11 @@ async fn bare_prefix_without_a_trailing_slash_serves_the_app() {
             .send()
             .await
             .unwrap();
-        assert_eq!(response.status(), 200, "{path} (no trailing slash) should serve the app");
+        assert_eq!(
+            response.status(),
+            200,
+            "{path} (no trailing slash) should serve the app"
+        );
     }
 }
 
@@ -173,7 +179,8 @@ async fn a_missing_static_root_mounts_nothing_and_leaves_rest_working() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        }).unwrap();
+        })
+        .unwrap();
     let config = UiAuthConfig {
         mode: AuthMode::Disabled,
         ..UiAuthConfig::default()
@@ -185,6 +192,7 @@ async fn a_missing_static_root_mounts_nothing_and_leaves_rest_working() {
         Arc::new(config),
         &PathBuf::from("no/such/directory"),
     )
+    .expect("test ui router")
     .layer(Extension(engine));
 
     tokio::spawn(async move {

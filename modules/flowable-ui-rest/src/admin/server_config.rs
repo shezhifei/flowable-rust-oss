@@ -154,28 +154,34 @@ pub struct ServerConfigStore {
 }
 
 impl ServerConfigStore {
-    pub fn with_defaults() -> Self {
+    /// Builds the production store from env and loads/seeds the JSON file.
+    ///
+    /// Fail-closed (P1-D): an invalid `FLOWABLE_ADMIN_CREDENTIALS_IV` /
+    /// `..._SECRET` length is returned as an `Err` at startup instead of
+    /// silently reverting to the public default cipher. Java aborts bean
+    /// construction for the same misconfiguration
+    /// (`AbstractEncryptingService.java:39-46`), so callers propagate this to
+    /// the process boundary rather than encrypting credentials with a known key.
+    pub fn with_defaults() -> Result<Self, String> {
         let path = default_store_path();
         let store = Self {
             configs: RwLock::new(HashMap::new()),
-            cipher: PasswordCipher::from_env(),
+            cipher: PasswordCipher::from_env()?,
             path,
         };
         if !store.load_from_disk() {
             store.seed_defaults();
             let _ = store.persist();
         }
-        store
+        Ok(store)
     }
 
     pub fn empty_for_tests(cipher: PasswordCipher) -> Self {
         Self {
             configs: RwLock::new(HashMap::new()),
             cipher,
-            path: PathBuf::from(std::env::temp_dir()).join(format!(
-                "flowable-ui-sc-test-{}.json",
-                Uuid::new_v4()
-            )),
+            path: PathBuf::from(std::env::temp_dir())
+                .join(format!("flowable-ui-sc-test-{}.json", Uuid::new_v4())),
         }
     }
 
@@ -251,8 +257,8 @@ impl ServerConfigStore {
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(8080);
-        let address = std::env::var("FLOWABLE_UI_ENGINE_HOST")
-            .unwrap_or_else(|_| "http://127.0.0.1".into());
+        let address =
+            std::env::var("FLOWABLE_UI_ENGINE_HOST").unwrap_or_else(|_| "http://127.0.0.1".into());
         let user = std::env::var("FLOWABLE_UI_ENGINE_USER").unwrap_or_else(|_| "admin".into());
         let password =
             std::env::var("FLOWABLE_UI_ENGINE_PASSWORD").unwrap_or_else(|_| "test".into());
@@ -296,7 +302,10 @@ impl ServerConfigStore {
 
     pub fn list_representations(&self) -> Vec<ServerConfigRepresentation> {
         let guard = self.configs.read().unwrap_or_else(|e| e.into_inner());
-        let mut list: Vec<_> = guard.values().map(ServerConfigRepresentation::from).collect();
+        let mut list: Vec<_> = guard
+            .values()
+            .map(ServerConfigRepresentation::from)
+            .collect();
         list.sort_by_key(|c| c.endpoint_type);
         list
     }
@@ -320,7 +329,10 @@ impl ServerConfigStore {
         match matches.len() {
             0 => Err("No server config found".into()),
             // len==1 guarantees Some; ok_or avoids panic, maps to 404 parity.
-            1 => matches.into_iter().next().ok_or("No server config found".into()),
+            1 => matches
+                .into_iter()
+                .next()
+                .ok_or("No server config found".into()),
             _ => Err("Only one server config per endpoint type allowed".into()),
         }
     }
@@ -329,11 +341,7 @@ impl ServerConfigStore {
         self.cipher.decrypt(&config.password)
     }
 
-    pub fn update(
-        &self,
-        server_id: &str,
-        rep: ServerConfigRepresentation,
-    ) -> Result<(), String> {
+    pub fn update(&self, server_id: &str, rep: ServerConfigRepresentation) -> Result<(), String> {
         {
             let mut guard = self.configs.write().unwrap_or_else(|e| e.into_inner());
             let config = guard
@@ -373,8 +381,8 @@ impl ServerConfigStore {
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(8080);
-        let address = std::env::var("FLOWABLE_UI_ENGINE_HOST")
-            .unwrap_or_else(|_| "http://127.0.0.1".into());
+        let address =
+            std::env::var("FLOWABLE_UI_ENGINE_HOST").unwrap_or_else(|_| "http://127.0.0.1".into());
         let (name, description) = default_meta(endpoint);
         ServerConfigRepresentation {
             id: None,

@@ -15,16 +15,16 @@
 //! - GET  /admin-app/rest/admin/engine-info/{code}
 
 use axum::{
+    Json, Router,
     body::Body,
     http::{Request, StatusCode},
     routing::get,
-    Json, Router,
 };
 use flowable_ui_rest::admin::{
-    router_with_state, AdminState, EndpointType, ServerConfigRepresentation, ServerConfigStore,
+    AdminState, EndpointType, ServerConfigRepresentation, ServerConfigStore, router_with_state,
 };
 use http_body_util::BodyExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -91,7 +91,7 @@ fn admin_state_pointing_at(addr: SocketAddr) -> AdminState {
         };
         store.save_new(cfg, true).unwrap();
     }
-    AdminState::with_store(store)
+    AdminState::with_store(store).expect("test admin state")
 }
 
 async fn body_json(res: axum::response::Response) -> Value {
@@ -101,7 +101,7 @@ async fn body_json(res: axum::response::Response) -> Value {
 
 #[tokio::test]
 async fn health_probe() {
-    let app = router_with_state(AdminState::new());
+    let app = router_with_state(AdminState::new().expect("test admin state"));
     let res = app
         .oneshot(
             Request::builder()
@@ -118,7 +118,7 @@ async fn health_probe() {
 
 #[tokio::test]
 async fn server_config_list_and_default() {
-    let app = router_with_state(AdminState::new());
+    let app = router_with_state(AdminState::new().expect("test admin state"));
     let res = app
         .clone()
         .oneshot(
@@ -153,7 +153,7 @@ async fn server_config_list_and_default() {
 
 #[tokio::test]
 async fn server_config_update_and_password_encrypt_roundtrip() {
-    let state = AdminState::new();
+    let state = AdminState::new().expect("test admin state");
     let list = state.configs.list_representations();
     let id = list[0].id.clone().unwrap();
     let before = state.configs.get(&id).unwrap();
@@ -278,7 +278,7 @@ async fn proxy_connect_failure_maps_to_bad_request() {
             true,
         )
         .unwrap();
-    let app = router_with_state(AdminState::with_store(store));
+    let app = router_with_state(AdminState::with_store(store).expect("test admin state"));
     let res = app
         .oneshot(
             Request::builder()
@@ -306,13 +306,13 @@ async fn server_config_persists_to_disk() {
             path.to_string_lossy().as_ref(),
         );
     }
-    let store = Arc::new(ServerConfigStore::with_defaults());
+    let store = Arc::new(ServerConfigStore::with_defaults().expect("test config store"));
     let list = store.list_representations();
     assert_eq!(list.len(), 6);
     assert!(path.exists());
 
     // Reload from disk
-    let store2 = Arc::new(ServerConfigStore::with_defaults());
+    let store2 = Arc::new(ServerConfigStore::with_defaults().expect("test config store"));
     assert_eq!(store2.list_representations().len(), 6);
     let _ = std::fs::remove_file(&path);
     unsafe {
@@ -328,7 +328,7 @@ async fn process_definition_model_json_with_engine() {
     let engine = Arc::new(ProcessEngine::new("ui-admin-display".into()).unwrap());
     // Empty DI → empty object (no definition deployed)
     // Route requires a real definition id; expect bad request / empty
-    let state = AdminState::new();
+    let state = AdminState::new().expect("test admin state");
     let app = router_with_state(state).layer(axum::Extension(engine));
     let res = app
         .oneshot(
@@ -358,20 +358,25 @@ async fn account_returns_the_session_user() {
     use flowable_ui_rest::ui_router_with_config;
 
     let engine = Arc::new(ProcessEngine::new("ui-admin-account".into()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".into(),
-        first_name: Some("Test".into()),
-        last_name: Some("Admin".into()),
-        email: Some("admin@example.com".into()),
-        password: Some("test".into()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".into(),
+            first_name: Some("Test".into()),
+            last_name: Some("Admin".into()),
+            email: Some("admin@example.com".into()),
+            password: Some("test".into()),
+            tenant_id: None,
+        })
+        .unwrap();
     let config = Arc::new(UiAuthConfig {
         mode: AuthMode::Disabled,
         dev_user_id: "admin".to_string(),
         ..UiAuthConfig::default()
     });
-    let app = ui_router_with_config(config).layer(axum::Extension(Arc::clone(&engine)));
+    let app = ui_router_with_config(config)
+        .expect("test ui router")
+        .layer(axum::Extension(Arc::clone(&engine)));
 
     let res = app
         .oneshot(
@@ -489,10 +494,7 @@ async fn spawn_gap_mock_engine() -> (SocketAddr, tokio::task::JoinHandle<()>, Ga
 
     let state = GapMockState::default();
     let app = Router::new()
-        .route(
-            "/management/jobs/:id/exception-stacktrace",
-            get(stacktrace),
-        )
+        .route("/management/jobs/:id/exception-stacktrace", get(stacktrace))
         .route(
             "/management/deadletter-jobs/:id",
             axum::routing::post(no_content_with_body),
@@ -519,10 +521,7 @@ async fn spawn_gap_mock_engine() -> (SocketAddr, tokio::task::JoinHandle<()>, Ga
             "/cmmn-runtime/case-instances/:id/migrate",
             axum::routing::post(ok_json_with_body),
         )
-        .route(
-            "/dmn-history/historic-decision-executions",
-            get(echo_query),
-        )
+        .route("/dmn-history/historic-decision-executions", get(echo_query))
         .route(
             "/repository/process-definitions/:id/decision-tables",
             get(related_models),
@@ -597,10 +596,8 @@ async fn job_stacktrace_java_path_and_deprecated_alias() {
     ] {
         let res = get_uri(&app, path).await;
         assert_eq!(res.status(), StatusCode::OK, "path={path}");
-        let text = String::from_utf8(
-            res.into_body().collect().await.unwrap().to_bytes().to_vec(),
-        )
-        .unwrap();
+        let text = String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec())
+            .unwrap();
         assert!(text.contains("boom"), "path={path} body={text}");
     }
 }
@@ -625,7 +622,9 @@ async fn move_job_posts_action_body_to_job_type_collection() {
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
     let calls = state.calls.lock().unwrap_or_else(|e| e.into_inner());
     assert!(
-        calls.iter().any(|(_, _, body)| body.contains("\"action\":\"move\"")),
+        calls
+            .iter()
+            .any(|(_, _, body)| body.contains("\"action\":\"move\"")),
         "recorded calls: {calls:?}"
     );
 }
@@ -658,7 +657,12 @@ async fn cmmn_job_endpoints_family() {
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
 
     // execute: always targets cmmn-management/jobs with {"action":"execute"}
-    let res = post_json(&app, "/admin-app/rest/admin/cmmn-jobs/cj-1?jobType=timerJob", json!({})).await;
+    let res = post_json(
+        &app,
+        "/admin-app/rest/admin/cmmn-jobs/cj-1?jobType=timerJob",
+        json!({}),
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
     // move: honours jobType and posts {"action":"move"}
     let res = app
@@ -695,11 +699,19 @@ async fn form_instances_family_filters() {
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(body_json(res).await["query"]["taskId"], "task-1");
 
-    let res = get_uri(&app, "/admin-app/rest/admin/form-instances/fi-1/form-field-values").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/form-instances/fi-1/form-field-values",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(body_json(res).await["fieldA"], "valueA");
 
-    let res = get_uri(&app, "/admin-app/rest/admin/form-definition-form-instances/fd-1").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/form-definition-form-instances/fd-1",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(body_json(res).await["query"]["formDefinitionId"], "fd-1");
 
@@ -744,7 +756,11 @@ async fn app_definition_related_models_two_step_lookup() {
     assert_eq!(v["data"].as_array().unwrap().len(), 0);
 
     // deploymentId is required (Java BadRequestException otherwise).
-    let res = get_uri(&app, "/admin-app/rest/admin/app-definitions/app-1/form-definitions").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/app-definitions/app-1/form-definitions",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
     // Route exists for the CMMN domain as well (mock has no cmmn-repository
@@ -779,7 +795,11 @@ async fn case_instance_change_state_migrate_decision_executions() {
     .await;
     assert_eq!(res.status(), StatusCode::OK);
 
-    let res = get_uri(&app, "/admin-app/rest/admin/case-instances/ci-1/decision-executions").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/case-instances/ci-1/decision-executions",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::OK);
     let v = body_json(res).await;
     assert_eq!(v["query"]["instanceId"], "ci-1");
@@ -805,7 +825,11 @@ async fn low_priority_proxy_endpoints() {
     }
 
     // Static `history` must win over the `:decision_table_id` parameter route.
-    let res = get_uri(&app, "/admin-app/rest/admin/decision-tables/history?decisionKey=abc").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/decision-tables/history?decisionKey=abc",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(body_json(res).await["query"]["decisionKey"], "abc");
 
@@ -817,14 +841,22 @@ async fn low_priority_proxy_endpoints() {
     .await;
     assert_eq!(res.status(), StatusCode::OK);
 
-    let res = get_uri(&app, "/admin-app/rest/admin/process-instances/pi-1/decision-executions").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/process-instances/pi-1/decision-executions",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::OK);
     let v = body_json(res).await;
     assert_eq!(v["query"]["instanceId"], "pi-1");
     // Unlike the case variant, no scopeType is sent for process instances.
     assert!(v["query"].get("scopeType").is_none());
 
-    let res = get_uri(&app, "/admin-app/rest/admin/process-instance-content-items/pi-1").await;
+    let res = get_uri(
+        &app,
+        "/admin-app/rest/admin/process-instance-content-items/pi-1",
+    )
+    .await;
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(body_json(res).await["query"]["processInstanceId"], "pi-1");
 }
@@ -837,7 +869,8 @@ async fn cmmn_display_model_json_routes() {
     use flowable_engine::engine::process_engine::ProcessEngine;
 
     let engine = Arc::new(ProcessEngine::new("ui-admin-cmmn-display".into()).unwrap());
-    let app = router_with_state(AdminState::new()).layer(axum::Extension(engine));
+    let app = router_with_state(AdminState::new().expect("test admin state"))
+        .layer(axum::Extension(engine));
 
     for uri in [
         "/admin-app/rest/admin/case-definitions/cd-1/model-json",

@@ -13,10 +13,10 @@ use axum::{
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::identity::entities::User;
 use flowable_ui_rest::task::{
-    create_rest_variable, rest_variable_value, router_with_engine, RestVariable, RestVariableScope,
+    RestVariable, RestVariableScope, create_rest_variable, rest_variable_value, router_with_engine,
 };
 use http_body_util::BodyExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -27,14 +27,17 @@ async fn body_json(res: axum::response::Response) -> Value {
 
 fn test_engine() -> Arc<ProcessEngine> {
     let engine = Arc::new(ProcessEngine::new("ui-task-test".into()).unwrap());
-    engine.get_identity_service().save_user(User {
-        id: "admin".into(),
-        first_name: Some("Test".into()),
-        last_name: Some("Admin".into()),
-        email: Some("admin@example.com".into()),
-        password: Some("test".into()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "admin".into(),
+            first_name: Some("Test".into()),
+            last_name: Some("Admin".into()),
+            email: Some("admin@example.com".into()),
+            password: Some("test".into()),
+            tenant_id: None,
+        })
+        .unwrap();
     engine
 }
 
@@ -65,7 +68,12 @@ fn rest_variable_types_cover_converters() {
         ("d", json!(1.5), "double"),
     ];
     for (name, val, ty) in cases {
-        let rv = create_rest_variable(name, Some(val.clone()), Some(RestVariableScope::Global), true);
+        let rv = create_rest_variable(
+            name,
+            Some(val.clone()),
+            Some(RestVariableScope::Global),
+            true,
+        );
         assert_eq!(rv.r#type.as_deref(), Some(ty), "name={name}");
         assert_eq!(rv.scope.as_deref(), Some("global"));
         let back = rest_variable_value(&rv).unwrap().unwrap();
@@ -141,7 +149,13 @@ async fn create_list_claim_complete_task_flow() {
     assert_eq!(res.status(), StatusCode::OK);
     let list = body_json(res).await;
     assert!(list["total"].as_i64().unwrap() >= 1);
-    assert!(list["data"].as_array().unwrap().iter().any(|t| t["id"] == task_id));
+    assert!(
+        list["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["id"] == task_id)
+    );
 
     // Comment before complete
     let res = app
@@ -202,7 +216,13 @@ async fn workflow_users_lists_identity() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let v = body_json(res).await;
-    assert!(v["data"].as_array().unwrap().iter().any(|u| u["id"] == "admin"));
+    assert!(
+        v["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|u| u["id"] == "admin")
+    );
 }
 
 #[tokio::test]
@@ -258,7 +278,13 @@ async fn content_create_and_list_for_task() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let list = body_json(res).await;
-    assert!(list["data"].as_array().unwrap().iter().any(|c| c["name"] == "note.txt"));
+    assert!(
+        list["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "note.txt")
+    );
 }
 
 #[tokio::test]
@@ -338,14 +364,17 @@ async fn session_user_drives_task_queries_and_claims() {
     use flowable_ui_rest::ui_router_with_config;
 
     let engine = test_engine();
-    engine.get_identity_service().save_user(User {
-        id: "worker".into(),
-        first_name: Some("Case".into()),
-        last_name: Some("Worker".into()),
-        email: None,
-        password: Some("test".into()),
-        tenant_id: None,
-    }).unwrap();
+    engine
+        .get_identity_service()
+        .save_user(User {
+            id: "worker".into(),
+            first_name: Some("Case".into()),
+            last_name: Some("Worker".into()),
+            email: None,
+            password: Some("test".into()),
+            tenant_id: None,
+        })
+        .unwrap();
 
     let make_task = |name: &str, assignee: &str| {
         let mut task = flowable_engine::task::Task::new(
@@ -368,14 +397,20 @@ async fn session_user_drives_task_queries_and_claims() {
         "Unclaimed paperwork".to_string(),
     );
     unassigned.assignee = None;
-    let unassigned_task = engine.get_task_service().create_task(unassigned).unwrap().id;
+    let unassigned_task = engine
+        .get_task_service()
+        .create_task(unassigned)
+        .unwrap()
+        .id;
 
     let config = Arc::new(UiAuthConfig {
         mode: AuthMode::Disabled,
         dev_user_id: "worker".to_string(),
         ..UiAuthConfig::default()
     });
-    let app = ui_router_with_config(config).layer(axum::Extension(Arc::clone(&engine)));
+    let app = ui_router_with_config(config)
+        .expect("test ui router")
+        .layer(axum::Extension(Arc::clone(&engine)));
 
     // "Assigned to me" follows the session user, not the fallback admin.
     let res = app
@@ -401,8 +436,14 @@ async fn session_user_drives_task_queries_and_claims() {
         .iter()
         .filter_map(|t| t["id"].as_str())
         .collect();
-    assert!(ids.contains(&worker_task.as_str()), "worker task listed: {ids:?}");
-    assert!(!ids.contains(&admin_task.as_str()), "admin task hidden: {ids:?}");
+    assert!(
+        ids.contains(&worker_task.as_str()),
+        "worker task listed: {ids:?}"
+    );
+    assert!(
+        !ids.contains(&admin_task.as_str()),
+        "admin task hidden: {ids:?}"
+    );
 
     // Claiming takes the task for the session user.
     let res = app
@@ -418,10 +459,7 @@ async fn session_user_drives_task_queries_and_claims() {
         .unwrap();
     let claim_status = res.status();
     let claim_body = body_json(res).await;
-    assert!(
-        claim_status == StatusCode::OK,
-        "claim failed: {claim_body}"
-    );
+    assert!(claim_status == StatusCode::OK, "claim failed: {claim_body}");
     let claimed = engine
         .get_task_service()
         .create_task_query()
@@ -447,7 +485,9 @@ async fn account_returns_the_session_user() {
         dev_user_id: "admin".to_string(),
         ..UiAuthConfig::default()
     });
-    let app = ui_router_with_config(config).layer(axum::Extension(Arc::clone(&engine)));
+    let app = ui_router_with_config(config)
+        .expect("test ui router")
+        .layer(axum::Extension(Arc::clone(&engine)));
 
     let res = app
         .oneshot(
@@ -733,21 +773,17 @@ async fn raw_content_upload_download_and_temporary() {
                     "content-type",
                     format!("multipart/form-data; boundary={boundary}"),
                 )
-                .body(Body::from(body.replace("note.txt", "note2.txt").replace("hello raw", "text body")))
+                .body(Body::from(
+                    body.replace("note.txt", "note2.txt")
+                        .replace("hello raw", "text body"),
+                ))
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
-    let text = String::from_utf8(
-        res.into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes()
-            .to_vec(),
-    )
-    .unwrap();
+    let text =
+        String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
     let parsed: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(parsed["name"], "note2.txt");
 

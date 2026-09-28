@@ -8,16 +8,16 @@ mod proxy;
 mod server_config;
 
 use axum::{
+    Json, Router,
     body::Bytes,
     extract::{Extension, Path, Query, State},
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
-    Json, Router,
 };
 use flowable_engine::engine::process_engine::ProcessEngine;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -36,30 +36,49 @@ pub struct AdminState {
     pub proxy: Arc<ProxyClient>,
 }
 
-impl AdminState {
-    pub fn new() -> Self {
-        let configs = Arc::new(ServerConfigStore::with_defaults());
-        let proxy = Arc::new(ProxyClient::new());
-        Self { configs, proxy }
-    }
-
-    pub fn with_store(configs: Arc<ServerConfigStore>) -> Self {
-        Self {
-            configs,
-            proxy: Arc::new(ProxyClient::new()),
-        }
-    }
+/// Startup-time failure of the admin subsystem.
+///
+/// Both variants mirror Java boundaries where the failure aborts application
+/// boot rather than degrading silently:
+/// - [`AdminStateError::CredentialsCipher`] is the P1-D fail-closed case: a
+///   malformed `FLOWABLE_ADMIN_CREDENTIALS_IV` / `..._SECRET` must not fall back
+///   to the public default key (`AbstractEncryptingService.java:39-46` rejects
+///   the IV in the `IvParameterSpec` constructor and a bad key at
+///   `cipher.init`).
+/// - [`AdminStateError::ProxyClient`] covers HTTP/TLS client construction;
+///   Java's admin client beans fail context construction the same way.
+#[derive(Debug, thiserror::Error)]
+pub enum AdminStateError {
+    #[error("invalid admin credentials encryption configuration: {0}")]
+    CredentialsCipher(String),
+    #[error("failed to build admin proxy HTTP client: {0}")]
+    ProxyClient(#[from] reqwest::Error),
 }
 
-impl Default for AdminState {
-    fn default() -> Self {
-        Self::new()
+impl AdminState {
+    pub fn new() -> Result<Self, AdminStateError> {
+        let configs = Arc::new(
+            ServerConfigStore::with_defaults().map_err(AdminStateError::CredentialsCipher)?,
+        );
+        let proxy = Arc::new(ProxyClient::try_new()?);
+        Ok(Self { configs, proxy })
+    }
+
+    pub fn with_store(configs: Arc<ServerConfigStore>) -> Result<Self, AdminStateError> {
+        Ok(Self {
+            configs,
+            proxy: Arc::new(ProxyClient::try_new()?),
+        })
     }
 }
 
 /// Build the admin router (mounted under `/admin-app` by `ui_router`).
-pub fn router() -> Router {
-    router_with_state(AdminState::new())
+///
+/// Fallible: admin state construction reads the credentials-cipher env config
+/// and initializes the HTTP client, both of which must fail startup with a
+/// typed error instead of panicking or falling back to defaults.
+pub fn router() -> Result<Router, AdminStateError> {
+    Ok(router_with_state(AdminState::new()?))
 }
 
 pub fn router_with_state(state: AdminState) -> Router {
@@ -75,7 +94,10 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/server-configs/default/:endpoint_type_code",
             get(get_default_server_config),
         )
-        .route("/admin-app/rest/server-configs/:server_id", put(update_server_config))
+        .route(
+            "/admin-app/rest/server-configs/:server_id",
+            put(update_server_config),
+        )
         // Engine info
         .route(
             "/admin-app/rest/admin/engine-info/:endpoint_type_code",
@@ -198,10 +220,7 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/admin/jobs/:job_id/exception-stacktrace",
             get(job_stacktrace),
         )
-        .route(
-            "/admin-app/rest/admin/move-jobs/:job_id",
-            post(move_job),
-        )
+        .route("/admin-app/rest/admin/move-jobs/:job_id", post(move_job))
         .route(
             "/admin-app/rest/admin/event-subscriptions",
             get(list_event_subscriptions),
@@ -269,7 +288,10 @@ pub fn router_with_state(state: AdminState) -> Router {
             "/admin-app/rest/admin/case-definition-form-definitions/:definition_id",
             get(case_definition_form_definitions),
         )
-        .route("/admin-app/rest/admin/case-instances", post(list_case_instances))
+        .route(
+            "/admin-app/rest/admin/case-instances",
+            post(list_case_instances),
+        )
         .route(
             "/admin-app/rest/admin/case-instances/:case_instance_id",
             get(get_case_instance).post(case_instance_action),
@@ -329,7 +351,9 @@ pub fn router_with_state(state: AdminState) -> Router {
         .route("/admin-app/rest/admin/cmmn-jobs", get(list_cmmn_jobs))
         .route(
             "/admin-app/rest/admin/cmmn-jobs/:job_id",
-            get(get_cmmn_job).delete(delete_cmmn_job).post(execute_cmmn_job),
+            get(get_cmmn_job)
+                .delete(delete_cmmn_job)
+                .post(execute_cmmn_job),
         )
         .route(
             "/admin-app/rest/admin/cmmn-jobs/:job_id/stacktrace",
@@ -451,7 +475,10 @@ pub fn router_with_state(state: AdminState) -> Router {
             get(app_definition_form_definitions),
         )
         // ---- CONTENT domain ----
-        .route("/admin-app/rest/admin/content-items", get(list_content_items))
+        .route(
+            "/admin-app/rest/admin/content-items",
+            get(list_content_items),
+        )
         .route(
             "/admin-app/rest/admin/content-items/:content_item_id",
             get(get_content_item),
@@ -531,8 +558,9 @@ async fn list_server_configs(State(state): State<AdminState>) -> impl IntoRespon
 async fn get_default_server_config(
     Path(endpoint_type_code): Path<i32>,
 ) -> Result<impl IntoResponse, AdminError> {
-    let endpoint = EndpointType::from_code(endpoint_type_code)
-        .ok_or_else(|| AdminError::bad_request(format!("Unknown endpoint type code: {endpoint_type_code}")))?;
+    let endpoint = EndpointType::from_code(endpoint_type_code).ok_or_else(|| {
+        AdminError::bad_request(format!("Unknown endpoint type code: {endpoint_type_code}"))
+    })?;
     Ok(Json(ServerConfigStore::default_representation(endpoint)))
 }
 
@@ -569,8 +597,11 @@ async fn get_engine_info(
     State(state): State<AdminState>,
     Path(endpoint_type_code): Path<i32>,
 ) -> Result<Response, AdminError> {
-    let endpoint = EndpointType::from_code(endpoint_type_code)
-        .ok_or_else(|| AdminError::bad_request(format!("No valid endpoint type code provided: {endpoint_type_code}")))?;
+    let endpoint = EndpointType::from_code(endpoint_type_code).ok_or_else(|| {
+        AdminError::bad_request(format!(
+            "No valid endpoint type code provided: {endpoint_type_code}"
+        ))
+    })?;
     let path = match endpoint {
         EndpointType::Process => "management/engine",
         EndpointType::Dmn => "dmn-management/engine",
@@ -697,7 +728,8 @@ async fn list_process_instances(
     body: Bytes,
 ) -> Result<Response, AdminError> {
     // Java: POST query/historic-process-instances with body + paging query params extracted from body.
-    let (uri_extra, body) = extract_paging_from_json_body(body, "query/historic-process-instances")?;
+    let (uri_extra, body) =
+        extract_paging_from_json_body(body, "query/historic-process-instances")?;
     proxy_body(
         &state,
         EndpointType::Process,
@@ -962,13 +994,16 @@ async fn process_instance_content_items(
 ) -> Result<Response, AdminError> {
     let mut q = query_without_server_id(&params);
     q.push(("processInstanceId".into(), process_instance_id));
-    proxy_get(&state, EndpointType::Content, "content-service/content-items", &q).await
+    proxy_get(
+        &state,
+        EndpointType::Content,
+        "content-service/content-items",
+        &q,
+    )
+    .await
 }
 
-async fn list_tasks(
-    State(state): State<AdminState>,
-    body: Bytes,
-) -> Result<Response, AdminError> {
+async fn list_tasks(State(state): State<AdminState>, body: Bytes) -> Result<Response, AdminError> {
     let (uri_extra, body) = extract_paging_from_json_body(body, "query/historic-task-instances")?;
     proxy_body(
         &state,
@@ -987,10 +1022,7 @@ async fn get_task(
     Path(task_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let runtime = params
-        .get("runtime")
-        .map(|v| v == "true")
-        .unwrap_or(false);
+    let runtime = params.get("runtime").map(|v| v == "true").unwrap_or(false);
     let path = if runtime {
         format!("runtime/tasks/{task_id}")
     } else {
@@ -1069,10 +1101,7 @@ async fn task_variables(
     State(state): State<AdminState>,
     Path(task_id): Path<String>,
 ) -> Result<Response, AdminError> {
-    let q = vec![
-        ("taskId".into(), task_id),
-        ("size".into(), "1024".into()),
-    ];
+    let q = vec![("taskId".into(), task_id), ("size".into(), "1024".into())];
     proxy_get(
         &state,
         EndpointType::Process,
@@ -1109,7 +1138,9 @@ async fn get_job(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_get(
         &state,
         EndpointType::Process,
@@ -1124,7 +1155,9 @@ async fn delete_job(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_no_body(
         &state,
         EndpointType::Process,
@@ -1141,7 +1174,9 @@ async fn execute_job(
     Query(params): Query<HashMap<String, String>>,
     body: Bytes,
 ) -> Result<Response, AdminError> {
-    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_body(
         &state,
         EndpointType::Process,
@@ -1159,7 +1194,9 @@ async fn job_stacktrace(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_get(
         &state,
         EndpointType::Process,
@@ -1177,7 +1214,9 @@ async fn move_job(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_body(
         &state,
         EndpointType::Process,
@@ -1340,7 +1379,13 @@ async fn list_cmmn_deployments(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
     let q = query_without_server_id(&params);
-    proxy_get(&state, EndpointType::Cmmn, "cmmn-repository/deployments", &q).await
+    proxy_get(
+        &state,
+        EndpointType::Cmmn,
+        "cmmn-repository/deployments",
+        &q,
+    )
+    .await
 }
 
 async fn get_cmmn_deployment(
@@ -1700,7 +1745,9 @@ async fn get_cmmn_job(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = cmmn_job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_get(&state, EndpointType::Cmmn, &format!("{base}/{job_id}"), &[]).await
 }
 
@@ -1710,7 +1757,9 @@ async fn delete_cmmn_job(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = cmmn_job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_no_body(
         &state,
         EndpointType::Cmmn,
@@ -1746,7 +1795,9 @@ async fn move_cmmn_job(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = cmmn_job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_body(
         &state,
         EndpointType::Cmmn,
@@ -1766,7 +1817,9 @@ async fn cmmn_job_stacktrace(
     Path(job_id): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
-    let base = cmmn_job_collection_path(&params).trim_end_matches('/').to_string();
+    let base = cmmn_job_collection_path(&params)
+        .trim_end_matches('/')
+        .to_string();
     proxy_get(
         &state,
         EndpointType::Cmmn,
@@ -1993,7 +2046,13 @@ async fn list_form_deployments(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Response, AdminError> {
     let q = query_without_server_id(&params);
-    proxy_get(&state, EndpointType::Form, "form-repository/deployments", &q).await
+    proxy_get(
+        &state,
+        EndpointType::Form,
+        "form-repository/deployments",
+        &q,
+    )
+    .await
 }
 
 async fn get_form_deployment(
@@ -2229,7 +2288,13 @@ async fn app_definition_related(
         .map(str::to_string);
     match child_deployment_id {
         Some(id) => {
-            proxy_get(state, endpoint, collection_path, &[("deploymentId".into(), id)]).await
+            proxy_get(
+                state,
+                endpoint,
+                collection_path,
+                &[("deploymentId".into(), id)],
+            )
+            .await
         }
         // Java returns an empty result node when there is no child deployment.
         None => Ok(Json(json!({ "size": 0, "data": [] })).into_response()),
@@ -2457,7 +2522,8 @@ async fn upload_to_engine(
         .send()
         .await
         .map_err(|e| AdminError::bad_request(e.to_string()))?;
-    let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let status =
+        StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let body = response
         .bytes()
         .await
@@ -2578,11 +2644,9 @@ async fn process_instance_history_model_json(
 fn admin_cmmn_engine(
     engine: &ProcessEngine,
 ) -> Result<Arc<flowable_cmmn_engine::CmmnEngine>, AdminError> {
-    engine
-        .get_config()
-        .cmmn_engine
-        .clone()
-        .ok_or_else(|| AdminError::bad_request("CMMN engine is not configured on this process engine"))
+    engine.get_config().cmmn_engine.clone().ok_or_else(|| {
+        AdminError::bad_request("CMMN engine is not configured on this process engine")
+    })
 }
 
 async fn case_definition_model_json(
@@ -2669,7 +2733,8 @@ fn historic_activity_ids(
         .db_store()
         .find_all::<serde_json::Value>("historic_activity_instances")
         .map_err(|error| AdminError::internal(error.to_string()))?;
-    Ok(rows.into_iter()
+    Ok(rows
+        .into_iter()
         .filter(|r| {
             r.get("processInstanceId")
                 .and_then(|v| v.as_str())
@@ -2883,16 +2948,7 @@ async fn proxy_no_body(
         .map_err(AdminError::bad_request)?;
     state
         .proxy
-        .execute_json(
-            &config,
-            &password,
-            method,
-            path,
-            &[],
-            None,
-            None,
-            expected,
-        )
+        .execute_json(&config, &password, method, path, &[], None, None, expected)
         .await
         .map_err(AdminError::from)
 }
@@ -2944,7 +3000,9 @@ impl From<flowable_engine::error::FlowableError> for AdminError {
         use flowable_engine::error::FlowableError as E;
         match error {
             E::NotFound(message) => Self::not_found(message),
-            E::BadRequest(message) | E::DeploymentValidationError(message) => Self::bad_request(message),
+            E::BadRequest(message) | E::DeploymentValidationError(message) => {
+                Self::bad_request(message)
+            }
             other => {
                 tracing::error!(error = %other, "admin identity lookup failed");
                 Self {
