@@ -9,7 +9,8 @@ use flowable_engine::engine::process_engine::ProcessEngine;
 #[test]
 fn test_transaction_compensation_e2e() {
     let config = flowable_engine::service::config::ProcessEngineConfiguration::default();
-    let engine = ProcessEngine::new_with_config("event-runtime-contract-test".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("event-runtime-contract-test".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
@@ -109,6 +110,7 @@ fn test_transaction_compensation_e2e() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended, "Process should be ended");
 }

@@ -61,7 +61,9 @@ fn insert_standalone_task(engine: &ProcessEngine, task_id: &str) {
     );
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    store.insert_task(&task, &mut session);
+    store
+        .insert_task(&task, &mut session)
+        .expect("seeding the task must succeed");
     session.flush_and_commit().unwrap();
 }
 
@@ -247,6 +249,7 @@ fn comments_and_events_readable_after_task_completion() {
         engine
             .get_runtime_store()
             .find_task(&task_id, &mut session)
+            .expect("task lookup must succeed")
             .is_none()
     );
     // Historic task remains.
@@ -281,9 +284,14 @@ fn missing_and_suspended_task_guards_remain() {
     {
         let store = engine.get_runtime_store();
         let mut session = store.create_session().unwrap();
-        let mut task = store.find_task("task-suspended", &mut session).unwrap();
+        let mut task = store
+            .find_task("task-suspended", &mut session)
+            .expect("task lookup must succeed")
+            .unwrap();
         task.set_suspension_state(true);
-        store.update_task(&task, &mut session);
+        store
+            .update_task(&task, &mut session)
+            .expect("updating the task must succeed");
         session.flush_and_commit().unwrap();
     }
 
@@ -299,16 +307,18 @@ fn suspended_process_instance_still_rejected_when_linked() {
     let engine = ProcessEngine::new("comment-suspended-pi".to_string()).unwrap();
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    store.insert_task(
-        &Task::new(
-            "task-1".to_string(),
-            "process-1".to_string(),
-            "process-1".to_string(),
-            "def".to_string(),
-            "Review".to_string(),
-        ),
-        &mut session,
-    );
+    store
+        .insert_task(
+            &Task::new(
+                "task-1".to_string(),
+                "process-1".to_string(),
+                "process-1".to_string(),
+                "def".to_string(),
+                "Review".to_string(),
+            ),
+            &mut session,
+        )
+        .expect("seeding the task must succeed");
     store.insert_process_instance(
         &ProcessInstance {
             id: "process-1".to_string(),
@@ -443,10 +453,7 @@ fn typed_and_default_comments_newest_first_and_do_not_conflate_events() {
 
     let notes = history.get_task_comments_by_type(&task_id, "note", &mut session);
     assert_eq!(
-        notes
-            .iter()
-            .map(|c| c.message.as_str())
-            .collect::<Vec<_>>(),
+        notes.iter().map(|c| c.message.as_str()).collect::<Vec<_>>(),
         vec!["note-second", "note-first"]
     );
 
@@ -511,7 +518,10 @@ fn save_comment_preserves_id_and_can_update_type() {
     assert_eq!(reloaded.message, "updated body");
     assert_eq!(reloaded.resolved_type(), "escalation");
     assert_eq!(reloaded.task_id.as_deref(), Some(task_id.as_str()));
-    assert_eq!(reloaded.process_instance_id.as_deref(), Some(pi_id.as_str()));
+    assert_eq!(
+        reloaded.process_instance_id.as_deref(),
+        Some(pi_id.as_str())
+    );
     assert_eq!(reloaded.author.as_deref(), Some("kermit"));
 
     // After type change it leaves the default list and appears under the new type.

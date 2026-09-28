@@ -69,7 +69,9 @@ fn process_variable_remains_visible_in_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(
         projected.get("processNote"),
         Some(&json!("from-process")),
@@ -114,7 +116,9 @@ fn set_variable_local_is_visible_in_the_runtime_projection() {
     // Direct store projection (what insert_execution dual-writes).
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(
         projected.get("localNote"),
         Some(&json!("from-local")),
@@ -165,13 +169,17 @@ fn local_variable_shadows_process_variable_in_the_projection() {
         execution
             .local_variables
             .insert("shared".to_string(), json!("local-value"));
-        store.update_execution(&execution, &mut session);
+        store
+            .update_execution(&execution, &mut session)
+            .expect("updating the execution state must succeed");
         session.flush_and_commit().unwrap();
     }
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(
         projected.get("shared"),
         Some(&json!("local-value")),
@@ -214,7 +222,9 @@ fn set_variables_local_batch_is_visible_in_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(projected.get("a"), Some(&json!(1)));
     assert_eq!(projected.get("b"), Some(&json!(2)));
 }
@@ -244,7 +254,9 @@ fn scope_cmd_mutation_is_visible_in_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(
         projected.get("scopedNote"),
         Some(&json!("from-scope-cmd")),
@@ -294,7 +306,9 @@ fn removed_variable_disappears_from_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(
         projected.get("doomed"),
         None,
@@ -371,7 +385,9 @@ fn projection_sweeps_rows_for_names_dropped_from_the_execution_maps() {
         "test premise: the data input association shrinks the variables map"
     );
 
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
+    let projected = store
+        .find_variables_by_execution_id(&process_instance_id, &mut session)
+        .unwrap();
     assert_eq!(
         projected.get("taskVar"),
         Some(&json!("value1")),

@@ -93,6 +93,7 @@ fn exports_snapshot_file_and_restores_user_task_process_state() {
     let mut recovered_session = recovered_store.create_session().unwrap();
     let recovered_instance = recovered_store
         .find_process_instance(&process_instance.id, &mut recovered_session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(recovered_instance.is_ended);
 
@@ -106,7 +107,8 @@ fn imports_snapshot_file_and_recovers_timer_wait_and_timer_start_state() {
     let engine1 = ProcessEngine::with_time_source(
         "snapshot_timer_export_engine".to_string(),
         time_source.clone(),
-    ).unwrap();
+    )
+    .unwrap();
 
     let deployment_builder = engine1
         .get_repository_service()
@@ -177,7 +179,8 @@ fn imports_snapshot_file_and_recovers_timer_wait_and_timer_start_state() {
     let engine2 = ProcessEngine::with_time_source(
         "snapshot_timer_import_engine".to_string(),
         time_source.clone(),
-    ).unwrap();
+    )
+    .unwrap();
     engine2
         .import_recovery_snapshot_from_file(&snapshot_path)
         .unwrap();
@@ -199,6 +202,7 @@ fn imports_snapshot_file_and_recovers_timer_wait_and_timer_start_state() {
     let mut resumed_session = resumed_store.create_session().unwrap();
     let resumed_waiting_instance = resumed_store
         .find_process_instance(&waiting_instance.id, &mut resumed_session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(resumed_waiting_instance.is_ended);
     drop(resumed_session);

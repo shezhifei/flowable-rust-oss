@@ -432,6 +432,7 @@ fn parallel_mi_with_after_task_completes_process() {
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended);
 }

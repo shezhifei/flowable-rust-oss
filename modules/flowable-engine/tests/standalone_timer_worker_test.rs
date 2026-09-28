@@ -126,7 +126,9 @@ fn test_standalone_worker_drives_timer_work_via_shared_db() {
 
     // Use TimerWorker directly (same pattern as the standalone binary)
     let worker = TimerWorker::new(engine2.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
+    let works = worker
+        .acquire_due_timers(300_000)
+        .expect("timer acquisition must read storage");
     assert_eq!(
         works.len(),
         1,
@@ -141,6 +143,7 @@ fn test_standalone_worker_drives_timer_work_via_shared_db() {
     let mut pi_session = pi_store.create_session().unwrap();
     let pi = pi_store
         .find_process_instance(&process_instance.id, &mut pi_session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     pi_session.rollback().unwrap();
     assert!(
@@ -261,6 +264,7 @@ fn test_embedded_and_standalone_do_not_double_execute() {
     let mut pi_session = pi_store.create_session().unwrap();
     let pi = pi_store
         .find_process_instance(&process_instance.id, &mut pi_session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     pi_session.rollback().unwrap();
     assert!(pi.is_ended, "Process should be ended");
@@ -426,7 +430,8 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
 
     let reset = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(10).unwrap();
+        .reset_expired_timer_job_locks(10)
+        .unwrap();
     assert_eq!(reset, 1, "reset must clear the expired renewed lease");
 
     let mut embedded_session4 = engine.get_runtime_store().create_session().unwrap();

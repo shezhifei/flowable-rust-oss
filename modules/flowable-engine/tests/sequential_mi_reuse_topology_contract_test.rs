@@ -182,6 +182,7 @@ fn sequential_mi_reuses_same_child_execution_id_across_rounds() {
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended, "process ends after three sequential rounds");
 }
@@ -311,6 +312,7 @@ fn sequential_mi_wait_state_suspends_and_resumes_all_rounds() {
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         pi.is_ended,

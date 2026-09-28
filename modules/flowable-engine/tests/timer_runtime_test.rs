@@ -67,11 +67,14 @@ fn test_timer_intermediate_catch_event() {
     drop(session);
 
     // Trigger the timer deterministically
-    process_engine.trigger_timer_intermediate_catch_event(timer_execution.id.clone()).unwrap();
+    process_engine
+        .trigger_timer_intermediate_catch_event(timer_execution.id.clone())
+        .unwrap();
 
     let mut session_after = runtime_store.create_session().unwrap();
     let process_instance_ended = runtime_store
         .find_process_instance(&process_instance.id, &mut session_after)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(process_instance_ended.is_ended);
 
@@ -207,7 +210,8 @@ fn test_timer_boundary_event_on_user_task() {
 
     // Trigger boundary event
     process_engine
-        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone()).unwrap();
+        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone())
+        .unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -220,6 +224,7 @@ fn test_timer_boundary_event_on_user_task() {
     let mut session_after = runtime_store.create_session().unwrap();
     let process_instance_ended = runtime_store
         .find_process_instance(&process_instance.id, &mut session_after)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(process_instance_ended.is_ended);
 }
@@ -295,7 +300,8 @@ fn test_mixed_boundary_events() {
 
     // Trigger the non-interrupting timer
     process_engine
-        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone()).unwrap();
+        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone())
+        .unwrap();
 
     let mut session_after = runtime_store.create_session().unwrap();
     let timer_states_after = runtime_store
@@ -313,10 +319,9 @@ fn test_mixed_boundary_events() {
     drop(session_after);
 
     // Trigger the interrupting message event
-    process_engine.trigger_boundary_event_by_message_ref(
-        "myMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    process_engine
+        .trigger_boundary_event_by_message_ref("myMessage".to_string(), process_instance.id.clone())
+        .unwrap();
 
     let mut session_final = runtime_store.create_session().unwrap();
     let message_states_final = runtime_store.find_boundary_event_states_by_process_instance_id(

@@ -6,16 +6,16 @@
 
 use flowable_bpmn_converter::BpmnXMLConverter;
 use flowable_bpmn_model::model::{BpmnModel, FlowElementEnum, Process};
+use flowable_engine::cmd::trigger_send_event_service_task_cmd::TriggerSendEventServiceTaskCmd;
 use flowable_engine::engine::outbound_event_dispatch::{
     OutboundEventDispatchHandle, OutboundEventDispatchHook, OutboundEventDispatchRequest,
 };
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::TestTimeSource;
 use flowable_engine::error::FlowableError;
+use flowable_engine::interceptor::command::Command;
 use flowable_engine::interceptor::command_context::CommandContext;
 use flowable_engine::persistence::db_store::DbStore;
-use flowable_engine::cmd::trigger_send_event_service_task_cmd::TriggerSendEventServiceTaskCmd;
-use flowable_engine::interceptor::command::Command;
 use flowable_engine::persistence::runtime_store::{
     EventRegistryChannelDefinition, EventRegistryEventDefinition, EventRegistryEventDirection,
     EventRegistryEventInstanceStatus, EventSubscriptionKind, RuntimeEventWaitKind, RuntimeStore,
@@ -390,7 +390,9 @@ fn run_owned_http_service_task_with_skip_value_and_enabled_flag(
     );
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
@@ -524,7 +526,9 @@ fn run_send_event_task_with_tenants_and_hook(
     }
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
@@ -647,7 +651,9 @@ fn run_send_and_receive_event_task_until_waiting()
     execution.set_process_variable("orderId".to_string(), json!("A-200"));
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
@@ -700,13 +706,17 @@ fn run_http_service_task_with_io_transient_result()
     execution.set_process_variable("customerId".to_string(), json!("C-123"));
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
     {
         let (store, sess) = command_context.store_and_session();
-        store.update_execution(&execution, sess);
+        store
+            .update_execution(&execution, sess)
+            .expect("updating the execution state must succeed");
     }
     command_context.session().flush_and_commit()?;
 
@@ -747,13 +757,17 @@ fn run_http_service_task_with_local_result() -> Result<(CommandContext, Executio
     };
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
     {
         let (store, sess) = command_context.store_and_session();
-        store.update_execution(&execution, sess);
+        store
+            .update_execution(&execution, sess)
+            .expect("updating the execution state must succeed");
     }
     command_context.session().flush_and_commit()?;
 
@@ -804,7 +818,9 @@ fn run_delegate_expression_service_task(
     execution.set_process_variable("customerId".to_string(), json!("C-987"));
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
@@ -887,7 +903,9 @@ fn run_triggerable_local_delegate_until_waiting(
     execution.set_process_variable("customerId".to_string(), json!("C-555"));
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new().execute(&mut execution, &mut command_context)?;
@@ -959,6 +977,7 @@ fn service_task_passes_through_to_end_event() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should be in runtime store");
     assert!(
         stored_pi.is_ended,
@@ -1171,7 +1190,10 @@ impl OutboundEventDispatchHook for RecordingOutboundDispatch {
         &self,
         request: &OutboundEventDispatchRequest,
     ) -> Result<(), FlowableError> {
-        self.requests.lock().unwrap_or_else(|e| e.into_inner()).push(request.clone());
+        self.requests
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(request.clone());
         Ok(())
     }
 }
@@ -1361,13 +1383,12 @@ fn run_send_event_task_capturing_context_on_error(
     };
     execution.set_process_variable("skipSendEvent".to_string(), json!(false));
     execution.set_process_variable("orderId".to_string(), json!("A-100"));
-    execution.set_process_variable(
-        "_FLOWABLE_SKIP_EXPRESSION_ENABLED".to_string(),
-        json!(true),
-    );
+    execution.set_process_variable("_FLOWABLE_SKIP_EXPRESSION_ENABLED".to_string(), json!(true));
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     let err = ServiceTaskActivityBehavior::new()
@@ -1517,7 +1538,8 @@ fn http_service_task_maps_in_out_parameters_and_keeps_transient_result_unpersist
     let runtime_store = command_context.runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let persisted_variables = runtime_store
-        .find_variables_by_execution_id("http-service-task-io-execution", &mut session).unwrap();
+        .find_variables_by_execution_id("http-service-task-io-execution", &mut session)
+        .unwrap();
     assert!(
         !persisted_variables.contains_key("httpResult"),
         "transient result must not be written to the runtime variable store"
@@ -1554,7 +1576,8 @@ fn http_service_task_local_result_is_available_to_out_parameters_without_process
     let runtime_store = command_context.runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let persisted_variables = runtime_store
-        .find_variables_by_execution_id("http-service-task-local-result-execution", &mut session).unwrap();
+        .find_variables_by_execution_id("http-service-task-local-result-execution", &mut session)
+        .unwrap();
     // Java stores local variables in the runtime variable table. The row-level
     // projection dual-writes `local_variables` as well as `variables`, so a
     // useLocalScopeForResultVariable result is queryable as a variable instance
@@ -1723,7 +1746,10 @@ fn send_and_receive_event_task_waits_for_matching_trigger_and_maps_event_out_par
         Some("sendEventTask1")
     );
     // P130: wait kind + EventRegistry subscription (Java SendEventTaskActivityBehavior.java:140-151)
-    assert_eq!(wait_states[0].wait_kind, RuntimeEventWaitKind::SendEventTask);
+    assert_eq!(
+        wait_states[0].wait_kind,
+        RuntimeEventWaitKind::SendEventTask
+    );
     assert_eq!(
         wait_states[0]
             .event_subscription
@@ -2011,7 +2037,9 @@ fn trigger_send_event_service_task_cmd_applies_result_variable_and_out_parameter
     execution.set_process_variable("orderId".to_string(), json!("R-1"));
     {
         let (store, sess) = command_context.store_and_session();
-        store.insert_execution(&execution, sess);
+        store
+            .insert_execution(&execution, sess)
+            .expect("seeding the execution state must succeed");
     }
 
     ServiceTaskActivityBehavior::new()
@@ -2193,7 +2221,9 @@ fn failed_timer_job_with_no_retries_is_visible_as_deadletter() {
         .next()
         .expect("process should wait on one timer job");
     timer_job.retries = Some(1);
-    runtime_store.insert_timer_job_state(&timer_job, &mut session);
+    runtime_store
+        .insert_timer_job_state(&timer_job, &mut session)
+        .expect("seeding the timer job state must succeed");
     session.flush_and_commit().unwrap();
 
     time_source.advance_time(5 * 60 * 1000);

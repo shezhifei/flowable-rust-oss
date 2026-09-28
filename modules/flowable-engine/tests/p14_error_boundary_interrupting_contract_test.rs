@@ -171,6 +171,7 @@ fn p14_error_boundary_with_model_cancel_activity_false_still_interrupts_host() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_row = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi_row.is_ended);
 }

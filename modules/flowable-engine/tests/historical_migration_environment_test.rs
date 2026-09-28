@@ -353,6 +353,7 @@ fn imports_historical_migration_sqlite_into_fresh_engine_baseline() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance = runtime_store
         .find_process_instance("proc-inst-1", &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(process_instance.is_ended);
 

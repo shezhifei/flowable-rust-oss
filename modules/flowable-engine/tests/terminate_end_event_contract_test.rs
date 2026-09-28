@@ -102,6 +102,7 @@ fn terminate_end_event_ends_whole_top_level_instance() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_row = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi_row.is_ended, "process instance must be ended");
     let executions = runtime_store.snapshot_executions(&mut session);
@@ -198,6 +199,7 @@ fn terminate_end_event_in_embedded_subprocess_continues_outer_flow() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_row = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(!pi_row.is_ended, "PI must continue after scope terminate");
     let executions = runtime_store.snapshot_executions(&mut session);
@@ -216,6 +218,7 @@ fn terminate_end_event_in_embedded_subprocess_continues_outer_flow() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_row = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi_row.is_ended);
 }
@@ -346,10 +349,12 @@ fn terminate_end_event_in_call_activity_child_continues_parent() {
     let mut session = runtime_store.create_session().unwrap();
     let child_row = runtime_store
         .find_process_instance(&child_pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(child_row.is_ended, "child PI must be ended");
     let parent_row = runtime_store
         .find_process_instance(&parent_pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(!parent_row.is_ended, "parent PI must keep running");
     drop(session);
@@ -422,10 +427,12 @@ fn terminate_all_in_call_activity_child_ends_parent_too() {
     let mut session = runtime_store.create_session().unwrap();
     let child_row = runtime_store
         .find_process_instance(&child_pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(child_row.is_ended, "child PI must be ended");
     let parent_row = runtime_store
         .find_process_instance(&parent_pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         parent_row.is_ended,

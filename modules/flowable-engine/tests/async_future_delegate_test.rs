@@ -321,6 +321,7 @@ fn async_service_task_waits_for_future_then_process_completes() {
     let mut session = runtime_store.create_session().unwrap();
     let stored = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain queryable");
     assert!(
         stored.is_ended,
@@ -333,7 +334,8 @@ fn unregistered_async_delegate_fails_clearly_via_runtime_api() {
     let mut config = ProcessEngineConfiguration::default();
     config.async_service_task_delegate_registry =
         Some(AsyncLocalServiceTaskDelegateRegistry::new());
-    let engine = ProcessEngine::new_with_config("async-delegate-missing".to_string(), config).unwrap();
+    let engine =
+        ProcessEngine::new_with_config("async-delegate-missing".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();

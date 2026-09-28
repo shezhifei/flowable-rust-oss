@@ -12,7 +12,8 @@ use std::sync::Arc;
 fn create_engine() -> (ProcessEngine, Arc<TestTimeSource>) {
     let now = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(now));
-    let engine = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
+    let engine =
+        ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
     (engine, time_source)
 }
 
@@ -67,6 +68,7 @@ fn test_timer_scheduling_duration() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_ended = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi_ended.is_ended);
 }
@@ -124,6 +126,7 @@ fn test_timer_scheduling_date() {
     assert!(
         runtime_store
             .find_process_instance(&pi.id, &mut session)
+            .expect("process instance lookup must succeed")
             .unwrap()
             .is_ended
     );
@@ -176,6 +179,7 @@ fn test_timer_scheduling_cycle() {
     assert!(
         runtime_store
             .find_process_instance(&pi.id, &mut session)
+            .expect("process instance lookup must succeed")
             .unwrap()
             .is_ended
     );
@@ -537,6 +541,7 @@ fn test_mixed_timer_message_signal_coexistence() {
     assert!(
         runtime_store
             .find_process_instance(&pi1.id, &mut session)
+            .expect("process instance lookup must succeed")
             .unwrap()
             .is_ended
     );
@@ -552,7 +557,9 @@ fn test_mixed_timer_message_signal_coexistence() {
                 .process_definition_id(pd_id.clone()),
         )
         .unwrap();
-    engine.trigger_boundary_event_by_message_ref("myMessage".to_string(), pi2.id.clone()).unwrap();
+    engine
+        .trigger_boundary_event_by_message_ref("myMessage".to_string(), pi2.id.clone())
+        .unwrap();
 
     // Timer should be deleted because message triggered and interrupted
     time_source.advance_time(60 * 60 * 1000);
@@ -562,6 +569,7 @@ fn test_mixed_timer_message_signal_coexistence() {
     assert!(
         runtime_store
             .find_process_instance(&pi2.id, &mut session2)
+            .expect("process instance lookup must succeed")
             .unwrap()
             .is_ended
     );

@@ -267,7 +267,8 @@ fn test_intermediate_message_throw_does_not_trigger_waiting_message_catch() {
     assert_eq!(tasks[0].task_definition_key, "afterThrow");
 
     let wait_states = runtime_service
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert!(
         wait_states
             .iter()
@@ -338,7 +339,8 @@ fn test_message_end_event_is_noop_does_not_trigger_message_subscription() {
     );
 
     let wait_states = runtime_service
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert!(
         wait_states
             .iter()
@@ -350,6 +352,7 @@ fn test_message_end_event_is_noop_does_not_trigger_message_subscription() {
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         !pi.is_ended,
@@ -409,6 +412,7 @@ fn test_message_throw_and_message_end_event_deploy_successfully() {
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         pi.is_ended,
@@ -554,10 +558,12 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
             .len(),
         1
     );
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "external-signal".to_string(),
-        process_instance_by_name.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "external-signal".to_string(),
+            process_instance_by_name.id.clone(),
+        )
+        .unwrap();
     let tasks_after_name = task_service
         .get_tasks_by_process_instance_id(process_instance_by_name.id.clone())
         .unwrap();
@@ -569,6 +575,7 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
     let mut session_after_name = store_after_name.create_session().unwrap();
     let pi_after_name = store_after_name
         .find_process_instance(&process_instance_by_name.id, &mut session_after_name)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         pi_after_name.is_ended,
@@ -592,10 +599,9 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
             .len(),
         1
     );
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "sig1".to_string(),
-        process_instance_by_id.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref("sig1".to_string(), process_instance_by_id.id.clone())
+        .unwrap();
     let tasks_after_id = task_service
         .get_tasks_by_process_instance_id(process_instance_by_id.id.clone())
         .unwrap();
@@ -607,6 +613,7 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
     let mut session_after_id = store_after_id.create_session().unwrap();
     let pi_after_id = store_after_id
         .find_process_instance(&process_instance_by_id.id, &mut session_after_id)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         pi_after_id.is_ended,
@@ -661,7 +668,8 @@ fn test_signal_intermediate_catch_event_triggers_by_raw_id() {
         .unwrap();
 
     let wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 1);
     assert_eq!(
         wait_states[0].wait_kind,
@@ -673,15 +681,18 @@ fn test_signal_intermediate_catch_event_triggers_by_raw_id() {
     );
     let execution_id = wait_states[0].execution_id.clone();
 
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "sig1".to_string(),
-        execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "sig1".to_string(),
+            execution_id,
+        )
+        .unwrap();
 
     let store_after = engine.get_runtime_store();
     let mut session_after = store_after.create_session().unwrap();
     let pi_after = store_after
         .find_process_instance(&process_instance.id, &mut session_after)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         pi_after.is_ended,

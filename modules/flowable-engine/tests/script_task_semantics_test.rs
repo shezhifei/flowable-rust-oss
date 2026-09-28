@@ -92,6 +92,7 @@ fn script_task_executes_through_secure_runtime_to_end() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should be in runtime store");
     session.rollback().unwrap();
     assert!(

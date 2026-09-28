@@ -62,8 +62,9 @@ fn receive_task_skip_expression_true_skips_wait_state_and_takes_outgoing_flow() 
         "skipExpression=true should not create a receive task"
     );
 
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert!(
         wait_states.is_empty(),
         "skipExpression=true should not create a receive-task wait state"
@@ -73,6 +74,7 @@ fn receive_task_skip_expression_true_skips_wait_state_and_takes_outgoing_flow() 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(
         stored_pi.is_ended,
@@ -105,14 +107,16 @@ fn receive_task_skip_expression_false_preserves_wait_state() {
     assert_eq!(tasks[0].task_definition_key, "receiveTask1");
     assert_eq!(tasks[0].name, "Wait for callback");
 
-    let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
+    let wait_states = task_service
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 1);
 
     let runtime_store = process_engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(
         !stored_pi.is_ended,
@@ -147,6 +151,7 @@ fn receive_task_skip_expression_ignored_when_not_enabled() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(
         !stored_pi.is_ended,

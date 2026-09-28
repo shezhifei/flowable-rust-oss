@@ -248,6 +248,7 @@ fn top_level_parallel_fork_join_semantics_unchanged() {
     let mut session = store.create_session().unwrap();
     let stored_pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(stored_pi.is_ended);
 }
@@ -270,6 +271,7 @@ fn process_level_variables_live_only_on_the_scope_execution_row() {
     let mut session = store.create_session().unwrap();
     let stored_pi = store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(!stored_pi.is_ended);
     drop(session);

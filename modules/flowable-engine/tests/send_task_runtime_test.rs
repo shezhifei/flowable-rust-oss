@@ -43,10 +43,10 @@ fn loan_eligibility_decision() -> DmnDecision {
 
 fn deploy_decision(engine: &DmnEngine, name: &str, decision: DmnDecision) {
     engine
-        .deploy(DmnDeploymentRequest::new(name).with_resource(
-            format!("{name}.dmn"),
-            DmnModel::new(vec![decision]),
-        ))
+        .deploy(
+            DmnDeploymentRequest::new(name)
+                .with_resource(format!("{name}.dmn"), DmnModel::new(vec![decision])),
+        )
         .expect("dmn deploy");
 }
 
@@ -98,13 +98,21 @@ fn send_task_mail_sends_mail_and_continues() {
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
         .unwrap();
-    assert_eq!(tasks.len(), 1, "sendTask mail should continue into the user task");
+    assert_eq!(
+        tasks.len(),
+        1,
+        "sendTask mail should continue into the user task"
+    );
     assert_eq!(tasks[0].name, "Review Mail Result");
 
     let runtime_store = process_engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let outbox = runtime_store.list_mail_outbox_records(&mut session);
-    assert_eq!(outbox.len(), 1, "sendTask mail should create an outbox record");
+    assert_eq!(
+        outbox.len(),
+        1,
+        "sendTask mail should create an outbox record"
+    );
     assert_eq!(outbox[0].subject, "Deployment finished");
 }
 
@@ -150,13 +158,16 @@ fn send_task_without_type_passes_through() {
     let mut session = runtime_store.create_session().unwrap();
     let stored = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be in runtime store");
     assert!(
         stored.is_ended,
         "no-type sendTask should pass through to the end event"
     );
     assert!(
-        runtime_store.list_mail_outbox_records(&mut session).is_empty(),
+        runtime_store
+            .list_mail_outbox_records(&mut session)
+            .is_empty(),
         "no-type sendTask must not send mail"
     );
 }
@@ -215,6 +226,7 @@ fn send_task_dmn_executes_decision_and_writes_outputs() {
     let mut session = runtime_store.create_session().unwrap();
     let stored = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be in runtime store");
     assert!(stored.is_ended, "sendTask dmn should complete the process");
 
@@ -255,7 +267,10 @@ fn manual_task_xml_deploy_passes_through() {
     let builder = repository_service
         .create_deployment()
         .name("Manual Task XML Deployment".to_string())
-        .add_string("manualTaskXmlProcess.bpmn20.xml".to_string(), xml.to_string());
+        .add_string(
+            "manualTaskXmlProcess.bpmn20.xml".to_string(),
+            xml.to_string(),
+        );
     repository_service.deploy(builder).unwrap();
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
@@ -272,6 +287,7 @@ fn manual_task_xml_deploy_passes_through() {
     let mut session = runtime_store.create_session().unwrap();
     let stored = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be in runtime store");
     assert!(
         stored.is_ended,
@@ -313,7 +329,10 @@ fn mixed_send_and_manual_tasks_deploy_and_run_to_completion() {
     let builder = repository_service
         .create_deployment()
         .name("Mixed Deployment".to_string())
-        .add_string("mixedSendManualProcess.bpmn20.xml".to_string(), xml.to_string());
+        .add_string(
+            "mixedSendManualProcess.bpmn20.xml".to_string(),
+            xml.to_string(),
+        );
     repository_service.deploy(builder).unwrap();
     let process_definition_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
@@ -330,6 +349,7 @@ fn mixed_send_and_manual_tasks_deploy_and_run_to_completion() {
     let mut session = runtime_store.create_session().unwrap();
     let stored = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be in runtime store");
     assert!(
         stored.is_ended,

@@ -79,6 +79,7 @@ fn test_sequential_multi_instance_user_task() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended, "Process instance should be ended");
 }
@@ -153,6 +154,7 @@ fn test_parallel_multi_instance_user_task() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended, "Process instance should be ended");
 }
@@ -505,6 +507,7 @@ fn sequential_multi_instance_collection_advances_element_and_index_variables() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(process_instance.is_ended);
 }
@@ -730,7 +733,11 @@ fn p82a_loop_cardinality_el_number_variable() {
         .get_task_service()
         .get_tasks_by_process_instance_id(pi_id)
         .unwrap();
-    assert_eq!(tasks.len(), 3, "nrOfLoops=3 (number) should create 3 instances");
+    assert_eq!(
+        tasks.len(),
+        3,
+        "nrOfLoops=3 (number) should create 3 instances"
+    );
 }
 
 /// P82a: `${nrOfLoops}` evaluates to a numeric string → Integer.valueOf path.
@@ -828,7 +835,11 @@ fn p82a_loop_cardinality_literal_five_regression() {
         .get_task_service()
         .get_tasks_by_process_instance_id(pi_id)
         .unwrap();
-    assert_eq!(tasks.len(), 5, "literal loopCardinality 5 should create 5 instances");
+    assert_eq!(
+        tasks.len(),
+        5,
+        "literal loopCardinality 5 should create 5 instances"
+    );
 }
 
 /// P82a: collection array variable still drives cardinality when no loopCardinality.

@@ -80,6 +80,7 @@ fn test_subprocess_runtime_semantics() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     session.rollback().unwrap();
     assert!(pi.is_ended, "Process instance should be ended");
@@ -137,10 +138,12 @@ fn test_event_subprocess_interrupting() {
     assert_eq!(tasks[0].task_definition_key, "mainTask");
 
     // 2. Trigger Event Subprocess (Interrupting)
-    let _ = runtime_service.trigger_event_subprocess_by_message(
-        "cancelMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    let _ = runtime_service
+        .trigger_event_subprocess_by_message(
+            "cancelMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     // 3. Main Task should be cancelled, Event Sub Task should be active
     let tasks = task_service
@@ -158,6 +161,7 @@ fn test_event_subprocess_interrupting() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     session.rollback().unwrap();
     assert!(
@@ -366,7 +370,8 @@ fn test_embedded_escalation_event_subprocess_starts_from_end_escalation() {
 
 #[test]
 fn test_embedded_error_event_subprocess_starts_from_error_end_and_cancels_scope() {
-    let process_engine = ProcessEngine::new("embedded-end-error-event-subprocess-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("embedded-end-error-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -416,7 +421,8 @@ fn test_embedded_error_event_subprocess_starts_from_error_end_and_cancels_scope(
 fn test_non_interrupting_embedded_escalation_event_subprocess_preserves_host_task() {
     let process_engine = ProcessEngine::new(
         "non-interrupting-embedded-escalation-event-subprocess-test".to_string(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -458,7 +464,8 @@ fn test_non_interrupting_embedded_escalation_event_subprocess_preserves_host_tas
 fn test_non_interrupting_embedded_escalation_event_subprocess_stays_in_throwing_scope() {
     let process_engine = ProcessEngine::new(
         "non-interrupting-embedded-escalation-event-subprocess-scope-test".to_string(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -665,6 +672,7 @@ fn test_non_interrupting_escalation_event_subprocess_subscription_repeats_until_
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_after_event_paths_end = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should still exist");
     session.rollback().unwrap();
     assert!(
@@ -723,7 +731,8 @@ fn test_non_interrupting_escalation_event_subprocess_subscription_repeats_until_
 #[test]
 fn test_interrupting_escalation_event_subprocess_subscription_is_consumed() {
     let process_engine =
-        ProcessEngine::new("interrupting-escalation-event-subprocess-repeat-test".to_string()).unwrap();
+        ProcessEngine::new("interrupting-escalation-event-subprocess-repeat-test".to_string())
+            .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -786,7 +795,8 @@ fn test_interrupting_escalation_event_subprocess_subscription_is_consumed() {
 
 #[test]
 fn test_no_code_escalation_event_subprocess_catches_any_escalation() {
-    let process_engine = ProcessEngine::new("no-code-escalation-event-subprocess-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("no-code-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -879,7 +889,8 @@ fn test_no_code_escalation_event_subprocess_catches_any_escalation() {
 fn test_escalation_event_subprocess_prefers_exact_code_over_no_code_in_same_scope() {
     let process_engine = ProcessEngine::new(
         "exact-code-before-catch-all-escalation-event-subprocess-test".to_string(),
-    ).unwrap();
+    )
+    .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -994,7 +1005,8 @@ const PROCESS_SCOPE_ESCALATION_EVENT_SUBPROCESS_XML: &str = r#"<?xml version="1.
 #[test]
 fn test_process_scope_non_interrupting_escalation_event_subprocess_repeats_while_process_active() {
     let process_engine =
-        ProcessEngine::new("process-scope-repeatable-escalation-event-subprocess-test".to_string()).unwrap();
+        ProcessEngine::new("process-scope-repeatable-escalation-event-subprocess-test".to_string())
+            .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1096,6 +1108,7 @@ fn test_process_scope_non_interrupting_escalation_event_subprocess_repeats_while
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_after_event_paths_end = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should still exist");
     session.rollback().unwrap();
     assert!(
@@ -1108,7 +1121,8 @@ fn test_process_scope_non_interrupting_escalation_event_subprocess_repeats_while
 fn test_process_scope_non_interrupting_escalation_event_subprocess_subscription_clears_when_process_ends()
  {
     let process_engine =
-        ProcessEngine::new("process-scope-ended-escalation-event-subprocess-test".to_string()).unwrap();
+        ProcessEngine::new("process-scope-ended-escalation-event-subprocess-test".to_string())
+            .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1164,6 +1178,7 @@ fn test_process_scope_non_interrupting_escalation_event_subprocess_subscription_
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should still be queryable");
     session.rollback().unwrap();
     assert!(
@@ -1207,7 +1222,8 @@ fn test_process_scope_non_interrupting_escalation_event_subprocess_subscription_
 /// handler task should remain.
 #[test]
 fn test_error_start_event_forces_interrupting_even_when_model_says_non_interrupting() {
-    let process_engine = ProcessEngine::new("error-start-forced-interrupting-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("error-start-forced-interrupting-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

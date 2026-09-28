@@ -74,12 +74,14 @@ fn test_intermediate_catch_event_without_event_definitions_waits_for_trigger() {
     let task_service = process_engine.get_task_service();
     let runtime_service = process_engine.get_runtime_service();
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert!(visible_wait_states.is_empty());
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(!stored_pi.is_ended);
 
@@ -101,15 +103,18 @@ fn test_intermediate_catch_event_without_event_definitions_waits_for_trigger() {
     assert!(tasks.is_empty());
 
     runtime_service
-        .trigger_intermediate_catch_event_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .trigger_intermediate_catch_event_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert!(visible_wait_states.is_empty());
 
     let mut session2 = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session2)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     session2.rollback().unwrap();
     assert!(stored_pi.is_ended);
@@ -141,7 +146,8 @@ fn test_intermediate_catch_event_with_message_event_definition_exposes_display_n
     let runtime_service = process_engine.get_runtime_service();
     let execution_id = get_waiting_execution_id(&process_engine, &process_instance_id);
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].wait_kind,
@@ -164,24 +170,29 @@ fn test_intermediate_catch_event_with_message_event_definition_exposes_display_n
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(!stored_pi.is_ended);
     drop(session);
 
-    runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
-        "OrderApproved".to_string(),
-        execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
+            "OrderApproved".to_string(),
+            execution_id,
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     assert!(stored_pi.is_ended);
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert!(visible_wait_states.is_empty());
 }
 
@@ -210,14 +221,17 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_dis
     let runtime_service = process_engine.get_runtime_service();
     let execution_id = get_waiting_execution_id(&process_engine, &process_instance_id);
 
-    runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
-        "Catch With Message Definition".to_string(),
-        execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
+            "Catch With Message Definition".to_string(),
+            execution_id,
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     assert!(!stored_pi.is_ended);
     drop(session);
@@ -232,7 +246,8 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_dis
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].message_name.as_deref(),
@@ -268,17 +283,21 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_exe
     let runtime_store = process_engine.get_runtime_store();
     let runtime_service = process_engine.get_runtime_service();
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 
-    runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
-        "OrderApproved".to_string(),
-        "missing-execution-id".to_string(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
+            "OrderApproved".to_string(),
+            "missing-execution-id".to_string(),
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     assert!(!stored_pi.is_ended);
     drop(session);
@@ -293,7 +312,8 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_exe
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 }
 
@@ -320,6 +340,7 @@ fn test_intermediate_throw_event_without_event_definitions_is_pass_through() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(stored_pi.is_ended);
 }
@@ -356,7 +377,8 @@ fn test_intermediate_catch_event_with_signal_event_definition_exposes_signal_ref
     let execution_id = get_waiting_execution_id(&process_engine, &process_instance_id);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].wait_kind,
@@ -379,24 +401,29 @@ fn test_intermediate_catch_event_with_signal_event_definition_exposes_signal_ref
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be persisted");
     assert!(!stored_pi.is_ended);
     drop(session);
 
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "Alert Signal".to_string(),
-        execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "Alert Signal".to_string(),
+            execution_id,
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     assert!(stored_pi.is_ended);
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert!(visible_wait_states.is_empty());
 }
 
@@ -427,14 +454,17 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_signal_ref() {
     let execution_id = get_waiting_execution_id(&process_engine, &process_instance_id);
 
     // Try triggering with wrong signal_ref - should be no-op
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "wrongSignal".to_string(),
-        execution_id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "wrongSignal".to_string(),
+            execution_id.clone(),
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     assert!(!stored_pi.is_ended);
     drop(session);
@@ -449,7 +479,8 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_signal_ref() {
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].signal_ref.as_deref(),
@@ -457,14 +488,17 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_signal_ref() {
     );
 
     // Now trigger with correct signal_ref
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "Alert Signal".to_string(),
-        execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "Alert Signal".to_string(),
+            execution_id,
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be ended");
     assert!(stored_pi.is_ended);
 }
@@ -494,18 +528,22 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_execution_target() {
     let runtime_store = process_engine.get_runtime_store();
     let runtime_service = process_engine.get_runtime_service();
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 
     // Try triggering with wrong execution_id - should be no-op
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "alertSignal".to_string(),
-        "missing-execution-id".to_string(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "alertSignal".to_string(),
+            "missing-execution-id".to_string(),
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should remain in runtime store");
     assert!(!stored_pi.is_ended);
     drop(session);
@@ -520,7 +558,8 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_execution_target() {
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 }
 
@@ -564,7 +603,8 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
 
     // Two wait states: one message, one signal
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(
         visible_wait_states.len(),
         2,
@@ -586,13 +626,16 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
     let signal_execution_id = signal_wait.execution_id.clone();
 
     // Trigger message ICE only
-    runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
-        "OrderApproved".to_string(),
-        message_execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
+            "OrderApproved".to_string(),
+            message_execution_id,
+        )
+        .unwrap();
 
     let wait_states_after_msg = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(
         wait_states_after_msg.len(),
         1,
@@ -606,6 +649,7 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         !stored_pi.is_ended,
@@ -614,13 +658,16 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
     drop(session);
 
     // Trigger signal ICE
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "Alert Signal".to_string(),
-        signal_execution_id,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "Alert Signal".to_string(),
+            signal_execution_id,
+        )
+        .unwrap();
 
     let wait_states_final = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert!(
         wait_states_final.is_empty(),
         "All wait states should be cleared"
@@ -629,6 +676,7 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi_final = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         stored_pi_final.is_ended,
@@ -672,7 +720,8 @@ fn test_mixed_intermediate_catch_wrong_ref_is_noop_for_both_types() {
     let runtime_service = process_engine.get_runtime_service();
 
     let wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(wait_states.len(), 2);
 
     let msg_exec = wait_states
@@ -689,29 +738,38 @@ fn test_mixed_intermediate_catch_wrong_ref_is_noop_for_both_types() {
         .clone();
 
     // Wrong message ref
-    runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
-        "WrongMessage".to_string(),
-        msg_exec.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
+            "WrongMessage".to_string(),
+            msg_exec.clone(),
+        )
+        .unwrap();
     // Wrong signal ref
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "wrongSignal".to_string(),
-        sig_exec.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "wrongSignal".to_string(),
+            sig_exec.clone(),
+        )
+        .unwrap();
     // Cross-type: send signal ref to message execution
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "alertSignal".to_string(),
-        msg_exec.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "alertSignal".to_string(),
+            msg_exec.clone(),
+        )
+        .unwrap();
     // Cross-type: send message ref to signal execution
-    runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
-        "OrderApproved".to_string(),
-        sig_exec.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
+            "OrderApproved".to_string(),
+            sig_exec.clone(),
+        )
+        .unwrap();
 
     // All four should be no-ops
     let wait_states_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone())
+        .unwrap();
     assert_eq!(
         wait_states_after.len(),
         2,
@@ -721,6 +779,7 @@ fn test_mixed_intermediate_catch_wrong_ref_is_noop_for_both_types() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(!stored_pi.is_ended, "Process should still be waiting");
 }

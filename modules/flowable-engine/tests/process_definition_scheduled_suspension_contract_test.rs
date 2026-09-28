@@ -65,7 +65,7 @@ fn seed_definition(engine: &ProcessEngine, id: &str, suspended: bool) {
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );
@@ -99,16 +99,18 @@ fn seed_instance(engine: &ProcessEngine, id: &str, definition_id: &str, suspende
         },
         &mut session,
     );
-    store.insert_execution(
-        &Execution {
-            id: id.to_string(),
-            process_instance_id: Some(id.to_string()),
-            process_definition_id: Some(definition_id.to_string()),
-            is_suspended: suspended,
-            ..Execution::default()
-        },
-        &mut session,
-    );
+    store
+        .insert_execution(
+            &Execution {
+                id: id.to_string(),
+                process_instance_id: Some(id.to_string()),
+                process_definition_id: Some(definition_id.to_string()),
+                is_suspended: suspended,
+                ..Execution::default()
+            },
+            &mut session,
+        )
+        .expect("seeding the execution state must succeed");
     session.flush_and_commit().unwrap();
 }
 
@@ -125,6 +127,7 @@ fn instance_is_suspended(engine: &ProcessEngine, id: &str) -> bool {
     let mut session = store.create_session().unwrap();
     let suspended = store
         .find_process_instance(id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("instance should exist")
         .is_suspended;
     session.rollback().unwrap();
@@ -144,7 +147,9 @@ fn timer_exists(engine: &ProcessEngine, timer_job_id: &str) -> bool {
 /// Drive the real timer worker one cycle, returning the executed job ids.
 fn run_real_worker(engine: &ProcessEngine) -> Vec<String> {
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(LEASE_MS).expect("timer acquisition must read storage");
+    let works = worker
+        .acquire_due_timers(LEASE_MS)
+        .expect("timer acquisition must read storage");
     let mut executed = Vec::new();
     for work in &works {
         // execute_timer only runs when a valid fencing token was acquired.
@@ -320,7 +325,9 @@ fn missing_definition_rolls_back_definition_instances_and_timer() {
     };
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    store.insert_timer_job_state(&job, &mut session);
+    store
+        .insert_timer_job_state(&job, &mut session)
+        .expect("seeding the timer job state must succeed");
     session.flush_and_commit().unwrap();
 
     clock.advance_time(60_001);

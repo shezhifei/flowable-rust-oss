@@ -74,7 +74,10 @@ fn test_core_ga_linear_process() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let stored_pi = store.find_process_instance(&pi.id, &mut session).unwrap();
+    let stored_pi = store
+        .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(stored_pi.is_ended);
 }
 
@@ -151,7 +154,10 @@ fn test_core_ga_branching_process() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let stored_pi = store.find_process_instance(&pi.id, &mut session).unwrap();
+    let stored_pi = store
+        .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(stored_pi.is_ended);
 }
 
@@ -160,7 +166,8 @@ fn test_core_ga_user_task_boundary_event() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine = ProcessEngine::with_time_source("default".to_string(), time_source.clone()).unwrap();
+    let engine =
+        ProcessEngine::with_time_source("default".to_string(), time_source.clone()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="boundaryProcess" isExecutable="true">
@@ -233,7 +240,10 @@ fn test_core_ga_user_task_boundary_event() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let stored_pi = store.find_process_instance(&pi.id, &mut session).unwrap();
+    let stored_pi = store
+        .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(stored_pi.is_ended);
 }
 
@@ -278,7 +288,10 @@ fn test_core_ga_receive_task_wakeup() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let stored_pi = store.find_process_instance(&pi.id, &mut session).unwrap();
+    let stored_pi = store
+        .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(!stored_pi.is_ended);
     drop(session);
 
@@ -288,7 +301,10 @@ fn test_core_ga_receive_task_wakeup() {
         .unwrap();
 
     let mut session = store.create_session().unwrap();
-    let stored_pi = store.find_process_instance(&pi.id, &mut session).unwrap();
+    let stored_pi = store
+        .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(stored_pi.is_ended);
 }
 
@@ -297,7 +313,8 @@ fn test_core_ga_timer_start_intermediate_boundary() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine = ProcessEngine::with_time_source("default".to_string(), time_source.clone()).unwrap();
+    let engine =
+        ProcessEngine::with_time_source("default".to_string(), time_source.clone()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="timerProcess" isExecutable="true">
@@ -371,6 +388,9 @@ fn test_core_ga_timer_start_intermediate_boundary() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let stored_pi = store.find_process_instance(&pi_id, &mut session).unwrap();
+    let stored_pi = store
+        .find_process_instance(&pi_id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(stored_pi.is_ended);
 }

@@ -194,6 +194,7 @@ fn missing_current_activity_in_new_version_yields_execution_error() {
     let mut session = runtime_store.create_session().unwrap();
     let unchanged = runtime_store
         .find_process_instance(&instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert_eq!(
         unchanged.process_definition_id,
@@ -222,6 +223,7 @@ fn switches_instance_executions_and_history_to_target_version() {
 
     let switched = runtime_store
         .find_process_instance(&instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert_eq!(switched.process_definition_id, target_definition_id);
     assert_eq!(switched.process_definition_version, 2);
@@ -266,6 +268,7 @@ fn switches_instance_executions_and_history_to_target_version() {
     let mut session = runtime_store.create_session().unwrap();
     let finished = runtime_store
         .find_process_instance(&instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row should still exist");
     assert!(
         finished.is_ended,

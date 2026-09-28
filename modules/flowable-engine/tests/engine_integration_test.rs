@@ -109,6 +109,7 @@ fn test_deploy_and_start_process_instance() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(!pi_after.is_ended);
 }

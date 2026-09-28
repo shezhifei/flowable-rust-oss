@@ -79,6 +79,7 @@ fn test_recovery_snapshot_user_task() {
     let mut session = runtime_store.create_session().unwrap();
     let pi2 = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi2.is_ended);
 }
@@ -120,6 +121,7 @@ fn test_recovery_snapshot_message_start() {
     let mut session = runtime_store.create_session().unwrap();
     let pi2 = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi2.is_ended);
 }
@@ -129,7 +131,8 @@ fn test_recovery_snapshot_timer_job() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine1 = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
+    let engine1 =
+        ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
     let bpmn = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
       <process id="myProcess" isExecutable="true">
@@ -170,7 +173,8 @@ fn test_recovery_snapshot_timer_job() {
 
     let snapshot = engine1.export_recovery_snapshot().unwrap();
 
-    let engine2 = ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone()).unwrap();
+    let engine2 =
+        ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone()).unwrap();
     engine2.import_recovery_snapshot(snapshot).unwrap();
 
     time_source.advance_time(2 * 60 * 60 * 1000);
@@ -182,6 +186,7 @@ fn test_recovery_snapshot_timer_job() {
     let mut session = runtime_store.create_session().unwrap();
     let pi2 = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi2.is_ended);
 }
@@ -191,7 +196,8 @@ fn test_recovery_snapshot_timer_start_subscription() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine1 = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
+    let engine1 =
+        ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
     let bpmn = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
       <process id="myProcess" isExecutable="true">
@@ -216,7 +222,8 @@ fn test_recovery_snapshot_timer_start_subscription() {
 
     let snapshot = engine1.export_recovery_snapshot().unwrap();
 
-    let engine2 = ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone()).unwrap();
+    let engine2 =
+        ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone()).unwrap();
     engine2.import_recovery_snapshot(snapshot).unwrap();
 
     let timer_subs = engine2

@@ -70,6 +70,7 @@ fn test_adhoc_subprocess_runtime_semantics() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended);
 }
@@ -139,6 +140,7 @@ fn test_adhoc_subprocess_without_inner_start_event_manual_activation_completes_p
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         pi.is_ended,

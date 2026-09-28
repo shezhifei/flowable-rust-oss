@@ -91,7 +91,11 @@ const FLOWS_INSIDE_ADHOC_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
   </process>
 </definitions>"#;
 
-fn start_with_completed_false(engine: &ProcessEngine, xml: &str, resource: &str) -> (String, String) {
+fn start_with_completed_false(
+    engine: &ProcessEngine,
+    xml: &str,
+    resource: &str,
+) -> (String, String) {
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     repo.deploy(
@@ -105,9 +109,7 @@ fn start_with_completed_false(engine: &ProcessEngine, xml: &str, resource: &str)
         .process_definition_id(def_id)
         .variable("completed".to_string(), json!(false));
     let pi = runtime.start_process_instance(builder).unwrap();
-    let adhoc_id = runtime
-        .get_adhoc_subprocess_executions(&pi.id)
-        .unwrap()[0]
+    let adhoc_id = runtime.get_adhoc_subprocess_executions(&pi.id).unwrap()[0]
         .id
         .clone();
     (pi.id, adhoc_id)
@@ -134,7 +136,10 @@ fn p78_completion_condition_true_auto_ends_adhoc() {
     // Condition still false → adhoc stays open.
     task_svc.complete_task_by_id(tasks[0].id.clone()).unwrap();
     assert_eq!(
-        runtime.get_adhoc_subprocess_executions(&pi_id).unwrap().len(),
+        runtime
+            .get_adhoc_subprocess_executions(&pi_id)
+            .unwrap()
+            .len(),
         1
     );
 
@@ -167,7 +172,10 @@ fn p78_completion_condition_true_auto_ends_adhoc() {
     task_svc.complete_task_by_id(after[0].id.clone()).unwrap();
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let pi = store.find_process_instance(&pi_id, &mut session).unwrap();
+    let pi = store
+        .find_process_instance(&pi_id, &mut session)
+        .expect("process instance lookup must succeed")
+        .unwrap();
     assert!(pi.is_ended);
 }
 
@@ -177,8 +185,11 @@ fn p78_cancel_remaining_instances_true_deletes_siblings() {
     let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
-    let (pi_id, adhoc_id) =
-        start_with_completed_false(&engine, PARALLEL_CANCEL_TRUE_XML, "p78-cancel-true.bpmn20.xml");
+    let (pi_id, adhoc_id) = start_with_completed_false(
+        &engine,
+        PARALLEL_CANCEL_TRUE_XML,
+        "p78-cancel-true.bpmn20.xml",
+    );
 
     runtime
         .execute_activity_in_adhoc_subprocess(&adhoc_id, "subProcessTask")
@@ -255,7 +266,10 @@ fn p78_cancel_remaining_instances_false_waits_for_siblings() {
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0].name, "Task2 in subprocess");
     assert_eq!(
-        runtime.get_adhoc_subprocess_executions(&pi_id).unwrap().len(),
+        runtime
+            .get_adhoc_subprocess_executions(&pi_id)
+            .unwrap()
+            .len(),
         1
     );
 
@@ -302,7 +316,10 @@ fn p78_completion_condition_false_keeps_adhoc_open() {
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0].task_definition_key, "subProcessTask2");
     assert_eq!(
-        runtime.get_adhoc_subprocess_executions(&pi_id).unwrap().len(),
+        runtime
+            .get_adhoc_subprocess_executions(&pi_id)
+            .unwrap()
+            .len(),
         1,
         "adhoc must stay open when completion condition is false"
     );
@@ -312,7 +329,10 @@ fn p78_completion_condition_false_keeps_adhoc_open() {
         .complete_task_by_id(remaining[0].id.clone())
         .unwrap();
     assert_eq!(
-        runtime.get_adhoc_subprocess_executions(&pi_id).unwrap().len(),
+        runtime
+            .get_adhoc_subprocess_executions(&pi_id)
+            .unwrap()
+            .len(),
         1
     );
     // Explicit complete API still required when condition never fires.

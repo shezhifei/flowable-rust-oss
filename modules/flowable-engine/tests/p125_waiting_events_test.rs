@@ -88,13 +88,19 @@ impl EventCollector {
     }
 
     fn clear(&self) {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 }
 
 impl EngineEventListener for EventCollector {
     fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
-        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(event.clone());
+        self.events
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(event.clone());
         Ok(())
     }
 }
@@ -261,16 +267,20 @@ fn activity_conditional_waiting_and_received_fire() {
 
     collector.clear();
 
-    let wait_states = runtime.get_event_wait_states_by_process_instance_id(pi.id.clone()).unwrap();
+    let wait_states = runtime
+        .get_event_wait_states_by_process_instance_id(pi.id.clone())
+        .unwrap();
     let catch_exec = wait_states
         .iter()
         .find(|e| e.activity_id.as_deref() == Some("condCatch"))
         .expect("conditional wait");
-    runtime.trigger_event_intermediate_catch(
-        EventSubscriptionKind::Conditional,
-        "${approve == true}".to_string(),
-        catch_exec.execution_id.clone(),
-    ).unwrap();
+    runtime
+        .trigger_event_intermediate_catch(
+            EventSubscriptionKind::Conditional,
+            "${approve == true}".to_string(),
+            catch_exec.execution_id.clone(),
+        )
+        .unwrap();
 
     let types = collector.types();
     assert!(
@@ -539,14 +549,7 @@ fn job_rescheduled_fires_on_management_reschedule() {
 
     let management = engine.get_management_service();
     management
-        .reschedule_timer_job(
-            &job_id,
-            None,
-            Some("PT2H".to_string()),
-            None,
-            None,
-            None,
-        )
+        .reschedule_timer_job(&job_id, None, Some("PT2H".to_string()), None, None, None)
         .unwrap();
 
     let types = collector.types();
@@ -810,6 +813,7 @@ fn activity_message_cancelled_fires_on_bulk_delete_with_message_wait() {
     assert!(
         store
             .find_process_instance(&pi.id, &mut session)
+            .expect("process instance lookup must succeed")
             .is_none(),
         "process instance must be deleted"
     );

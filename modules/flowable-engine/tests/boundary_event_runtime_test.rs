@@ -222,6 +222,7 @@ fn test_interrupting_boundary_event_cancels_host_activity_and_follows_boundary_p
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         process_instance_after.is_ended,
@@ -390,11 +391,13 @@ fn test_non_interrupting_conditional_boundary_on_user_task_preserves_host_and_fo
     assert_eq!(tasks_before.len(), 1);
     assert_eq!(tasks_before[0].task_definition_key, "userTask1");
 
-    runtime_service.trigger_boundary_event_by_event_ref(
-        EventSubscriptionKind::Conditional,
-        "${approved == false}".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_event_ref(
+            EventSubscriptionKind::Conditional,
+            "${approved == false}".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after_wrong_ref = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -458,6 +461,7 @@ fn test_non_interrupting_conditional_boundary_on_user_task_preserves_host_and_fo
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -623,6 +627,7 @@ fn test_non_interrupting_conditional_boundary_on_embedded_subprocess_fires_twice
     );
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -637,8 +642,7 @@ fn test_non_interrupting_conditional_boundary_on_embedded_subprocess_fires_twice
 /// fires normally.
 #[test]
 fn test_conditional_boundary_trigger_noop_when_condition_false_then_fires_when_true() {
-    let process_engine =
-        ProcessEngine::new("conditional-trigger-gate-test".to_string()).unwrap();
+    let process_engine = ProcessEngine::new("conditional-trigger-gate-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -941,6 +945,7 @@ fn test_non_interrupting_conditional_boundary_repeat_via_evaluate_and_skips_when
     );
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(!process_instance_after.is_ended);
 }
@@ -1028,7 +1033,9 @@ fn test_non_interrupting_conditional_boundary_uses_evaluated_boundary_not_matchi
             "approved".to_string(),
             json!(task.task_definition_key == "userTaskB"),
         );
-        runtime_store.update_execution(&execution, &mut session);
+        runtime_store
+            .update_execution(&execution, &mut session)
+            .expect("updating the execution state must succeed");
     }
     session.flush_and_commit().unwrap();
 
@@ -1083,7 +1090,8 @@ fn test_non_interrupting_conditional_boundary_uses_evaluated_boundary_not_matchi
 
 #[test]
 fn test_interrupting_conditional_boundary_on_subprocess_registers_and_cancels_scope() {
-    let process_engine = ProcessEngine::new("subprocess-conditional-boundary-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("subprocess-conditional-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1310,6 +1318,7 @@ fn test_non_interrupting_boundary_event_preserves_host_task_and_execution() {
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -1651,6 +1660,7 @@ fn test_receive_task_interrupting_boundary_event_cancels_host_and_follows_bounda
     // Verify process is ended
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         process_instance_after.is_ended,
@@ -1796,6 +1806,7 @@ fn test_receive_task_non_interrupting_boundary_event_preserves_host_task_and_exe
     // Verify process is NOT ended
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -1985,6 +1996,7 @@ fn test_receive_task_normal_wake_up_still_works_when_boundary_not_triggered() {
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         process_instance_after.is_ended,
@@ -2141,12 +2153,14 @@ fn test_concurrent_instances_interrupting_boundary_isolation() {
     let mut session = runtime_store.create_session().unwrap();
     let after_a = runtime_store
         .find_process_instance(&instance_a.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(after_a.is_ended, "Instance A should be ended");
 
     // Verify Instance B is still waiting
     let after_b = runtime_store
         .find_process_instance(&instance_b.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(!after_b.is_ended, "Instance B should not be ended");
 
@@ -2332,10 +2346,12 @@ fn test_trigger_boundary_event_by_message_ref() {
     assert_eq!(tasks_before.len(), 1);
 
     // Try triggering with wrong message_ref
-    process_engine.trigger_boundary_event_by_message_ref(
-        "wrongMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    process_engine
+        .trigger_boundary_event_by_message_ref(
+            "wrongMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after_wrong = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2347,10 +2363,12 @@ fn test_trigger_boundary_event_by_message_ref() {
     );
 
     // Trigger with correct message_ref
-    process_engine.trigger_boundary_event_by_message_ref(
-        "specialCancelMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    process_engine
+        .trigger_boundary_event_by_message_ref(
+            "specialCancelMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after_correct = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2364,6 +2382,7 @@ fn test_trigger_boundary_event_by_message_ref() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(process_instance_after.is_ended, "Process should be ended");
 }
@@ -2576,10 +2595,12 @@ fn test_signal_interrupting_boundary_event_on_user_task_cancels_host_and_follows
     drop(session);
 
     // Trigger by signal_ref
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "cancelSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "cancelSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2607,6 +2628,7 @@ fn test_signal_interrupting_boundary_event_on_user_task_cancels_host_and_follows
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         process_instance_after.is_ended,
@@ -2687,10 +2709,12 @@ fn test_signal_non_interrupting_boundary_event_on_user_task_preserves_host() {
     drop(session);
 
     // Trigger by signal_ref
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "notifySignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "notifySignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2732,6 +2756,7 @@ fn test_signal_non_interrupting_boundary_event_on_user_task_preserves_host() {
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -2971,10 +2996,12 @@ fn test_signal_interrupting_boundary_event_on_receive_task_cancels_host_and_foll
     drop(session);
 
     // Trigger by signal_ref
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "cancelSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "cancelSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     // Verify task is deleted
     let tasks_after = task_service
@@ -3014,6 +3041,7 @@ fn test_signal_interrupting_boundary_event_on_receive_task_cancels_host_and_foll
     // Verify process is ended
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         process_instance_after.is_ended,
@@ -3104,10 +3132,12 @@ fn test_signal_non_interrupting_boundary_event_on_receive_task_preserves_host() 
     drop(session);
 
     // Trigger by signal_ref
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "notifySignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "notifySignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     // Verify original ReceiveTask still exists
     let tasks_after = task_service
@@ -3162,6 +3192,7 @@ fn test_signal_non_interrupting_boundary_event_on_receive_task_preserves_host() 
     // Verify process is NOT ended
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -3220,10 +3251,12 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
     assert_eq!(tasks_before.len(), 1);
 
     // Try triggering with wrong signal_ref - should be no-op
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "wrongSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "wrongSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after_wrong = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -3246,6 +3279,7 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -3254,10 +3288,12 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
     drop(session);
 
     // Trigger with correct signal_ref
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "cancelSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "cancelSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after_correct = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -3270,6 +3306,7 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_final = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should exist");
     assert!(
         process_instance_final.is_ended,
@@ -3374,10 +3411,12 @@ fn test_signal_boundary_event_multi_instance_isolation() {
     drop(session);
 
     // Trigger signal on instance 2 only
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "cancelSignal".to_string(),
-        process_instance_2.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "cancelSignal".to_string(),
+            process_instance_2.id.clone(),
+        )
+        .unwrap();
 
     // Verify instance 1 is unaffected
     let tasks_1_after = task_service
@@ -3394,6 +3433,7 @@ fn test_signal_boundary_event_multi_instance_isolation() {
     );
     let process_instance_1_after = runtime_store
         .find_process_instance(&process_instance_1.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 1 should exist");
     assert!(
         !process_instance_1_after.is_ended,
@@ -3418,6 +3458,7 @@ fn test_signal_boundary_event_multi_instance_isolation() {
     );
     let process_instance_2_after = runtime_store
         .find_process_instance(&process_instance_2.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 2 should exist");
     assert!(
         process_instance_2_after.is_ended,
@@ -3440,6 +3481,7 @@ fn test_signal_boundary_event_multi_instance_isolation() {
     );
     let process_instance_3_after = runtime_store
         .find_process_instance(&process_instance_3.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 3 should exist");
     assert!(
         !process_instance_3_after.is_ended,
@@ -3512,11 +3554,14 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Verify all three instances have wait states
     let wait_states_1_before = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone())
+        .unwrap();
     let wait_states_2_before = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone())
+        .unwrap();
     let wait_states_3_before = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone())
+        .unwrap();
     assert_eq!(wait_states_1_before.len(), 1);
     assert_eq!(wait_states_2_before.len(), 1);
     assert_eq!(wait_states_3_before.len(), 1);
@@ -3525,12 +3570,15 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_1_before = runtime_store
         .find_process_instance(&process_instance_1.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 1 should exist");
     let process_instance_2_before = runtime_store
         .find_process_instance(&process_instance_2.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 2 should exist");
     let process_instance_3_before = runtime_store
         .find_process_instance(&process_instance_3.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 3 should exist");
     assert!(!process_instance_1_before.is_ended);
     assert!(!process_instance_2_before.is_ended);
@@ -3539,14 +3587,17 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Trigger signal on instance 2 only using execution_id
     let execution_id_2 = wait_states_2_before[0].execution_id.clone();
-    runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
-        "Alert Signal".to_string(),
-        execution_id_2,
-    ).unwrap();
+    runtime_service
+        .trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
+            "Alert Signal".to_string(),
+            execution_id_2,
+        )
+        .unwrap();
 
     // Verify instance 1 is unaffected
     let wait_states_1_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone())
+        .unwrap();
     assert_eq!(
         wait_states_1_after.len(),
         1,
@@ -3555,6 +3606,7 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_1_after = runtime_store
         .find_process_instance(&process_instance_1.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 1 should exist");
     assert!(
         !process_instance_1_after.is_ended,
@@ -3564,7 +3616,8 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Verify instance 2 is ended
     let wait_states_2_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone())
+        .unwrap();
     assert!(
         wait_states_2_after.is_empty(),
         "Instance 2 wait state should be cleaned up"
@@ -3572,6 +3625,7 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_2_after = runtime_store
         .find_process_instance(&process_instance_2.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 2 should exist");
     assert!(
         process_instance_2_after.is_ended,
@@ -3581,7 +3635,8 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Verify instance 3 is unaffected
     let wait_states_3_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone()).unwrap();
+        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone())
+        .unwrap();
     assert_eq!(
         wait_states_3_after.len(),
         1,
@@ -3590,6 +3645,7 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
     let mut session = runtime_store.create_session().unwrap();
     let process_instance_3_after = runtime_store
         .find_process_instance(&process_instance_3.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Instance 3 should exist");
     assert!(
         !process_instance_3_after.is_ended,
@@ -3691,10 +3747,12 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
 
     // Trigger message boundary (non-interrupting) — both subscriptions survive
     // (Java repeat semantics). Isolation: signal path not yet taken.
-    runtime_service.trigger_boundary_event_by_message_ref(
-        "notifyMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_message_ref(
+            "notifyMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let boundary_states_after_msg = runtime_store
@@ -3735,6 +3793,7 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_after_msg = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         !pi_after_msg.is_ended,
@@ -3743,10 +3802,12 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
     drop(session);
 
     // Trigger signal boundary (non-interrupting) — both subscriptions still present
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "alertSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "alertSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let boundary_states_after_sig = runtime_store
@@ -3771,6 +3832,7 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         !pi.is_ended,
@@ -3833,25 +3895,33 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
     drop(session);
 
     // Wrong message ref - no-op
-    runtime_service.trigger_boundary_event_by_message_ref(
-        "wrongMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_message_ref(
+            "wrongMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
     // Wrong signal ref - no-op
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "wrongSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "wrongSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
     // Cross-type: sending alertSignal via message trigger - no-op (different subscription kind)
-    runtime_service.trigger_boundary_event_by_message_ref(
-        "alertSignal".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_message_ref(
+            "alertSignal".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
     // Cross-type: sending cancelMessage via signal trigger - no-op
-    runtime_service.trigger_boundary_event_by_signal_ref(
-        "cancelMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_signal_ref(
+            "cancelMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let boundary_states = runtime_store
@@ -3875,6 +3945,7 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         !pi.is_ended,
@@ -3883,10 +3954,12 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
     drop(session);
 
     // Now trigger with correct message ref - should work and interrupt
-    runtime_service.trigger_boundary_event_by_message_ref(
-        "cancelMessage".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_message_ref(
+            "cancelMessage".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -3899,6 +3972,7 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
     let mut session = runtime_store.create_session().unwrap();
     let pi_final = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         pi_final.is_ended,
@@ -4142,6 +4216,7 @@ fn test_non_interrupting_escalation_boundary_preserves_host_activity() {
 
     let process_instance_after = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should exist");
     assert!(
         !process_instance_after.is_ended,
@@ -4159,13 +4234,15 @@ fn test_non_interrupting_escalation_boundary_preserves_host_activity() {
         "non-interrupting escalation boundary state must survive its own trigger"
     );
     assert_eq!(
-        boundary_states_after[0].boundary_event_id, "catchEscalation"
+        boundary_states_after[0].boundary_event_id,
+        "catchEscalation"
     );
 }
 
 #[test]
 fn test_escalation_boundary_matches_throw_ref_to_boundary_escalation_code() {
-    let process_engine = ProcessEngine::new("escalation-code-ref-boundary-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("escalation-code-ref-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4227,7 +4304,8 @@ fn test_escalation_boundary_matches_throw_ref_to_boundary_escalation_code() {
 #[test]
 fn test_nested_subprocess_escalation_prefers_nearest_boundary_scope() {
     let process_engine =
-        ProcessEngine::new("nested-subprocess-escalation-nearest-boundary-test".to_string()).unwrap();
+        ProcessEngine::new("nested-subprocess-escalation-nearest-boundary-test".to_string())
+            .unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4330,7 +4408,8 @@ fn test_nested_subprocess_escalation_prefers_nearest_boundary_scope() {
 
 #[test]
 fn test_no_code_escalation_boundary_catches_any_escalation() {
-    let process_engine = ProcessEngine::new("no-code-escalation-boundary-test".to_string()).unwrap();
+    let process_engine =
+        ProcessEngine::new("no-code-escalation-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4583,10 +4662,12 @@ fn run_named_message_boundary_case(case_name: &str, host_xml: &str) {
     );
     drop(session);
 
-    runtime_service.trigger_boundary_event_by_message_ref(
-        "external.cancel".to_string(),
-        process_instance.id.clone(),
-    ).unwrap();
+    runtime_service
+        .trigger_boundary_event_by_message_ref(
+            "external.cancel".to_string(),
+            process_instance.id.clone(),
+        )
+        .unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())

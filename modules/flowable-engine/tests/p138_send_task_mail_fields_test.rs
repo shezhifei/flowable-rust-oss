@@ -57,11 +57,10 @@ fn send_task_mail_inline_composite_juel() {
     </definitions>"#;
 
     repository_service
-        .deploy(
-            repository_service
-                .create_deployment()
-                .add_string("send_task_inline_composite.bpmn20.xml".to_string(), xml.to_string()),
-        )
+        .deploy(repository_service.create_deployment().add_string(
+            "send_task_inline_composite.bpmn20.xml".to_string(),
+            xml.to_string(),
+        ))
         .unwrap();
     let def_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 
@@ -92,8 +91,12 @@ fn send_task_mail_inline_composite_juel() {
 
     let stored = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance should be in runtime store");
-    assert!(stored.is_ended, "sendTask mail should pass through to the end event");
+    assert!(
+        stored.is_ended,
+        "sendTask mail should pass through to the end event"
+    );
 }
 
 /// sendTask mail: `textVar`/`htmlVar` indirect the body through process
@@ -125,11 +128,10 @@ fn send_task_mail_text_var_html_var_composite() {
     </definitions>"#;
 
     repository_service
-        .deploy(
-            repository_service
-                .create_deployment()
-                .add_string("send_task_var_composite.bpmn20.xml".to_string(), xml.to_string()),
-        )
+        .deploy(repository_service.create_deployment().add_string(
+            "send_task_var_composite.bpmn20.xml".to_string(),
+            xml.to_string(),
+        ))
         .unwrap();
     let def_id = repository_service.get_process_definition_ids().unwrap()[0].clone();
 

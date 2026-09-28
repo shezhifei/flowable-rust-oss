@@ -176,7 +176,7 @@ fn business_rule_task_executes_dmn_and_writes_result_variable() {
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );
@@ -193,6 +193,7 @@ fn business_rule_task_executes_dmn_and_writes_result_variable() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should be in runtime store");
     assert!(stored_pi.is_ended);
     drop(session);
@@ -258,6 +259,7 @@ fn business_rule_task_multi_hit_writes_row_array_under_decision_key() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("pi");
     assert!(stored_pi.is_ended);
     drop(session);
@@ -298,6 +300,7 @@ fn business_rule_task_single_hit_writes_each_output_variable() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("pi");
     assert!(stored_pi.is_ended);
     drop(session);
@@ -404,7 +407,7 @@ fn start_business_rule_process(
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );

@@ -374,6 +374,7 @@ fn inclusive_join_still_waits_for_expected_token_count_after_snapshot_cleanup() 
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         !pi.is_ended,
@@ -392,6 +393,7 @@ fn inclusive_join_still_waits_for_expected_token_count_after_snapshot_cleanup() 
     let mut session = store.create_session().unwrap();
     let pi = store
         .find_process_instance(&process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         pi.is_ended,

@@ -98,9 +98,7 @@ fn event_type_name(et: EngineEventType) -> &'static str {
         EngineEventType::ProcessCreated => "ProcessCreated",
         EngineEventType::ProcessStarted => "ProcessStarted",
         EngineEventType::ProcessCompleted => "ProcessCompleted",
-        EngineEventType::ProcessCompletedWithErrorEndEvent => {
-            "ProcessCompletedWithErrorEndEvent"
-        }
+        EngineEventType::ProcessCompletedWithErrorEndEvent => "ProcessCompletedWithErrorEndEvent",
         EngineEventType::ProcessCompletedWithEscalationEndEvent => {
             "ProcessCompletedWithEscalationEndEvent"
         }
@@ -208,7 +206,10 @@ fn entity_suspended_events_dispatched_in_correct_order() {
         .unwrap();
 
     // Clear any startup events
-    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    recorded_events
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
 
     // Suspend
     runtime
@@ -252,7 +253,10 @@ fn entity_activated_events_dispatched_in_correct_order() {
     runtime
         .suspend_process_instance(pi.id.clone(), ProcessInstanceUpdate::default())
         .unwrap();
-    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    recorded_events
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
 
     runtime
         .activate_process_instance(pi.id.clone(), ProcessInstanceUpdate::default())
@@ -286,7 +290,10 @@ fn global_listener_fires_before_typed_listener() {
         )
         .unwrap();
 
-    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    recorded_events
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
     runtime
         .suspend_process_instance(pi.id, ProcessInstanceUpdate::default())
         .unwrap();
@@ -388,7 +395,10 @@ fn transaction_listener_receives_entity_events_after_commit() {
         )
         .unwrap();
 
-    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    recorded_events
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
     runtime
         .suspend_process_instance(pi.id, ProcessInstanceUpdate::default())
         .unwrap();
@@ -414,6 +424,7 @@ fn rollback_reverts_suspension_and_events() {
             let store = command_context.runtime_store_handle();
             let pi = store
                 .find_process_instance(&self.process_instance_id, command_context.session())
+                .expect("process instance lookup must succeed")
                 .expect("test-pi should exist");
 
             let pi_id = pi.id.clone();
@@ -421,6 +432,7 @@ fn rollback_reverts_suspension_and_events() {
             // Manually simulate suspend and then force rollback
             let mut pi = store
                 .find_process_instance(&self.process_instance_id, command_context.session())
+                .expect("process instance lookup must succeed")
                 .expect("test-pi should exist");
             pi.is_suspended = true;
             store.update_process_instance(&pi, command_context.session());
@@ -428,14 +440,18 @@ fn rollback_reverts_suspension_and_events() {
             // Also update associated execution
             if let Some(mut exec) = store.find_execution(&pi_id, command_context.session()) {
                 exec.is_suspended = true;
-                store.update_execution(&exec, command_context.session());
+                store
+                    .update_execution(&exec, command_context.session())
+                    .expect("updating the execution state must succeed");
             }
 
             // Update task
             let tasks = store.find_tasks_by_process_instance_id(&pi_id, command_context.session());
             for mut t in tasks {
                 t.set_suspension_state(true);
-                store.update_task(&t, command_context.session());
+                store
+                    .update_task(&t, command_context.session())
+                    .expect("updating the task must succeed");
             }
 
             Err(FlowableError::ExecutionError("forced rollback".to_string()))
@@ -469,6 +485,7 @@ fn rollback_reverts_suspension_and_events() {
     let pi_after = engine
         .get_runtime_store()
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("should still exist");
     assert!(!pi_after.is_suspended);
 

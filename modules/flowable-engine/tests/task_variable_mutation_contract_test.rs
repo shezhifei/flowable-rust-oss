@@ -64,7 +64,9 @@ fn insert_standalone_task(engine: &ProcessEngine, task_id: &str) {
     );
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    store.insert_task(&task, &mut session);
+    store
+        .insert_task(&task, &mut session)
+        .expect("seeding the task must succeed");
     session.flush_and_commit().unwrap();
 }
 

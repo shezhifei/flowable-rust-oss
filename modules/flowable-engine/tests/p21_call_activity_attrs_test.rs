@@ -72,14 +72,10 @@ fn p21_called_element_type_id_resolves_by_definition_id() {
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
-    repo.deploy(
-        repo.create_deployment()
-            .name("child".into())
-            .add_string(
-                "child.bpmn20.xml".into(),
-                child_user_task_xml("childById", "childTask"),
-            ),
-    )
+    repo.deploy(repo.create_deployment().name("child".into()).add_string(
+        "child.bpmn20.xml".into(),
+        child_user_task_xml("childById", "childTask"),
+    ))
     .unwrap();
 
     let child_def = repo
@@ -818,23 +814,15 @@ fn p21_same_deployment_miss_falls_back_to_latest_by_key() {
     let task_service = engine.get_task_service();
 
     // Child only in a separate deployment (v1 then v2).
-    repo.deploy(
-        repo.create_deployment()
-            .name("child v1".into())
-            .add_string(
-                "child_v1.bpmn20.xml".into(),
-                child_user_task_xml("sameDepMissChild", "childTaskV1"),
-            ),
-    )
+    repo.deploy(repo.create_deployment().name("child v1".into()).add_string(
+        "child_v1.bpmn20.xml".into(),
+        child_user_task_xml("sameDepMissChild", "childTaskV1"),
+    ))
     .unwrap();
-    repo.deploy(
-        repo.create_deployment()
-            .name("child v2".into())
-            .add_string(
-                "child_v2.bpmn20.xml".into(),
-                child_user_task_xml("sameDepMissChild", "childTaskV2"),
-            ),
-    )
+    repo.deploy(repo.create_deployment().name("child v2".into()).add_string(
+        "child_v2.bpmn20.xml".into(),
+        child_user_task_xml("sameDepMissChild", "childTaskV2"),
+    ))
     .unwrap();
 
     let parent_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -1038,7 +1026,11 @@ fn p21_entity_links_created_when_enabled() {
         .create_entity_link_query()
         .list()
         .unwrap();
-    assert_eq!(links.len(), 1, "enableEntityLinks true → one parent→child link");
+    assert_eq!(
+        links.len(),
+        1,
+        "enableEntityLinks true → one parent→child link"
+    );
     assert_eq!(links[0].scope_id.as_deref(), Some(parent.id.as_str()));
     assert_eq!(
         links[0].reference_scope_id.as_deref(),
@@ -1107,7 +1099,10 @@ fn p21_complete_async_defers_parent_continuation_to_job() {
 
     // The child PI is still alive (its end has not run yet).
     let child = find_child_pi(&engine, &parent.id);
-    assert!(!child.is_ended, "child PI must still be alive before the job");
+    assert!(
+        !child.is_ended,
+        "child PI must still be alive before the job"
+    );
 
     // Java :159-180: one job on the parent (super) execution, with the child
     // PI id as configuration and the original Java handler-type misspelling.
@@ -1117,11 +1112,14 @@ fn p21_complete_async_defers_parent_continuation_to_job() {
         .unwrap()
         .into_iter()
         .filter(|job| {
-            job.handler_type.as_deref()
-                == Some(job_handler_types::ASYNC_COMPLETE_CALL_ACTIVITY)
+            job.handler_type.as_deref() == Some(job_handler_types::ASYNC_COMPLETE_CALL_ACTIVITY)
         })
         .collect();
-    assert_eq!(jobs.len(), 1, "exactly one async-complete-call-activity job");
+    assert_eq!(
+        jobs.len(),
+        1,
+        "exactly one async-complete-call-activity job"
+    );
     assert_eq!(
         jobs[0].handler_type.as_deref(),
         Some("async-complete-call-actiivty"),
@@ -1166,6 +1164,7 @@ fn p21_complete_async_defers_parent_continuation_to_job() {
     assert!(
         store
             .find_process_instance(&child.id, &mut session)
+            .expect("process instance lookup must succeed")
             .is_none_or(|pi| pi.is_ended),
         "child PI must be ended after the job"
     );

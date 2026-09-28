@@ -249,7 +249,7 @@ fn start_with_programmatic_process(
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );
@@ -268,10 +268,10 @@ fn start_with_programmatic_process(
 
 fn deploy_decision(engine: &DmnEngine, name: &str, decision: DmnDecision) {
     engine
-        .deploy(DmnDeploymentRequest::new(name).with_resource(
-            format!("{name}.dmn"),
-            DmnModel::new(vec![decision]),
-        ))
+        .deploy(
+            DmnDeploymentRequest::new(name)
+                .with_resource(format!("{name}.dmn"), DmnModel::new(vec![decision])),
+        )
         .expect("dmn deploy");
 }
 
@@ -294,6 +294,7 @@ fn assert_ended(runtime_store: &RuntimeStore, process_instance_id: &str) {
     let mut session = runtime_store.create_session().unwrap();
     let stored = runtime_store
         .find_process_instance(process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("pi");
     assert!(stored.is_ended, "process should have completed");
 }
@@ -327,9 +328,7 @@ fn service_task_dmn_literal_key_single_hit_writes_outputs_and_leaves() {
         Some(json!(true))
     );
     assert_eq!(
-        runtime
-            .get_variable(pi_id, "riskBand".to_string())
-            .unwrap(),
+        runtime.get_variable(pi_id, "riskBand".to_string()).unwrap(),
         Some(json!("LOW"))
     );
 }
@@ -360,9 +359,7 @@ fn service_task_dmn_el_key_resolves_at_runtime() {
 
     assert_ended(&store, &pi_id);
     assert_eq!(
-        runtime
-            .get_variable(pi_id, "approved".to_string())
-            .unwrap(),
+        runtime.get_variable(pi_id, "approved".to_string()).unwrap(),
         Some(json!(true))
     );
 }
@@ -533,9 +530,7 @@ fn service_task_dmn_throw_on_no_hits_false_continues() {
 
     assert_ended(&store, &pi_id);
     assert_eq!(
-        runtime
-            .get_variable(pi_id, "approved".to_string())
-            .unwrap(),
+        runtime.get_variable(pi_id, "approved".to_string()).unwrap(),
         None
     );
 }
@@ -633,9 +628,7 @@ fn service_task_dmn_single_hit_writes_each_output_variable() {
         Some(json!(false))
     );
     assert_eq!(
-        runtime
-            .get_variable(pi_id, "riskBand".to_string())
-            .unwrap(),
+        runtime.get_variable(pi_id, "riskBand".to_string()).unwrap(),
         Some(json!("HIGH"))
     );
 }
@@ -743,10 +736,7 @@ fn service_task_dmn_decision_service_multi_output_writes_object_node() {
         id: "loanServiceMulti".to_string(),
         name: "Loan Service Multi".to_string(),
         required_decisions: vec![],
-        output_decisions: vec![
-            "childDecisionA".to_string(),
-            "childDecisionB".to_string(),
-        ],
+        output_decisions: vec!["childDecisionA".to_string(), "childDecisionB".to_string()],
     });
     dmn.deploy(DmnDeploymentRequest::new("svc-multi").with_resource("svc.dmn", model))
         .expect("deploy service");
@@ -915,10 +905,7 @@ fn service_task_dmn_skip_expression_leaves_without_executing() {
         Some("${shouldSkip}"),
         "dep-skip",
         vec![
-            (
-                "_FLOWABLE_SKIP_EXPRESSION_ENABLED".to_string(),
-                json!(true),
-            ),
+            ("_FLOWABLE_SKIP_EXPRESSION_ENABLED".to_string(), json!(true)),
             ("shouldSkip".to_string(), json!(true)),
         ],
     )
@@ -926,9 +913,7 @@ fn service_task_dmn_skip_expression_leaves_without_executing() {
 
     assert_ended(&store, &pi_id);
     assert_eq!(
-        runtime
-            .get_variable(pi_id, "approved".to_string())
-            .unwrap(),
+        runtime.get_variable(pi_id, "approved".to_string()).unwrap(),
         None,
         "skip must not write DMN outputs"
     );

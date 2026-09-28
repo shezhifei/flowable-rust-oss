@@ -250,33 +250,35 @@ fn fetch_and_lock_skips_typed_timer_history_message_and_definition_schedule() {
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
     let now = store.time_source().now().timestamp_millis();
-    store.insert_timer_job_state_with_type(
-        &RuntimeTimerJobState {
-            timer_job_id: "typed-ew".to_string(),
-            process_instance_id: process_instance_id.clone(),
-            execution_id: "exec-ew".to_string(),
-            activity_id: "externalTask".to_string(),
-            job_state: Some("timer".to_string()),
-            is_boundary: false,
-            attached_activity_id: None,
-            cancel_activity: false,
-            time_duration: None,
-            time_date: None,
-            time_cycle: None,
-            end_date: None,
-            due_time: Some(now - 1),
-            lock_owner: None,
-            lock_time: None,
-            lock_expiration_time: None,
-            retries: Some(3),
-            error_message: None,
-            error_details: None,
-            category: None,
-            ..Default::default()
-        },
-        Some(&RuntimeJobType::ExternalWorker),
-        &mut session,
-    );
+    store
+        .insert_timer_job_state_with_type(
+            &RuntimeTimerJobState {
+                timer_job_id: "typed-ew".to_string(),
+                process_instance_id: process_instance_id.clone(),
+                execution_id: "exec-ew".to_string(),
+                activity_id: "externalTask".to_string(),
+                job_state: Some("timer".to_string()),
+                is_boundary: false,
+                attached_activity_id: None,
+                cancel_activity: false,
+                time_duration: None,
+                time_date: None,
+                time_cycle: None,
+                end_date: None,
+                due_time: Some(now - 1),
+                lock_owner: None,
+                lock_time: None,
+                lock_expiration_time: None,
+                retries: Some(3),
+                error_message: None,
+                error_details: None,
+                category: None,
+                ..Default::default()
+            },
+            Some(&RuntimeJobType::ExternalWorker),
+            &mut session,
+        )
+        .expect("seeding the timer job state must succeed");
     for (id, job_type, activity_id) in [
         ("typed-timer", RuntimeJobType::Timer, "timerActivity"),
         ("typed-history", RuntimeJobType::History, "async-history"),
@@ -317,7 +319,9 @@ fn fetch_and_lock_skips_typed_timer_history_message_and_definition_schedule() {
         if id == "definition-suspend" {
             job.process_instance_id.clear();
         }
-        store.insert_timer_job_state_with_type(&job, Some(&job_type), &mut session);
+        store
+            .insert_timer_job_state_with_type(&job, Some(&job_type), &mut session)
+            .expect("seeding the timer job state must succeed");
     }
     session.flush_and_commit().unwrap();
     time_source.advance_time(300_001);
@@ -481,6 +485,7 @@ fn complete_advances_the_waiting_process_and_deletes_the_job() {
     assert!(
         store
             .find_process_instance(&process_instance_id, &mut session)
+            .expect("process instance lookup must succeed")
             .expect("process instance should exist")
             .is_ended,
         "completing the external job should resume and finish the process"
@@ -774,7 +779,9 @@ fn owning_worker_can_unlock_legacy_lock_without_expiration() {
         .find_timer_job_state(&job.id, &mut session)
         .expect("locked job should exist");
     persisted.lock_expiration_time = None;
-    store.insert_timer_job_state(&persisted, &mut session);
+    store
+        .insert_timer_job_state(&persisted, &mut session)
+        .expect("seeding the timer job state must succeed");
     session.flush_and_commit().unwrap();
 
     engine
@@ -944,7 +951,9 @@ fn failure_with_negative_retries_decrements_and_may_deadletter() {
         .find_timer_job_state(&job.id, &mut session)
         .expect("job");
     seeded.retries = Some(2);
-    store.insert_timer_job_state(&seeded, &mut session);
+    store
+        .insert_timer_job_state(&seeded, &mut session)
+        .expect("seeding the timer job state must succeed");
     session.flush_and_commit().unwrap();
     drop(session);
 
@@ -1087,10 +1096,7 @@ fn external_worker_service_task_skip_expression_leaves_without_job() {
         EXTERNAL_WORKER_SERVICE_TASK_BPMN,
         "ew-skip.bpmn20.xml",
         vec![
-            (
-                "_FLOWABLE_SKIP_EXPRESSION_ENABLED".to_string(),
-                json!(true),
-            ),
+            ("_FLOWABLE_SKIP_EXPRESSION_ENABLED".to_string(), json!(true)),
             ("shouldSkip".to_string(), json!(true)),
             ("jobCat".to_string(), json!("ignored")),
         ],
@@ -1170,8 +1176,8 @@ fn external_worker_service_task_create_interceptor_overrides_topic() {
         CreateExternalWorkerJobInterceptor,
     };
     use flowable_engine::service::config::ProcessEngineConfiguration;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct CountingInterceptor {
         before: AtomicUsize,
@@ -1325,7 +1331,11 @@ fn fetch_and_lock_filters_by_topic() {
             topic: Some("orders".to_string()),
         })
         .unwrap();
-    assert_eq!(orders.len(), 1, "only the orders topic job must be acquired");
+    assert_eq!(
+        orders.len(),
+        1,
+        "only the orders topic job must be acquired"
+    );
     assert_eq!(orders[0].process_instance_id, pi_orders);
     assert_eq!(orders[0].topic.as_deref(), Some("orders"));
 

@@ -515,7 +515,7 @@ fn configured_owner_and_lock_ttls_apply_to_async_and_timer_acquisition() {
         real_client: RealHttpClientConfiguration {
             retry_count: 0,
             allow_private_networks: true,
-                    ..Default::default()
+            ..Default::default()
         },
         ..Default::default()
     };
@@ -660,8 +660,11 @@ fn async_executor_enabled_fires_due_timer() {
     let ended = wait_until(Duration::from_secs(5), || {
         let store = engine.get_runtime_store();
         let mut session = store.create_session().unwrap();
-        let pi = store.find_process_instance(&pi_id, &mut session);
-        let done = pi.map(|p| p.is_ended).unwrap_or(false);
+        let pi = store
+            .find_process_instance(&pi_id, &mut session)
+            .expect("process instance lookup must succeed");
+        // Poll semantics: a missing row means the instance has not ended yet.
+        let done = pi.is_some_and(|p| p.is_ended);
         session.rollback().unwrap();
         done
     });
@@ -807,38 +810,41 @@ fn lock_expiry_reclaims_job_after_expiration() {
     let lock_duration_ms = 1_000i64;
 
     let mut session = store.create_session().unwrap();
-    store.insert_timer_job_state(
-        &RuntimeTimerJobState {
-            timer_job_id: "locked-async-job".to_string(),
-            process_instance_id: "pi-lock".to_string(),
-            execution_id: "ex-lock".to_string(),
-            activity_id: "asyncTask".to_string(),
-            job_state: Some("async".to_string()),
-            is_boundary: false,
-            attached_activity_id: None,
-            cancel_activity: false,
-            time_duration: None,
-            time_date: None,
-            time_cycle: None,
-            end_date: None,
-            due_time: Some(now_ms),
-            lock_owner: Some("dead-worker".to_string()),
-            lock_time: Some(now_ms),
-            lock_expiration_time: Some(now_ms + lock_duration_ms),
-            retries: Some(3),
-            error_message: None,
-            error_details: None,
-            category: None,
-            ..Default::default()
-        },
-        &mut session,
-    );
+    store
+        .insert_timer_job_state(
+            &RuntimeTimerJobState {
+                timer_job_id: "locked-async-job".to_string(),
+                process_instance_id: "pi-lock".to_string(),
+                execution_id: "ex-lock".to_string(),
+                activity_id: "asyncTask".to_string(),
+                job_state: Some("async".to_string()),
+                is_boundary: false,
+                attached_activity_id: None,
+                cancel_activity: false,
+                time_duration: None,
+                time_date: None,
+                time_cycle: None,
+                end_date: None,
+                due_time: Some(now_ms),
+                lock_owner: Some("dead-worker".to_string()),
+                lock_time: Some(now_ms),
+                lock_expiration_time: Some(now_ms + lock_duration_ms),
+                retries: Some(3),
+                error_message: None,
+                error_details: None,
+                category: None,
+                ..Default::default()
+            },
+            &mut session,
+        )
+        .expect("seeding the timer job state must succeed");
     session.flush_and_commit().unwrap();
 
     // Before expiry: reset must not reclaim.
     let reset_before = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(100).unwrap();
+        .reset_expired_timer_job_locks(100)
+        .unwrap();
     assert_eq!(
         reset_before, 0,
         "lock must not be reclaimed before expiration"
@@ -859,7 +865,8 @@ fn lock_expiry_reclaims_job_after_expiration() {
 
     let reset_after = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(100).unwrap();
+        .reset_expired_timer_job_locks(100)
+        .unwrap();
     assert_eq!(
         reset_after, 1,
         "expired lock must be reclaimed by reset_expired_timer_job_locks"
@@ -940,32 +947,34 @@ fn reset_expired_jobs_respects_enabled_job_categories() {
         ("history-any-category", Some("interactive"), "history"),
         ("history-null-category", None, "history"),
     ] {
-        store.insert_timer_job_state(
-            &RuntimeTimerJobState {
-                timer_job_id: id.to_string(),
-                process_instance_id: format!("pi-{id}"),
-                execution_id: format!("ex-{id}"),
-                activity_id: "activity".to_string(),
-                job_state: Some(state.to_string()),
-                is_boundary: false,
-                attached_activity_id: None,
-                cancel_activity: false,
-                time_duration: None,
-                time_date: None,
-                time_cycle: None,
-                end_date: None,
-                due_time: Some(now_ms - 2_000),
-                lock_owner: Some("dead-owner".to_string()),
-                lock_time: Some(now_ms - 2_000),
-                lock_expiration_time: Some(now_ms - 1_000),
-                retries: Some(3),
-                error_message: None,
-                error_details: None,
-                category: category.map(str::to_string),
-                ..Default::default()
-            },
-            &mut session,
-        );
+        store
+            .insert_timer_job_state(
+                &RuntimeTimerJobState {
+                    timer_job_id: id.to_string(),
+                    process_instance_id: format!("pi-{id}"),
+                    execution_id: format!("ex-{id}"),
+                    activity_id: "activity".to_string(),
+                    job_state: Some(state.to_string()),
+                    is_boundary: false,
+                    attached_activity_id: None,
+                    cancel_activity: false,
+                    time_duration: None,
+                    time_date: None,
+                    time_cycle: None,
+                    end_date: None,
+                    due_time: Some(now_ms - 2_000),
+                    lock_owner: Some("dead-owner".to_string()),
+                    lock_time: Some(now_ms - 2_000),
+                    lock_expiration_time: Some(now_ms - 1_000),
+                    retries: Some(3),
+                    error_message: None,
+                    error_details: None,
+                    category: category.map(str::to_string),
+                    ..Default::default()
+                },
+                &mut session,
+            )
+            .expect("seeding the timer job state must succeed");
     }
     session.flush_and_commit().unwrap();
 

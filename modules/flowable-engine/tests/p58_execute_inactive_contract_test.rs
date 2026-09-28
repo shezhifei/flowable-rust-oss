@@ -126,11 +126,14 @@ fn parked_inclusive_join_releases_when_interrupting_boundary_destroys_sibling() 
     );
     assert_eq!(after[0].task_definition_key, "afterJoin");
 
-    task_service.complete_task_by_id(after[0].id.clone()).unwrap();
+    task_service
+        .complete_task_by_id(after[0].id.clone())
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row");
     assert!(stored_pi.is_ended, "process should end after afterJoin");
 }
@@ -254,11 +257,14 @@ fn parked_inclusive_join_releases_when_terminate_end_destroys_sibling() {
     );
     assert_eq!(after[0].task_definition_key, "afterJoin");
 
-    task_service.complete_task_by_id(after[0].id.clone()).unwrap();
+    task_service
+        .complete_task_by_id(after[0].id.clone())
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row");
     assert!(stored_pi.is_ended);
 }
@@ -379,11 +385,14 @@ fn inactive_join_reevaluation_cascades_through_downstream_join_in_same_command()
     );
     assert_eq!(after[0].task_definition_key, "afterJoin");
 
-    task_service.complete_task_by_id(after[0].id.clone()).unwrap();
+    task_service
+        .complete_task_by_id(after[0].id.clone())
+        .unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row");
     assert!(stored_pi.is_ended);
 }

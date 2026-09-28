@@ -133,6 +133,7 @@ fn inclusive_gateway_takes_all_matching_outgoing_flows_and_joins_after_both_comp
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should be in runtime store");
     assert!(stored_pi.is_ended);
 }
@@ -167,6 +168,7 @@ fn inclusive_gateway_uses_default_flow_when_no_condition_matches_and_joins_singl
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should be in runtime store");
     assert!(stored_pi.is_ended);
 }
@@ -288,6 +290,7 @@ fn inclusive_join_activates_after_interrupting_boundary_destroys_sibling_branch(
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row");
     assert!(
         stored_pi.is_ended,
@@ -415,6 +418,7 @@ fn inclusive_join_activates_when_sibling_branch_ends_without_reaching_join() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row");
     assert!(stored_pi.is_ended);
 }
@@ -548,6 +552,7 @@ fn inclusive_join_activates_after_terminate_end_destroys_subprocess_branch() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row");
     assert!(stored_pi.is_ended);
 }

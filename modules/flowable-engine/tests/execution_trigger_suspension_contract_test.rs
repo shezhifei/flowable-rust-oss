@@ -57,7 +57,9 @@ fn deploy_message_catch(engine: &ProcessEngine, id_suffix: &str) -> (String, Str
         .unwrap();
 
     // Find the execution waiting at the catch event
-    let wait_states = runtime.get_event_wait_states_by_process_instance_id(instance.id.clone()).unwrap();
+    let wait_states = runtime
+        .get_event_wait_states_by_process_instance_id(instance.id.clone())
+        .unwrap();
     let execution_id = wait_states[0].execution_id.clone();
 
     (instance.id, execution_id, message_ref)
@@ -100,7 +102,9 @@ fn deploy_signal_catch(engine: &ProcessEngine, id_suffix: &str) -> (String, Stri
         )
         .unwrap();
 
-    let wait_states = runtime.get_event_wait_states_by_process_instance_id(instance.id.clone()).unwrap();
+    let wait_states = runtime
+        .get_event_wait_states_by_process_instance_id(instance.id.clone())
+        .unwrap();
     let execution_id = wait_states[0].execution_id.clone();
 
     (instance.id, execution_id, signal_ref)
@@ -257,12 +261,16 @@ fn global_signal_broadcast_skips_suspension_check() {
 
     // Global signal broadcast should NOT fail (Java parity: SignalEventReceivedCmd
     // with executionId == null does NOT check suspension)
-    runtime.trigger_global_signal_intermediate_catch(signal_ref, _execution_id).unwrap();
+    runtime
+        .trigger_global_signal_intermediate_catch(signal_ref, _execution_id)
+        .unwrap();
 
     // The process instance should have completed (execution was triggered)
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let pi = store.find_process_instance(&pi_id, &mut session);
+    let pi = store
+        .find_process_instance(&pi_id, &mut session)
+        .expect("process instance lookup must succeed");
     // After trigger, the process should have advanced past the catch event
     // (it may or may not be ended depending on async behavior, but it should not error)
     assert!(pi.is_some());

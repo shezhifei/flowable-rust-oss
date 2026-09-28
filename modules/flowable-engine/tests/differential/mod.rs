@@ -343,8 +343,11 @@ pub fn run_differential_suite<F>(
     let fixture_directory = workspace.join(fixture_relative_directory);
     let fixture = load_fixture(&fixture_directory);
 
-    let java_output =
-        run_java_contract_runner(&workspace, &fixture_directory, &format!("java-{output_stem}.json"));
+    let java_output = run_java_contract_runner(
+        &workspace,
+        &fixture_directory,
+        &format!("java-{output_stem}.json"),
+    );
     assert_eq!(
         java_output["flowableVersion"],
         json!(fixture.flowable_java_version),
@@ -378,7 +381,11 @@ pub fn run_differential_suite<F>(
     );
 }
 
-pub fn wait_for_condition(description: &str, timeout: Duration, mut condition: impl FnMut() -> bool) {
+pub fn wait_for_condition(
+    description: &str,
+    timeout: Duration,
+    mut condition: impl FnMut() -> bool,
+) {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         if condition() {
@@ -496,6 +503,7 @@ pub fn process_instance_is_active(engine: &ProcessEngine, process_instance_id: &
         .expect("create session for process instance check");
     let active = store
         .find_process_instance(process_instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .is_some();
     session
         .rollback()
@@ -556,14 +564,17 @@ pub fn run_rust_operations_case(
                     .user_id
                     .as_deref()
                     .expect("createUser requires userId");
-                engine.get_identity_service().save_user(User {
-                    id: user_id.to_string(),
-                    first_name: None,
-                    last_name: None,
-                    email: None,
-                    password: None,
-                    tenant_id: None,
-                }).unwrap();
+                engine
+                    .get_identity_service()
+                    .save_user(User {
+                        id: user_id.to_string(),
+                        first_name: None,
+                        last_name: None,
+                        email: None,
+                        password: None,
+                        tenant_id: None,
+                    })
+                    .unwrap();
             }
             "createGroup" => {
                 let group_id = operation
@@ -574,11 +585,14 @@ pub fn run_rust_operations_case(
                     .group_name
                     .clone()
                     .unwrap_or_else(|| group_id.to_string());
-                engine.get_identity_service().save_group(Group {
-                    id: group_id.to_string(),
-                    name,
-                    group_type: None,
-                }).unwrap();
+                engine
+                    .get_identity_service()
+                    .save_group(Group {
+                        id: group_id.to_string(),
+                        name,
+                        group_type: None,
+                    })
+                    .unwrap();
             }
             "createMembership" => {
                 let user_id = operation
@@ -591,16 +605,15 @@ pub fn run_rust_operations_case(
                     .expect("createMembership requires groupId");
                 engine
                     .get_identity_service()
-                    .create_membership(user_id.to_string(), group_id.to_string()).unwrap();
+                    .create_membership(user_id.to_string(), group_id.to_string())
+                    .unwrap();
             }
             "queryTasks" => {
                 task_query_result =
                     run_rust_task_query(&engine, process_instance_id.as_deref(), operation);
             }
             "advanceClock" => {
-                let millis = operation
-                    .millis
-                    .expect("advanceClock requires millis");
+                let millis = operation.millis.expect("advanceClock requires millis");
                 clock.advance_time(millis);
             }
             "executeDueTimers" => {
@@ -641,7 +654,9 @@ pub fn run_rust_operations_case(
                 }
             }
             "start" => {
-                let mut builder = engine.get_runtime_service().create_process_instance_builder();
+                let mut builder = engine
+                    .get_runtime_service()
+                    .create_process_instance_builder();
                 if let Some(key) = &operation.process_definition_key {
                     builder = builder.process_definition_key(key.clone());
                 } else {
@@ -684,10 +699,7 @@ pub fn run_rust_operations_case(
                 if let Some(variables) = &operation.variables {
                     engine
                         .get_task_service()
-                        .complete_task_by_id_with_variables(
-                            task.id,
-                            map_to_hashmap(variables),
-                        )
+                        .complete_task_by_id_with_variables(task.id, map_to_hashmap(variables))
                         .expect("complete task with variables");
                 } else {
                     engine
@@ -704,10 +716,7 @@ pub fn run_rust_operations_case(
                     .name
                     .as_deref()
                     .expect("setVariable requires name");
-                let value = operation
-                    .value
-                    .clone()
-                    .expect("setVariable requires value");
+                let value = operation.value.clone().expect("setVariable requires value");
                 if operation.local.unwrap_or(false) {
                     engine
                         .get_runtime_service()
@@ -758,7 +767,9 @@ pub fn run_rust_operations_case(
                 // activityId is accepted for documentation; Rust triggers the
                 // waiting intermediate catch for the process instance.
                 let _activity_id = operation.activity_id.as_deref();
-                engine.trigger_intermediate_catch_event_by_process_instance_id(pi.to_string()).unwrap();
+                engine
+                    .trigger_intermediate_catch_event_by_process_instance_id(pi.to_string())
+                    .unwrap();
             }
             "signalEvent" => {
                 let signal_name = operation
@@ -768,10 +779,9 @@ pub fn run_rust_operations_case(
                 let pi = process_instance_id
                     .as_deref()
                     .expect("signalEvent requires a started process");
-                engine.trigger_boundary_event_by_signal_ref(
-                    signal_name.to_string(),
-                    pi.to_string(),
-                ).unwrap();
+                engine
+                    .trigger_boundary_event_by_signal_ref(signal_name.to_string(), pi.to_string())
+                    .unwrap();
             }
             "messageEvent" => {
                 let message_name = operation
@@ -781,10 +791,9 @@ pub fn run_rust_operations_case(
                 let pi = process_instance_id
                     .as_deref()
                     .expect("messageEvent requires a started process");
-                engine.trigger_boundary_event_by_message_ref(
-                    message_name.to_string(),
-                    pi.to_string(),
-                ).unwrap();
+                engine
+                    .trigger_boundary_event_by_message_ref(message_name.to_string(), pi.to_string())
+                    .unwrap();
             }
             "triggerBoundary" => {
                 let activity_id = operation
@@ -794,7 +803,9 @@ pub fn run_rust_operations_case(
                 let pi = process_instance_id
                     .as_deref()
                     .expect("triggerBoundary requires a started process");
-                engine.trigger_boundary_event(activity_id.to_string(), pi.to_string()).unwrap();
+                engine
+                    .trigger_boundary_event(activity_id.to_string(), pi.to_string())
+                    .unwrap();
             }
             "claimTask" => {
                 let pi = process_instance_id
@@ -1080,7 +1091,8 @@ fn build_operations_snapshot(
                             .expect("session for event-subprocess timer count");
                         let count = store
                             .find_event_subprocess_timer_subscriptions_by_process_instance_id(
-                                pi, &mut session,
+                                pi,
+                                &mut session,
                             )
                             .len();
                         session.rollback().expect("rollback esp timer session");
@@ -1126,10 +1138,7 @@ fn build_operations_snapshot(
                             .find_timer_job_states_by_process_instance_id(pi, &mut session)
                             .into_iter()
                             .filter(|job| job.job_state.as_deref() == Some("timer"))
-                            .map(|job| {
-                                job.calendar_name
-                                    .unwrap_or_else(|| "".to_string())
-                            })
+                            .map(|job| job.calendar_name.unwrap_or_else(|| "".to_string()))
                             .collect::<Vec<_>>();
                         session.rollback().expect("rollback timer calendar session");
                         names

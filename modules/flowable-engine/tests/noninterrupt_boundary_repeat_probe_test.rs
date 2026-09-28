@@ -195,6 +195,7 @@ fn non_interrupting_boundary_subscription_removed_when_host_task_completes() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&instance_id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("process instance row should exist");
     assert!(
         pi.is_ended,

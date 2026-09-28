@@ -264,6 +264,7 @@ fn test_call_activity_runtime_semantics() {
     let mut session = runtime_store.create_session().unwrap();
     let pi = runtime_store
         .find_process_instance(&parent_pi.id, &mut session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(pi.is_ended, "Parent process instance should be ended");
 }

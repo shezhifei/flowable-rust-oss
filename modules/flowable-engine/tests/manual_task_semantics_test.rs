@@ -120,7 +120,7 @@ fn manual_task_passes_through_to_end_event() {
             tenant_id: None,
             engine_version: None,
             app_version: None,
-        history_level: None,
+            history_level: None,
         },
         &mut session,
     );
@@ -136,6 +136,7 @@ fn manual_task_passes_through_to_end_event() {
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
         .find_process_instance(&process_instance.id, &mut session)
+        .expect("process instance lookup must succeed")
         .expect("Process instance should be in runtime store");
     assert!(
         stored_pi.is_ended,

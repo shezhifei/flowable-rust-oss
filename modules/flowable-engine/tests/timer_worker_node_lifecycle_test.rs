@@ -108,7 +108,9 @@ fn test_graceful_shutdown_releases_and_deregisters() {
 
     // Heartbeat + acquire lease
     worker.heartbeat();
-    let _works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
+    let _works = worker
+        .acquire_due_timers(300_000)
+        .expect("timer acquisition must read storage");
     // No timers to acquire, but this registers the node and acquires the lease
 
     let nodes = engine.list_timer_nodes().unwrap();
@@ -241,7 +243,9 @@ fn test_step_down_blocks_stale_token_execution() {
 
     // Worker acquires timer with current token
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
+    let works = worker
+        .acquire_due_timers(300_000)
+        .expect("timer acquisition must read storage");
     assert_eq!(works.len(), 1, "Should acquire due timer");
 
     let old_token = worker.get_fencing_token();
@@ -261,6 +265,7 @@ fn test_step_down_blocks_stale_token_execution() {
     let mut pi_session = pi_store.create_session().unwrap();
     let pi_after = pi_store
         .find_process_instance(&pi.id, &mut pi_session)
+        .expect("process instance lookup must succeed")
         .unwrap();
     assert!(
         !pi_after.is_ended,
