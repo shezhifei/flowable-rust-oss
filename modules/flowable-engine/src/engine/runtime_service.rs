@@ -564,7 +564,16 @@ impl Command<MigrationBatchResult> for BatchMigrateProcessInstancesCmd {
         let mut results = Vec::with_capacity(self.plans.len());
         for plan in &self.plans {
             if let Some(cb) = &self.callback {
-                let _ = cb.pre_migration(plan, command_context);
+                if let Err(callback_error) = cb.pre_migration(plan, command_context) {
+                    // A callback failure must not abort the batch (the
+                    // migration itself still runs); make the swallowed
+                    // failure observable instead of dropping it silently.
+                    tracing::warn!(
+                        plan = %plan.name.as_deref().unwrap_or("<unnamed>"),
+                        process_instance_id = %plan.process_instance_id,
+                        "migration pre_migration callback failed: {callback_error}"
+                    );
+                }
             }
             let outcome = match MigrateProcessInstanceCmd::new(
                 plan.process_instance_id.clone(),
@@ -577,7 +586,16 @@ impl Command<MigrationBatchResult> for BatchMigrateProcessInstancesCmd {
                 Err(error) => Err(error.to_string()),
             };
             if let Some(cb) = &self.callback {
-                let _ = cb.post_migration(plan, outcome.clone(), command_context);
+                if let Err(callback_error) =
+                    cb.post_migration(plan, outcome.clone(), command_context)
+                {
+                    tracing::warn!(
+                        plan = %plan.name.as_deref().unwrap_or("<unnamed>"),
+                        process_instance_id = %plan.process_instance_id,
+                        succeeded = outcome.is_ok(),
+                        "migration post_migration callback failed: {callback_error}"
+                    );
+                }
             }
             results.push(MigrationBatchEntryResult {
                 process_instance_id: plan.process_instance_id.clone(),
@@ -5507,7 +5525,20 @@ impl RuntimeService {
             return None;
         };
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().ok()?;
+        // Session creation is an optional fast-path probe: a failure keeps
+        // the previous "skip the hint" fallback (the live executor/lease
+        // acquisition still applies), but the reason must be observable
+        // instead of vanishing into the `Option` return.
+        let mut session = match store.create_session() {
+            Ok(session) => session,
+            Err(error) => {
+                tracing::warn!(
+                    job_id = %hinted_job.timer_job_id,
+                    "direct-hint activation could not open a store session; skipping hint: {error}"
+                );
+                return None;
+            }
+        };
         let current = store.find_timer_job_state(&hinted_job.timer_job_id, &mut session);
         let _ = session.rollback();
         let current = current?;

@@ -370,3 +370,90 @@ fn batch_migration_with_callback_records_post_err_for_failed_plan() {
         vec!["missing-pi".to_string()]
     );
 }
+
+#[test]
+fn failing_migration_callbacks_do_not_abort_the_batch() {
+    // P3 parity: a pre/post migration callback error is logged but must not
+    // abort the batch or replace the migration outcome — every plan still
+    // runs and its real result is reported.
+    let engine = ProcessEngine::new("p56-batch-callback-failing".to_string()).unwrap();
+    let (first_instance_id, _v1) = deploy_and_start(&engine, USER_TASK_XML);
+    let second_instance_id = engine
+        .get_runtime_service()
+        .start_process_instance_by_id(definition_id_for_version(&engine, 1), None)
+        .unwrap()
+        .id;
+    deploy(&engine, RENAMED_TASK_XML);
+    let target_id = definition_id_for_version(&engine, 2);
+
+    #[derive(Default)]
+    struct FailingCallback {
+        pre_calls: Mutex<u32>,
+        post_calls: Mutex<u32>,
+    }
+    impl MigrationCallback for FailingCallback {
+        fn pre_migration(
+            &self,
+            _plan: &MigrationPlan,
+            _command_context: &mut CommandContext,
+        ) -> Result<(), flowable_engine::error::FlowableError> {
+            *self.pre_calls.lock().unwrap_or_else(|e| e.into_inner()) += 1;
+            Err(flowable_engine::error::FlowableError::ExecutionError(
+                "pre callback boom".to_string(),
+            ))
+        }
+        fn post_migration(
+            &self,
+            _plan: &MigrationPlan,
+            _result: Result<(), String>,
+            _command_context: &mut CommandContext,
+        ) -> Result<(), flowable_engine::error::FlowableError> {
+            *self.post_calls.lock().unwrap_or_else(|e| e.into_inner()) += 1;
+            Err(flowable_engine::error::FlowableError::ExecutionError(
+                "post callback boom".to_string(),
+            ))
+        }
+    }
+
+    let callback = Arc::new(FailingCallback::default());
+    let plans = vec![first_instance_id.clone(), second_instance_id.clone()]
+        .into_iter()
+        .enumerate()
+        .map(|(index, instance_id)| {
+            MigrationPlan::new(instance_id, target_id.clone())
+                .with_name(format!("failing-cb-{index}"))
+                .add_activity_migration("task1", vec!["renamedTask".to_string()])
+        })
+        .collect();
+    let batch = engine
+        .get_runtime_service()
+        .migrate_process_instances_with_callback(plans, callback.clone())
+        .expect("callback failures must not fail the batch command");
+
+    assert_eq!(batch.results.len(), 2, "both plans must be reported");
+    assert!(
+        batch.all_succeeded(),
+        "the migrations themselves succeed even though every callback errored: {:?}",
+        batch.results
+    );
+    let migrated: Vec<String> = batch
+        .results
+        .iter()
+        .map(|row| row.process_instance_id.clone())
+        .collect();
+    assert!(migrated.contains(&first_instance_id));
+    assert!(migrated.contains(&second_instance_id));
+    assert_eq!(
+        *callback.pre_calls.lock().unwrap_or_else(|e| e.into_inner()),
+        2,
+        "pre callback runs once per plan despite returning an error"
+    );
+    assert_eq!(
+        *callback
+            .post_calls
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()),
+        2,
+        "post callback runs once per plan despite returning an error"
+    );
+}

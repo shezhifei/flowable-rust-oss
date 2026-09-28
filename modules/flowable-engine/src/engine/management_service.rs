@@ -286,7 +286,18 @@ impl ManagementService {
             ))),
             Err(error) => {
                 let retry_command = RecordFailedTimerWorkCmd::new(work, &error);
-                let _ = self.command_executor.execute(&retry_command);
+                if let Err(retry_error) = self.command_executor.execute(&retry_command) {
+                    // The original execution error is returned to the caller
+                    // (Java rethrows it), but the retry/deadletter bookkeeping
+                    // failure used to be swallowed silently; record it so a
+                    // failed manual job execution is still observable when the
+                    // job row cannot be transitioned.
+                    tracing::error!(
+                        job_id = %job_id,
+                        "failed to record job retry after manual execution failure \
+                         (original error: {error}): {retry_error}"
+                    );
+                }
                 Err(error)
             }
         }

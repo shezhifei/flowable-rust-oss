@@ -2062,3 +2062,92 @@ fn async_after_process_xml() -> String {
 </definitions>"#
         .to_string()
 }
+
+#[test]
+fn manual_job_execution_returns_original_error_when_retry_bookkeeping_fails() {
+    // P2 parity with Java ManagementService.executeJob: the failing job's
+    // original error is what the caller receives. When the follow-up
+    // RecordFailedTimerWorkCmd also fails (here a fatal transactional
+    // listener rolls the retry update back), that bookkeeping failure must
+    // be logged instead of being silently swallowed — but it must never be
+    // substituted for the job execution error, and the rolled-back job must
+    // stay executable with its retries untouched.
+    let time_source = Arc::new(TestTimeSource::new(
+        Utc.with_ymd_and_hms(2026, 5, 1, 13, 0, 0).unwrap(),
+    ));
+    let mut event_dispatcher = EngineEventDispatcher::new();
+    event_dispatcher.add_typed_event_listener(
+        EngineEventType::JobRetriesDecremented,
+        Arc::new(FatalTransactionJobEventListener {
+            state: TransactionState::Committing,
+            states: Arc::new(Mutex::new(Vec::new())),
+        }),
+    );
+    let engine = ProcessEngine::build_with_config(
+        "manual-job-retry-bookkeeping-failure".to_string(),
+        time_source,
+        ProcessEngineConfiguration {
+            http_service: HttpServiceTaskConfiguration {
+                enabled: true,
+                runtime_mode: HttpServiceRuntimeMode::Real,
+                real_client: RealHttpClientConfiguration {
+                    retry_count: 0,
+                    allow_private_networks: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            engine_event_dispatcher: event_dispatcher,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    deploy(
+        &engine,
+        async_failing_http_process_xml("R3/PT1M"),
+        "manual-job-bookkeeping-failure.bpmn20.xml",
+    );
+    let process_definition_id = engine
+        .get_repository_service()
+        .get_process_definition_ids()
+        .unwrap()[0]
+        .clone();
+    let process_instance = engine
+        .get_runtime_service()
+        .start_process_instance_by_id(process_definition_id, None)
+        .unwrap();
+    let runtime_store = engine.get_runtime_store();
+    let mut session = runtime_store.create_session().unwrap();
+    let initial_job = runtime_store
+        .find_timer_job_states_by_process_instance_id(&process_instance.id, &mut session)
+        .into_iter()
+        .next()
+        .expect("async failing service task should create one continuation job");
+    drop(session);
+
+    let error = engine
+        .get_management_service()
+        .execute_job(&initial_job.timer_job_id)
+        .expect_err("the unreachable HTTP endpoint must fail the manual job execution");
+    let rendered = error.to_string();
+    assert!(
+        rendered.contains("127.0.0.1:9"),
+        "caller must receive the original job failure, got: {rendered}"
+    );
+    assert!(
+        !rendered.contains("fatal"),
+        "retry bookkeeping listener failure must not replace the original job error, got: {rendered}"
+    );
+
+    // The retry update was rolled back: the job remains executable with its
+    // original retry budget and no failure details were persisted.
+    let unchanged_job = engine
+        .get_management_service()
+        .find_executable_job_by_id(&initial_job.timer_job_id)
+        .unwrap()
+        .expect("rolled-back retry bookkeeping must leave the job executable");
+    assert_eq!(unchanged_job.retries, Some(3));
+    assert!(unchanged_job.error_message.is_none());
+    assert!(unchanged_job.error_details.is_none());
+}
