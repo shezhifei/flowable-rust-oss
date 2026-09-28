@@ -370,7 +370,7 @@ impl RealHttpClient {
         }
 
         // M42: OAuth2 Client Credentials authentication flow
-        if let Some(token) = self.get_oauth2_token() {
+        if let Some(token) = self.get_oauth2_token()? {
             req_builder = req_builder.header("Authorization", format!("Bearer {token}"));
         }
 
@@ -389,8 +389,17 @@ impl RealHttpClient {
         }
     }
 
-    /// Retrieve OAuth2 Token in-memory cache
-    fn get_oauth2_token(&self) -> Option<String> {
+    /// Retrieve an OAuth2 token from the in-memory cache, fetching a new one
+    /// via the synchronous client-credentials flow when needed.
+    ///
+    /// `Ok(None)` means OAuth2 is legitimately absent: client credentials /
+    /// token URL are not configured, or this client was built async-only
+    /// (`new_async`) and has no blocking token client. A configured token
+    /// endpoint that cannot be reached, returns a non-2xx status, answers with
+    /// non-JSON, or omits `access_token` is an `Err`: collapsing those cases
+    /// to `None` previously sent the business request unauthenticated and
+    /// surfaced only as a confusing downstream 401.
+    fn get_oauth2_token(&self) -> Result<Option<String>, HttpServiceError> {
         let (client_id, client_secret, token_url) = (
             &self.config.oauth2_client_id,
             &self.config.oauth2_client_secret,
@@ -398,7 +407,7 @@ impl RealHttpClient {
         );
 
         let (Some(id), Some(secret), Some(url)) = (client_id, client_secret, token_url) else {
-            return None;
+            return Ok(None);
         };
 
         {
@@ -406,35 +415,87 @@ impl RealHttpClient {
             if let Some((ref token, expiry)) = *token_lock
                 && Instant::now() < expiry
             {
-                return Some(token.clone());
+                return Ok(Some(token.clone()));
             }
         }
 
-        // Get new token (synchronous OAuth2 client credentials flow)
+        // Fetch a new token (synchronous OAuth2 client credentials flow).
         let form_params = [
             ("grant_type", "client_credentials"),
             ("client_id", id.as_str()),
             ("client_secret", secret.as_str()),
         ];
 
-        let client = self.client_follow.as_ref()?;
-        let res = client.post(url).form(&form_params).send().ok()?;
-        if res.status().is_success()
-            && let Ok(body) = res.json::<serde_json::Value>()
-            && let Some(token) = body.get("access_token").and_then(|t| t.as_str())
-        {
-            let expires_in = body
-                .get("expires_in")
-                .and_then(|e| e.as_u64())
-                .unwrap_or(3600);
-            let expiry_instant =
-                Instant::now() + Duration::from_secs(expires_in.saturating_sub(10));
+        // Async-only builds have no blocking token-endpoint client; the async
+        // execution path does not attach OAuth tokens here, so absence is legal.
+        let Some(client) = self.client_follow.as_ref() else {
+            return Ok(None);
+        };
 
-            let mut token_lock = self.oauth_token.lock().unwrap_or_else(|e| e.into_inner());
-            *token_lock = Some((token.to_string(), expiry_instant));
-            return Some(token.to_string());
+        let safe_token_url = safe_url_display(url);
+        let response = client
+            .post(url)
+            .form(&form_params)
+            .send()
+            .map_err(|error| HttpServiceError {
+                message: format!("OAuth2 token request failed for {safe_token_url}: {error}"),
+                status_code: None,
+                response_body_excerpt: None,
+                request_url: Some(safe_token_url.clone()),
+                request_method: Some("POST".to_string()),
+            })?;
+
+        let status_code = response.status().as_u16();
+        let body_text = response.text().map_err(|error| HttpServiceError {
+            message: format!(
+                "Failed to read OAuth2 token response body from {safe_token_url}: {error}"
+            ),
+            status_code: Some(status_code),
+            response_body_excerpt: None,
+            request_url: Some(safe_token_url.clone()),
+            request_method: Some("POST".to_string()),
+        })?;
+
+        if !(200..300).contains(&status_code) {
+            return Err(HttpServiceError {
+                message: format!(
+                    "OAuth2 token endpoint returned HTTP {status_code} (expected 2xx)"
+                ),
+                status_code: Some(status_code),
+                response_body_excerpt: Some(body_text.chars().take(500).collect()),
+                request_url: Some(safe_token_url),
+                request_method: Some("POST".to_string()),
+            });
         }
-        None
+
+        let body: Value = serde_json::from_str(&body_text).map_err(|error| HttpServiceError {
+            message: format!("OAuth2 token endpoint returned a non-JSON 2xx body: {error}"),
+            status_code: Some(status_code),
+            response_body_excerpt: Some(body_text.chars().take(500).collect()),
+            request_url: Some(safe_token_url.clone()),
+            request_method: Some("POST".to_string()),
+        })?;
+
+        let Some(token) = body.get("access_token").and_then(|t| t.as_str()) else {
+            return Err(HttpServiceError {
+                message: "OAuth2 token response is missing a string \"access_token\" field"
+                    .to_string(),
+                status_code: Some(status_code),
+                response_body_excerpt: Some(body_text.chars().take(500).collect()),
+                request_url: Some(safe_token_url),
+                request_method: Some("POST".to_string()),
+            });
+        };
+
+        let expires_in = body
+            .get("expires_in")
+            .and_then(|e| e.as_u64())
+            .unwrap_or(3600);
+        let expiry_instant = Instant::now() + Duration::from_secs(expires_in.saturating_sub(10));
+
+        let mut token_lock = self.oauth_token.lock().unwrap_or_else(|e| e.into_inner());
+        *token_lock = Some((token.to_string(), expiry_instant));
+        Ok(Some(token.to_string()))
     }
 
     /// Check circuit breaker status
@@ -998,5 +1059,163 @@ mod tests {
             "localhost"
         );
         assert_eq!(client.extract_host("http://127.0.0.1/"), "127.0.0.1");
+    }
+
+    /// Build a client config with OAuth2 client-credentials settings enabled.
+    fn oauth_config(token_url: String) -> RealHttpClientConfig {
+        RealHttpClientConfig {
+            oauth2_client_id: Some("test-client".to_string()),
+            oauth2_client_secret: Some("test-secret".to_string()),
+            oauth2_token_url: Some(token_url),
+            ..RealHttpClientConfig::default()
+        }
+    }
+
+    /// Bind an ephemeral loopback port and answer the first accepted
+    /// connection with a raw HTTP response after best-effort draining of the
+    /// request bytes. This crate has no mock-server dependency, so tests use
+    /// `std::net` stubs.
+    fn spawn_token_stub(raw_response: String) -> u16 {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind stub listener");
+        let port = listener.local_addr().expect("stub local addr").port();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 1024];
+                // Best-effort drain of the request bytes before answering.
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(raw_response.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        port
+    }
+
+    fn json_token_response(status_line: &str, body: &str) -> String {
+        format!(
+            "{status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+    }
+
+    #[test]
+    fn oauth2_not_configured_returns_none() {
+        let client = RealHttpClient::new(RealHttpClientConfig::default()).expect("blocking client");
+        assert_eq!(
+            client
+                .get_oauth2_token()
+                .expect("unconfigured OAuth must be Ok(None)"),
+            None
+        );
+    }
+
+    #[test]
+    fn oauth2_async_only_client_returns_none_when_configured() {
+        // `new_async` has no blocking token client: a legal absence that must
+        // stay `Ok(None)` rather than becoming a fabricated error.
+        let client =
+            RealHttpClient::new_async(oauth_config("http://127.0.0.1:1/token".to_string()))
+                .expect("async client");
+        assert_eq!(
+            client
+                .get_oauth2_token()
+                .expect("async-only client must be Ok(None)"),
+            None
+        );
+    }
+
+    #[test]
+    fn oauth2_configured_send_failure_returns_err() {
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind closing listener");
+        let port = listener.local_addr().expect("listener addr").port();
+        std::thread::spawn(move || {
+            // Accept the connection and close it immediately: no HTTP response
+            // ever comes back, so the token request must surface as `Err`.
+            if let Ok((stream, _)) = listener.accept() {
+                drop(stream);
+            }
+        });
+
+        let mut config = oauth_config(format!("http://127.0.0.1:{port}/token"));
+        // Safety net if a platform reports the half-open socket as accepting
+        // writes; either way the outcome must be `Err`.
+        config.default_timeout_ms = 3_000;
+        let client = RealHttpClient::new(config).expect("blocking client");
+
+        let error = client
+            .get_oauth2_token()
+            .expect_err("a configured endpoint that fails to send must be Err, not None");
+        assert!(error.message.contains("OAuth2 token"));
+        assert_eq!(error.request_method.as_deref(), Some("POST"));
+        assert!(error.request_url.is_some());
+    }
+
+    #[test]
+    fn oauth2_token_endpoint_http_error_returns_err() {
+        let port = spawn_token_stub(
+            "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .to_string(),
+        );
+        let client = RealHttpClient::new(oauth_config(format!("http://127.0.0.1:{port}/token")))
+            .expect("blocking client");
+
+        let error = client
+            .get_oauth2_token()
+            .expect_err("non-2xx token response must be Err");
+        assert_eq!(error.status_code, Some(401));
+        assert!(error.message.contains("HTTP 401"));
+    }
+
+    #[test]
+    fn oauth2_token_endpoint_missing_access_token_returns_err() {
+        let port = spawn_token_stub(json_token_response("HTTP/1.1 200 OK", "{}"));
+        let client = RealHttpClient::new(oauth_config(format!("http://127.0.0.1:{port}/token")))
+            .expect("blocking client");
+
+        let error = client
+            .get_oauth2_token()
+            .expect_err("2xx body without access_token must be Err");
+        assert!(error.message.contains("access_token"));
+    }
+
+    #[test]
+    fn oauth2_token_endpoint_non_json_body_returns_err() {
+        let port = spawn_token_stub(json_token_response("HTTP/1.1 200 OK", "not json"));
+        let client = RealHttpClient::new(oauth_config(format!("http://127.0.0.1:{port}/token")))
+            .expect("blocking client");
+
+        assert!(
+            client
+                .get_oauth2_token()
+                .is_err_and(|error| error.message.contains("non-JSON"))
+        );
+    }
+
+    #[test]
+    fn oauth2_token_endpoint_success_returns_token_and_caches() {
+        let port = spawn_token_stub(json_token_response(
+            "HTTP/1.1 200 OK",
+            "{\"access_token\":\"abc123\",\"expires_in\":3600}",
+        ));
+        let client = RealHttpClient::new(oauth_config(format!("http://127.0.0.1:{port}/token")))
+            .expect("blocking client");
+
+        let token = client
+            .get_oauth2_token()
+            .expect("200 with token is Ok")
+            .expect("token present");
+        assert_eq!(token, "abc123");
+
+        // The stub accepts only one connection: this call must be served from
+        // the in-memory cache rather than hitting the (closed) endpoint again.
+        let cached = client
+            .get_oauth2_token()
+            .expect("cached lookup is Ok")
+            .expect("cached token present");
+        assert_eq!(cached, "abc123");
     }
 }
