@@ -7,8 +7,7 @@ use std::sync::{Arc, OnceLock, RwLock};
 const STATIC_TYPE_MARKER: &str = "__flowable_expression_static_type";
 const BEAN_MARKER: &str = "__flowable_expression_bean";
 
-type ExpressionMethod =
-    Arc<dyn Fn(&[Value]) -> Result<Value, String> + Send + Sync + 'static>;
+type ExpressionMethod = Arc<dyn Fn(&[Value]) -> Result<Value, String> + Send + Sync + 'static>;
 
 #[derive(Clone)]
 pub struct ExpressionMethodRegistry {
@@ -63,12 +62,7 @@ impl ExpressionMethodRegistry {
     where
         F: Fn(&[Value]) -> Result<Value, String> + Send + Sync + 'static,
     {
-        Self::register(
-            &self.static_methods,
-            type_name,
-            method,
-            Arc::new(function),
-        );
+        Self::register(&self.static_methods, type_name, method, Arc::new(function));
     }
 
     pub fn contains_bean(&self, bean: &str) -> bool {
@@ -86,26 +80,38 @@ impl ExpressionMethodRegistry {
         use crate::el::expression::Expression;
 
         with_expression_method_registry(self, || {
-            crate::el::expression::SimpleExpression::new(expression.to_string())
-                .get_value(scope)
+            crate::el::expression::SimpleExpression::new(expression.to_string()).get_value(scope)
         })
     }
 
+    /// Invoke a registered bean method.
+    ///
+    /// The two-level result mirrors Java UEL's distinction
+    /// (`AstMethod.eval`, AstMethod.java:98-101):
+    /// - `None` — the bean or method is not registered. Java's resolver chain
+    ///   leaves the property unresolved (lenient → null); callers must keep
+    ///   treating this as "no such method", never as an evaluation failure.
+    /// - `Some(Ok(value))` — the method ran and returned `value`.
+    /// - `Some(Err(message))` — the method was found but its execution failed.
+    ///   Java wraps the target exception in an `ELException`/`ExpressionException`
+    ///   and lets it escape; strict callers must propagate this error.
     pub fn invoke_bean(
         &self,
         bean: &str,
         method: &str,
         arguments: &[Value],
-    ) -> Option<Value> {
+    ) -> Option<Result<Value, String>> {
         Self::invoke(&self.bean_methods, bean, method, arguments)
     }
 
+    /// Invoke a registered static-type method (`T(typeName).method(...)`).
+    /// See [`Self::invoke_bean`] for the `Option<Result<_, _>>` semantics.
     pub fn invoke_static(
         &self,
         type_name: &str,
         method: &str,
         arguments: &[Value],
-    ) -> Option<Value> {
+    ) -> Option<Result<Value, String>> {
         Self::invoke(&self.static_methods, type_name, method, arguments)
     }
 
@@ -123,19 +129,22 @@ impl ExpressionMethodRegistry {
             .insert(method.to_string(), function);
     }
 
+    /// Returns `None` when the receiver/method pair is not registered; the
+    /// registered function's own `Result` is passed through untouched so a
+    /// method execution failure is no longer flattened into "no such method".
     fn invoke(
         methods: &RwLock<HashMap<String, HashMap<String, ExpressionMethod>>>,
         receiver: &str,
         method: &str,
         arguments: &[Value],
-    ) -> Option<Value> {
+    ) -> Option<Result<Value, String>> {
         let function = methods
             .read()
             .unwrap_or_else(|error| error.into_inner())
             .get(receiver)
             .and_then(|receiver_methods| receiver_methods.get(method))
             .cloned()?;
-        function(arguments).ok()
+        Some(function(arguments))
     }
 
     fn register_java_math_methods(&self) {
@@ -263,4 +272,60 @@ pub fn parse_static_type_reference(name: &str) -> Option<&str> {
         .strip_suffix(')')
         .map(str::trim)
         .filter(|type_name| !type_name.is_empty())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// P1-C: at the registry boundary "method not registered" (`None`) must
+    /// be distinguishable from "registered method failed" (`Some(Err(_))`).
+    /// Before the fix `invoke` ran `function(arguments).ok()` and collapsed
+    /// both into `None`.
+    #[test]
+    fn p1c_invoke_distinguishes_missing_method_from_failing_method() {
+        let registry = ExpressionMethodRegistry::new();
+        registry.register_bean_method("auditBean", "fail", |_| {
+            Err("intentional failure".to_string())
+        });
+        registry.register_bean_method("auditBean", "echo", |arguments| Ok(arguments[0].clone()));
+
+        // Unknown bean and unknown method: not registered → None.
+        assert_eq!(registry.invoke_bean("otherBean", "any", &[]), None);
+        assert_eq!(registry.invoke_bean("auditBean", "missing", &[]), None);
+
+        // Registered method that fails: its error is passed through.
+        match registry.invoke_bean("auditBean", "fail", &[]) {
+            Some(Err(message)) => assert!(
+                message.contains("intentional failure"),
+                "expected the method error message, got: {message}"
+            ),
+            other => panic!("expected Some(Err), got {other:?}"),
+        }
+
+        // Registered method that succeeds: value is passed through.
+        assert_eq!(
+            registry.invoke_bean("auditBean", "echo", &[Value::Bool(true)]),
+            Some(Ok(Value::Bool(true)))
+        );
+    }
+
+    /// The same distinction holds for static-type methods (`T(typeName).m()`).
+    #[test]
+    fn p1c_invoke_static_distinguishes_missing_from_failing() {
+        let registry = ExpressionMethodRegistry::new();
+        registry
+            .register_static_method("com.acme.Risky", "boom", |_| Err("static boom".to_string()));
+
+        assert_eq!(
+            registry.invoke_static("com.acme.Risky", "missing", &[]),
+            None
+        );
+        assert_eq!(registry.invoke_static("com.acme.Other", "boom", &[]), None);
+        match registry.invoke_static("com.acme.Risky", "boom", &[]) {
+            Some(Err(message)) => assert!(message.contains("static boom")),
+            other => panic!("expected Some(Err), got {other:?}"),
+        }
+    }
 }

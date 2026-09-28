@@ -109,13 +109,10 @@ impl SimpleExpression {
     }
 
     fn resolve_variable(scope: &dyn VariableContainer, name: &str) -> Option<Value> {
-        if let Some(type_name) =
-            crate::el::method_registry::parse_static_type_reference(name)
-        {
+        if let Some(type_name) = crate::el::method_registry::parse_static_type_reference(name) {
             return Some(crate::el::method_registry::static_type_marker(type_name));
         }
-        let method_registry =
-            crate::el::method_registry::current_expression_method_registry();
+        let method_registry = crate::el::method_registry::current_expression_method_registry();
         if method_registry.contains_bean(name) {
             return Some(crate::el::method_registry::bean_marker(name));
         }
@@ -297,7 +294,17 @@ impl SimpleExpression {
     fn is_operator_keyword(s: &str) -> bool {
         matches!(
             s,
-            "and" | "or" | "eq" | "ne" | "lt" | "le" | "ge" | "gt" | "div" | "mod" | "not"
+            "and"
+                | "or"
+                | "eq"
+                | "ne"
+                | "lt"
+                | "le"
+                | "ge"
+                | "gt"
+                | "div"
+                | "mod"
+                | "not"
                 | "empty"
         )
     }
@@ -360,17 +367,72 @@ impl SimpleExpression {
     /// `floor`, `ceil`, `round`), and arrays (`size`, `isEmpty`).
     /// Anything else returns `Value::Null`, matching the lenient
     /// "no such method" behaviour of the existing expression engine.
+    ///
+    /// This is the legacy lenient entry: a registered method that fails is
+    /// flattened to `None`, exactly like an unregistered one. Strict callers
+    /// (e.g. expression listeners, which must surface evaluation errors the
+    /// way Java's `ExpressionExecutionListener` does) use
+    /// [`SimpleExpression::invoke_method_strict`].
     fn invoke_method(receiver: &Value, method: &str, args: &[Value]) -> Option<Value> {
         if let Some((receiver_name, is_static_type)) =
             crate::el::method_registry::marker_receiver(receiver)
         {
             let registry = crate::el::method_registry::current_expression_method_registry();
-            return if is_static_type {
+            let outcome = if is_static_type {
                 registry.invoke_static(receiver_name, method, args)
             } else {
                 registry.invoke_bean(receiver_name, method, args)
             };
+            // Lenient: unregistered (None) and registered-but-failed
+            // (Some(Err)) both collapse to `None`; only the strict entry
+            // below keeps them apart.
+            return outcome.and_then(Result::ok);
         }
+        Self::invoke_builtin_method(receiver, method, args)
+    }
+
+    /// Strict method dispatch used by [`SimpleExpression::get_value_strict`].
+    ///
+    /// Returns:
+    /// - `Ok(Some(value))` — a built-in method or a registered method produced
+    ///   `value` (built-in "no such method" stays `Some(Value::Null)`, matching
+    ///   the historic lenient behaviour).
+    /// - `Ok(None)` — the receiver is a bean/static-type marker but neither
+    ///   the bean nor the method is registered (Java UEL's unresolved-method
+    ///   branch); the caller keeps treating this as null, not as an error.
+    /// - `Err(message)` — the receiver and method were registered but the
+    ///   method execution returned an error. Java wraps the target exception
+    ///   in an `ExpressionException`; the error message here carries the same
+    ///   receiver/method context.
+    fn invoke_method_strict(
+        receiver: &Value,
+        method: &str,
+        args: &[Value],
+    ) -> Result<Option<Value>, String> {
+        if let Some((receiver_name, is_static_type)) =
+            crate::el::method_registry::marker_receiver(receiver)
+        {
+            let registry = crate::el::method_registry::current_expression_method_registry();
+            let outcome = if is_static_type {
+                registry.invoke_static(receiver_name, method, args)
+            } else {
+                registry.invoke_bean(receiver_name, method, args)
+            };
+            return match outcome {
+                None => Ok(None),
+                Some(Ok(value)) => Ok(Some(value)),
+                Some(Err(message)) => Err(format!(
+                    "error evaluating '{receiver_name}.{method}(...)': {message}"
+                )),
+            };
+        }
+        Ok(Self::invoke_builtin_method(receiver, method, args))
+    }
+
+    /// Built-in methods available on plain JSON values (no registry involved;
+    /// these never fail, so they behave identically on the lenient and strict
+    /// paths).
+    fn invoke_builtin_method(receiver: &Value, method: &str, args: &[Value]) -> Option<Value> {
         match receiver {
             Value::String(s) => match method {
                 "toUpperCase" if args.is_empty() => Some(Value::String(s.to_uppercase())),
@@ -598,11 +660,7 @@ impl SimpleExpression {
 enum ExpressionAst {
     Literal(Value),
     Variable(String),
-    Conditional(
-        Box<ExpressionAst>,
-        Box<ExpressionAst>,
-        Box<ExpressionAst>,
-    ),
+    Conditional(Box<ExpressionAst>, Box<ExpressionAst>, Box<ExpressionAst>),
     Or(Box<ExpressionAst>, Box<ExpressionAst>),
     And(Box<ExpressionAst>, Box<ExpressionAst>),
     Equal(Box<ExpressionAst>, Box<ExpressionAst>),
@@ -759,6 +817,157 @@ impl ExpressionAst {
                 SimpleExpression::invoke_method(&receiver, method, &args)
             }
         }
+    }
+
+    /// Strict counterpart of [`ExpressionAst::evaluate`].
+    ///
+    /// `Ok(None)` preserves the lenient outcomes (undefined variable,
+    /// unregistered method); `Err(_)` is produced only when a *registered*
+    /// method fails while evaluating, mirroring Java UEL where the target
+    /// method exception escapes as an `ExpressionException` while an
+    /// unresolved method resolves to null.
+    #[allow(dead_code)]
+    fn evaluate_strict(&self, scope: &dyn VariableContainer) -> Result<Option<Value>, String> {
+        // Unwrap a required sub-evaluation: a lenient `None` from a child
+        // short-circuits the whole node to `Ok(None)`; an `Err` propagates.
+        macro_rules! require {
+            ($evaluation:expr) => {
+                match $evaluation {
+                    Ok(Some(value)) => value,
+                    Ok(None) => return Ok(None),
+                    Err(error) => return Err(error),
+                }
+            };
+        }
+
+        let result = match self {
+            ExpressionAst::Literal(v) => Some(v.clone()),
+            ExpressionAst::Variable(name) => SimpleExpression::resolve_variable(scope, name),
+            ExpressionAst::Conditional(condition, when_true, when_false) => {
+                let condition_value = require!(condition.evaluate_strict(scope));
+                if SimpleExpression::is_truthy(&condition_value) {
+                    when_true.evaluate_strict(scope)?
+                } else {
+                    when_false.evaluate_strict(scope)?
+                }
+            }
+            ExpressionAst::Or(left, right) => {
+                let left_value = require!(left.evaluate_strict(scope));
+                if SimpleExpression::is_truthy(&left_value) {
+                    Some(left_value)
+                } else {
+                    right.evaluate_strict(scope)?
+                }
+            }
+            ExpressionAst::And(left, right) => {
+                let left_value = require!(left.evaluate_strict(scope));
+                if !SimpleExpression::is_truthy(&left_value) {
+                    Some(Value::Bool(false))
+                } else {
+                    right.evaluate_strict(scope)?
+                }
+            }
+            ExpressionAst::Equal(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(Value::Bool(SimpleExpression::values_equal(&l, &r)))
+            }
+            ExpressionAst::NotEqual(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(Value::Bool(!SimpleExpression::values_equal(&l, &r)))
+            }
+            ExpressionAst::LessEq(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(Value::Bool(
+                    SimpleExpression::values_less(&l, &r) || SimpleExpression::values_equal(&l, &r),
+                ))
+            }
+            ExpressionAst::GreaterEq(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(Value::Bool(
+                    SimpleExpression::values_greater(&l, &r)
+                        || SimpleExpression::values_equal(&l, &r),
+                ))
+            }
+            ExpressionAst::Less(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(Value::Bool(SimpleExpression::values_less(&l, &r)))
+            }
+            ExpressionAst::Greater(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(Value::Bool(SimpleExpression::values_greater(&l, &r)))
+            }
+            ExpressionAst::Add(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                match SimpleExpression::arithmetic_op(&l, &r, '+') {
+                    Some(result) => Some(result),
+                    None => None,
+                }
+            }
+            ExpressionAst::Sub(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(SimpleExpression::arithmetic_op(&l, &r, '-').unwrap_or(Value::Null))
+            }
+            ExpressionAst::Mul(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(SimpleExpression::arithmetic_op(&l, &r, '*').unwrap_or(Value::Null))
+            }
+            ExpressionAst::Div(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(SimpleExpression::arithmetic_op(&l, &r, '/').unwrap_or(Value::Null))
+            }
+            ExpressionAst::Mod(left, right) => {
+                let l = require!(left.evaluate_strict(scope));
+                let r = require!(right.evaluate_strict(scope));
+                Some(SimpleExpression::arithmetic_op(&l, &r, '%').unwrap_or(Value::Null))
+            }
+            ExpressionAst::Not(operand) => {
+                let v = require!(operand.evaluate_strict(scope));
+                Some(Value::Bool(!SimpleExpression::is_truthy(&v)))
+            }
+            ExpressionAst::Neg(operand) => {
+                let v = require!(operand.evaluate_strict(scope));
+                if let Some(n) = SimpleExpression::to_f64(&v) {
+                    serde_json::Number::from_f64(-n).map(Value::Number)
+                } else {
+                    Some(Value::Null)
+                }
+            }
+            ExpressionAst::Empty(operand) => {
+                let v = require!(operand.evaluate_strict(scope));
+                Some(Value::Bool(SimpleExpression::is_empty(&v)))
+            }
+            ExpressionAst::Index(base, property) => {
+                let base_v = require!(base.evaluate_strict(scope));
+                let prop_v = require!(property.evaluate_strict(scope));
+                Some(SimpleExpression::index_value(&base_v, &prop_v))
+            }
+            ExpressionAst::Property(base, name) => {
+                let v = require!(base.evaluate_strict(scope));
+                Some(match v {
+                    Value::Object(map) => map.get(name).cloned().unwrap_or(Value::Null),
+                    _ => Value::Null,
+                })
+            }
+            ExpressionAst::MethodCall(base, method, args_ast) => {
+                let receiver = require!(base.evaluate_strict(scope));
+                let mut args = Vec::with_capacity(args_ast.len());
+                for arg_ast in args_ast {
+                    args.push(require!(arg_ast.evaluate_strict(scope)));
+                }
+                SimpleExpression::invoke_method_strict(&receiver, method, &args)?
+            }
+        };
+        Ok(result)
     }
 }
 
@@ -977,6 +1186,193 @@ impl CompiledExpression {
         }
 
         stack.pop()
+    }
+
+    /// Strict counterpart of [`CompiledExpression::execute`] used by
+    /// [`SimpleExpression::get_value_strict`]. The only `Err` this returns is
+    /// a registered bean/static method failing mid-evaluation (Java wraps the
+    /// target exception as an `ExpressionException`); undefined variables and
+    /// unregistered methods stay `Ok(None)`/null as on the lenient path.
+    fn execute_strict(&self, scope: &dyn VariableContainer) -> Result<Option<Value>, String> {
+        let mut stack: Vec<Value> = Vec::with_capacity(16);
+        let mut pc = 0;
+
+        // Stack underflow only happens with a malformed compiled stream (the
+        // compiler never emits one); preserve the lenient `None` outcome
+        // instead of manufacturing a new error class.
+        macro_rules! pop_required {
+            () => {
+                match stack.pop() {
+                    Some(value) => value,
+                    None => return Ok(None),
+                }
+            };
+        }
+
+        while pc < self.instructions.len() {
+            match &self.instructions[pc] {
+                Instruction::PushNull => stack.push(Value::Null),
+                Instruction::PushBool(b) => stack.push(Value::Bool(*b)),
+                Instruction::PushInt(n) => stack.push(Value::Number((*n).into())),
+                Instruction::PushFloat(f) => {
+                    stack.push(
+                        serde_json::Number::from_f64(*f)
+                            .map(Value::Number)
+                            .unwrap_or(Value::Null),
+                    );
+                }
+                Instruction::PushStr(idx) => {
+                    stack.push(Value::String(self.string_pool[*idx].clone()));
+                }
+                Instruction::LoadVar(idx) => {
+                    let name = &self.string_pool[*idx];
+                    // Undefined variable stays a lenient null.
+                    match SimpleExpression::resolve_variable(scope, name) {
+                        Some(v) => stack.push(v),
+                        None => return Ok(None),
+                    }
+                }
+                Instruction::Pop => {
+                    stack.pop();
+                }
+                Instruction::Eq => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(Value::Bool(SimpleExpression::values_equal(&l, &r)));
+                }
+                Instruction::Neq => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(Value::Bool(!SimpleExpression::values_equal(&l, &r)));
+                }
+                Instruction::Lt => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(Value::Bool(SimpleExpression::values_less(&l, &r)));
+                }
+                Instruction::Gt => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(Value::Bool(SimpleExpression::values_greater(&l, &r)));
+                }
+                Instruction::LtEq => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(Value::Bool(
+                        SimpleExpression::values_less(&l, &r)
+                            || SimpleExpression::values_equal(&l, &r),
+                    ));
+                }
+                Instruction::GtEq => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(Value::Bool(
+                        SimpleExpression::values_greater(&l, &r)
+                            || SimpleExpression::values_equal(&l, &r),
+                    ));
+                }
+                Instruction::Add => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    if let Some(result) = SimpleExpression::arithmetic_op(&l, &r, '+') {
+                        stack.push(result);
+                    } else {
+                        return Ok(None);
+                    }
+                }
+                Instruction::Sub => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '-').unwrap_or(Value::Null));
+                }
+                Instruction::Mul => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '*').unwrap_or(Value::Null));
+                }
+                Instruction::Div => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '/').unwrap_or(Value::Null));
+                }
+                Instruction::Mod => {
+                    let r = pop_required!();
+                    let l = pop_required!();
+                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '%').unwrap_or(Value::Null));
+                }
+                Instruction::Not => {
+                    let v = pop_required!();
+                    stack.push(Value::Bool(!SimpleExpression::is_truthy(&v)));
+                }
+                Instruction::Neg => {
+                    let v = pop_required!();
+                    if let Some(n) = SimpleExpression::to_f64(&v) {
+                        stack.push(
+                            serde_json::Number::from_f64(-n)
+                                .map(Value::Number)
+                                .unwrap_or(Value::Null),
+                        );
+                    } else {
+                        stack.push(Value::Null);
+                    }
+                }
+                Instruction::Empty => {
+                    let v = pop_required!();
+                    stack.push(Value::Bool(SimpleExpression::is_empty(&v)));
+                }
+                Instruction::Index => {
+                    let prop = pop_required!();
+                    let base = pop_required!();
+                    stack.push(SimpleExpression::index_value(&base, &prop));
+                }
+                Instruction::JumpIfTrue(target) => {
+                    if let Some(top) = stack.last()
+                        && SimpleExpression::is_truthy(top)
+                    {
+                        pc = *target;
+                        continue;
+                    }
+                }
+                Instruction::JumpIfFalse(target) => {
+                    if let Some(top) = stack.last()
+                        && !SimpleExpression::is_truthy(top)
+                    {
+                        pc = *target;
+                        continue;
+                    }
+                }
+                Instruction::Jump(target) => {
+                    pc = *target;
+                    continue;
+                }
+                Instruction::Property(idx) => {
+                    let name = &self.string_pool[*idx];
+                    let v = pop_required!();
+                    stack.push(match v {
+                        Value::Object(map) => map.get(name).cloned().unwrap_or(Value::Null),
+                        _ => Value::Null,
+                    });
+                }
+                Instruction::MethodCall(idx, arg_count) => {
+                    let method = &self.string_pool[*idx];
+                    let mut args = Vec::with_capacity(*arg_count);
+                    for _ in 0..*arg_count {
+                        args.push(pop_required!());
+                    }
+                    args.reverse();
+                    let receiver = pop_required!();
+                    match SimpleExpression::invoke_method_strict(&receiver, method, &args)? {
+                        // Unregistered receiver/method: lenient null, matching
+                        // the bytecode path's historic `.unwrap_or(Null)`.
+                        Some(value) => stack.push(value),
+                        None => stack.push(Value::Null),
+                    }
+                }
+            }
+            pc += 1;
+        }
+
+        Ok(stack.pop())
     }
 }
 
@@ -1751,10 +2147,7 @@ pub fn evaluate_composite_expression(text: &str, scope: &dyn VariableContainer) 
     let mut i = 0;
     while i < bytes.len() {
         // Escaped composite start: `\${` → literal `${`.
-        if bytes[i] == b'\\'
-            && i + 2 < bytes.len()
-            && bytes[i + 1] == b'$'
-            && bytes[i + 2] == b'{'
+        if bytes[i] == b'\\' && i + 2 < bytes.len() && bytes[i + 1] == b'$' && bytes[i + 2] == b'{'
         {
             out.push('$');
             out.push('{');
@@ -1817,43 +2210,41 @@ fn value_to_composite_string(value: &Value) -> String {
     }
 }
 
-impl Expression for SimpleExpression {
-    fn get_value(&self, scope: &dyn VariableContainer) -> Option<serde_json::Value> {
-        // Phase 1: fast path for common expression shapes (pure variable lookup,
-        // simple comparison). Detected once, cached in cached_fast_path.
+impl SimpleExpression {
+    /// Strict evaluation entry for callers that must surface evaluation
+    /// failures the way Java Flowable does (e.g. expression listeners —
+    /// `ExpressionExecutionListener.java:34-37` ignores the return value but
+    /// lets `expression.getValue(...)` exceptions escape and roll the command
+    /// back).
+    ///
+    /// - `Ok(Some(value))` — the expression evaluated to `value`.
+    /// - `Ok(None)` — lenient null: an undefined variable, an unparseable
+    ///   expression or an unregistered method (Java UEL's unresolved
+    ///   property/method branch). Existing condition/sequence-flow callers
+    ///   depend on this and keep using the trait `get_value` entry.
+    /// - `Err(message)` — evaluation itself failed: currently a registered
+    ///   bean/static method returned an error, which Java wraps as
+    ///   `ExpressionException` and propagates.
+    pub fn get_value_strict(&self, scope: &dyn VariableContainer) -> Result<Option<Value>, String> {
         let fast_path = self
             .cached_fast_path
             .get_or_init(|| Self::detect_fast_path(&self.expression_text));
         if let Some(fp) = fast_path {
-            return match fp {
-                FastPath::Variable(name) => Self::resolve_variable(scope, name),
-                FastPath::Comparison {
-                    var,
-                    literal,
-                    negate,
-                } => {
-                    // An unresolved operand evaluates to null. Preserve that null
-                    // result for condition callers instead of manufacturing a
-                    // Boolean comparison, except for an explicit comparison with
-                    // null itself. UelExpressionCondition can then enforce Java's
-                    // non-Boolean condition contract.
-                    let eq = match scope.get_variable(var) {
-                        Some(var_val) => SimpleExpression::values_equal(&var_val, literal),
-                        None if literal.is_null() => true,
-                        None => return None,
-                    };
-                    Some(Value::Bool(if *negate { !eq } else { eq }))
-                }
-            };
+            return Ok(Self::eval_fast_path(fp, scope));
         }
+        // Parse/compile failure stays a lenient null (same as `get_value`):
+        // malformed expressions are a pre-existing soft-fail case and not an
+        // evaluation error; only a registered method failing is `Err`.
+        let compiled = self.compiled();
+        match compiled.as_ref() {
+            Some(compiled) => compiled.execute_strict(scope),
+            None => Ok(None),
+        }
+    }
 
-        // Phase 2: compile AST to bytecode once, then execute via stack-based
-        // interpreter. Replaces recursive evaluate() with a flat instruction loop.
-        // The per-instance OnceLock stores an `Option<Arc<CompiledExpression>>`
-        // so that, on the slow path, we share a single Arc with every other
-        // `SimpleExpression` carrying the same expression text via the
-        // process-wide cache.
-        let compiled = self.cached_compiled.get_or_init(|| {
+    /// Cached compiled form, shared with the process-wide expression cache.
+    fn compiled(&self) -> &Option<Arc<CompiledExpression>> {
+        self.cached_compiled.get_or_init(|| {
             let text = self.expression_text.trim();
             // Fast global-cache lookup avoids the parse + compile work entirely
             // when a previous instance has already paid the cost.
@@ -1866,8 +2257,51 @@ impl Expression for SimpleExpression {
                 }
             }
             compile_global(text)
-        });
-        compiled.as_ref().and_then(|c| c.execute(scope))
+        })
+    }
+
+    /// Evaluate a detected [`FastPath`]. Pure variable lookup and simple
+    /// comparisons never invoke methods, so the result is always lenient.
+    fn eval_fast_path(fast_path: &FastPath, scope: &dyn VariableContainer) -> Option<Value> {
+        match fast_path {
+            FastPath::Variable(name) => Self::resolve_variable(scope, name),
+            FastPath::Comparison {
+                var,
+                literal,
+                negate,
+            } => {
+                // An unresolved operand evaluates to null. Preserve that null
+                // result for condition callers instead of manufacturing a
+                // Boolean comparison, except for an explicit comparison with
+                // null itself. UelExpressionCondition can then enforce Java's
+                // non-Boolean condition contract.
+                let eq = match scope.get_variable(var) {
+                    Some(var_val) => SimpleExpression::values_equal(&var_val, literal),
+                    None if literal.is_null() => true,
+                    None => return None,
+                };
+                Some(Value::Bool(if *negate { !eq } else { eq }))
+            }
+        }
+    }
+}
+
+impl Expression for SimpleExpression {
+    fn get_value(&self, scope: &dyn VariableContainer) -> Option<serde_json::Value> {
+        // Lenient entry retained for condition evaluation and every existing
+        // call site: undefined variables and evaluation failures all surface
+        // as `None`/null. Callers that need Java's "listener expression errors
+        // fail the command" behaviour use `get_value_strict`.
+        let fast_path = self
+            .cached_fast_path
+            .get_or_init(|| Self::detect_fast_path(&self.expression_text));
+        if let Some(fp) = fast_path {
+            return Self::eval_fast_path(fp, scope);
+        }
+
+        // Phase 2: compile AST to bytecode once, then execute via stack-based
+        // interpreter. Replaces recursive evaluate() with a flat instruction loop.
+        self.compiled().as_ref().and_then(|c| c.execute(scope))
     }
 }
 
@@ -2297,15 +2731,9 @@ mod tests {
         let scope = MapVariableContainer::from_map(vars.clone());
         let expression = SimpleExpression::new("${x + 5}".to_string());
         // First call parses + caches
-        assert_eq!(
-            expression.get_value(&scope),
-            Some(Value::Number(15.into()))
-        );
+        assert_eq!(expression.get_value(&scope), Some(Value::Number(15.into())));
         // Second call uses cache
-        assert_eq!(
-            expression.get_value(&scope),
-            Some(Value::Number(15.into()))
-        );
+        assert_eq!(expression.get_value(&scope), Some(Value::Number(15.into())));
         // Different execution — same cached AST, different variable binding
         let mut vars2 = HashMap::new();
         vars2.insert("x".to_string(), Value::Number(20.into()));
@@ -2398,14 +2826,8 @@ mod tests {
         assert_eq!(eval("${org}", vars.clone()), Some(Value::Number(3.into())));
         // `order` as a left operand followed by the `eq` operator must parse
         // the variable, not `or` plus leftover.
-        assert_eq!(
-            eval("${order eq 7}", vars.clone()),
-            Some(Value::Bool(true))
-        );
-        assert_eq!(
-            eval("${order ne 3}", vars.clone()),
-            Some(Value::Bool(true))
-        );
+        assert_eq!(eval("${order eq 7}", vars.clone()), Some(Value::Bool(true)));
+        assert_eq!(eval("${order ne 3}", vars.clone()), Some(Value::Bool(true)));
     }
 
     #[test]
@@ -2440,14 +2862,23 @@ mod tests {
         // Literal forms: null/"" are empty; numbers and booleans are not.
         assert_eq!(eval("${empty null}", vars.clone()), Some(Value::Bool(true)));
         assert_eq!(eval("${empty ''}", vars.clone()), Some(Value::Bool(true)));
-        assert_eq!(eval("${empty 'abc'}", vars.clone()), Some(Value::Bool(false)));
+        assert_eq!(
+            eval("${empty 'abc'}", vars.clone()),
+            Some(Value::Bool(false))
+        );
         assert_eq!(eval("${empty 0}", vars.clone()), Some(Value::Bool(false)));
-        assert_eq!(eval("${empty false}", vars.clone()), Some(Value::Bool(false)));
+        assert_eq!(
+            eval("${empty false}", vars.clone()),
+            Some(Value::Bool(false))
+        );
 
         let mut vars = HashMap::new();
         vars.insert("emptyList".to_string(), Value::Array(vec![]));
         vars.insert("fullList".to_string(), Value::Array(vec![Value::from(1)]));
-        vars.insert("emptyMap".to_string(), Value::Object(serde_json::Map::new()));
+        vars.insert(
+            "emptyMap".to_string(),
+            Value::Object(serde_json::Map::new()),
+        );
         let mut full_map = serde_json::Map::new();
         full_map.insert("k".to_string(), Value::from(1));
         vars.insert("fullMap".to_string(), Value::Object(full_map));
@@ -2580,5 +3011,125 @@ mod tests {
             format!("{}true{}", "(".repeat(10), ")".repeat(10))
         );
         assert_eq!(eval(&ok, HashMap::new()), Some(Value::Bool(true)));
+    }
+
+    // ── P1-C: strict evaluation (registered-method errors propagate) ──────────
+
+    use crate::el::method_registry::{ExpressionMethodRegistry, with_expression_method_registry};
+
+    fn failing_method_registry() -> ExpressionMethodRegistry {
+        let registry = ExpressionMethodRegistry::new();
+        registry.register_bean_method("auditBean", "fail", |_| {
+            Err("intentional audit failure".to_string())
+        });
+        registry.register_bean_method("auditBean", "succeed", |_| {
+            Ok(Value::String("recorded".to_string()))
+        });
+        registry
+    }
+
+    /// Bytecode path (the production interpreter): a registered method
+    /// returning an error must surface from `get_value_strict`, while the
+    /// legacy `get_value` keeps flattening it to `None`.
+    #[test]
+    fn p1c_bytecode_strict_propagates_registered_method_failure() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+        let registry = failing_method_registry();
+        with_expression_method_registry(&registry, || {
+            let failing = SimpleExpression::new("${auditBean.fail()}".to_string());
+            // Lenient entry: behaviour unchanged — the bytecode path folds a
+            // failing (or missing) registered method into Null, same as
+            // before P1-C.
+            assert_eq!(failing.get_value(&scope), Some(Value::Null));
+            // Strict entry: error with receiver/method context.
+            let error = failing
+                .get_value_strict(&scope)
+                .expect_err("failing registered method must be an Err");
+            assert!(
+                error.contains("auditBean.fail"),
+                "error should name receiver and method, got: {error}"
+            );
+            assert!(
+                error.contains("intentional audit failure"),
+                "error should carry the method message, got: {error}"
+            );
+
+            // A successful method on the same bean still evaluates normally.
+            let succeeding = SimpleExpression::new("${auditBean.succeed()}".to_string());
+            assert_eq!(
+                succeeding.get_value_strict(&scope),
+                Ok(Some(Value::String("recorded".to_string())))
+            );
+
+            // The error propagates even when the call is nested in a larger
+            // expression instead of being the whole result.
+            let nested = SimpleExpression::new("${auditBean.fail() == 'recorded'}".to_string());
+            assert!(nested.get_value_strict(&scope).is_err());
+        });
+    }
+
+    /// Undefined variables and unregistered methods stay lenient null on the
+    /// strict entry — only a registered method actually failing is `Err`.
+    /// This is the semantics expression listeners rely on (Java resolves
+    /// missing variables/methods to null but a target exception escapes).
+    #[test]
+    fn p1c_strict_keeps_undefined_variable_and_missing_method_lenient() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+
+        // Fast path (pure variable lookup): undefined variable → Ok(None).
+        assert_eq!(
+            SimpleExpression::new("${notDefined}".to_string()).get_value_strict(&scope),
+            Ok(None)
+        );
+
+        // No bean of that name registered: method call resolves to null, not error.
+        assert_eq!(
+            SimpleExpression::new("${ghostBean.run()}".to_string()).get_value_strict(&scope),
+            Ok(None)
+        );
+
+        let registry = ExpressionMethodRegistry::new();
+        with_expression_method_registry(&registry, || {
+            // Bean exists but this particular method does not → the bytecode
+            // path's historic lenient behaviour is to push Null (not to fail
+            // and not to void the whole expression).
+            registry.register_bean_method("auditBean", "present", |_| Ok(Value::Null));
+            assert_eq!(
+                SimpleExpression::new("${auditBean.absent()}".to_string()).get_value_strict(&scope),
+                Ok(Some(Value::Null))
+            );
+        });
+    }
+
+    /// AST interpreter path: same strict/lenient distinction as the bytecode
+    /// path (`ExpressionAst::evaluate_strict` mirrors `evaluate`).
+    #[test]
+    fn p1c_ast_strict_path_matches_bytecode_semantics() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+
+        let unregistered = ExpressionParser::new("auditBean.fail()")
+            .parse_expression()
+            .expect("fixture expression must parse");
+        assert_eq!(
+            unregistered.evaluate_strict(&scope),
+            Ok(None),
+            "unregistered bean is lenient null on the AST path too"
+        );
+
+        let undefined = ExpressionParser::new("missingVariable + 1")
+            .parse_expression()
+            .expect("fixture expression must parse");
+        assert_eq!(undefined.evaluate_strict(&scope), Ok(None));
+
+        let registry = failing_method_registry();
+        with_expression_method_registry(&registry, || {
+            let failing = ExpressionParser::new("auditBean.fail()")
+                .parse_expression()
+                .expect("fixture expression must parse");
+            let error = failing
+                .evaluate_strict(&scope)
+                .expect_err("AST strict path must propagate the method error");
+            assert!(error.contains("intentional audit failure"), "got: {error}");
+        });
     }
 }
