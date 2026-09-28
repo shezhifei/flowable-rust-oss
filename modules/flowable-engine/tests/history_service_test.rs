@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_history_service::FlowableHistoryService;
 use std::sync::Arc;
 
 #[test]
 fn test_history_process_instance() {
-    let engine = Arc::new(ProcessEngine::new("history-test".to_string()));
+    let engine = Arc::new(ProcessEngine::new("history-test".to_string()).unwrap());
     let history_service = FlowableHistoryService::new(Arc::clone(&engine));
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -68,6 +74,7 @@ fn test_history_process_instance() {
     // Check history PI
     let historic_pi = history_service
         .get_historic_process_instance(&pi_id)
+        .unwrap()
         .expect("history should exist");
     assert_eq!(historic_pi.id, pi_id);
     assert_eq!(historic_pi.business_key, Some("HistoryBK".to_string()));
@@ -77,6 +84,7 @@ fn test_history_process_instance() {
     // Check historic task
     let historic_task = history_service
         .get_historic_task_instance(&task_id)
+        .unwrap()
         .expect("historic task should exist");
     assert_eq!(historic_task.id, task_id);
     assert!(historic_task.end_time.is_some());

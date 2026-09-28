@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P64 Task 3 — business calendars on repeat timers and management reschedule.
 //!
 //! Java truth:
@@ -723,7 +729,7 @@ impl BusinessCalendar for EndDateProbeCalendar {
     ) -> Result<bool, FlowableError> {
         self.validate_seen
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push((max_iterations, end_date));
         if let Some(end) = end_date {
             return Ok(candidate <= end);
@@ -782,7 +788,7 @@ fn non_instant_end_date_and_iteration_bound_flow_through_the_production_path() {
         "creation must resolve the endDate through the calendar"
     );
     assert_eq!(
-        probe_for_assert.validate_seen.lock().unwrap()[0],
+        probe_for_assert.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0],
         (Some(3), Some(now() + Duration::minutes(60 * 24 * 10))),
         "creation validate must see R3's bound and the calendar-resolved end"
     );
@@ -803,7 +809,7 @@ fn non_instant_end_date_and_iteration_bound_flow_through_the_production_path() {
     );
     let fire_time = now() + Duration::minutes(90);
     assert_eq!(
-        probe_for_assert.validate_seen.lock().unwrap()[1],
+        probe_for_assert.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[1],
         (
             Some(2),
             Some(fire_time + Duration::minutes(60 * 24 * 10))

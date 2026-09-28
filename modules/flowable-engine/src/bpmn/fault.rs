@@ -172,7 +172,7 @@ pub(crate) fn propagate_bpmn_error(
     execution.is_active = false;
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
 
     if try_catch_bpmn_error_in_process_instance(
         command_context,
@@ -193,7 +193,7 @@ pub(crate) fn propagate_bpmn_error(
     execution.is_active = true;
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
     Ok(false)
 }
 
@@ -284,7 +284,7 @@ pub(crate) fn propagate_escalation_across_call_activities(
     for _ in 0..64 {
         let Some(pi) = command_context
             .runtime_store
-            .find_process_instance(&current_pi_id, &mut command_context.session)
+            .find_process_instance(&current_pi_id, &mut command_context.session)?
         else {
             return Ok(None);
         };
@@ -313,7 +313,7 @@ pub(crate) fn propagate_escalation_across_call_activities(
                 dispatch_process_completed_with_escalation_end_event(
                     command_context,
                     process_instance_id,
-                );
+                )?;
             }
 
             if catch_result.interrupting {
@@ -354,7 +354,7 @@ pub(crate) fn propagate_bpmn_error_across_call_activities(
 
         let Some(pi) = command_context
             .runtime_store
-            .find_process_instance(&current_pi_id, &mut command_context.session)
+            .find_process_instance(&current_pi_id, &mut command_context.session)?
         else {
             return Ok(false);
         };
@@ -432,12 +432,12 @@ fn end_process_instance_for_escalation_propagation(
 fn dispatch_process_completed_with_escalation_end_event(
     command_context: &mut CommandContext,
     process_instance_id: &str,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(process_instance) = command_context
         .runtime_store
-        .find_process_instance(process_instance_id, &mut command_context.session)
+        .find_process_instance(process_instance_id, &mut command_context.session)?
     else {
-        return;
+        return Ok(());
     };
 
     command_context.add_post_agenda_event(EngineEvent::Entity {
@@ -453,6 +453,7 @@ fn dispatch_process_completed_with_escalation_end_event(
             sub_scope_id: None,
         },
     });
+    Ok(())
 }
 
 /// Removes a called process instance without applying call-activity output
@@ -464,7 +465,7 @@ fn end_process_instance_for_cross_call_propagation(
 ) -> Result<(), FlowableError> {
     if let Some(mut pi) = command_context
         .runtime_store
-        .find_process_instance(process_instance_id, &mut command_context.session)
+        .find_process_instance(process_instance_id, &mut command_context.session)?
         && !pi.is_ended
     {
         pi.is_ended = true;
@@ -475,7 +476,7 @@ fn end_process_instance_for_cross_call_propagation(
             process_instance_id,
             Some(delete_reason),
             &mut command_context.session,
-        );
+        )?;
         command_context.history_manager.record_audit_event(
             "process-instance-end",
             Some(process_instance_id),
@@ -493,7 +494,7 @@ fn end_process_instance_for_cross_call_propagation(
             &task.id,
             Some(delete_reason),
             &mut command_context.session,
-        );
+        )?;
         command_context
             .task_entity_manager
             .delete(&task.id, &mut command_context.session);

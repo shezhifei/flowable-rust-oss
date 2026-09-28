@@ -65,3 +65,7 @@ tempfile = "3.14"
 [features]
 postgres = ["flowable-persistence/postgres"]
 mysql = ["flowable-persistence/mysql"]
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

@@ -23,8 +23,8 @@ impl IdentityLinkService {
         self.command_executor.runtime_store().clone()
     }
 
-    pub fn add_identity_link(&self, link: IdentityLink) {
-        self.add_identity_link_with_author(link, None);
+    pub fn add_identity_link(&self, link: IdentityLink) -> Result<(), FlowableError> {
+        self.add_identity_link_with_author(link, None)
     }
 
     /// Like [`add_identity_link`], but records the authenticated user on the
@@ -32,12 +32,12 @@ impl IdentityLinkService {
     /// `Authentication.getAuthenticatedUserId()` into the identity-link comment
     /// (`AbstractHistoryManager.createProcessInstanceIdentityLinkComment`), so
     /// REST callers pass the request principal here.
-    pub fn add_identity_link_with_author(&self, link: IdentityLink, author: Option<String>) {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
+    pub fn add_identity_link_with_author(
+        &self,
+        link: IdentityLink,
+        author: Option<String>,
+    ) -> Result<(), FlowableError> {
+        let mut session = self.command_executor.runtime_store().create_session()?;
         self.record_identity_link_event(
             &link,
             "AddUserLink",
@@ -47,23 +47,24 @@ impl IdentityLinkService {
         );
         // P77: historic mirror at AUDIT+ (Java DefaultHistoryManager:396-410).
         self.history_manager()
-            .record_identity_link_created(&link, &mut session);
+            .record_identity_link_created(&link, &mut session)?;
         self.get_store().insert_identity_link(link, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit()?;
+        Ok(())
     }
 
-    pub fn remove_identity_link(&self, link_id: &str) {
-        self.remove_identity_link_with_author(link_id, None);
+    pub fn remove_identity_link(&self, link_id: &str) -> Result<(), FlowableError> {
+        self.remove_identity_link_with_author(link_id, None)
     }
 
     /// Like [`remove_identity_link`], but records the authenticated user on the
     /// generated `DeleteUserLink`/`DeleteGroupLink` history event/comment.
-    pub fn remove_identity_link_with_author(&self, link_id: &str, author: Option<String>) {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
+    pub fn remove_identity_link_with_author(
+        &self,
+        link_id: &str,
+        author: Option<String>,
+    ) -> Result<(), FlowableError> {
+        let mut session = self.command_executor.runtime_store().create_session()?;
         let store = self.get_store();
         if let Some(link) = store.find_identity_link(link_id, &mut session) {
             self.record_identity_link_event(
@@ -78,7 +79,8 @@ impl IdentityLinkService {
                 .record_identity_link_deleted(&link.id, &mut session);
         }
         store.delete_identity_link(link_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit()?;
+        Ok(())
     }
 
     /// History manager seeded from this service's engine config (AUDIT gate).

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::persistence::runtime_store::{
     EventSubscriptionKind, RuntimeMessageStyleWaitKind,
@@ -7,7 +13,7 @@ use std::collections::HashMap;
 
 #[test]
 fn test_user_task_registers_interrupting_and_non_interrupting_message_boundary_event_states() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -119,7 +125,7 @@ fn test_user_task_registers_interrupting_and_non_interrupting_message_boundary_e
 
 #[test]
 fn test_interrupting_boundary_event_cancels_host_activity_and_follows_boundary_path() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -225,7 +231,7 @@ fn test_interrupting_boundary_event_cancels_host_activity_and_follows_boundary_p
 
 #[test]
 fn test_interrupting_conditional_boundary_event_on_user_task_evaluates_and_leaves_host_task() {
-    let process_engine = ProcessEngine::new("conditional-boundary-test".to_string());
+    let process_engine = ProcessEngine::new("conditional-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -317,7 +323,7 @@ fn test_interrupting_conditional_boundary_event_on_user_task_evaluates_and_leave
 #[test]
 fn test_non_interrupting_conditional_boundary_on_user_task_preserves_host_and_follows_path() {
     let process_engine =
-        ProcessEngine::new("non-interrupting-conditional-boundary-test".to_string());
+        ProcessEngine::new("non-interrupting-conditional-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -388,7 +394,7 @@ fn test_non_interrupting_conditional_boundary_on_user_task_preserves_host_and_fo
         EventSubscriptionKind::Conditional,
         "${approved == false}".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after_wrong_ref = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -465,7 +471,7 @@ fn test_non_interrupting_conditional_boundary_on_user_task_preserves_host_and_fo
 #[test]
 fn test_non_interrupting_conditional_boundary_on_embedded_subprocess_fires_twice() {
     let process_engine =
-        ProcessEngine::new("non-interrupting-conditional-subprocess-repeat".to_string());
+        ProcessEngine::new("non-interrupting-conditional-subprocess-repeat".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -632,7 +638,7 @@ fn test_non_interrupting_conditional_boundary_on_embedded_subprocess_fires_twice
 #[test]
 fn test_conditional_boundary_trigger_noop_when_condition_false_then_fires_when_true() {
     let process_engine =
-        ProcessEngine::new("conditional-trigger-gate-test".to_string());
+        ProcessEngine::new("conditional-trigger-gate-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -798,7 +804,7 @@ fn test_conditional_boundary_trigger_noop_when_condition_false_then_fires_when_t
 #[test]
 fn test_non_interrupting_conditional_boundary_repeat_via_evaluate_and_skips_when_false() {
     let process_engine =
-        ProcessEngine::new("non-interrupting-conditional-evaluate-repeat".to_string());
+        ProcessEngine::new("non-interrupting-conditional-evaluate-repeat".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -942,7 +948,7 @@ fn test_non_interrupting_conditional_boundary_repeat_via_evaluate_and_skips_when
 #[test]
 fn test_non_interrupting_conditional_boundary_uses_evaluated_boundary_not_matching_condition_ref() {
     let process_engine =
-        ProcessEngine::new("conditional-boundary-same-condition-ref-test".to_string());
+        ProcessEngine::new("conditional-boundary-same-condition-ref-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1077,7 +1083,7 @@ fn test_non_interrupting_conditional_boundary_uses_evaluated_boundary_not_matchi
 
 #[test]
 fn test_interrupting_conditional_boundary_on_subprocess_registers_and_cancels_scope() {
-    let process_engine = ProcessEngine::new("subprocess-conditional-boundary-test".to_string());
+    let process_engine = ProcessEngine::new("subprocess-conditional-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1189,7 +1195,7 @@ fn test_interrupting_conditional_boundary_on_subprocess_registers_and_cancels_sc
 
 #[test]
 fn test_non_interrupting_boundary_event_preserves_host_task_and_execution() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1313,7 +1319,7 @@ fn test_non_interrupting_boundary_event_preserves_host_task_and_execution() {
 
 #[test]
 fn test_non_interrupting_boundary_path_completes_correctly() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -1398,7 +1404,7 @@ fn test_non_interrupting_boundary_path_completes_correctly() {
 
 #[test]
 fn test_receive_task_registers_interrupting_and_non_interrupting_message_boundary_event_states() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -1526,7 +1532,7 @@ fn test_receive_task_registers_interrupting_and_non_interrupting_message_boundar
 
 #[test]
 fn test_receive_task_interrupting_boundary_event_cancels_host_and_follows_boundary_path() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1654,7 +1660,7 @@ fn test_receive_task_interrupting_boundary_event_cancels_host_and_follows_bounda
 
 #[test]
 fn test_receive_task_non_interrupting_boundary_event_preserves_host_task_and_execution() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1799,7 +1805,7 @@ fn test_receive_task_non_interrupting_boundary_event_preserves_host_task_and_exe
 
 #[test]
 fn test_receive_task_non_interrupting_boundary_path_completes_correctly() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -1880,7 +1886,7 @@ fn test_receive_task_non_interrupting_boundary_path_completes_correctly() {
 
 #[test]
 fn test_receive_task_normal_wake_up_still_works_when_boundary_not_triggered() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1988,7 +1994,7 @@ fn test_receive_task_normal_wake_up_still_works_when_boundary_not_triggered() {
 
 #[test]
 fn test_receive_task_ignores_unsupported_boundary_events() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -2061,7 +2067,7 @@ fn test_receive_task_ignores_unsupported_boundary_events() {
 
 #[test]
 fn test_concurrent_instances_interrupting_boundary_isolation() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -2161,7 +2167,7 @@ fn test_concurrent_instances_interrupting_boundary_isolation() {
 
 #[test]
 fn test_concurrent_instances_non_interrupting_boundary_isolation() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -2278,7 +2284,7 @@ fn test_concurrent_instances_non_interrupting_boundary_isolation() {
 
 #[test]
 fn test_trigger_boundary_event_by_message_ref() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -2329,7 +2335,7 @@ fn test_trigger_boundary_event_by_message_ref() {
     process_engine.trigger_boundary_event_by_message_ref(
         "wrongMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after_wrong = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2344,7 +2350,7 @@ fn test_trigger_boundary_event_by_message_ref() {
     process_engine.trigger_boundary_event_by_message_ref(
         "specialCancelMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after_correct = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2368,7 +2374,7 @@ fn test_trigger_boundary_event_by_message_ref() {
 
 #[test]
 fn test_user_task_registers_interrupting_and_non_interrupting_signal_boundary_event_states() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -2501,7 +2507,7 @@ fn test_user_task_registers_interrupting_and_non_interrupting_signal_boundary_ev
 
 #[test]
 fn test_signal_interrupting_boundary_event_on_user_task_cancels_host_and_follows_boundary_path() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -2573,7 +2579,7 @@ fn test_signal_interrupting_boundary_event_on_user_task_cancels_host_and_follows
     runtime_service.trigger_boundary_event_by_signal_ref(
         "cancelSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2610,7 +2616,7 @@ fn test_signal_interrupting_boundary_event_on_user_task_cancels_host_and_follows
 
 #[test]
 fn test_signal_non_interrupting_boundary_event_on_user_task_preserves_host() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -2684,7 +2690,7 @@ fn test_signal_non_interrupting_boundary_event_on_user_task_preserves_host() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "notifySignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -2739,7 +2745,7 @@ fn test_signal_non_interrupting_boundary_event_on_user_task_preserves_host() {
 
 #[test]
 fn test_receive_task_registers_interrupting_and_non_interrupting_signal_boundary_event_states() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -2886,7 +2892,7 @@ fn test_receive_task_registers_interrupting_and_non_interrupting_signal_boundary
 #[test]
 fn test_signal_interrupting_boundary_event_on_receive_task_cancels_host_and_follows_boundary_path()
 {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -2968,7 +2974,7 @@ fn test_signal_interrupting_boundary_event_on_receive_task_cancels_host_and_foll
     runtime_service.trigger_boundary_event_by_signal_ref(
         "cancelSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     // Verify task is deleted
     let tasks_after = task_service
@@ -3017,7 +3023,7 @@ fn test_signal_interrupting_boundary_event_on_receive_task_cancels_host_and_foll
 
 #[test]
 fn test_signal_non_interrupting_boundary_event_on_receive_task_preserves_host() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -3101,7 +3107,7 @@ fn test_signal_non_interrupting_boundary_event_on_receive_task_preserves_host() 
     runtime_service.trigger_boundary_event_by_signal_ref(
         "notifySignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     // Verify original ReceiveTask still exists
     let tasks_after = task_service
@@ -3165,7 +3171,7 @@ fn test_signal_non_interrupting_boundary_event_on_receive_task_preserves_host() 
 
 #[test]
 fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -3217,7 +3223,7 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "wrongSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after_wrong = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -3251,7 +3257,7 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "cancelSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after_correct = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -3277,7 +3283,7 @@ fn test_signal_boundary_event_wrong_signal_ref_is_noop() {
 
 #[test]
 fn test_signal_boundary_event_multi_instance_isolation() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -3371,7 +3377,7 @@ fn test_signal_boundary_event_multi_instance_isolation() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "cancelSignal".to_string(),
         process_instance_2.id.clone(),
-    );
+    ).unwrap();
 
     // Verify instance 1 is unaffected
     let tasks_1_after = task_service
@@ -3443,7 +3449,7 @@ fn test_signal_boundary_event_multi_instance_isolation() {
 
 #[test]
 fn test_signal_intermediate_catch_event_multi_instance_isolation() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -3506,11 +3512,11 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Verify all three instances have wait states
     let wait_states_1_before = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone()).unwrap();
     let wait_states_2_before = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone()).unwrap();
     let wait_states_3_before = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone()).unwrap();
     assert_eq!(wait_states_1_before.len(), 1);
     assert_eq!(wait_states_2_before.len(), 1);
     assert_eq!(wait_states_3_before.len(), 1);
@@ -3536,11 +3542,11 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "Alert Signal".to_string(),
         execution_id_2,
-    );
+    ).unwrap();
 
     // Verify instance 1 is unaffected
     let wait_states_1_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_1.id.clone()).unwrap();
     assert_eq!(
         wait_states_1_after.len(),
         1,
@@ -3558,7 +3564,7 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Verify instance 2 is ended
     let wait_states_2_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_2.id.clone()).unwrap();
     assert!(
         wait_states_2_after.is_empty(),
         "Instance 2 wait state should be cleaned up"
@@ -3575,7 +3581,7 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 
     // Verify instance 3 is unaffected
     let wait_states_3_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_3.id.clone()).unwrap();
     assert_eq!(
         wait_states_3_after.len(),
         1,
@@ -3600,7 +3606,7 @@ fn test_signal_intermediate_catch_event_multi_instance_isolation() {
 /// (non-interrupting scenario).
 #[test]
 fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -3688,7 +3694,7 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
     runtime_service.trigger_boundary_event_by_message_ref(
         "notifyMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let boundary_states_after_msg = runtime_store
@@ -3740,7 +3746,7 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "alertSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let boundary_states_after_sig = runtime_store
@@ -3776,7 +3782,7 @@ fn test_mixed_message_and_signal_boundary_events_on_same_user_task() {
 /// Also verifies cross-type rejection: sending a signal ref to a message boundary and vice versa.
 #[test]
 fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -3830,22 +3836,22 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
     runtime_service.trigger_boundary_event_by_message_ref(
         "wrongMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
     // Wrong signal ref - no-op
     runtime_service.trigger_boundary_event_by_signal_ref(
         "wrongSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
     // Cross-type: sending alertSignal via message trigger - no-op (different subscription kind)
     runtime_service.trigger_boundary_event_by_message_ref(
         "alertSignal".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
     // Cross-type: sending cancelMessage via signal trigger - no-op
     runtime_service.trigger_boundary_event_by_signal_ref(
         "cancelMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let boundary_states = runtime_store
@@ -3880,7 +3886,7 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
     runtime_service.trigger_boundary_event_by_message_ref(
         "cancelMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -3902,7 +3908,7 @@ fn test_mixed_boundary_wrong_ref_and_cross_type_are_noop() {
 
 #[test]
 fn test_intermediate_throw_escalation_triggers_interrupting_boundary_event() {
-    let process_engine = ProcessEngine::new("escalation-boundary-test".to_string());
+    let process_engine = ProcessEngine::new("escalation-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -3980,7 +3986,7 @@ fn test_intermediate_throw_escalation_triggers_interrupting_boundary_event() {
 
 #[test]
 fn test_end_event_escalation_triggers_interrupting_boundary_event() {
-    let process_engine = ProcessEngine::new("end-escalation-boundary-test".to_string());
+    let process_engine = ProcessEngine::new("end-escalation-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4050,7 +4056,7 @@ fn test_end_event_escalation_triggers_interrupting_boundary_event() {
 #[test]
 fn test_non_interrupting_escalation_boundary_preserves_host_activity() {
     let process_engine =
-        ProcessEngine::new("non-interrupting-escalation-boundary-test".to_string());
+        ProcessEngine::new("non-interrupting-escalation-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4159,7 +4165,7 @@ fn test_non_interrupting_escalation_boundary_preserves_host_activity() {
 
 #[test]
 fn test_escalation_boundary_matches_throw_ref_to_boundary_escalation_code() {
-    let process_engine = ProcessEngine::new("escalation-code-ref-boundary-test".to_string());
+    let process_engine = ProcessEngine::new("escalation-code-ref-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4221,7 +4227,7 @@ fn test_escalation_boundary_matches_throw_ref_to_boundary_escalation_code() {
 #[test]
 fn test_nested_subprocess_escalation_prefers_nearest_boundary_scope() {
     let process_engine =
-        ProcessEngine::new("nested-subprocess-escalation-nearest-boundary-test".to_string());
+        ProcessEngine::new("nested-subprocess-escalation-nearest-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4324,7 +4330,7 @@ fn test_nested_subprocess_escalation_prefers_nearest_boundary_scope() {
 
 #[test]
 fn test_no_code_escalation_boundary_catches_any_escalation() {
-    let process_engine = ProcessEngine::new("no-code-escalation-boundary-test".to_string());
+    let process_engine = ProcessEngine::new("no-code-escalation-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4418,7 +4424,7 @@ fn test_no_code_escalation_boundary_catches_any_escalation() {
 #[test]
 fn test_escalation_boundary_prefers_exact_code_over_no_code_on_same_host() {
     let process_engine =
-        ProcessEngine::new("exact-code-before-catch-all-boundary-test".to_string());
+        ProcessEngine::new("exact-code-before-catch-all-boundary-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4509,7 +4515,7 @@ fn test_escalation_boundary_prefers_exact_code_over_no_code_on_same_host() {
 }
 
 fn run_named_message_boundary_case(case_name: &str, host_xml: &str) {
-    let process_engine = ProcessEngine::new(format!("named-boundary-{case_name}"));
+    let process_engine = ProcessEngine::new(format!("named-boundary-{case_name}")).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -4580,7 +4586,7 @@ fn run_named_message_boundary_case(case_name: &str, host_xml: &str) {
     runtime_service.trigger_boundary_event_by_message_ref(
         "external.cancel".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())

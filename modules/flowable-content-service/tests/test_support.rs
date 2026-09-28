@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 #![allow(dead_code)]
 
 use flowable_content_service::{CreateContentItemRequest, FlowableContentService};
@@ -5,14 +11,14 @@ use flowable_engine::engine::process_engine::ProcessEngine;
 use std::sync::Arc;
 
 pub fn service(name: &str) -> FlowableContentService {
-    FlowableContentService::new(Arc::new(ProcessEngine::new(name.to_string())))
+    FlowableContentService::new(Arc::new(ProcessEngine::new(name.to_string()).unwrap()))
 }
 
 pub fn persistent_service(name: &str, path: &str) -> FlowableContentService {
     FlowableContentService::new(Arc::new(ProcessEngine::new_with_db_path(
         name.to_string(),
         path,
-    )))
+    ).unwrap()))
 }
 
 pub fn create_sample_items(service: &FlowableContentService) {

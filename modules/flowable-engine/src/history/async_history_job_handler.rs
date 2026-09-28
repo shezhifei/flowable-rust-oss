@@ -177,7 +177,7 @@ pub fn create_history_job(
     payload: String,
     handler_type: &str,
     command_context: &mut CommandContext,
-) -> String {
+) -> Result<String, crate::error::FlowableError> {
     use uuid::Uuid;
     let job_id = Uuid::new_v4().to_string();
     let now = command_context
@@ -222,9 +222,9 @@ pub fn create_history_job(
         },
         Some(&RuntimeJobType::History),
         session,
-    );
+    )?;
 
-    job_id
+    Ok(job_id)
 }
 
 /// Type alias for a shared history job handler.
@@ -259,7 +259,7 @@ impl HistoryJobHandler for AsyncHistoryJobHandler {
             Ok(batch) => batch,
             Err(e) => {
                 tracing::warn!("Failed to deserialize HistoryJobBatch: {e}");
-                handle_failure(command_context, job, &format!("Invalid payload: {e}"));
+                handle_failure(command_context, job, &format!("Invalid payload: {e}"))?;
                 return Err(FlowableError::ExecutionError(format!(
                     "Invalid history job payload: {e}"
                 )));
@@ -269,7 +269,7 @@ impl HistoryJobHandler for AsyncHistoryJobHandler {
         for operation in &batch.operations {
             if let Err(e) = replay_operation(operation, command_context) {
                 tracing::warn!("History job replay failed for operation: {e:?}");
-                handle_failure(command_context, job, &format!("{e:?}"));
+                handle_failure(command_context, job, &format!("{e:?}"))?;
                 return Err(e);
             }
         }
@@ -290,7 +290,7 @@ fn handle_failure(
     command_context: &mut CommandContext,
     job: &RuntimeTimerJobState,
     error_message: &str,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let retries = job.retries.unwrap_or(0);
     let mut updated = job.clone();
     updated.lock_owner = None;
@@ -315,7 +315,8 @@ fn handle_failure(
         updated.due_time = Some(now + backoff_ms);
     }
     let (store, session) = command_context.store_and_session();
-    store.insert_timer_job_state(&updated, session);
+    store.insert_timer_job_state(&updated, session)?;
+    Ok(())
 }
 
 fn replay_operation(op: &HistoryJobPayload, ctx: &mut CommandContext) -> Result<(), FlowableError> {
@@ -509,7 +510,7 @@ fn replay_operation(op: &HistoryJobPayload, ctx: &mut CommandContext) -> Result<
                 );
 
                 // D3: next_historic_task_log_number at replay time
-                let process_instance = store.find_process_instance(process_instance_id, session);
+                let process_instance = store.find_process_instance(process_instance_id, session)?;
                 let log_number = store.next_historic_task_log_number(session);
                 let log_entry = crate::history::historic_entities::HistoricTaskLogEntry {
                     id: uuid::Uuid::new_v4().to_string(),
@@ -630,7 +631,7 @@ fn replay_operation(op: &HistoryJobPayload, ctx: &mut CommandContext) -> Result<
 
                 if let Some(task) = store.get_historic_task_instance(task_id, session) {
                     let process_instance =
-                        store.find_process_instance(&task.process_instance_id, session);
+                        store.find_process_instance(&task.process_instance_id, session)?;
                     let log_number = store.next_historic_task_log_number(session);
                     let log_entry = crate::history::historic_entities::HistoricTaskLogEntry {
                         id: uuid::Uuid::new_v4().to_string(),

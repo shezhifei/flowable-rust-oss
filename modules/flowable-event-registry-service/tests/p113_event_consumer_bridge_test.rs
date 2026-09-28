@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P113 e2e: event-registry inbound → CMMN event subscription bridge.
 //!
 //! Java references (verified against flowable-engine sources):
@@ -226,7 +232,7 @@ fn payload_case_model(case_key: &str, event_key: &str) -> CmmnModel {
 #[test]
 fn inbound_event_hits_subscription_and_triggers_sentry_task() {
     // CmmnEventRegistryEventConsumer.java:80-106 + testGenericEventListenerNoCorrelation
-    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-hit".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-hit".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -287,7 +293,7 @@ fn inbound_event_hits_subscription_and_triggers_sentry_task() {
 #[test]
 fn correlation_match_triggers_only_matching_case() {
     // CmmnEventRegistryConsumerTest.testGenericEventListenerWithCorrelation
-    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-corr".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-corr".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -380,7 +386,7 @@ fn correlation_match_triggers_only_matching_case() {
 fn no_subscription_is_silently_discarded() {
     // BaseEventRegistryEventConsumer / CmmnEventRegistryEventConsumer: empty
     // subscription list → empty processing info, not an error.
-    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-none".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-none".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -407,7 +413,7 @@ fn no_subscription_is_silently_discarded() {
 #[test]
 fn payload_maps_to_case_variables_via_out_parameters() {
     // EventInstanceCmmnUtil.java:46-68 + testGenericEventListenerWithPayload
-    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-payload".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-payload".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -476,7 +482,7 @@ fn payload_maps_to_case_variables_via_out_parameters() {
 fn multi_subscription_hit_triggers_all_broadcast_cases() {
     // Single inbound event with no correlation hits every withoutConfiguration
     // subscription for that eventType (BaseEventRegistryEventConsumer:172-174).
-    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-multi".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-multi".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -521,7 +527,7 @@ fn multi_subscription_hit_triggers_all_broadcast_cases() {
 fn second_delivery_is_idempotent_after_subscription_consumed() {
     // After occur the subscription is deleted; a second event finds no match
     // and is discarded without error (same silent path as no-subscription).
-    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-idem".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p113-e2e-idem".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -560,7 +566,7 @@ fn second_delivery_is_idempotent_after_subscription_consumed() {
 
 #[test]
 fn default_service_still_uses_noop_not_cmmn_consumer() {
-    let engine = Arc::new(ProcessEngine::new("p113-noop".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p113-noop".to_string()).unwrap());
     let service = FlowableEventRegistryService::new(Arc::clone(&engine));
     assert!(
         service.configuration().consumer("default").is_some(),

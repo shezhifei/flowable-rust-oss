@@ -113,9 +113,10 @@ pub async fn auth_middleware(
         // page calls engine endpoints with the session cookie instead of Basic
         // credentials. A presented UI session authenticates the request with
         // the same strength as a password check (the cookie was issued by one).
-        if let Some(scope) =
+        let cookie_scope =
             flowable_ui_rest::auth::scope_from_cookie_headers(&engine, &state.ui_auth, req.headers())
-        {
+                .map_err(ApiError::from)?;
+        if let Some(scope) = cookie_scope {
             if requires_admin(req.method(), req.uri().path()) && !auth.is_admin_user(&scope.user_id)
             {
                 return Err(ApiError::Forbidden(
@@ -140,10 +141,18 @@ pub async fn auth_middleware(
         return Err(ApiError::Unauthorized);
     }
 
-    if !engine
+    // Java parity: `IdentityService.checkPassword` runs inside a command whose session
+    // flush/commit failures throw (`CommandContext.close()` -> rethrowExceptionIfNeeded,
+    // flowable-engine-common/.../interceptor/CommandContext.java:66-115). A storage failure
+    // during credential verification is a server error, not "wrong password" (401).
+    let password_ok = engine
         .get_identity_service()
         .check_password(user_id, password)
-    {
+        .map_err(|error| {
+            tracing::error!("password check failed: {error}");
+            ApiError::InternalServerError(format!("Credential verification failed: {error}"))
+        })?;
+    if !password_ok {
         // Count only real credential-verification failures (the expensive
         // argon2id path), not malformed-header rejections above.
         let client_key = client_failure_key(&req);

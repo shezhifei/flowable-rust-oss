@@ -80,8 +80,8 @@ fn find_waiting_event_intermediate_catch_execution(
     execution_id: &str,
     expected_kind: &EventSubscriptionKind,
     event_ref: &str,
-) -> Option<Execution> {
-    let wait_state = store.find_event_wait_state_by_execution_id(execution_id, session)?;
+) -> Result<Option<Execution>, crate::error::FlowableError> {
+    let Some(wait_state) = store.find_event_wait_state_by_execution_id(execution_id, session) else { return Ok(None); };
 
     let kind_matches = matches!(
         (&wait_state.wait_kind, expected_kind),
@@ -119,32 +119,23 @@ fn find_waiting_event_intermediate_catch_execution(
         )
     );
     if !kind_matches {
-        return None;
+        return Ok(None);
     }
 
-    let ref_matches = wait_state.event_subscription.as_ref().is_some_and(|sub| {
-        sub.kind == *expected_kind
-            && event_ref_matches(
-                store,
-                dm,
-                sub,
-                expected_kind,
-                event_ref,
-                &wait_state,
-                session,
-            )
-    });
+    let ref_matches = if let Some(sub) = wait_state.event_subscription.as_ref() {
+        sub.kind == *expected_kind && event_ref_matches(store, dm, sub, expected_kind, event_ref, &wait_state, session)?
+    } else { false };
     if !ref_matches {
-        return None;
+        return Ok(None);
     }
 
-    let execution = em.find_by_id(execution_id, session)?.clone();
+    let Some(execution) = em.find_by_id(execution_id, session) else { return Ok(None); };
 
     if execution.is_active {
-        return None;
+        return Ok(None);
     }
 
-    Some(execution)
+    Ok(Some(execution))
 }
 
 fn event_ref_matches(
@@ -155,16 +146,16 @@ fn event_ref_matches(
     trigger_ref: &str,
     wait_state: &RuntimeEventWaitState,
     session: &mut crate::persistence::db_session::DbSession,
-) -> bool {
+) -> Result<bool, crate::error::FlowableError> {
     if subscription.event_ref == trigger_ref {
-        return true;
+        return Ok(true);
     }
 
     if *expected_kind == EventSubscriptionKind::Signal {
-        let model = signal_model_for_wait_state(store, dm, wait_state, session);
-        signal_refs_match_in_model(model.as_deref(), &subscription.event_ref, trigger_ref)
+        let model = signal_model_for_wait_state(store, dm, wait_state, session)?;
+        Ok(signal_refs_match_in_model(model.as_deref(), &subscription.event_ref, trigger_ref))
     } else {
-        false
+        Ok(false)
     }
 }
 
@@ -173,17 +164,14 @@ fn signal_model_for_wait_state(
     dm: &crate::engine::deployment_manager::DeploymentManager,
     wait_state: &RuntimeEventWaitState,
     session: &mut crate::persistence::db_session::DbSession,
-) -> Option<std::sync::Arc<BpmnModel>> {
-    let process_definition_id = store
-        .find_execution(&wait_state.execution_id, session)
-        .and_then(|execution| execution.process_definition_id)
-        .or_else(|| {
-            store
-                .find_process_instance(&wait_state.process_instance_id, session)
-                .map(|instance| instance.process_definition_id)
-        })?;
-
-    dm.get_bpmn_model(&process_definition_id)
+) -> Result<Option<std::sync::Arc<BpmnModel>>, crate::error::FlowableError> {
+    let process_definition_id = match store.find_execution(&wait_state.execution_id, session)
+        .and_then(|execution| execution.process_definition_id) {
+        Some(id) => Some(id),
+        None => store.find_process_instance(&wait_state.process_instance_id, session)?
+            .map(|instance| instance.process_definition_id),
+    };
+    Ok(process_definition_id.and_then(|id| dm.get_bpmn_model(&id)))
 }
 
 fn signal_refs_match_in_model(
@@ -260,7 +248,7 @@ impl Command<()> for TriggerIntermediateCatchEventCmd {
         require_active_execution(&execution)?;
 
         execution.is_active = true;
-        em.update(&execution, session);
+        em.update(&execution, session)?;
         agenda.plan_take_outgoing_sequence_flows_operation(execution);
         Ok(())
     }
@@ -337,7 +325,7 @@ impl Command<()> for TriggerEventIntermediateCatchCmd {
                 &self.execution_id,
                 &self.subscription_kind,
                 &self.event_ref,
-            ) {
+            )? {
                 Some(execution) => execution,
                 None => {
                     let kind_label = match self.subscription_kind {
@@ -380,7 +368,7 @@ impl Command<()> for TriggerEventIntermediateCatchCmd {
                         .get_historic_variable_instance(&variable_id, session)
                         .is_some()
                     {
-                        hm.record_variable_updated(&variable_id, value.clone(), session);
+                        hm.record_variable_updated(&variable_id, value.clone(), session)?;
                     } else {
                         hm.record_variable_created(
                             &variable_id,
@@ -391,7 +379,7 @@ impl Command<()> for TriggerEventIntermediateCatchCmd {
                             Some(&execution.id),
                             None,
                             session,
-                        );
+                        )?;
                     }
                 }
             }
@@ -456,7 +444,7 @@ impl Command<()> for TriggerEventIntermediateCatchCmd {
                                 activity_id,
                                 Some(crate::history::delete_reason::EVENT_BASED_GATEWAY_CANCEL),
                                 session,
-                            );
+                            )?;
                         }
                         store.delete_event_wait_state_by_execution_id(&sibling_id, session);
                         store.delete_boundary_event_states_by_host_execution_id(
@@ -476,7 +464,7 @@ impl Command<()> for TriggerEventIntermediateCatchCmd {
             let agenda = &mut command_context.agenda;
 
             execution.is_active = true;
-            em.update(&execution, session);
+            em.update(&execution, session)?;
             agenda.plan_take_outgoing_sequence_flows_operation(execution);
         }
         Ok(())
@@ -583,7 +571,7 @@ impl Command<()> for TriggerTimerIntermediateCatchEventCmd {
                                 activity_id,
                                 Some(crate::history::delete_reason::EVENT_BASED_GATEWAY_CANCEL),
                                 session,
-                            );
+                            )?;
                         }
                         store.delete_event_wait_state_by_execution_id(&sibling_id, session);
                         store.delete_boundary_event_states_by_host_execution_id(
@@ -603,7 +591,7 @@ impl Command<()> for TriggerTimerIntermediateCatchEventCmd {
             let agenda = &mut command_context.agenda;
 
             execution.is_active = true;
-            em.update(&execution, session);
+            em.update(&execution, session)?;
             agenda.plan_take_outgoing_sequence_flows_operation(execution);
         }
         Ok(())

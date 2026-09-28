@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P92: Event Registry BPMN wait-state registration + typed trigger bridge.
 //!
 //! Covers four wait-state shapes that register `EventSubscriptionKind::EventRegistry`
@@ -29,7 +35,7 @@ fn deploy_xml(engine: &ProcessEngine, name: &str, xml: &str) {
 
 #[test]
 fn event_registry_intermediate_catch_registers_and_triggers() {
-    let engine = ProcessEngine::new("p92-er-catch".to_string());
+    let engine = ProcessEngine::new("p92-er-catch".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -70,6 +76,7 @@ fn event_registry_intermediate_catch_registers_and_triggers() {
 
     let wait_state = runtime
         .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap()
         .into_iter()
         .find(|state| state.activity_id.as_deref() == Some("waitEvent"))
         .expect("event-registry intermediate catch should be waiting");
@@ -79,7 +86,7 @@ fn event_registry_intermediate_catch_registers_and_triggers() {
         EventSubscriptionKind::EventRegistry,
         "orderReceived".to_string(),
         wait_state.execution_id.clone(),
-    );
+    ).unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -90,7 +97,7 @@ fn event_registry_intermediate_catch_registers_and_triggers() {
 
 #[test]
 fn event_registry_receive_task_registers_and_triggers() {
-    let engine = ProcessEngine::new("p92-er-receive".to_string());
+    let engine = ProcessEngine::new("p92-er-receive".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -131,6 +138,7 @@ fn event_registry_receive_task_registers_and_triggers() {
 
     let wait_state = runtime
         .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap()
         .into_iter()
         .find(|state| state.activity_id.as_deref() == Some("receiveOrder"))
         .expect("event-registry receive task should be waiting");
@@ -148,7 +156,7 @@ fn event_registry_receive_task_registers_and_triggers() {
         EventSubscriptionKind::EventRegistry,
         "orderReceived".to_string(),
         wait_state.execution_id.clone(),
-    );
+    ).unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -159,7 +167,7 @@ fn event_registry_receive_task_registers_and_triggers() {
 
 #[test]
 fn event_registry_boundary_registers_and_triggers() {
-    let engine = ProcessEngine::new("p92-er-boundary".to_string());
+    let engine = ProcessEngine::new("p92-er-boundary".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -227,7 +235,7 @@ fn event_registry_boundary_registers_and_triggers() {
         EventSubscriptionKind::EventRegistry,
         "orderReceived".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -238,7 +246,7 @@ fn event_registry_boundary_registers_and_triggers() {
 
 #[test]
 fn event_registry_event_subprocess_registers_and_triggers() {
-    let engine = ProcessEngine::new("p92-er-esp".to_string());
+    let engine = ProcessEngine::new("p92-er-esp".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -329,7 +337,7 @@ fn event_registry_event_subprocess_registers_and_triggers() {
 
 #[test]
 fn event_registry_start_event_registers_and_starts_process() {
-    let engine = ProcessEngine::new("p92-er-start".to_string());
+    let engine = ProcessEngine::new("p92-er-start".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     let xml = format!(

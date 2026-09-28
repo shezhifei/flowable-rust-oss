@@ -74,13 +74,13 @@ impl ActivityBehavior for MultiInstanceActivityBehavior {
             execution.is_active = false;
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
         }
 
         if loop_cardinality <= 0 {
             // Java: `nrOfInstances == 0` → `cleanupMiRoot(execution)`.
             // Zero instances: COMPLETED (not WITH_CONDITION).
-            cleanup_mi_root_and_leave(execution, command_context, false);
+            cleanup_mi_root_and_leave(execution, command_context, false)?;
             return Ok(());
         }
 
@@ -295,7 +295,7 @@ impl MultiInstanceActivityBehavior {
         // stable; ended rows do not accumulate between rounds (P6-A).
         let mut child = match find_reusable_sequential_child(command_context, &execution.id) {
             Some(existing) => existing,
-            None => create_sequential_instance_child(execution, command_context, false),
+            None => create_sequential_instance_child(execution, command_context, false)?,
         };
 
         let mut current_index = index;
@@ -310,7 +310,7 @@ impl MultiInstanceActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
 
             // Java `continueSequentialMultiInstance` (non-SubProcess path):
             // delete all local variables except the nrOf* bookkeeping names
@@ -326,26 +326,26 @@ impl MultiInstanceActivityBehavior {
             child.is_ended = false;
             command_context
                 .execution_entity_manager
-                .update(&child, &mut command_context.session);
+                .update(&child, &mut command_context.session)?;
 
             // Java `ContinueMultiInstanceOperation#executeSynchronous` records
             // activity start for each MI instance before executing the inner
             // behavior.
-            record_mi_child_activity_start(command_context, &child);
+            record_mi_child_activity_start(command_context, &child)?;
 
             self.inner_behavior.execute(&mut child, command_context)?;
 
             if child_has_wait_state(command_context, &child) {
                 command_context
                     .execution_entity_manager
-                    .update(&child, &mut command_context.session);
+                    .update(&child, &mut command_context.session)?;
                 return Ok(());
             }
 
             // Synchronous completion of one round: record activity end before
             // moving to the next iteration (Java `continueSequentialMultiInstance`
             // calls recordActivityEnd before clearing locals and re-executing).
-            record_mi_child_activity_end(command_context, &child);
+            record_mi_child_activity_end(command_context, &child)?;
 
             // Synchronous completion of one round: keep the child alive for
             // the next iteration (Java does not end it between rounds).
@@ -361,11 +361,11 @@ impl MultiInstanceActivityBehavior {
                 &self.mi_characteristics,
                 execution,
             )? {
-                record_mi_child_activity_end(command_context, &child);
-                end_sequential_instance_child(command_context, &mut child);
+                record_mi_child_activity_end(command_context, &child)?;
+                end_sequential_instance_child(command_context, &mut child)?;
                 // Java `super.leave` → `cleanupMiRoot` with condition satisfied.
                 // SequentialMultiInstanceBehavior.java:92-93.
-                cleanup_mi_root_and_leave(execution, command_context, true);
+                cleanup_mi_root_and_leave(execution, command_context, true)?;
                 return Ok(());
             }
 
@@ -373,10 +373,10 @@ impl MultiInstanceActivityBehavior {
         }
 
         // Completed all loops: end the reused child, then cleanupMiRoot leave.
-        record_mi_child_activity_end(command_context, &child);
-        end_sequential_instance_child(command_context, &mut child);
+        record_mi_child_activity_end(command_context, &child)?;
+        end_sequential_instance_child(command_context, &mut child)?;
         // SequentialMultiInstanceBehavior.java:95-96 — all rounds done without condition.
-        cleanup_mi_root_and_leave(execution, command_context, false);
+        cleanup_mi_root_and_leave(execution, command_context, false)?;
 
         Ok(())
     }
@@ -396,7 +396,7 @@ impl MultiInstanceActivityBehavior {
         collection_items: Option<&[Value]>,
     ) -> Result<(), crate::error::FlowableError> {
         if index >= total {
-            cleanup_mi_root_and_leave(execution, command_context, false);
+            cleanup_mi_root_and_leave(execution, command_context, false)?;
             return Ok(());
         }
 
@@ -405,12 +405,12 @@ impl MultiInstanceActivityBehavior {
         execution.set_local_variable("nrOfCompletedInstances".to_string(), index.into());
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         // Always a fresh child (never reuse). Java continue path also sets
         // scope=true before executeOriginalBehavior; SubProcess.execute sets
         // it again defensively.
-        let mut child = create_sequential_instance_child(execution, command_context, true);
+        let mut child = create_sequential_instance_child(execution, command_context, true)?;
         self.apply_instance_variables(
             &mut child,
             index,
@@ -418,7 +418,7 @@ impl MultiInstanceActivityBehavior {
         );
         command_context
             .execution_entity_manager
-            .update(&child, &mut command_context.session);
+            .update(&child, &mut command_context.session)?;
 
         self.inner_behavior.execute(&mut child, command_context)?;
         // Nested wait / end is handled by agenda ops and
@@ -441,7 +441,7 @@ impl MultiInstanceActivityBehavior {
         execution.set_local_variable("nrOfCompletedInstances".to_string(), 0.into());
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         let mut completed_instances = 0;
         let mut active_instances = total;
@@ -469,26 +469,26 @@ impl MultiInstanceActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&child, &mut command_context.session);
+                .insert(&child, &mut command_context.session)?;
 
-            record_mi_child_activity_start(command_context, &child);
+            record_mi_child_activity_start(command_context, &child)?;
 
             self.inner_behavior.execute(&mut child, command_context)?;
 
             if child_has_wait_state(command_context, &child) {
                 command_context
                     .execution_entity_manager
-                    .update(&child, &mut command_context.session);
+                    .update(&child, &mut command_context.session)?;
                 continue;
             }
 
-            record_mi_child_activity_end(command_context, &child);
+            record_mi_child_activity_end(command_context, &child)?;
 
             child.is_active = false;
             child.is_ended = true;
             command_context
                 .execution_entity_manager
-                .update(&child, &mut command_context.session);
+                .update(&child, &mut command_context.session)?;
 
             completed_instances += 1;
             active_instances -= 1;
@@ -500,7 +500,7 @@ impl MultiInstanceActivityBehavior {
                 .set_local_variable("nrOfActiveInstances".to_string(), active_instances.into());
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
 
             if multi_instance_completion_condition_satisfied(
                 command_context,
@@ -518,7 +518,7 @@ impl MultiInstanceActivityBehavior {
         )?;
         if completed_instances == total || with_condition {
             // Java ParallelMultiInstanceBehavior.java:302-319.
-            cleanup_mi_root_and_leave(execution, command_context, with_condition);
+            cleanup_mi_root_and_leave(execution, command_context, with_condition)?;
             return Ok(());
         }
 
@@ -527,7 +527,7 @@ impl MultiInstanceActivityBehavior {
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         Ok(())
     }
@@ -571,10 +571,10 @@ pub(crate) fn materialize_multi_instance_root(
         execution.activity_name = None;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
         command_context
             .execution_entity_manager
-            .insert(&mi_root, &mut command_context.session);
+            .insert(&mi_root, &mut command_context.session)?;
         *execution = mi_root;
         return Ok(());
     }
@@ -608,7 +608,7 @@ pub(crate) fn materialize_multi_instance_root(
         .delete(&old_id, &mut command_context.session);
     command_context
         .execution_entity_manager
-        .insert(&mi_root, &mut command_context.session);
+        .insert(&mi_root, &mut command_context.session)?;
     *execution = mi_root;
     Ok(())
 }
@@ -626,7 +626,7 @@ pub(crate) fn cleanup_mi_root_and_leave(
     mi_body_execution: &Execution,
     command_context: &mut CommandContext,
     completed_with_condition: bool,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(mi_root) = resolve_multi_instance_root(command_context, mi_body_execution) else {
         // Fallback: not under an MI root — take outgoing on the given execution.
         let mut leave = mi_body_execution.clone();
@@ -635,11 +635,11 @@ pub(crate) fn cleanup_mi_root_and_leave(
         leave.is_multi_instance_root = false;
         command_context
             .execution_entity_manager
-            .update(&leave, &mut command_context.session);
+            .update(&leave, &mut command_context.session)?;
         command_context
             .agenda
             .plan_take_outgoing_sequence_flows_operation(leave);
-        return;
+        return Ok(());
     };
 
     // P119: emit MULTI_INSTANCE_ACTIVITY_COMPLETED(*) before the root is
@@ -675,12 +675,12 @@ pub(crate) fn cleanup_mi_root_and_leave(
     // Promote non-bookkeeping variables from the MI root onto its parent before
     // the root is deleted. Java `cleanupMiRoot` / variable aggregation writes
     // completed aggregates onto `multiInstanceRootExecution.getParent()`.
-    promote_mi_root_variables_to_parent(command_context, &mi_root);
+    promote_mi_root_variables_to_parent(command_context, &mi_root)?;
 
     // Delete MI root tree (instance scopes + nested SubProcess children).
     // Java `deleteChildExecutions` is recursive; SubProcess MI nests tasks under
     // the instance scope child, so a one-level delete leaves orphans.
-    delete_execution_tree(command_context, &mi_root_id);
+    delete_execution_tree(command_context, &mi_root_id)?;
 
     // Fresh leave execution under the MI root's parent (may be PI or fork scope).
     let mut leave = new_child_execution(&mi_root, parent_id);
@@ -696,10 +696,11 @@ pub(crate) fn cleanup_mi_root_and_leave(
 
     command_context
         .execution_entity_manager
-        .insert(&leave, &mut command_context.session);
+        .insert(&leave, &mut command_context.session)?;
     command_context
         .agenda
         .plan_take_outgoing_sequence_flows_operation(leave);
+    Ok(())
 }
 
 /// Bookkeeping locals that belong only on the MI root and must not leak to the
@@ -710,15 +711,15 @@ const MI_ROOT_BOOKKEEPING: &[&str] = &[
     "nrOfActiveInstances",
 ];
 
-fn promote_mi_root_variables_to_parent(command_context: &mut CommandContext, mi_root: &Execution) {
+fn promote_mi_root_variables_to_parent(command_context: &mut CommandContext, mi_root: &Execution) -> Result<(), crate::error::FlowableError> {
     let Some(parent_id) = mi_root.parent_id.as_deref() else {
-        return;
+        return Ok(());
     };
     let Some(mut parent) = command_context
         .execution_entity_manager
         .find_by_id(parent_id, &mut command_context.session)
     else {
-        return;
+        return Ok(());
     };
 
     // Prefer the live MI root row (may have aggregation writes not in the
@@ -746,7 +747,8 @@ fn promote_mi_root_variables_to_parent(command_context: &mut CommandContext, mi_
 
     command_context
         .execution_entity_manager
-        .update(&parent, &mut command_context.session);
+        .update(&parent, &mut command_context.session)?;
+    Ok(())
 }
 
 /// Walk to the multi-instance root for `execution` (self or ancestor).
@@ -933,7 +935,7 @@ fn create_sequential_instance_child(
     mi_root: &Execution,
     command_context: &mut CommandContext,
     is_scope: bool,
-) -> Execution {
+) -> Result<Execution, crate::error::FlowableError> {
     let mut child = mi_root.clone();
     child.id = Uuid::new_v4().to_string();
     child.parent_id = Some(mi_root.id.clone());
@@ -949,14 +951,15 @@ fn create_sequential_instance_child(
     child.transient_variables.clear();
     command_context
         .execution_entity_manager
-        .insert(&child, &mut command_context.session);
-    child
+        .insert(&child, &mut command_context.session)?;
+    Ok(child)
 }
 
 /// Recursively delete an execution and all descendants (Java
 /// `deleteChildExecutions` + `deleteExecutionAndRelatedData` with no reason).
-pub(crate) fn delete_execution_tree(command_context: &mut CommandContext, root_id: &str) {
-    delete_execution_tree_with_reason(command_context, root_id, None);
+pub(crate) fn delete_execution_tree(command_context: &mut CommandContext, root_id: &str) -> Result<(), crate::error::FlowableError> {
+    delete_execution_tree_with_reason(command_context, root_id, None)?;
+    Ok(())
 }
 
 /// Java `deleteChildExecutions` + `deleteExecutionAndRelatedData(reason)`:
@@ -967,7 +970,7 @@ pub(crate) fn delete_execution_tree_with_reason(
     command_context: &mut CommandContext,
     root_id: &str,
     delete_reason: Option<&str>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let child_ids: Vec<String> = command_context
         .execution_entity_manager
         .find_child_executions_by_parent_execution_id(root_id, &mut command_context.session)
@@ -975,9 +978,10 @@ pub(crate) fn delete_execution_tree_with_reason(
         .map(|c| c.id)
         .collect();
     for child_id in child_ids {
-        delete_execution_tree_with_reason(command_context, &child_id, delete_reason);
+        delete_execution_tree_with_reason(command_context, &child_id, delete_reason)?;
     }
-    delete_execution_and_related_data(command_context, root_id, delete_reason);
+    delete_execution_and_related_data(command_context, root_id, delete_reason)?;
+    Ok(())
 }
 
 /// Java `ExecutionEntityManager.deleteExecutionAndRelatedData(execution, deleteReason, …)`:
@@ -991,7 +995,7 @@ pub(crate) fn delete_execution_and_related_data(
     command_context: &mut CommandContext,
     execution_id: &str,
     delete_reason: Option<&str>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     // P119: MULTI_INSTANCE_ACTIVITY_CANCELLED when cancelling an MI root
     // (Java `ExecutionEntityManagerImpl.dispatchExecutionCancelled` →
     // `dispatchMultiInstanceActivityCancelled` at lines 755-756 / 777-785).
@@ -1034,7 +1038,7 @@ pub(crate) fn delete_execution_and_related_data(
     // 1050-1075 / ACTIVITY_MESSAGE_CANCELLED at 1063-1066). Normal message
     // receive deletes the subscription outside this path and must not fire.
     dispatch_message_cancelled_for_execution(command_context, execution_id);
-    record_activity_end_for_execution(command_context, execution_id, delete_reason);
+    record_activity_end_for_execution(command_context, execution_id, delete_reason)?;
     delete_execution_related_runtime_data(command_context, execution_id);
     command_context
         .runtime_store
@@ -1045,6 +1049,7 @@ pub(crate) fn delete_execution_and_related_data(
     command_context
         .execution_entity_manager
         .delete(execution_id, &mut command_context.session);
+    Ok(())
 }
 
 /// Ends the open historic activity for `execution_id` when it has an
@@ -1059,28 +1064,29 @@ pub(crate) fn record_activity_end_for_execution(
     command_context: &mut CommandContext,
     execution_id: &str,
     delete_reason: Option<&str>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(execution) = command_context
         .runtime_store
         .find_execution(execution_id, &mut command_context.session)
     else {
-        return;
+        return Ok(());
     };
     if execution.is_multi_instance_root {
-        return;
+        return Ok(());
     }
     let Some(activity_id) = execution.activity_id.as_deref() else {
-        return;
+        return Ok(());
     };
     if activity_id.is_empty() {
-        return;
+        return Ok(());
     }
     command_context.history_manager.record_activity_end(
         execution_id,
         activity_id,
         delete_reason,
         &mut command_context.session,
-    );
+    )?;
+    Ok(())
 }
 
 /// Java `EndExecutionOperation#handleMultiInstanceSubProcess` +
@@ -1133,7 +1139,7 @@ pub(crate) fn leave_sequential_subprocess_mi_instance(
         mi_root.set_local_variable("nrOfActiveInstances".to_string(), 1.into());
         command_context
             .execution_entity_manager
-            .update(&mi_root, &mut command_context.session);
+            .update(&mi_root, &mut command_context.session)?;
 
         let complete_condition =
             multi_instance_completion_condition_satisfied(command_context, &mi, &mi_root)?;
@@ -1141,11 +1147,11 @@ pub(crate) fn leave_sequential_subprocess_mi_instance(
 
         // Java DestroyScope on the completed SubProcess scope before continue/leave.
         let scope_id = scope_execution.id.clone();
-        delete_execution_tree(command_context, &scope_id);
+        delete_execution_tree(command_context, &scope_id)?;
 
         if complete_condition || !more_rounds {
             // SequentialMultiInstanceBehavior.java:90-97.
-            cleanup_mi_root_and_leave(&mi_root, command_context, complete_condition);
+            cleanup_mi_root_and_leave(&mi_root, command_context, complete_condition)?;
             return Ok(true);
         }
 
@@ -1166,16 +1172,16 @@ pub(crate) fn leave_sequential_subprocess_mi_instance(
     mi_root.set_local_variable("nrOfActiveInstances".to_string(), nr_of_active.into());
     command_context
         .execution_entity_manager
-        .update(&mi_root, &mut command_context.session);
+        .update(&mi_root, &mut command_context.session)?;
 
     let scope_id = scope_execution.id.clone();
-    delete_execution_tree(command_context, &scope_id);
+    delete_execution_tree(command_context, &scope_id)?;
 
     let complete_condition =
         multi_instance_completion_condition_satisfied(command_context, &mi, &mi_root)?;
     if complete_condition || nr_of_completed >= nr_of_instances || nr_of_active <= 0 {
         // Parallel MultiInstance leave with optional completion condition.
-        cleanup_mi_root_and_leave(&mi_root, command_context, complete_condition);
+        cleanup_mi_root_and_leave(&mi_root, command_context, complete_condition)?;
     }
     Ok(true)
 }
@@ -1349,27 +1355,27 @@ fn clear_sequential_instance_locals(child: &mut Execution) {
 pub(crate) fn record_mi_child_activity_start(
     command_context: &mut CommandContext,
     child: &Execution,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(activity_id) = child.activity_id.as_deref() else {
-        return;
+        return Ok(());
     };
     let Some(process_def_id) = child.process_definition_id.as_deref() else {
-        return;
+        return Ok(());
     };
     let Some(process_instance_id) = child.process_instance_id.as_deref() else {
-        return;
+        return Ok(());
     };
     let Some(bpmn_model) = command_context
         .deployment_manager
         .get_bpmn_model(process_def_id)
     else {
-        return;
+        return Ok(());
     };
     let Some(main_process) = bpmn_model.main_process.as_ref() else {
-        return;
+        return Ok(());
     };
     let Some(flow_element) = find_flow_element(main_process, activity_id) else {
-        return;
+        return Ok(());
     };
     let activity_id_str = flow_element_id(flow_element).unwrap_or("<unknown>");
     let activity_type = flow_element_type(flow_element);
@@ -1380,30 +1386,33 @@ pub(crate) fn record_mi_child_activity_start(
         process_instance_id,
         &child.id,
         &mut command_context.session,
-    );
+    )?;
+    Ok(())
 }
 
 pub(crate) fn record_mi_child_activity_end(
     command_context: &mut CommandContext,
     child: &Execution,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(activity_id) = child.activity_id.as_deref() else {
-        return;
+        return Ok(());
     };
     command_context.history_manager.record_activity_end(
         &child.id,
         activity_id,
         None,
         &mut command_context.session,
-    );
+    )?;
+    Ok(())
 }
 
-fn end_sequential_instance_child(command_context: &mut CommandContext, child: &mut Execution) {
+fn end_sequential_instance_child(command_context: &mut CommandContext, child: &mut Execution) -> Result<(), crate::error::FlowableError> {
     child.is_active = false;
     child.is_ended = true;
     command_context
         .execution_entity_manager
-        .update(child, &mut command_context.session);
+        .update(child, &mut command_context.session)?;
+    Ok(())
 }
 
 /// Evaluate MI loopCardinality / collection expression text.

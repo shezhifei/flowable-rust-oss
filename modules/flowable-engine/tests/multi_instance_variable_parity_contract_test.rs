@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for Java multi-instance variable semantics parity:
 //!   - `nrOfInstances` / `nrOfActiveInstances` / `nrOfCompletedInstances` are written
 //!     with `setVariableLocal` on the multi-instance root execution
@@ -169,7 +175,7 @@ fn mi_root_id(engine: &ProcessEngine, child_execution_id: &str) -> String {
 /// Java: children are `createChildExecution` (empty); `getVariable` walks the chain.
 #[test]
 fn parallel_mi_child_reads_live_nr_of_variables_from_mi_root() {
-    let engine = ProcessEngine::new("mi-parity-live-nr-of".to_string());
+    let engine = ProcessEngine::new("mi-parity-live-nr-of".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_parallel.bpmn20.xml", PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let runtime = engine.get_runtime_service();
@@ -216,7 +222,7 @@ fn parallel_mi_child_reads_live_nr_of_variables_from_mi_root() {
 /// `nrOfInstances`, and the MI root sees it too.
 #[test]
 fn nr_of_instances_visible_from_child_and_root_via_merged_read() {
-    let engine = ProcessEngine::new("mi-parity-guard-merged".to_string());
+    let engine = ProcessEngine::new("mi-parity-guard-merged".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_parallel.bpmn20.xml", PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let runtime = engine.get_runtime_service();
@@ -251,7 +257,7 @@ fn nr_of_instances_visible_from_child_and_root_via_merged_read() {
 /// `getVariableLocal` view must expose them.
 #[test]
 fn mi_instance_variables_are_execution_local_on_children() {
-    let engine = ProcessEngine::new("mi-parity-local-instance-vars".to_string());
+    let engine = ProcessEngine::new("mi-parity-local-instance-vars".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "mi_collection.bpmn20.xml",
@@ -291,7 +297,7 @@ fn mi_instance_variables_are_execution_local_on_children() {
 /// the MI root execution, so they belong to its local scope.
 #[test]
 fn nr_of_variables_are_local_on_mi_root() {
-    let engine = ProcessEngine::new("mi-parity-nr-of-local".to_string());
+    let engine = ProcessEngine::new("mi-parity-nr-of-local".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_parallel.bpmn20.xml", PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let runtime = engine.get_runtime_service();
@@ -312,7 +318,7 @@ fn nr_of_variables_are_local_on_mi_root() {
 /// (Java never stores it on the MI root), and it is execution-local there.
 #[test]
 fn sequential_mi_loop_counter_is_local_on_child_and_absent_from_root() {
-    let engine = ProcessEngine::new("mi-parity-seq-loop-counter".to_string());
+    let engine = ProcessEngine::new("mi-parity-seq-loop-counter".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_sequential.bpmn20.xml", SEQUENTIAL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let runtime = engine.get_runtime_service();
@@ -348,7 +354,7 @@ fn sequential_mi_loop_counter_is_local_on_child_and_absent_from_root() {
 /// row, not on the (empty) MI root branch execution.
 #[test]
 fn mi_collection_resolves_through_parent_scope_chain() {
-    let engine = ProcessEngine::new("mi-parity-fork-collection".to_string());
+    let engine = ProcessEngine::new("mi-parity-fork-collection".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "mi_fork_collection.bpmn20.xml",
@@ -389,7 +395,7 @@ fn mi_collection_resolves_through_parent_scope_chain() {
 /// so a process-level `threshold` must be visible.
 #[test]
 fn completion_condition_resolves_process_variables_through_parent_chain() {
-    let engine = ProcessEngine::new("mi-parity-fork-completion".to_string());
+    let engine = ProcessEngine::new("mi-parity-fork-completion".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "mi_fork_completion.bpmn20.xml",

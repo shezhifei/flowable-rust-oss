@@ -19,77 +19,62 @@ impl BatchService {
         self.command_executor.runtime_store().clone()
     }
 
-    pub fn create_batch(&self, batch: BatchEntity) {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store().insert_batch(batch, &mut session);
-        session.flush_and_commit().unwrap();
+    pub fn create_batch(&self, batch: BatchEntity) -> Result<(), FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        store.insert_batch(batch, &mut session);
+        session.flush_and_commit()?;
+        Ok(())
     }
 
-    pub fn find_batch_by_id(&self, batch_id: &str) -> Option<BatchEntity> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store().find_batch(batch_id, &mut session)
+    pub fn find_batch_by_id(&self, batch_id: &str) -> Result<Option<BatchEntity>, FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        Ok(store.find_batch(batch_id, &mut session))
     }
 
-    pub fn delete_batch(&self, batch_id: &str) {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store().delete_batch(batch_id, &mut session);
-        session.flush_and_commit().unwrap();
+    pub fn delete_batch(&self, batch_id: &str) -> Result<(), FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        store.delete_batch(batch_id, &mut session);
+        session.flush_and_commit()?;
+        Ok(())
     }
 
-    pub fn create_batch_part(&self, batch_part: BatchPartEntity) {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store().insert_batch_part(batch_part, &mut session);
-        session.flush_and_commit().unwrap();
+    pub fn create_batch_part(&self, batch_part: BatchPartEntity) -> Result<(), FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        store.insert_batch_part(batch_part, &mut session);
+        session.flush_and_commit()?;
+        Ok(())
     }
 
-    pub fn find_batch_part_by_id(&self, batch_part_id: &str) -> Option<BatchPartEntity> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store()
-            .find_batch_part(batch_part_id, &mut session)
+    pub fn find_batch_part_by_id(
+        &self,
+        batch_part_id: &str,
+    ) -> Result<Option<BatchPartEntity>, FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        Ok(store.find_batch_part(batch_part_id, &mut session))
     }
 
-    pub fn find_batch_parts_by_batch_id(&self, batch_id: &str) -> Vec<BatchPartEntity> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store()
-            .find_batch_parts_by_batch_id(batch_id, &mut session)
+    pub fn find_batch_parts_by_batch_id(
+        &self,
+        batch_id: &str,
+    ) -> Result<Vec<BatchPartEntity>, FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        Ok(store.find_batch_parts_by_batch_id(batch_id, &mut session))
     }
 
     pub fn find_batch_parts_by_batch_id_and_status(
         &self,
         batch_id: &str,
         status: &str,
-    ) -> Vec<BatchPartEntity> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.get_store()
-            .find_batch_parts_by_batch_id_and_status(batch_id, status, &mut session)
+    ) -> Result<Vec<BatchPartEntity>, FlowableError> {
+        let store = self.get_store();
+        let mut session = store.create_session()?;
+        Ok(store.find_batch_parts_by_batch_id_and_status(batch_id, status, &mut session))
     }
 
     pub fn create_batch_query(&self) -> BatchQuery {

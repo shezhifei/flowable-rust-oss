@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::cmd::correlate_message_cmd::CorrelateMessageOptions;
 use flowable_engine::cmd::correlate_message_cmd::CorrelateMessageResult;
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -106,7 +112,7 @@ fn deploy_receive_task_process(engine: &ProcessEngine, deployment_name: &str) ->
 
 #[test]
 fn test_correlate_message_matches_intermediate_catch_event() {
-    let engine = ProcessEngine::new("correlate-catch-test".to_string());
+    let engine = ProcessEngine::new("correlate-catch-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
     let history_service = engine.get_history_service();
@@ -129,7 +135,7 @@ fn test_correlate_message_matches_intermediate_catch_event() {
 
     // Verify waiting
     let wait_states =
-        runtime_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        runtime_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 1);
 
     // Correlate
@@ -167,7 +173,7 @@ fn test_correlate_message_matches_intermediate_catch_event() {
 
 #[test]
 fn test_correlate_message_matches_receive_task() {
-    let engine = ProcessEngine::new("correlate-receive-test".to_string());
+    let engine = ProcessEngine::new("correlate-receive-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -189,7 +195,7 @@ fn test_correlate_message_matches_receive_task() {
 
     // Verify waiting
     let wait_states =
-        runtime_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        runtime_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 1);
 
     // Correlate
@@ -216,7 +222,7 @@ fn test_correlate_message_matches_receive_task() {
 
 #[test]
 fn test_correlate_message_wrong_name_returns_no_match() {
-    let engine = ProcessEngine::new("correlate-no-match-test".to_string());
+    let engine = ProcessEngine::new("correlate-no-match-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
 
     let _pd_id = deploy_message_catch_process(&engine, "Correlate No Match");
@@ -248,7 +254,7 @@ fn test_correlate_message_wrong_name_returns_no_match() {
 
 #[test]
 fn test_correlate_message_targets_specific_process_instance() {
-    let engine = ProcessEngine::new("correlate-target-pi-test".to_string());
+    let engine = ProcessEngine::new("correlate-target-pi-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -288,7 +294,7 @@ fn test_correlate_message_targets_specific_process_instance() {
     }
 
     // pi1 should still be waiting
-    let pi1_wait = runtime_service.get_event_wait_states_by_process_instance_id(pi1.id.clone());
+    let pi1_wait = runtime_service.get_event_wait_states_by_process_instance_id(pi1.id.clone()).unwrap();
     assert_eq!(pi1_wait.len(), 1, "pi1 should still be waiting");
 
     // pi2 should have moved on
@@ -303,7 +309,7 @@ fn test_correlate_message_targets_specific_process_instance() {
 
 #[test]
 fn test_correlate_message_by_business_key() {
-    let engine = ProcessEngine::new("correlate-bk-test".to_string());
+    let engine = ProcessEngine::new("correlate-bk-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -345,7 +351,7 @@ fn test_correlate_message_by_business_key() {
     }
 
     // pi1 should still be waiting
-    let pi1_wait = runtime_service.get_event_wait_states_by_process_instance_id(pi1.id.clone());
+    let pi1_wait = runtime_service.get_event_wait_states_by_process_instance_id(pi1.id.clone()).unwrap();
     assert_eq!(pi1_wait.len(), 1, "pi1 should still be waiting");
 
     // pi2 should have moved on
@@ -359,7 +365,7 @@ fn test_correlate_message_by_business_key() {
 
 #[test]
 fn test_correlate_message_wrong_business_key_returns_no_match() {
-    let engine = ProcessEngine::new("correlate-wrong-bk-test".to_string());
+    let engine = ProcessEngine::new("correlate-wrong-bk-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
 
     let _pd_id = deploy_message_catch_process(&engine, "Correlate Wrong BK");
@@ -392,7 +398,7 @@ fn test_correlate_message_wrong_business_key_returns_no_match() {
 
 #[test]
 fn test_correlate_message_with_variables() {
-    let engine = ProcessEngine::new("correlate-vars-test".to_string());
+    let engine = ProcessEngine::new("correlate-vars-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
     let history_service = engine.get_history_service();
@@ -451,7 +457,7 @@ fn test_correlate_message_with_variables() {
 
 #[test]
 fn test_correlate_message_multi_match_triggers_first_only() {
-    let engine = ProcessEngine::new("correlate-multi-test".to_string());
+    let engine = ProcessEngine::new("correlate-multi-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -553,7 +559,7 @@ fn test_correlate_message_multi_match_triggers_first_only() {
 
 #[test]
 fn test_correlate_message_or_start_starts_new_process() {
-    let engine = ProcessEngine::new("correlate-or-start-test".to_string());
+    let engine = ProcessEngine::new("correlate-or-start-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -581,7 +587,7 @@ fn test_correlate_message_or_start_starts_new_process() {
 
 #[test]
 fn test_correlate_message_or_start_applies_tenant_business_key_and_variables() {
-    let engine = ProcessEngine::new("correlate-or-start-options-test".to_string());
+    let engine = ProcessEngine::new("correlate-or-start-options-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -632,7 +638,7 @@ fn test_correlate_message_or_start_applies_tenant_business_key_and_variables() {
 
 #[test]
 fn test_correlate_message_or_start_matches_existing_before_starting() {
-    let engine = ProcessEngine::new("correlate-or-start-existing-test".to_string());
+    let engine = ProcessEngine::new("correlate-or-start-existing-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -675,7 +681,7 @@ fn test_correlate_message_or_start_matches_existing_before_starting() {
 
 #[test]
 fn test_correlate_message_with_combined_filters() {
-    let engine = ProcessEngine::new("correlate-combined-test".to_string());
+    let engine = ProcessEngine::new("correlate-combined-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
 
     let _pd_id = deploy_message_catch_process(&engine, "Correlate Combined");
@@ -731,7 +737,7 @@ fn test_correlate_message_with_combined_filters() {
 
 #[test]
 fn test_correlate_message_no_instances_returns_no_match() {
-    let engine = ProcessEngine::new("correlate-empty-test".to_string());
+    let engine = ProcessEngine::new("correlate-empty-test".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
 
     deploy_message_catch_process(&engine, "Correlate Empty");

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_app_engine::{
     AppDefinition, AppDeploymentRequest, AppModel, AppPage, AppReference, DefinitionType,
 };
@@ -70,7 +76,7 @@ fn bootstraps_owned_engine_graph_and_default_admin() {
     assert!(
         process_engine
             .get_identity_service()
-            .check_password("admin", "bootstrap-secret")
+            .check_password("admin", "bootstrap-secret").unwrap()
     );
     assert!(process_engine.get_config().dmn_engine.is_some());
     assert_eq!(
@@ -117,7 +123,7 @@ fn default_configuration_does_not_create_admin() {
         platform
             .process_engine()
             .get_identity_service()
-            .find_user_by_id("admin")
+            .find_user_by_id("admin").unwrap()
             .is_none(),
         "default config must not seed admin user"
     );

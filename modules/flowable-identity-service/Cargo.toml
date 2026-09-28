@@ -8,3 +8,7 @@ license.workspace = true
 [dependencies]
 flowable-engine = { path = "../flowable-engine" }
 flowable-platform-bootstrap = { path = "../flowable-platform-bootstrap" }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the UI auth surface: login, the remember-me cookie,
 //! rolling refresh, logout, and privilege enforcement.
 //!
@@ -27,7 +33,7 @@ async fn spawn_with_config(
     test_name: &str,
     config: UiAuthConfig,
 ) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine.get_identity_service().save_user(User {
         id: "admin".to_string(),
         first_name: Some("Ad".to_string()),
@@ -35,7 +41,7 @@ async fn spawn_with_config(
         email: Some("admin@example.com".to_string()),
         password: Some("test".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -57,8 +63,8 @@ fn grant_user_privilege(engine: &Arc<ProcessEngine>, privilege_id: &str, user_id
     identity.save_privilege(Privilege {
         id: privilege_id.to_string(),
         name: privilege_id.to_string(),
-    });
-    identity.add_user_privilege_mapping(privilege_id.to_string(), user_id.to_string());
+    }).unwrap();
+    identity.add_user_privilege_mapping(privilege_id.to_string(), user_id.to_string()).unwrap();
 }
 
 async fn login(client: &reqwest::Client, base_url: &str, user: &str, password: &str) -> reqwest::Response {
@@ -256,12 +262,12 @@ fn backdate_token(engine: &Arc<ProcessEngine>, cookie: &str, age: std::time::Dur
     let series = decoded.split(':').next().unwrap();
 
     let identity = engine.get_identity_service();
-    let token = identity.find_token_by_id(series).expect("token row missing");
+    let token = identity.find_token_by_id(series).unwrap().expect("token row missing");
     let issued_at = token.token_date.expect("token had no date") - age.as_millis() as i64;
     identity.save_token(flowable_engine::identity::entities::Token {
         token_date: Some(issued_at),
         ..token
-    });
+    }).unwrap();
 }
 
 #[tokio::test]
@@ -451,13 +457,13 @@ async fn privilege_inherited_through_a_group_is_honoured() {
         id: "idm-users".to_string(),
         name: "IDM users".to_string(),
         group_type: Some("security-role".to_string()),
-    });
-    identity.create_membership("admin".to_string(), "idm-users".to_string());
+    }).unwrap();
+    identity.create_membership("admin".to_string(), "idm-users".to_string()).unwrap();
     identity.save_privilege(Privilege {
         id: "access-idm".to_string(),
         name: "access-idm".to_string(),
-    });
-    identity.add_group_privilege_mapping("access-idm".to_string(), "idm-users".to_string());
+    }).unwrap();
+    identity.add_group_privilege_mapping("access-idm".to_string(), "idm-users".to_string()).unwrap();
 
     let cookie = remember_me_cookie(&login(&client, &base_url, "admin", "test").await);
 
@@ -482,7 +488,7 @@ async fn token_outliving_its_user_is_rejected() {
     grant_user_privilege(&engine, "access-idm", "admin");
 
     let cookie = remember_me_cookie(&login(&client, &base_url, "admin", "test").await);
-    engine.get_identity_service().delete_user("admin");
+    engine.get_identity_service().delete_user("admin").unwrap();
 
     let response = client
         .get(format!("{base_url}/idm-app/rest/account"))

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 // P116: unified plan-item-instance REST surface — the plan-item-instances endpoint
 // returns stage / milestone / event listener / human task instances for a case.
 //
@@ -75,7 +81,7 @@ const TERMINATED_STAGE_CMMN: &str = r#"
 "#;
 
 async fn spawn_server() -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new("rest-cmmn-planitem-unified".to_string()));
+    let engine = Arc::new(ProcessEngine::new("rest-cmmn-planitem-unified".to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -85,7 +91,7 @@ async fn spawn_server() -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

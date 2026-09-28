@@ -123,13 +123,15 @@ fn collect_inclusive_join_ids(flow_elements: &[FlowElementEnum], join_ids: &mut 
     }
 }
 
-pub fn execute_inactive_inclusive_joins(command_context: &mut CommandContext) -> bool {
+pub fn execute_inactive_inclusive_joins(
+    command_context: &mut CommandContext,
+) -> Result<bool, crate::error::FlowableError> {
     // Java scopes the scan to the executions involved in this command
     // (CommandInvoker.java:83-84); a command that never wrote an execution
     // costs nothing here.
     let involved = crate::persistence::runtime_store::take_involved_process_instances();
     if involved.is_empty() {
-        return false;
+        return Ok(false);
     }
 
     // Model gate (ExecuteInactiveBehaviorsOperation.java:69-76): only fetch
@@ -150,7 +152,7 @@ pub fn execute_inactive_inclusive_joins(command_context: &mut CommandContext) ->
         }
     }
     if gated.is_empty() {
-        return false;
+        return Ok(false);
     }
 
     let all_executions: Vec<Execution> = command_context
@@ -235,7 +237,7 @@ pub fn execute_inactive_inclusive_joins(command_context: &mut CommandContext) ->
 
             command_context
                 .execution_entity_manager
-                .insert(&merged, &mut command_context.session);
+                .insert(&merged, &mut command_context.session)?;
 
             command_context
                 .agenda
@@ -245,7 +247,7 @@ pub fn execute_inactive_inclusive_joins(command_context: &mut CommandContext) ->
         }
     }
 
-    activated
+    Ok(activated)
 }
 
 impl ActivityBehavior for InclusiveGatewayActivityBehavior {
@@ -307,7 +309,7 @@ impl ActivityBehavior for InclusiveGatewayActivityBehavior {
             waiting_execution.is_concurrent = true;
             command_context
                 .execution_entity_manager
-                .update(&waiting_execution, &mut command_context.session);
+                .update(&waiting_execution, &mut command_context.session)?;
 
             let all_executions: Vec<Execution> = command_context
                 .runtime_store
@@ -353,7 +355,7 @@ impl ActivityBehavior for InclusiveGatewayActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&merged, &mut command_context.session);
+                .insert(&merged, &mut command_context.session)?;
 
             // Let TakeOutgoingSequenceFlowsOperation handle the outgoing routing
             command_context

@@ -506,12 +506,12 @@ fn schedule_async_continuation_job(
     execution: &mut Execution,
     flow_element: &FlowElementEnum,
     command_context: &mut CommandContext,
-) {
+) -> Result<(), crate::error::FlowableError> {
     execution.is_active = false;
     execution.is_ended = false;
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
 
     // P6-B: job_category expression must walk the parent scope chain. The
     // forked child execution's variable maps are empty (P4-7b), so we
@@ -567,19 +567,20 @@ fn schedule_async_continuation_job(
         execution.process_definition_id.clone(),
         execution.activity_name.clone(),
     );
-    store.insert_timer_job_state(&job, &mut command_context.session);
+    store.insert_timer_job_state(&job, &mut command_context.session)?;
+    Ok(())
 }
 
 fn schedule_async_after_job(
     execution: &mut Execution,
     flow_element: &FlowElementEnum,
     command_context: &mut CommandContext,
-) {
+) -> Result<(), crate::error::FlowableError> {
     execution.is_active = false;
     execution.is_ended = false;
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
 
     // P6-B: job_category expression must walk the parent scope chain (see
     // schedule_async_continuation_job for rationale).
@@ -634,7 +635,8 @@ fn schedule_async_after_job(
         execution.process_definition_id.clone(),
         execution.activity_name.clone(),
     );
-    store.insert_timer_job_state(&job, &mut command_context.session);
+    store.insert_timer_job_state(&job, &mut command_context.session)?;
+    Ok(())
 }
 
 impl AgendaOperation for ContinueProcessOperation {
@@ -688,7 +690,7 @@ impl AgendaOperation for ContinueProcessOperation {
             };
 
             if is_async_before(flow_element) && !is_resuming_async_continuation(&execution) {
-                schedule_async_continuation_job(&mut execution, flow_element, command_context);
+                schedule_async_continuation_job(&mut execution, flow_element, command_context)?;
                 return Ok(());
             }
 
@@ -740,7 +742,7 @@ impl AgendaOperation for ContinueProcessOperation {
                         // start listener.
                         command_context
                             .execution_entity_manager
-                            .update(&execution, &mut command_context.session);
+                            .update(&execution, &mut command_context.session)?;
                     }
                 }
                 // P53 layer 2 / P119: ACTIVITY_STARTED for ordinary flow nodes;
@@ -773,7 +775,7 @@ impl AgendaOperation for ContinueProcessOperation {
                     execution.process_instance_id.as_deref().unwrap_or_default(),
                     &execution.id,
                     &mut command_context.session,
-                );
+                )?;
 
                 // Clone listeners before mutable borrow of command_context for execute.
                 let start_listeners: Vec<_> =
@@ -793,7 +795,7 @@ impl AgendaOperation for ContinueProcessOperation {
                 // Persist any process variables written by start listeners.
                 command_context
                     .execution_entity_manager
-                    .update(&execution, &mut command_context.session);
+                    .update(&execution, &mut command_context.session)?;
 
                 let pre_execute_exec_id = execution.id.clone();
                 let was_multi_instance_root = execution.is_multi_instance_root;
@@ -825,7 +827,7 @@ impl AgendaOperation for ContinueProcessOperation {
                     && !is_resuming_async_after(&execution)
                 {
                     command_context.agenda.clear();
-                    schedule_async_after_job(&mut execution, flow_element, command_context);
+                    schedule_async_after_job(&mut execution, flow_element, command_context)?;
                     return Ok(());
                 }
             } else {

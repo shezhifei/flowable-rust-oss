@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for change-activity-state variable injection, mirroring Java
 //! `org.flowable.engine.runtime.ChangeActivityStateBuilder` /
 //! `AbstractDynamicStateManager#doMoveExecutionState` semantics:
@@ -82,7 +88,7 @@ fn engine_with_echo_listener(name: &str) -> ProcessEngine {
     registry.register("echoLocal", Arc::new(EchoLocalVariableListener));
     let mut config = ProcessEngineConfiguration::default();
     config.execution_listener_registry = Some(registry);
-    ProcessEngine::new_with_config(name.to_string(), config)
+    ProcessEngine::new_with_config(name.to_string(), config).unwrap()
 }
 
 fn deploy_and_start_xml(engine: &ProcessEngine, xml: String) -> ProcessInstance {
@@ -148,7 +154,7 @@ fn execution_at_activity(
 
 #[test]
 fn process_instance_change_state_injects_process_variables() {
-    let engine = ProcessEngine::new("change-state-vars-process-level".to_string());
+    let engine = ProcessEngine::new("change-state-vars-process-level".to_string()).unwrap();
     let instance = deploy_and_start(&engine);
 
     let mut variables = HashMap::new();
@@ -290,7 +296,7 @@ fn execution_change_state_injects_process_and_local_variables() {
 
 #[test]
 fn change_state_variables_are_not_written_when_the_move_fails() {
-    let engine = ProcessEngine::new("change-state-vars-rollback".to_string());
+    let engine = ProcessEngine::new("change-state-vars-rollback".to_string()).unwrap();
     let instance = deploy_and_start(&engine);
 
     let mut variables = HashMap::new();

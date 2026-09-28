@@ -1,3 +1,4 @@
+use crate::persistence::StorageError;
 use super::entity_manager::EntityManager;
 use super::runtime_store::RuntimeStore;
 use crate::persistence::db_session::DbSession;
@@ -32,12 +33,12 @@ impl DefaultExecutionEntityManager {
 }
 
 impl EntityManager<Execution> for DefaultExecutionEntityManager {
-    fn insert(&mut self, entity: &Execution, session: &mut DbSession) {
-        self.runtime_store.insert_execution(entity, session);
+    fn insert(&mut self, entity: &Execution, session: &mut DbSession) -> Result<(), StorageError> {
+        self.runtime_store.insert_execution(entity, session)
     }
 
-    fn update(&mut self, entity: &Execution, session: &mut DbSession) {
-        self.runtime_store.update_execution(entity, session);
+    fn update(&mut self, entity: &Execution, session: &mut DbSession) -> Result<(), StorageError> {
+        self.runtime_store.update_execution(entity, session)
     }
 
     fn delete(&mut self, id: &str, session: &mut DbSession) {

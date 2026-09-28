@@ -89,7 +89,11 @@ fn load_event_subscriptions(
     let _ = session.rollback();
     rows.into_iter()
         .map(|row| {
-            let data = serde_json::from_str::<serde_json::Value>(row.data.as_ref()).ok();
+            // Java parity: MyBatis unmarshals the persisted wait-state into the entity and
+            // throws on a malformed row; projecting it as absent would report corrupt
+            // persisted data as a valid subscription with null activityId/configuration.
+            let data = serde_json::from_str::<serde_json::Value>(row.data.as_ref())
+                .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
             Ok(EventSubscriptionRow {
                 id: row.id,
                 event_name: row.extras.get("event_name").cloned().flatten(),
@@ -97,13 +101,11 @@ fn load_event_subscriptions(
                 execution_id: row.extras.get("execution_id").cloned().flatten(),
                 process_instance_id: row.extras.get("process_instance_id").cloned().flatten(),
                 activity_id: data
-                    .as_ref()
-                    .and_then(|value| value.get("activity_id"))
+                    .get("activity_id")
                     .and_then(serde_json::Value::as_str)
                     .map(str::to_string),
                 configuration: data
-                    .as_ref()
-                    .and_then(|value| value.get("configuration"))
+                    .get("configuration")
                     .and_then(serde_json::Value::as_str)
                     .map(str::to_string),
             })

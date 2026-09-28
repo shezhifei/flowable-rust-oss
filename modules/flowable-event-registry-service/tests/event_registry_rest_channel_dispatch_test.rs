@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 mod test_support;
 
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -405,7 +411,7 @@ fn rest_outbound_ssrf_guard_rejects_private_destination_without_path_echo() {
     // opts into private networks for local mock servers.
     let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
         "event-registry-rest-ssrf-guard".to_string(),
-    )));
+    ).unwrap()));
     service
         .deploy(EventRegistryDeploymentRequest {
             name: "REST SSRF guard deployment".to_string(),

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::TestTimeSource;
@@ -10,7 +16,7 @@ fn boundary_timer_job_category_is_populated_from_boundary_event() {
         Utc.with_ymd_and_hms(2026, 4, 18, 11, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("boundary-timer-job-category".to_string(), time_source);
+        ProcessEngine::with_time_source("boundary-timer-job-category".to_string(), time_source).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 
@@ -85,7 +91,7 @@ fn interrupting_user_task_boundary_timer_worker_cleans_host_and_preserves_unrela
     let engine = ProcessEngine::with_time_source(
         "boundary-timer-worker-contract".to_string(),
         time_source.clone(),
-    );
+    ).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();

@@ -166,7 +166,14 @@ fn history_acquisition_loop(
         }
 
         let batch = remaining.min(512);
-        let jobs = runtime_service.acquire_history_jobs(lock_duration_ms, batch);
+        let jobs = match runtime_service.acquire_history_jobs(lock_duration_ms, batch) {
+            Ok(jobs) => jobs,
+            Err(error) => {
+                tracing::error!("failed to acquire history jobs: {error}");
+                thread::sleep(Duration::from_millis(acquire_interval_ms));
+                continue;
+            }
+        };
         if jobs.is_empty() {
             thread::sleep(Duration::from_millis(acquire_interval_ms));
             continue;
@@ -182,7 +189,12 @@ fn history_acquisition_loop(
             let work = TimerWork::RuntimeJob(job.clone());
             let task = spawn_timer_work(Arc::clone(&runtime_service), work, 0);
             if submit_history_task_or_run_inline(task_sender.as_ref(), task).is_err() {
-                runtime_service.release_timer_job_lock(&job.timer_job_id);
+                if let Err(error) = runtime_service.release_timer_job_lock(&job.timer_job_id) {
+                    tracing::error!(
+                        "failed to release history job lock {}: {error}",
+                        job.timer_job_id
+                    );
+                }
             }
         }
     }

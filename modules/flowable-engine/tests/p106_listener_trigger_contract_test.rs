@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P106 — listener trigger surface completion contract tests.
 //!
 //! Covers three of the four P106 surface gaps via end-to-end XML models:
@@ -38,11 +44,11 @@ impl EventRecorder {
     }
 
     fn record(&self, entry: String) {
-        self.events.lock().unwrap().push(entry);
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(entry);
     }
 
     fn snapshot(&self) -> Vec<String> {
-        self.events.lock().unwrap().clone()
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -126,7 +132,7 @@ fn sequence_flow_execution_listeners_fire_start_take_end_in_order() {
     );
     let mut config = ProcessEngineConfiguration::default();
     config.execution_listener_registry = Some(registry);
-    let engine = ProcessEngine::new_with_config("p106-seq-flow-listener".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p106-seq-flow-listener".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
@@ -215,7 +221,7 @@ fn process_execution_listeners_fire_on_start_and_end() {
     );
     let mut config = ProcessEngineConfiguration::default();
     config.execution_listener_registry = Some(registry);
-    let engine = ProcessEngine::new_with_config("p106-process-listener".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p106-process-listener".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
@@ -292,7 +298,7 @@ fn all_events_task_listener_fires_on_create_and_complete() {
     );
     let mut config = ProcessEngineConfiguration::default();
     config.task_listener_registry = Some(registry);
-    let engine = ProcessEngine::new_with_config("p106-all-events".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p106-all-events".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();

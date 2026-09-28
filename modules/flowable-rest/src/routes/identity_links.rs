@@ -257,7 +257,7 @@ pub async fn create_process_instance_identity_link(
     engine
         .0
         .get_identity_link_service()
-        .add_identity_link_with_author(link.clone(), author);
+        .add_identity_link_with_author(link.clone(), author)?;
 
     Ok((
         StatusCode::CREATED,
@@ -287,7 +287,7 @@ pub async fn delete_process_instance_identity_link(
     engine
         .0
         .get_identity_link_service()
-        .remove_identity_link_with_author(&link.id, author);
+        .remove_identity_link_with_author(&link.id, author)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -365,7 +365,7 @@ pub async fn create_task_identity_link(
         engine
             .0
             .get_identity_link_service()
-            .add_identity_link(link.clone());
+            .add_identity_link(link.clone())?;
     }
 
     Ok((
@@ -423,7 +423,7 @@ pub async fn delete_task_identity_link(
     engine
         .0
         .get_identity_link_service()
-        .remove_identity_link(&link.id);
+        .remove_identity_link(&link.id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -436,6 +436,9 @@ fn ensure_process_instance_exists(
     // so a completed/ended instance is a 404 for the runtime identity-link family.
     // (History identity-link endpoints query historic instances and remain
     // reachable after completion — see routes/history.rs.)
+    // Java parity: `DbSqlSession.selectById` throws on a SQL error and the command
+    // boundary rethrows it (CommandContext.java:66-115), so a storage failure is a 500.
+    // Only a successful no-row query (or an already-ended instance) is a 404.
     engine
         .get_runtime_store()
         .db_store()
@@ -443,7 +446,7 @@ fn ensure_process_instance_exists(
             "process_instances",
             process_instance_id,
         )
-        .unwrap()
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?
         .filter(|process_instance| !process_instance.is_ended)
         .map(|_| ())
         .ok_or_else(|| {
@@ -477,22 +480,27 @@ fn user_id_from_basic_auth(headers: &HeaderMap) -> Option<String> {
 }
 
 fn ensure_task_exists(engine: &ProcessEngine, task_id: &str) -> Result<(), ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
         .find_task(task_id, &mut session)
-        .map(|_| ())
-        .ok_or_else(|| ApiError::NotFound(format!("Task '{}' was not found", task_id)))
+        .map_err(flowable_engine::error::FlowableError::from)?;
+    ApiError::found_or_not_found(&mut session, found.map(|_| ()), || {
+        ApiError::NotFound(format!("Task '{}' was not found", task_id))
+    })
 }
 
 /// Java parity: `AddIdentityLinkCmd` / `DeleteIdentityLinkCmd` extend
 /// `NeedsActiveTaskCmd` — loading the task AND rejecting suspended tasks.
 fn ensure_task_active(engine: &ProcessEngine, task_id: &str) -> Result<(), ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    let task = engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
         .find_task(task_id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Task '{}' was not found", task_id)))?;
+        .map_err(flowable_engine::error::FlowableError::from)?;
+    let task = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Task '{}' was not found", task_id))
+    })?;
     if task.is_suspended() {
         return Err(ApiError::InternalServerError(format!(
             "Cannot execute operation for a suspended task '{}'",
@@ -703,7 +711,7 @@ pub async fn create_identity_link(
     engine
         .0
         .get_identity_link_service()
-        .add_identity_link(link.clone());
+        .add_identity_link(link.clone())?;
     Ok(Json(IdentityLinkResponse::from(link)))
 }
 
@@ -726,6 +734,6 @@ pub async fn delete_identity_link(
         )));
     }
 
-    service.remove_identity_link(&link_id);
+    service.remove_identity_link(&link_id)?;
     Ok(StatusCode::NO_CONTENT)
 }

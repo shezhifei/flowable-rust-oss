@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::engine::task_service::MessageStyleWaitKind;
@@ -7,7 +13,7 @@ use std::collections::HashMap;
 
 #[test]
 fn test_message_intermediate_catch_accepts_trigger_variables_and_records_history() {
-    let engine = ProcessEngine::new("message-catch-variables-test".to_string());
+    let engine = ProcessEngine::new("message-catch-variables-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -51,6 +57,7 @@ fn test_message_intermediate_catch_accepts_trigger_variables_and_records_history
 
     let wait_state = runtime_service
         .get_event_wait_states_by_process_instance_id(process_instance.id.clone())
+        .unwrap()
         .into_iter()
         .find(|state| state.activity_id.as_deref() == Some("waitForMessage"))
         .expect("message catch should be waiting");
@@ -94,7 +101,7 @@ fn test_message_intermediate_catch_accepts_trigger_variables_and_records_history
 // that was flipped to Java no-op semantics.
 #[test]
 fn test_intermediate_message_throw_is_noop_does_not_activate_event_subprocess() {
-    let engine = ProcessEngine::new("message-throw-event-subprocess-test".to_string());
+    let engine = ProcessEngine::new("message-throw-event-subprocess-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -199,7 +206,7 @@ fn test_intermediate_message_throw_is_noop_does_not_activate_event_subprocess() 
 /// catch; throw token still takes outgoing (Java IntermediateThrowEventParseHandler.java:51-56).
 #[test]
 fn test_intermediate_message_throw_does_not_trigger_waiting_message_catch() {
-    let engine = ProcessEngine::new("message-throw-catch-noop-test".to_string());
+    let engine = ProcessEngine::new("message-throw-catch-noop-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -260,7 +267,7 @@ fn test_intermediate_message_throw_does_not_trigger_waiting_message_catch() {
     assert_eq!(tasks[0].task_definition_key, "afterThrow");
 
     let wait_states = runtime_service
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert!(
         wait_states
             .iter()
@@ -272,7 +279,7 @@ fn test_intermediate_message_throw_does_not_trigger_waiting_message_catch() {
 /// P129: message end event is none-end (no delivery) — Java EndEventParseHandler.java:72-73.
 #[test]
 fn test_message_end_event_is_noop_does_not_trigger_message_subscription() {
-    let engine = ProcessEngine::new("message-end-event-noop-test".to_string());
+    let engine = ProcessEngine::new("message-end-event-noop-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -331,7 +338,7 @@ fn test_message_end_event_is_noop_does_not_trigger_message_subscription() {
     );
 
     let wait_states = runtime_service
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert!(
         wait_states
             .iter()
@@ -354,7 +361,7 @@ fn test_message_end_event_is_noop_does_not_trigger_message_subscription() {
 /// (Java only warns for intermediate message throw; end falls through to none-end).
 #[test]
 fn test_message_throw_and_message_end_event_deploy_successfully() {
-    let engine = ProcessEngine::new("message-throw-end-deploy-test".to_string());
+    let engine = ProcessEngine::new("message-throw-end-deploy-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -411,7 +418,7 @@ fn test_message_throw_and_message_end_event_deploy_successfully() {
 
 #[test]
 fn test_intermediate_signal_throw_triggers_boundary_path_and_records_audit() {
-    let engine = ProcessEngine::new("signal-throw-boundary-test".to_string());
+    let engine = ProcessEngine::new("signal-throw-boundary-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -495,7 +502,7 @@ fn test_intermediate_signal_throw_triggers_boundary_path_and_records_audit() {
 
 #[test]
 fn test_signal_boundary_event_triggers_by_resolved_global_name() {
-    let engine = ProcessEngine::new("signal-boundary-name-compat-test".to_string());
+    let engine = ProcessEngine::new("signal-boundary-name-compat-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -550,7 +557,7 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "external-signal".to_string(),
         process_instance_by_name.id.clone(),
-    );
+    ).unwrap();
     let tasks_after_name = task_service
         .get_tasks_by_process_instance_id(process_instance_by_name.id.clone())
         .unwrap();
@@ -588,7 +595,7 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
     runtime_service.trigger_boundary_event_by_signal_ref(
         "sig1".to_string(),
         process_instance_by_id.id.clone(),
-    );
+    ).unwrap();
     let tasks_after_id = task_service
         .get_tasks_by_process_instance_id(process_instance_by_id.id.clone())
         .unwrap();
@@ -609,7 +616,7 @@ fn test_signal_boundary_event_triggers_by_resolved_global_name() {
 
 #[test]
 fn test_signal_intermediate_catch_event_triggers_by_raw_id() {
-    let engine = ProcessEngine::new("signal-catch-id-compat-test".to_string());
+    let engine = ProcessEngine::new("signal-catch-id-compat-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let history_service = engine.get_history_service();
@@ -654,7 +661,7 @@ fn test_signal_intermediate_catch_event_triggers_by_raw_id() {
         .unwrap();
 
     let wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 1);
     assert_eq!(
         wait_states[0].wait_kind,
@@ -669,7 +676,7 @@ fn test_signal_intermediate_catch_event_triggers_by_raw_id() {
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "sig1".to_string(),
         execution_id,
-    );
+    ).unwrap();
 
     let store_after = engine.get_runtime_store();
     let mut session_after = store_after.create_session().unwrap();

@@ -19,15 +19,41 @@ impl IdentityService {
         self.command_executor.runtime_store().clone()
     }
 
-    fn create_session(&self) -> DbSession {
-        self.get_store().create_session().unwrap()
+    fn create_session(&self) -> Result<DbSession, crate::persistence::StorageError> {
+        self.get_store().create_session()
     }
 
-    pub fn check_password(&self, user_id: &str, password: &str) -> bool {
-        let mut session = self.create_session();
+    /// Ends a read-only session, surfacing any storage failure the read hit.
+    ///
+    /// The store's read helpers record a failed read in the session's sticky
+    /// write-error slot and hand back `None`/`Vec::new()`
+    /// (e.g. `RuntimeStore::find_user`). `DbSession::rollback` clears that slot
+    /// (`db_session.rs:1138`), so discarding the rollback result turns a storage
+    /// failure into "no rows": a token lookup becomes "no such token", a user
+    /// lookup becomes "unknown user", a listing becomes an empty list.
+    ///
+    /// Java parity: reads go straight to MyBatis and the resulting
+    /// `PersistenceException` escapes — `DbSqlSession.selectList`/`selectOne`
+    /// (flowable-engine-common/.../impl/db/DbSqlSession.java:282-299) and the
+    /// managers layered on them, e.g. `MybatisUserDataManager`
+    /// `selectList`/`selectOne` (flowable-idm-engine/.../data/MybatisUserDataManager.java)
+    /// have no error-swallowing catch. `null`/empty is reachable only from a
+    /// successful zero-row query, which is why Java answers 500 rather than
+    /// "unknown user" when the store is unreachable.
+    fn end_read_session(
+        session: &mut DbSession,
+    ) -> Result<(), crate::error::FlowableError> {
+        session
+            .rollback_read()
+            .map_err(|error| crate::error::FlowableError::Internal(error.to_string()))
+    }
+
+    pub fn check_password(&self, user_id: &str, password: &str) -> Result<bool, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.check_password_in_session(user_id, password, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn check_password_in_session(
@@ -46,10 +72,11 @@ impl IdentityService {
         }
     }
 
-    pub fn save_user(&self, user: User) {
-        let mut session = self.create_session();
+    pub fn save_user(&self, user: User) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.save_user_in_session(user, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     /// Persist a user. Plaintext passwords are argon2id-hashed before the
@@ -79,11 +106,12 @@ impl IdentityService {
         self.get_store().insert_user(user, session);
     }
 
-    pub fn find_user_by_id(&self, user_id: &str) -> Option<User> {
-        let mut session = self.create_session();
+    pub fn find_user_by_id(&self, user_id: &str) -> Result<Option<User>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.find_user_by_id_in_session(user_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn find_user_by_id_in_session(
@@ -94,21 +122,22 @@ impl IdentityService {
         self.get_store().find_user(user_id, session)
     }
 
-    pub fn delete_user(&self, user_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_user(&self, user_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_user_in_session(user_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_user_in_session(&self, user_id: &str, session: &mut DbSession) {
         self.get_store().delete_user(user_id, session);
     }
 
-    pub fn set_user_info(&self, user_id: String, key: String, value: String) -> UserInfo {
-        let mut session = self.create_session();
+    pub fn set_user_info(&self, user_id: String, key: String, value: String) -> Result<UserInfo, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.set_user_info_in_session(user_id, key, value, &mut session);
-        session.flush_and_commit().unwrap();
-        result
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(result)
     }
 
     pub fn set_user_info_in_session(
@@ -131,11 +160,12 @@ impl IdentityService {
         info
     }
 
-    pub fn get_user_info(&self, user_id: &str, key: &str) -> Option<UserInfo> {
-        let mut session = self.create_session();
+    pub fn get_user_info(&self, user_id: &str, key: &str) -> Result<Option<UserInfo>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_user_info_in_session(user_id, key, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_user_info_in_session(
@@ -147,30 +177,36 @@ impl IdentityService {
         self.get_store().find_user_info(user_id, key, session)
     }
 
-    pub fn get_user_info_keys(&self, user_id: &str) -> Vec<String> {
-        let mut session = self.create_session();
+    pub fn get_user_info_keys(&self, user_id: &str) -> Result<Vec<String>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_user_info_keys_in_session(user_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        // `result` is already a `Result` here (`list_user_info` propagates its
+        // own storage errors), so it stays the primary error and the drained
+        // session error only covers a sticky failure the read recorded.
+        let ended = Self::end_read_session(&mut session);
+        result.and_then(|keys| ended.map(|()| keys))
     }
 
     pub fn get_user_info_keys_in_session(
         &self,
         user_id: &str,
         session: &mut DbSession,
-    ) -> Vec<String> {
-        self.get_store()
+    ) -> Result<Vec<String>, crate::error::FlowableError> {
+        Ok(self
+            .get_store()
             .list_user_info(user_id, session)
+            .map_err(crate::error::FlowableError::from)?
             .into_iter()
             .map(|info| info.key)
-            .collect()
+            .collect())
     }
 
-    pub fn delete_user_info(&self, user_id: &str, key: &str) -> bool {
-        let mut session = self.create_session();
+    pub fn delete_user_info(&self, user_id: &str, key: &str) -> Result<bool, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.delete_user_info_in_session(user_id, key, &mut session);
-        session.flush_and_commit().unwrap();
-        result
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(result)
     }
 
     pub fn delete_user_info_in_session(
@@ -182,10 +218,11 @@ impl IdentityService {
         self.get_store().delete_user_info(user_id, key, session)
     }
 
-    pub fn set_user_picture(&self, user_id: String, mime_type: String, bytes: Vec<u8>) {
-        let mut session = self.create_session();
+    pub fn set_user_picture(&self, user_id: String, mime_type: String, bytes: Vec<u8>) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.set_user_picture_in_session(user_id, mime_type, bytes, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn set_user_picture_in_session(
@@ -207,11 +244,12 @@ impl IdentityService {
         );
     }
 
-    pub fn get_user_picture(&self, user_id: &str) -> Option<UserPicture> {
-        let mut session = self.create_session();
+    pub fn get_user_picture(&self, user_id: &str) -> Result<Option<UserPicture>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_user_picture_in_session(user_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_user_picture_in_session(
@@ -222,32 +260,34 @@ impl IdentityService {
         self.get_store().get_user_picture(user_id, session)
     }
 
-    pub fn delete_user_picture(&self, user_id: &str) -> bool {
-        let mut session = self.create_session();
+    pub fn delete_user_picture(&self, user_id: &str) -> Result<bool, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.delete_user_picture_in_session(user_id, &mut session);
-        session.flush_and_commit().unwrap();
-        result
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(result)
     }
 
     pub fn delete_user_picture_in_session(&self, user_id: &str, session: &mut DbSession) -> bool {
         self.get_store().delete_user_picture(user_id, session)
     }
 
-    pub fn save_group(&self, group: Group) {
-        let mut session = self.create_session();
+    pub fn save_group(&self, group: Group) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.save_group_in_session(group, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn save_group_in_session(&self, group: Group, session: &mut DbSession) {
         self.get_store().insert_group(group, session);
     }
 
-    pub fn find_group_by_id(&self, group_id: &str) -> Option<Group> {
-        let mut session = self.create_session();
+    pub fn find_group_by_id(&self, group_id: &str) -> Result<Option<Group>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.find_group_by_id_in_session(group_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn find_group_by_id_in_session(
@@ -258,20 +298,22 @@ impl IdentityService {
         self.get_store().find_group(group_id, session)
     }
 
-    pub fn delete_group(&self, group_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_group(&self, group_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_group_in_session(group_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_group_in_session(&self, group_id: &str, session: &mut DbSession) {
         self.get_store().delete_group(group_id, session);
     }
 
-    pub fn create_membership(&self, user_id: String, group_id: String) {
-        let mut session = self.create_session();
+    pub fn create_membership(&self, user_id: String, group_id: String) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.create_membership_in_session(user_id, group_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn create_membership_in_session(
@@ -284,10 +326,11 @@ impl IdentityService {
             .create_membership(user_id, group_id, session);
     }
 
-    pub fn delete_membership(&self, user_id: &str, group_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_membership(&self, user_id: &str, group_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_membership_in_session(user_id, group_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_membership_in_session(
@@ -300,11 +343,12 @@ impl IdentityService {
             .delete_membership(user_id, group_id, session);
     }
 
-    pub fn get_groups_by_user(&self, user_id: &str) -> Vec<Group> {
-        let mut session = self.create_session();
+    pub fn get_groups_by_user(&self, user_id: &str) -> Result<Vec<Group>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_groups_by_user_in_session(user_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_groups_by_user_in_session(
@@ -315,11 +359,12 @@ impl IdentityService {
         self.get_store().get_groups_by_user(user_id, session)
     }
 
-    pub fn get_users_by_group(&self, group_id: &str) -> Vec<User> {
-        let mut session = self.create_session();
+    pub fn get_users_by_group(&self, group_id: &str) -> Result<Vec<User>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_users_by_group_in_session(group_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_users_by_group_in_session(
@@ -330,11 +375,12 @@ impl IdentityService {
         self.get_store().get_users_by_group(group_id, session)
     }
 
-    pub fn membership_exists(&self, user_id: &str, group_id: &str) -> bool {
-        let mut session = self.create_session();
+    pub fn membership_exists(&self, user_id: &str, group_id: &str) -> Result<bool, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.membership_exists_in_session(user_id, group_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn membership_exists_in_session(
@@ -347,11 +393,12 @@ impl IdentityService {
             .membership_exists(user_id, group_id, session)
     }
 
-    pub fn list_memberships(&self) -> Vec<Membership> {
-        let mut session = self.create_session();
+    pub fn list_memberships(&self) -> Result<Vec<Membership>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.list_memberships_in_session(&mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn list_memberships_in_session(&self, session: &mut DbSession) -> Vec<Membership> {
@@ -370,21 +417,23 @@ impl IdentityService {
         TokenQuery::new(Arc::clone(&self.command_executor))
     }
 
-    pub fn save_privilege(&self, privilege: Privilege) {
-        let mut session = self.create_session();
+    pub fn save_privilege(&self, privilege: Privilege) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.save_privilege_in_session(privilege, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn save_privilege_in_session(&self, privilege: Privilege, session: &mut DbSession) {
         self.get_store().insert_privilege(privilege, session);
     }
 
-    pub fn find_privilege_by_id(&self, privilege_id: &str) -> Option<Privilege> {
-        let mut session = self.create_session();
+    pub fn find_privilege_by_id(&self, privilege_id: &str) -> Result<Option<Privilege>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.find_privilege_by_id_in_session(privilege_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn find_privilege_by_id_in_session(
@@ -395,20 +444,22 @@ impl IdentityService {
         self.get_store().find_privilege(privilege_id, session)
     }
 
-    pub fn delete_privilege(&self, privilege_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_privilege(&self, privilege_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_privilege_in_session(privilege_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_privilege_in_session(&self, privilege_id: &str, session: &mut DbSession) {
         self.get_store().delete_privilege(privilege_id, session);
     }
 
-    pub fn add_user_privilege_mapping(&self, privilege_id: String, user_id: String) {
-        let mut session = self.create_session();
+    pub fn add_user_privilege_mapping(&self, privilege_id: String, user_id: String) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.add_user_privilege_mapping_in_session(privilege_id, user_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn add_user_privilege_mapping_in_session(
@@ -433,10 +484,11 @@ impl IdentityService {
         self.get_store().insert_privilege_mapping(mapping, session);
     }
 
-    pub fn add_group_privilege_mapping(&self, privilege_id: String, group_id: String) {
-        let mut session = self.create_session();
+    pub fn add_group_privilege_mapping(&self, privilege_id: String, group_id: String) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.add_group_privilege_mapping_in_session(privilege_id, group_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn add_group_privilege_mapping_in_session(
@@ -461,10 +513,11 @@ impl IdentityService {
         self.get_store().insert_privilege_mapping(mapping, session);
     }
 
-    pub fn delete_user_privilege_mapping(&self, privilege_id: &str, user_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_user_privilege_mapping(&self, privilege_id: &str, user_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_user_privilege_mapping_in_session(privilege_id, user_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_user_privilege_mapping_in_session(
@@ -484,10 +537,11 @@ impl IdentityService {
         }
     }
 
-    pub fn delete_group_privilege_mapping(&self, privilege_id: &str, group_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_group_privilege_mapping(&self, privilege_id: &str, group_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_group_privilege_mapping_in_session(privilege_id, group_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_group_privilege_mapping_in_session(
@@ -507,11 +561,12 @@ impl IdentityService {
         }
     }
 
-    pub fn get_privileges_for_user(&self, user_id: &str) -> Vec<Privilege> {
-        let mut session = self.create_session();
+    pub fn get_privileges_for_user(&self, user_id: &str) -> Result<Vec<Privilege>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_privileges_for_user_in_session(user_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_privileges_for_user_in_session(
@@ -540,11 +595,12 @@ impl IdentityService {
         privileges
     }
 
-    pub fn get_privileges_for_group(&self, group_id: &str) -> Vec<Privilege> {
-        let mut session = self.create_session();
+    pub fn get_privileges_for_group(&self, group_id: &str) -> Result<Vec<Privilege>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_privileges_for_group_in_session(group_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_privileges_for_group_in_session(
@@ -570,11 +626,12 @@ impl IdentityService {
     /// grants because that is what an effective-permission check needs. Callers
     /// that manipulate mappings (deleting a user, listing what to revoke) need
     /// this narrower set.
-    pub fn get_direct_privileges_for_user(&self, user_id: &str) -> Vec<Privilege> {
-        let mut session = self.create_session();
+    pub fn get_direct_privileges_for_user(&self, user_id: &str) -> Result<Vec<Privilege>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_direct_privileges_for_user_in_session(user_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_direct_privileges_for_user_in_session(
@@ -597,11 +654,12 @@ impl IdentityService {
     /// `PrivilegeRepository.findAll()`, which the idm app's privilege list needs;
     /// there is no query builder for privileges because there is nothing to filter
     /// on.
-    pub fn list_privileges(&self) -> Vec<Privilege> {
-        let mut session = self.create_session();
+    pub fn list_privileges(&self) -> Result<Vec<Privilege>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.list_privileges_in_session(&mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn list_privileges_in_session(&self, session: &mut DbSession) -> Vec<Privilege> {
@@ -617,11 +675,12 @@ impl IdentityService {
     ///
     /// A mapping row carries either `user_id` or `group_id`, never both, so the
     /// two returned vectors partition the mappings.
-    pub fn get_privilege_mapping_ids(&self, privilege_id: &str) -> (Vec<String>, Vec<String>) {
-        let mut session = self.create_session();
+    pub fn get_privilege_mapping_ids(&self, privilege_id: &str) -> Result<(Vec<String>, Vec<String>), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.get_privilege_mapping_ids_in_session(privilege_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: never mask a storage failure as an empty read.
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn get_privilege_mapping_ids_in_session(
@@ -647,21 +706,24 @@ impl IdentityService {
         (user_ids, group_ids)
     }
 
-    pub fn save_token(&self, token: Token) {
-        let mut session = self.create_session();
+    pub fn save_token(&self, token: Token) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.save_token_in_session(token, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn save_token_in_session(&self, token: Token, session: &mut DbSession) {
         self.get_store().insert_token(token, session);
     }
 
-    pub fn find_token_by_id(&self, token_id: &str) -> Option<Token> {
-        let mut session = self.create_session();
+    pub fn find_token_by_id(&self, token_id: &str) -> Result<Option<Token>, crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         let result = self.find_token_by_id_in_session(token_id, &mut session);
-        let _ = session.rollback();
-        result
+        // See `end_read_session`: rolling back before draining the sticky slot
+        // would report a storage failure as `Ok(None)` ("no such token").
+        Self::end_read_session(&mut session)?;
+        Ok(result)
     }
 
     pub fn find_token_by_id_in_session(
@@ -672,10 +734,11 @@ impl IdentityService {
         self.get_store().find_token(token_id, session)
     }
 
-    pub fn delete_token(&self, token_id: &str) {
-        let mut session = self.create_session();
+    pub fn delete_token(&self, token_id: &str) -> Result<(), crate::error::FlowableError> {
+        let mut session = self.create_session().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
         self.delete_token_in_session(token_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     pub fn delete_token_in_session(&self, token_id: &str, session: &mut DbSession) {

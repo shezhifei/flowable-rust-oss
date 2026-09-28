@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 // Performance baseline stress tests for flowable-engine.
 // Seeds hot tables with 1K/10K/50K rows and measures representative queries.
 // Run with: cargo test -p flowable-engine --test performance_baseline_stress -- --nocapture
@@ -14,7 +20,7 @@ fn create_engine() -> (ProcessEngine, Arc<TestTimeSource>) {
     let now = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(now));
     let engine =
-        ProcessEngine::with_time_source("perf_test_engine".to_string(), time_source.clone());
+        ProcessEngine::with_time_source("perf_test_engine".to_string(), time_source.clone()).unwrap();
     (engine, time_source)
 }
 

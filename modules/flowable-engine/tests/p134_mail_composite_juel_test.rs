@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P134/P124: mixed JUEL composite templates for mail text/html/textVar/htmlVar.
 //!
 //! Java: `ExpressionManager.createExpression` produces composite ValueExpressions
@@ -12,7 +18,7 @@ use serde_json::json;
 
 #[test]
 fn mail_task_composite_juel_on_text_and_html_fields() {
-    let process_engine = ProcessEngine::new("p134-mail-composite".to_string());
+    let process_engine = ProcessEngine::new("p134-mail-composite".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -93,7 +99,7 @@ fn mail_task_composite_juel_on_text_and_html_fields() {
 
 #[test]
 fn mail_task_text_var_html_var_composite_and_escape() {
-    let process_engine = ProcessEngine::new("p134-mail-var-composite".to_string());
+    let process_engine = ProcessEngine::new("p134-mail-var-composite".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

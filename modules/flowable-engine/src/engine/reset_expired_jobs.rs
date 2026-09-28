@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::engine::runtime_service::RuntimeService;
 use crate::error::FlowableError;
 use crate::persistence::runtime_store::{ExpiredJobClass, ResetExpiredJobsBatchOutcome};
@@ -83,12 +91,12 @@ impl ResetExpiredJobs {
     }
 
     pub fn start(&self, runtime_service: Arc<RuntimeService>) {
-        let mut handle_guard = self.handle.lock().unwrap();
+        let mut handle_guard = self.handle.lock().unwrap_or_else(|e| e.into_inner());
         if handle_guard.is_some() {
             return;
         }
         let (stop_tx, stop_rx) = bounded::<()>(1);
-        *self.stop_tx.lock().unwrap() = Some(stop_tx);
+        *self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()) = Some(stop_tx);
         self.is_active.store(true, Ordering::SeqCst);
         let is_active = Arc::clone(&self.is_active);
         let config = self.config.clone();
@@ -126,15 +134,15 @@ impl ResetExpiredJobs {
 
     pub(crate) fn request_stop(&self) {
         self.is_active.store(false, Ordering::SeqCst);
-        if let Some(stop_tx) = self.stop_tx.lock().unwrap().as_ref() {
+        if let Some(stop_tx) = self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             let _ = stop_tx.try_send(());
         }
     }
 
     pub(crate) fn await_stopped(&self) {
         let handle = {
-            let mut handle_guard = self.handle.lock().unwrap();
-            self.stop_tx.lock().unwrap().take();
+            let mut handle_guard = self.handle.lock().unwrap_or_else(|e| e.into_inner());
+            self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()).take();
             handle_guard.take()
         };
         if let Some(handle) = handle {
@@ -183,7 +191,7 @@ mod tests {
 
     #[test]
     fn stop_is_interruptible_idempotent_and_restartable() {
-        let engine = ProcessEngine::new("reset-expired-restart".to_string());
+        let engine = ProcessEngine::new("reset-expired-restart".to_string()).unwrap();
         let reset = ResetExpiredJobs::new(ResetExpiredJobsConfig {
             reset_interval_ms: 60_000,
             page_size: 3,
@@ -236,7 +244,7 @@ mod tests {
 
     #[test]
     fn zero_interval_waits_until_stop_notification() {
-        let engine = ProcessEngine::new("reset-expired-zero-interval".to_string());
+        let engine = ProcessEngine::new("reset-expired-zero-interval".to_string()).unwrap();
         let reset = ResetExpiredJobs::new(ResetExpiredJobsConfig {
             reset_interval_ms: 0,
             page_size: 3,
@@ -469,7 +477,7 @@ mod tests {
 
     #[test]
     fn command_error_is_logged_and_does_not_kill_reset_thread() {
-        let engine = ProcessEngine::new("reset-expired-error-survives".to_string());
+        let engine = ProcessEngine::new("reset-expired-error-survives".to_string()).unwrap();
         // Use a short non-zero interval so a cycle error is followed by another
         // wait that proves the thread stayed alive.
         let reset = ResetExpiredJobs::new(ResetExpiredJobsConfig {

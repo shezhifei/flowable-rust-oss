@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P49 contract tests for task candidate / involvement query parity.
 //!
 //! Java evidence:
@@ -36,7 +42,7 @@ fn standalone_task(engine: &ProcessEngine, task_id: &str, name: &str) {
 /// User A belongs to G1; task only has candidate group G1 → must match candidateUser=A.
 #[test]
 fn t1_candidate_user_expands_group_memberships() {
-    let engine = ProcessEngine::new("p49-t1-group-expand".to_string());
+    let engine = ProcessEngine::new("p49-t1-group-expand".to_string()).unwrap();
     let identity = engine.get_identity_service();
     let task_service = engine.get_task_service();
 
@@ -44,8 +50,8 @@ fn t1_candidate_user_expands_group_memberships() {
         id: "G1".to_string(),
         name: "Group One".to_string(),
         group_type: None,
-    });
-    identity.create_membership("userA".to_string(), "G1".to_string());
+    }).unwrap();
+    identity.create_membership("userA".to_string(), "G1".to_string()).unwrap();
 
     standalone_task(&engine, "task-group-only", "Group Only Task");
     task_service
@@ -87,7 +93,7 @@ fn t1_candidate_user_expands_group_memberships() {
 /// T3: taskInvolvedGroups matches any identity-link group id (not only candidate type).
 #[test]
 fn t3_task_involved_groups_matches_identity_link_groups() {
-    let engine = ProcessEngine::new("p49-t3-involved-groups".to_string());
+    let engine = ProcessEngine::new("p49-t3-involved-groups".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "task-cand-g", "Candidate Group Task");
@@ -128,7 +134,7 @@ fn t3_task_involved_groups_matches_identity_link_groups() {
 /// Java candidate queries default to `ASSIGNEE_ is null`; ignoreAssigneeValue turns that off.
 #[test]
 fn t4_candidate_query_excludes_assigned_unless_ignore_assignee() {
-    let engine = ProcessEngine::new("p49-t4-ignore-assignee".to_string());
+    let engine = ProcessEngine::new("p49-t4-ignore-assignee".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "task-open", "Open Candidate");
@@ -172,7 +178,7 @@ fn t4_candidate_query_excludes_assigned_unless_ignore_assignee() {
 /// T4 also applies to candidateUser (including after group expansion).
 #[test]
 fn t4_candidate_user_excludes_assigned_after_group_expand() {
-    let engine = ProcessEngine::new("p49-t4-cand-user-assigned".to_string());
+    let engine = ProcessEngine::new("p49-t4-cand-user-assigned".to_string()).unwrap();
     let identity = engine.get_identity_service();
     let task_service = engine.get_task_service();
 
@@ -180,8 +186,8 @@ fn t4_candidate_user_excludes_assigned_after_group_expand() {
         id: "sales".to_string(),
         name: "Sales".to_string(),
         group_type: None,
-    });
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string());
+    }).unwrap();
+    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
 
     standalone_task(&engine, "task-open", "Open");
     task_service
@@ -217,7 +223,7 @@ fn t4_candidate_user_excludes_assigned_after_group_expand() {
 /// (direct identity-link match — already wired in HistoricTaskInstanceQueryCmd).
 #[test]
 fn t5_historic_task_candidate_filters_effective() {
-    let engine = ProcessEngine::new("p49-t5-historic-candidate".to_string());
+    let engine = ProcessEngine::new("p49-t5-historic-candidate".to_string()).unwrap();
     let repository = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -292,7 +298,7 @@ fn t5_historic_task_candidate_filters_effective() {
 /// (HistoricTaskInstanceQueryImpl.java:2221-2246) + HistoricTaskInstance.xml:1484-1510.
 #[test]
 fn t6_historic_candidate_user_expands_group_memberships() {
-    let engine = ProcessEngine::new("p66-t6-historic-group-expand".to_string());
+    let engine = ProcessEngine::new("p66-t6-historic-group-expand".to_string()).unwrap();
     let identity = engine.get_identity_service();
     let repository = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
@@ -303,8 +309,8 @@ fn t6_historic_candidate_user_expands_group_memberships() {
         id: "sales".to_string(),
         name: "Sales".to_string(),
         group_type: None,
-    });
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string());
+    }).unwrap();
+    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
 
     // Group-only candidate link (no candidateUsers attribute).
     let xml_group = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -431,7 +437,7 @@ fn t6_historic_candidate_user_expands_group_memberships() {
 /// `ignoreAssigneeValue` is set (HistoricTaskInstanceQueryImpl.java:1972-1978).
 #[test]
 fn p75a_historic_candidate_excludes_assigned_unless_ignore_assignee() {
-    let engine = ProcessEngine::new("p75a-hist-ignore-assignee".to_string());
+    let engine = ProcessEngine::new("p75a-hist-ignore-assignee".to_string()).unwrap();
     let repository = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -520,7 +526,7 @@ fn p75a_historic_candidate_excludes_assigned_unless_ignore_assignee() {
 /// (parity with runtime T4 after group expand).
 #[test]
 fn p75a_historic_candidate_user_excludes_assigned_after_group_expand() {
-    let engine = ProcessEngine::new("p75a-hist-cand-user-assigned".to_string());
+    let engine = ProcessEngine::new("p75a-hist-cand-user-assigned".to_string()).unwrap();
     let identity = engine.get_identity_service();
     let repository = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
@@ -531,8 +537,8 @@ fn p75a_historic_candidate_user_excludes_assigned_after_group_expand() {
         id: "sales".to_string(),
         name: "Sales".to_string(),
         group_type: None,
-    });
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string());
+    }).unwrap();
+    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"

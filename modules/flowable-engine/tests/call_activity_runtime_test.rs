@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use serde_json::json;
 
@@ -177,7 +183,7 @@ fn same_deployment_child_xml(task_id: &str) -> String {
 
 #[test]
 fn test_call_activity_runtime_semantics() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -264,7 +270,7 @@ fn test_call_activity_runtime_semantics() {
 
 #[test]
 fn test_call_activity_maps_basic_in_and_out_variables() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -358,7 +364,7 @@ fn test_call_activity_maps_basic_in_and_out_variables() {
 
 #[test]
 fn test_call_activity_inherits_parent_business_key() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -413,7 +419,7 @@ fn test_call_activity_inherits_parent_business_key() {
 
 #[test]
 fn test_call_activity_resolves_latest_called_element_in_parent_tenant() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -515,7 +521,7 @@ fn test_call_activity_resolves_latest_called_element_in_parent_tenant() {
 
 #[test]
 fn test_call_activity_resolves_called_element_business_key_and_io_expressions() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -612,7 +618,7 @@ fn test_call_activity_resolves_called_element_business_key_and_io_expressions() 
 
 #[test]
 fn test_call_activity_called_element_binding_deployment_resolves_same_deployment_definition() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

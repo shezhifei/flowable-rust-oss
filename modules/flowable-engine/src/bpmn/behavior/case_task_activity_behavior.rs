@@ -119,7 +119,7 @@ fn resolve_business_key(
         && let Some(process_instance_id) = execution.process_instance_id.as_deref()
         && let Some(process_instance) = command_context
             .runtime_store
-            .find_process_instance(process_instance_id, &mut command_context.session)
+            .find_process_instance(process_instance_id, &mut command_context.session)?
         && let Some(business_key) = process_instance.business_key
     {
         return Ok(Some(business_key));
@@ -172,7 +172,7 @@ fn set_process_variable_with_history(
     execution: &mut Execution,
     name: String,
     value: Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     execution.set_process_variable(name.clone(), value.clone());
     let historic_variable_id = format!("{}:{}", execution.id, name);
     if command_context
@@ -184,7 +184,7 @@ fn set_process_variable_with_history(
             &historic_variable_id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         let process_instance_id = execution
             .process_instance_id
@@ -199,8 +199,9 @@ fn set_process_variable_with_history(
             Some(&execution.id),
             None,
             &mut command_context.session,
-        );
+        )?;
     }
+    Ok(())
 }
 
 /// Java `CaseTaskActivityBehavior#triggerCaseTask` (:145-156) + leave.
@@ -225,7 +226,7 @@ pub fn trigger_case_task_and_leave(
 
     // Apply out-parameter variables (already mapped by callback / cmd).
     for (name, value) in variables {
-        set_process_variable_with_history(command_context, &mut execution, name, value);
+        set_process_variable_with_history(command_context, &mut execution, name, value)?;
     }
 
     // Clear reference (Java CaseTaskActivityBehavior.java:154-155).
@@ -234,7 +235,7 @@ pub fn trigger_case_task_and_leave(
 
     command_context
         .execution_entity_manager
-        .update(&execution, &mut command_context.session);
+        .update(&execution, &mut command_context.session)?;
 
     command_context
         .agenda
@@ -353,7 +354,7 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
                     execution,
                     resolved,
                     Value::String(case_instance_id.clone()),
-                );
+                )?;
             }
         } else {
             set_process_variable_with_history(
@@ -361,7 +362,7 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
                 execution,
                 CASE_INSTANCE_ID_VARIABLE.to_string(),
                 Value::String(case_instance_id.clone()),
-            );
+            )?;
         }
 
         // Entity links (Java :101-104) — out of scope when disabled / large; honor flag.
@@ -400,7 +401,7 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
         execution.reference_type = Some(EXECUTION_CHILD_CASE_REFERENCE_TYPE.to_string());
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         // Non-blocking is not modeled on BPMN CaseServiceTask in Java (always waits).
         // If the child case already completed synchronously, map outs and leave now.
@@ -408,13 +409,13 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
             let out_vars =
                 map_out_parameters_from_case_variables(&case_task, &case_instance.variables);
             for (name, value) in out_vars {
-                set_process_variable_with_history(command_context, execution, name, value);
+                set_process_variable_with_history(command_context, execution, name, value)?;
             }
             execution.reference_id = None;
             execution.reference_type = None;
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_take_outgoing_sequence_flows_operation(execution.clone());

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Tests proving that an embedded executor and a standalone-style worker
 //! can coexist against the same shared database without double-executing
 //! timer work.
@@ -120,7 +126,7 @@ fn test_standalone_worker_drives_timer_work_via_shared_db() {
 
     // Use TimerWorker directly (same pattern as the standalone binary)
     let worker = TimerWorker::new(engine2.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(300_000);
+    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
     assert_eq!(
         works.len(),
         1,
@@ -420,7 +426,7 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
 
     let reset = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(10);
+        .reset_expired_timer_job_locks(10).unwrap();
     assert_eq!(reset, 1, "reset must clear the expired renewed lease");
 
     let mut embedded_session4 = engine.get_runtime_store().create_session().unwrap();

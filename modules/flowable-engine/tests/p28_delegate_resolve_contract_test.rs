@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P28: delegate/resolve semantics + engine API stubs
 //! (setDueDate/setPriority NeedsActiveTask, claim idempotency,
 //! resolveTask(taskId, variables)).
@@ -76,7 +82,7 @@ fn find_task(engine: &ProcessEngine, pi_id: &str, task_id: &str) -> flowable_eng
 fn delegate_without_owner_keeps_owner_unset() {
     // Java DelegateTaskCmd.java:37-40: owner=assignee — a never-assigned task
     // keeps a null owner (no fallback to the delegate target).
-    let engine = ProcessEngine::new("p28-delegate-no-owner".to_string());
+    let engine = ProcessEngine::new("p28-delegate-no-owner".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
 
@@ -94,7 +100,7 @@ fn delegate_without_owner_keeps_owner_unset() {
 #[test]
 fn delegate_sets_owner_to_previous_assignee() {
     // Java DelegateTaskCmd.java:37-40 + TaskHelper.changeTaskAssignee.
-    let engine = ProcessEngine::new("p28-delegate-owner-assignee".to_string());
+    let engine = ProcessEngine::new("p28-delegate-owner-assignee".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();
@@ -116,7 +122,7 @@ fn delegate_sets_owner_to_previous_assignee() {
 fn resolve_non_delegated_task_succeeds() {
     // Java ResolveTaskCmd.java:53-54: no precondition — resolving a task that
     // was never delegated silently marks it RESOLVED and sets assignee=owner.
-    let engine = ProcessEngine::new("p28-resolve-non-delegated".to_string());
+    let engine = ProcessEngine::new("p28-resolve-non-delegated".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();
@@ -138,7 +144,7 @@ fn resolve_non_delegated_task_succeeds() {
 #[test]
 fn resolve_with_variables_applies_variables_and_returns_to_owner() {
     // Java ResolveTaskCmd.java:46-48 (variables applied) + :53-54.
-    let engine = ProcessEngine::new("p28-resolve-with-vars".to_string());
+    let engine = ProcessEngine::new("p28-resolve-with-vars".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();
@@ -173,7 +179,7 @@ fn resolve_with_variables_applies_variables_and_returns_to_owner() {
 fn claim_already_claimed_by_same_user_is_idempotent() {
     // Java ClaimTaskCmd.java:54,62: re-claim by the same user does not throw;
     // claim state (claimTime/state) is refreshed.
-    let engine = ProcessEngine::new("p28-claim-idempotent".to_string());
+    let engine = ProcessEngine::new("p28-claim-idempotent".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();
@@ -194,7 +200,7 @@ fn claim_already_claimed_by_same_user_is_idempotent() {
 #[test]
 fn claim_already_claimed_by_other_user_conflicts() {
     // Java ClaimTaskCmd.java:56-58: FlowableTaskAlreadyClaimedException.
-    let engine = ProcessEngine::new("p28-claim-conflict".to_string());
+    let engine = ProcessEngine::new("p28-claim-conflict".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();
@@ -211,7 +217,7 @@ fn claim_already_claimed_by_other_user_conflicts() {
 #[test]
 fn set_task_due_date_and_priority_update_task_and_history() {
     // Java SetTaskDueDateCmd / SetTaskPriorityCmd (task + recordTaskInfoChange).
-    let engine = ProcessEngine::new("p28-set-due-priority".to_string());
+    let engine = ProcessEngine::new("p28-set-due-priority".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();
@@ -242,7 +248,7 @@ fn set_task_due_date_and_priority_update_task_and_history() {
 #[test]
 fn set_due_date_and_priority_rejected_on_suspended_task() {
     // Java SetTaskDueDateCmd / SetTaskPriorityCmd extend NeedsActiveTaskCmd.
-    let engine = ProcessEngine::new("p28-set-suspended".to_string());
+    let engine = ProcessEngine::new("p28-set-suspended".to_string()).unwrap();
     let pi_id = deploy_and_start(&engine, "1");
     let task_id = single_task_id(&engine, &pi_id);
     let task_service = engine.get_task_service();

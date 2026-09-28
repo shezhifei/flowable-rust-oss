@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for MI boundary hosting on receive / transaction / sub_process
 //! (P9-1). Extends P8-A (`mi_boundary_attachment_contract_test.rs`) which
 //! covered userTask only.
@@ -263,7 +269,7 @@ fn engine_with_time(name: &str) -> (ProcessEngine, Arc<TestTimeSource>) {
         Utc.with_ymd_and_hms(2026, 7, 26, 8, 0, 0).unwrap(),
     ));
     (
-        ProcessEngine::with_time_source(name.to_string(), time_source.clone()),
+        ProcessEngine::with_time_source(name.to_string(), time_source.clone()).unwrap(),
         time_source,
     )
 }
@@ -463,7 +469,7 @@ fn non_interrupting_mi_receive_boundary_timer_keeps_all_instances_alive() {
 /// cancels the whole MI.
 #[test]
 fn parallel_mi_receive_message_boundary_registers_once_and_interrupts_whole_mi() {
-    let engine = ProcessEngine::new("mi-receive-message-cancel".to_string());
+    let engine = ProcessEngine::new("mi-receive-message-cancel".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "mi_receive_interrupting_message.bpmn20.xml",
@@ -492,7 +498,7 @@ fn parallel_mi_receive_message_boundary_registers_once_and_interrupts_whole_mi()
         .trigger_boundary_event_by_message_ref(
             "cancelMsg".to_string(),
             process_instance.id.clone(),
-        );
+        ).unwrap();
 
     assert_eq!(
         task_keys(&engine, &process_instance.id),

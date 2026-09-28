@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Static serving for the copied AngularJS bundles.
 //!
 //! The load-bearing property is that browser paths match Java's, because
@@ -27,7 +33,7 @@ fn legacy_root() -> PathBuf {
 /// Serves the real bundle tree. Auth is disabled: the static paths are gated by
 /// privileges in enforced mode, which is covered in the auth tests.
 async fn spawn(test_name: &str) -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     // The disabled-mode dev identity is `admin`; the row has to exist or the
     // REST handlers correctly report the user as missing.
     engine
@@ -39,7 +45,7 @@ async fn spawn(test_name: &str) -> (String, reqwest::Client) {
             email: Some("admin@example.com".to_string()),
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
     let config = UiAuthConfig {
         mode: AuthMode::Disabled,
         ..UiAuthConfig::default()
@@ -157,7 +163,7 @@ async fn rest_routes_are_not_shadowed_by_the_static_fallback() {
 
 #[tokio::test]
 async fn a_missing_static_root_mounts_nothing_and_leaves_rest_working() {
-    let engine = Arc::new(ProcessEngine::new("static_absent_root".to_string()));
+    let engine = Arc::new(ProcessEngine::new("static_absent_root".to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -167,7 +173,7 @@ async fn a_missing_static_root_mounts_nothing_and_leaves_rest_working() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
     let config = UiAuthConfig {
         mode: AuthMode::Disabled,
         ..UiAuthConfig::default()

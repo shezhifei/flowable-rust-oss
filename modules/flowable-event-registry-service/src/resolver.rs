@@ -47,7 +47,7 @@ impl FlowableEventRegistryService {
         if let Some(hit) = self
             .definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .channel_by_id(id)
             .cloned()
         {
@@ -59,7 +59,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .register_channel(definition.clone());
         }
         Ok(loaded)
@@ -73,7 +73,7 @@ impl FlowableEventRegistryService {
         if let Some(hit) = self
             .definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .event_by_id(id)
             .cloned()
         {
@@ -85,7 +85,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .register_event(definition.clone());
         }
         Ok(loaded)
@@ -103,7 +103,7 @@ impl FlowableEventRegistryService {
         let policy = self.configuration.tenant_fallback_policy();
 
         {
-            let cache = self.definition_cache.lock().unwrap();
+            let cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
             let hit = resolve_definition_with_fallback(tenant_id, &policy, |lookup_tenant| {
                 cache.latest_channel(key, lookup_tenant).cloned()
             });
@@ -128,7 +128,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .register_channel(definition.clone());
         }
         Ok(loaded)
@@ -146,7 +146,7 @@ impl FlowableEventRegistryService {
         let policy = self.configuration.tenant_fallback_policy();
 
         {
-            let cache = self.definition_cache.lock().unwrap();
+            let cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
             let hit = resolve_definition_with_fallback(tenant_id, &policy, |lookup_tenant| {
                 cache.latest_event(key, lookup_tenant).cloned()
             });
@@ -169,7 +169,7 @@ impl FlowableEventRegistryService {
         if let Some(definition) = &loaded {
             self.definition_cache
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .register_event(definition.clone());
         }
         Ok(loaded)
@@ -201,7 +201,7 @@ impl FlowableEventRegistryService {
         self.reconcile_before_resolve()?;
         let policy = self.configuration.tenant_fallback_policy();
         {
-            let cache = self.definition_cache.lock().unwrap();
+            let cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
             let hit = resolve_definition_with_fallback(tenant_id, &policy, |lookup_tenant| {
                 cache
                     .latest_event(event_key, lookup_tenant)
@@ -243,7 +243,7 @@ impl FlowableEventRegistryService {
         })?;
         self.definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .register_event(resolved.clone());
         Ok(resolved)
     }

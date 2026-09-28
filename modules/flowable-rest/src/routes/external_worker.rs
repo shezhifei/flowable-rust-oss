@@ -231,16 +231,19 @@ struct ExternalWorkerJobView {
 }
 
 impl ExternalWorkerJobView {
-    fn from_locked_job(runtime_store: &RuntimeStore, job: EngineExternalWorkerJob) -> Self {
+    fn from_locked_job(
+        runtime_store: &RuntimeStore,
+        job: EngineExternalWorkerJob,
+    ) -> Result<Self, ApiError> {
         let variables = job
             .variables
             .into_iter()
             .map(|(name, value)| AcquiredVariableResponse { name, value })
             .collect();
-        Self {
+        Ok(Self {
             id: job.id,
             job_kind: map_job_kind(job.job_kind),
-            process_definition_id: process_definition_id(runtime_store, &job.process_instance_id),
+            process_definition_id: process_definition_id(runtime_store, &job.process_instance_id)?,
             process_instance_id: job.process_instance_id,
             execution_id: job.execution_id,
             element_id: job.activity_id,
@@ -253,14 +256,17 @@ impl ExternalWorkerJobView {
             error_details: job.error_details,
             topic: job.topic,
             variables,
-        }
+        })
     }
 
-    fn from_timer_job_state(runtime_store: &RuntimeStore, state: RuntimeTimerJobState) -> Self {
-        Self {
+    fn from_timer_job_state(
+        runtime_store: &RuntimeStore,
+        state: RuntimeTimerJobState,
+    ) -> Result<Self, ApiError> {
+        Ok(Self {
             id: state.timer_job_id,
             job_kind: ExternalWorkerJobKindResponse::RuntimeTimer,
-            process_definition_id: process_definition_id(runtime_store, &state.process_instance_id),
+            process_definition_id: process_definition_id(runtime_store, &state.process_instance_id)?,
             process_instance_id: state.process_instance_id,
             execution_id: state.execution_id,
             element_id: state.activity_id,
@@ -273,7 +279,7 @@ impl ExternalWorkerJobView {
             error_details: state.error_details,
             topic: state.job_handler_configuration,
             variables: Vec::new(),
-        }
+        })
     }
 
     fn into_response(self) -> ExternalWorkerJobResponse {
@@ -327,10 +333,10 @@ pub(crate) async fn fetch_and_lock(
     )?;
 
     let runtime_store = engine.get_runtime_store();
-    let response = jobs
-        .into_iter()
-        .map(|job| ExternalWorkerJobView::from_locked_job(&runtime_store, job).into_response())
-        .collect();
+    let mut response = Vec::new();
+    for job in jobs {
+        response.push(ExternalWorkerJobView::from_locked_job(&runtime_store, job)?.into_response());
+    }
 
     Ok(Json(response))
 }
@@ -363,16 +369,30 @@ pub(crate) async fn failure(
 ) -> Result<axum::http::StatusCode, ApiError> {
     let request: FailureRequest = parse_json_body(&body)?;
     validate_worker_id(&request.worker_id)?;
-    let retries = request.retries.unwrap_or(0);
-    let retry_duration_ms = request
-        .retry_duration_ms
-        .or_else(|| {
-            request
-                .retry_timeout
-                .as_deref()
-                .and_then(parse_iso_duration_millis)
-        })
-        .unwrap_or(0);
+    // Java parity: ExternalWorkerJobFailureBuilderImpl.retries defaults to -1 (L34) and
+    // ExternalWorkerAcquireJobResource only calls retries(...) when the field is non-null
+    // (L253-255). ExternalWorkerJobFailCmd then treats retries < 0 as "decrement the job's
+    // current retries" (L51-55). Defaulting an absent field to 0 instead would set retries
+    // to zero and move the job straight to the dead-letter queue (L66-67).
+    let retries = request.retries.unwrap_or(-1);
+    // Java parity: retryTimeout is typed java.time.Duration in the request DTO (L40), so a
+    // malformed value fails Jackson deserialization and BaseExceptionHandlerAdvice answers
+    // 400. Silently falling back to 0 ms would re-queue the job immediately, turning a
+    // mistyped backoff into a hot retry loop.
+    let retry_duration_ms = match request.retry_duration_ms {
+        Some(ms) => ms,
+        None => match request.retry_timeout.as_deref() {
+            Some(raw) => {
+                parse_iso_duration_millis(raw).ok_or_else(|| {
+                    ApiError::bad_request(format!(
+                        "retryTimeout '{raw}' is not a supported ISO-8601 duration (expected PT<n>H[n]M[n]S)"
+                    ))
+                })?
+            }
+            // Java: retryTimeout == null -> setLockExpirationTime(null), i.e. retry now (L60-61).
+            None => 0,
+        },
+    };
 
     engine.get_external_worker_service().handle_failure(
         &id,
@@ -471,7 +491,7 @@ pub(crate) async fn bulk_unacquire(
 
     let runtime_store = engine.get_runtime_store();
     let now = runtime_store.time_source().now().timestamp_millis();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let job_ids = runtime_store
         .snapshot_timer_job_states(&mut session)
         .into_values()
@@ -500,15 +520,15 @@ pub(crate) async fn list(
     let now = runtime_store.time_source().now().timestamp_millis();
     // Family isolation is owned by the engine service (externalWorker + timer +
     // parent active). locked/unlocked filters apply only on that result set.
-    let mut jobs: Vec<_> = engine
+    let mut jobs = Vec::new();
+    for state in engine
         .get_external_worker_service()
-        .list_active_timer_jobs()
+        .list_active_timer_jobs()?
         .into_iter()
         .filter(|state| filter_job(state, &query, now))
-        .map(|state| {
-            ExternalWorkerJobView::from_timer_job_state(&runtime_store, state).into_response()
-        })
-        .collect();
+    {
+        jobs.push(ExternalWorkerJobView::from_timer_job_state(&runtime_store, state)?.into_response());
+    }
 
     jobs.sort_by(|left, right| left.id.cmp(&right.id));
 
@@ -520,13 +540,13 @@ pub(crate) async fn get_job(
     Path(id): Path<String>,
 ) -> Result<Json<ExternalWorkerJobResponse>, ApiError> {
     let runtime_store = engine.get_runtime_store();
-    engine
+    let state = engine
         .get_external_worker_service()
-        .find_active_timer_job(&id)
-        .map(|state| {
-            Json(ExternalWorkerJobView::from_timer_job_state(&runtime_store, state).into_response())
-        })
-        .ok_or_else(|| ApiError::NotFound(format!("External worker job '{}' was not found", id)))
+        .find_active_timer_job(&id)?
+        .ok_or_else(|| ApiError::NotFound(format!("External worker job '{}' was not found", id)))?;
+    Ok(Json(
+        ExternalWorkerJobView::from_timer_job_state(&runtime_store, state)?.into_response(),
+    ))
 }
 
 fn parse_json_body<T>(body: &str) -> Result<T, ApiError>
@@ -579,11 +599,13 @@ fn parse_iso_duration_millis(value: &str) -> Option<i64> {
 fn process_definition_id(
     runtime_store: &RuntimeStore,
     process_instance_id: &str,
-) -> Option<String> {
-    let mut session = runtime_store.create_session().unwrap();
-    runtime_store
-        .find_process_instance(process_instance_id, &mut session)
-        .map(|instance| instance.process_definition_id)
+) -> Result<Option<String>, ApiError> {
+    let mut session = runtime_store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    Ok(runtime_store
+        .find_process_instance(process_instance_id, &mut session)?
+        .map(|instance| instance.process_definition_id))
 }
 
 fn map_job_kind(job_kind: ExternalWorkerJobKind) -> ExternalWorkerJobKindResponse {

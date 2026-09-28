@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::cmd::job_suspension::{
     activate_suspended_jobs_for_process_instance, suspend_jobs_for_process_instance,
 };
@@ -43,7 +51,7 @@ pub(crate) fn set_process_instance_suspension_state(
         store.find_execution(&process_instance.id, &mut command_context.session)
     {
         root_execution.is_suspended = suspended;
-        store.update_execution(&root_execution, &mut command_context.session);
+        store.update_execution(&root_execution, &mut command_context.session)?;
     }
 
     // Dispatch root entity event (executionId == processInstanceId for root)
@@ -73,7 +81,7 @@ pub(crate) fn set_process_instance_suspension_state(
 
     for mut execution in child_executions {
         execution.is_suspended = suspended;
-        store.update_execution(&execution, &mut command_context.session);
+        store.update_execution(&execution, &mut command_context.session)?;
         command_context.add_post_agenda_event(EngineEvent::Entity {
             event_type,
             data: EntityEventData {
@@ -95,7 +103,7 @@ pub(crate) fn set_process_instance_suspension_state(
     for mut task in tasks {
         let previous_state = task.suspension_state;
         task.set_suspension_state(suspended);
-        store.update_task(&task, &mut command_context.session);
+        store.update_task(&task, &mut command_context.session)?;
         command_context
             .history_manager
             .record_task_suspension_state_change(
@@ -104,7 +112,7 @@ pub(crate) fn set_process_instance_suspension_state(
                 task.suspension_state,
                 &task,
                 &mut command_context.session,
-            );
+            )?;
         command_context.add_post_agenda_event(EngineEvent::Entity {
             event_type,
             data: EntityEventData {
@@ -143,7 +151,7 @@ mod tests {
         fn execute(&self, command_context: &mut CommandContext) -> Result<(), FlowableError> {
             let store = command_context.runtime_store_handle();
             let process_instance = store
-                .find_process_instance("process-1", &mut command_context.session)
+                .find_process_instance("process-1", &mut command_context.session).expect("process instance query")
                 .expect("seeded process instance");
             set_process_instance_suspension_state(command_context, process_instance, true)?;
             Err(FlowableError::ExecutionError(
@@ -154,7 +162,7 @@ mod tests {
 
     #[test]
     fn process_and_job_suspension_roll_back_together() {
-        let engine = ProcessEngine::new("process-suspension-rollback".to_string());
+        let engine = ProcessEngine::new("process-suspension-rollback".to_string()).unwrap();
         let store = engine.get_runtime_store();
         let mut session = store.create_session().unwrap();
         store.insert_process_instance(&process_instance(), &mut session);
@@ -173,7 +181,7 @@ mod tests {
         let mut session = store.create_session().unwrap();
         assert!(
             !store
-                .find_process_instance("process-1", &mut session)
+                .find_process_instance("process-1", &mut session).expect("process instance query")
                 .expect("process instance should remain")
                 .is_suspended
         );

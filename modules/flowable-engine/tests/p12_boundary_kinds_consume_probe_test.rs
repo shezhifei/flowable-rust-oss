@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P12: non-interrupting Error / Escalation / Cancel / Compensate boundary
 //! consume-vs-repeat exclusion probes.
 //!
@@ -44,7 +50,7 @@ use flowable_engine::persistence::runtime_store::EventSubscriptionKind;
 /// fire — red until Escalation is added to the non-interrupting keep-set.
 #[test]
 fn p12_non_interrupting_escalation_boundary_state_survives_and_fires_twice() {
-    let engine = ProcessEngine::new("p12-escalation-repeat".to_string());
+    let engine = ProcessEngine::new("p12-escalation-repeat".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -103,7 +109,7 @@ fn p12_non_interrupting_escalation_boundary_state_survives_and_fires_twice() {
         EventSubscriptionKind::Escalation,
         "ESC_CODE".to_string(),
         pi.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_1 = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
@@ -137,7 +143,7 @@ fn p12_non_interrupting_escalation_boundary_state_survives_and_fires_twice() {
         EventSubscriptionKind::Escalation,
         "ESC_CODE".to_string(),
         pi.id.clone(),
-    );
+    ).unwrap();
 
     let tasks_2 = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
@@ -176,7 +182,7 @@ fn p12_non_interrupting_escalation_boundary_state_survives_and_fires_twice() {
 /// error semantics. Probe documents: not a repeat kind.
 #[test]
 fn p12_error_boundary_is_one_shot_after_catch() {
-    let engine = ProcessEngine::new("p12-error-oneshot".to_string());
+    let engine = ProcessEngine::new("p12-error-oneshot".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -274,7 +280,7 @@ fn p12_error_boundary_is_one_shot_after_catch() {
         EventSubscriptionKind::Error,
         "E1".to_string(),
         pi.id.clone(),
-    );
+    ).unwrap();
     let tasks_again = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();
@@ -295,7 +301,7 @@ fn p12_error_boundary_is_one_shot_after_catch() {
 /// `CancelEndEventActivityBehavior`). Re-fire is structurally impossible.
 #[test]
 fn p12_cancel_boundary_is_one_shot_after_transaction_cancelled() {
-    let engine = ProcessEngine::new("p12-cancel-oneshot".to_string());
+    let engine = ProcessEngine::new("p12-cancel-oneshot".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -393,7 +399,7 @@ fn p12_cancel_boundary_is_one_shot_after_transaction_cancelled() {
         EventSubscriptionKind::Cancel,
         String::new(),
         pi.id.clone(),
-    );
+    ).unwrap();
     let tasks_again = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
         .unwrap();
@@ -423,7 +429,7 @@ fn p12_cancel_boundary_is_one_shot_after_transaction_cancelled() {
 /// consume branch, one-shot matches practical compensation semantics.
 #[test]
 fn p12_non_interrupting_compensate_boundary_consume_on_trigger() {
-    let engine = ProcessEngine::new("p12-compensate-consume".to_string());
+    let engine = ProcessEngine::new("p12-compensate-consume".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();

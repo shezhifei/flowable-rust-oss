@@ -31,12 +31,12 @@ pub struct FlowableFormService {
 }
 
 impl FlowableFormService {
-    pub fn new(engine: Arc<ProcessEngine>) -> Self {
-        repository::ensure_schema(&engine.get_runtime_store());
-        Self {
+    pub fn new(engine: Arc<ProcessEngine>) -> Result<Self, FlowableError> {
+        repository::ensure_schema(&engine.get_runtime_store())?;
+        Ok(Self {
             engine,
             handlers: default_handlers(),
-        }
+        })
     }
 
     /// 使用自定义 handler 集合构造服务。
@@ -44,8 +44,8 @@ impl FlowableFormService {
     pub fn with_handlers(
         engine: Arc<ProcessEngine>,
         custom_handlers: BTreeMap<String, Arc<dyn FormFieldHandler>>,
-    ) -> Self {
-        repository::ensure_schema(&engine.get_runtime_store());
+    ) -> Result<Self, FlowableError> {
+        repository::ensure_schema(&engine.get_runtime_store())?;
         let mut handlers = default_handlers();
         // A custom handler registered under a compatibility alias also owns
         // that alias's canonical runtime route (for example `amount` routes
@@ -56,7 +56,7 @@ impl FlowableFormService {
             }
             handlers.insert(field_type, handler);
         }
-        Self { engine, handlers }
+        Ok(Self { engine, handlers })
     }
 
     /// 返回当前注册的所有 handler 的只读引用。
@@ -96,9 +96,9 @@ impl FlowableFormService {
                 .collect(),
         };
 
-        repository::insert_form_deployment(&store, deployment.clone());
+        repository::insert_form_deployment(&store, deployment.clone())?;
         for resource in parsed_resources {
-            let current_version = repository::list_form_definitions_by_key(&store, &resource.key)
+            let current_version = repository::list_form_definitions_by_key(&store, &resource.key)?
                 .into_iter()
                 .map(|item| item.version)
                 .max()
@@ -119,7 +119,7 @@ impl FlowableFormService {
                     layout: resource.layout,
                     active: Some(true),
                 },
-            );
+            )?;
         }
 
         Ok(deployment)
@@ -138,7 +138,7 @@ impl FlowableFormService {
         form_definition_id: &str,
     ) -> Result<FormDefinition, FlowableError> {
         let store = self.engine.get_runtime_store();
-        repository::find_form_definition(&store, form_definition_id).ok_or_else(|| {
+        repository::find_form_definition(&store, form_definition_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!(
                 "Form definition '{}' was not found",
                 form_definition_id
@@ -148,7 +148,7 @@ impl FlowableFormService {
 
     pub fn get_form_instance(&self, form_instance_id: &str) -> Result<FormInstance, FlowableError> {
         let store = self.engine.get_runtime_store();
-        repository::find_form_instance(&store, form_instance_id).ok_or_else(|| {
+        repository::find_form_instance(&store, form_instance_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!(
                 "Form instance '{}' was not found",
                 form_instance_id
@@ -246,12 +246,12 @@ impl FlowableFormService {
         // SQLite shared-cache mode holds a table-level write lock from BEGIN
         // IMMEDIATE even for reads, which would block those nested sessions.
         let (task, process_instance) = {
-            let mut session = store.create_session().unwrap();
-            let task = store.find_task(task_id, &mut session).ok_or_else(|| {
+            let mut session = store.create_session()?;
+            let task = store.find_task(task_id, &mut session)?.ok_or_else(|| {
                 FlowableError::NotFound(format!("Task '{}' was not found", task_id))
             })?;
             let process_instance = store
-                .find_process_instance(&task.process_instance_id, &mut session)
+                .find_process_instance(&task.process_instance_id, &mut session)?
                 .ok_or_else(|| {
                     FlowableError::NotFound(format!(
                         "Process instance '{}' was not found for task '{}'",
@@ -619,7 +619,7 @@ fn latest_form_definition_by_key(
     form_key: &str,
 ) -> Result<FormDefinition, FlowableError> {
     let store = engine.get_runtime_store();
-    repository::list_form_definitions_by_key(&store, form_key)
+    repository::list_form_definitions_by_key(&store, form_key)?
         .into_iter()
         .filter(|d| d.active.unwrap_or(true))
         .max_by(|left, right| {

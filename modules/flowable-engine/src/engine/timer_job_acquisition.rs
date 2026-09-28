@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::engine::async_task_executor::{AsyncTask, AsyncTaskExecutor, RejectedExecutionError};
 use crate::engine::job_runnable::spawn_timer_work;
 use crate::engine::lock_manager::{
@@ -215,9 +223,17 @@ impl TimerJobAcquisition {
         let config = self.config.clone();
         let (stop_tx, stop_rx) = bounded::<()>(1);
         let task_sender: Option<crate::engine::async_task_executor::AsyncTaskSender> = {
-            let guard = task_executor.lock().unwrap();
+            let guard = task_executor.lock().unwrap_or_else(|e| e.into_inner());
             guard.as_ref().and_then(|e| e.try_clone_sender())
         };
+        if task_sender.is_none() {
+            // `try_clone_sender` yields None both for "no executor configured" and for a
+            // shut-down executor; in that state every submission is rejected and acquired
+            // work is released again in a silent loop, so report the lifecycle fault.
+            tracing::error!(
+                "timer job acquisition started without an available async task executor; acquired work will be released unsubmitted"
+            );
+        }
         let handle = thread::spawn(move || {
             let worker = TimerWorker::new(Arc::clone(&runtime_service), "async-timer-acq");
             let worker_config = TimerWorkerConfig {
@@ -295,6 +311,29 @@ impl TimerJobAcquisition {
                 if let Some(permit) = permit {
                     if let Err(error) = permit.finish() {
                         tracing::error!("failed to release timer global lock: {error}");
+                        // Java parity: `AcquireTimerJobsRunnable` releases work it already
+                        // acquired when the surrounding step fails (`unlockTimerJobs`,
+                        // AcquireTimerJobsRunnable.java:231-239, 289-299). Without this the
+                        // acquired rows stay locked for `timer_lock_time_ms`, and scheduled
+                        // acquisition only selects unlocked rows, so they cannot be retried.
+                        match works {
+                            Ok(works) => {
+                                for work in &works {
+                                    if let Err(release_error) =
+                                        runtime_service.reject_acquired_timer_work(work)
+                                    {
+                                        tracing::error!(
+                                            "failed to release acquired timer work after global lock release failure: {release_error}"
+                                        );
+                                    }
+                                }
+                            }
+                            Err(error) => {
+                                tracing::error!(
+                                    "failed to acquire scheduled timer work: {error}"
+                                );
+                            }
+                        }
                         if wait_for_stop(
                             &stop_rx,
                             config.timer_job_acquire_wait_ms + worker_config.get_jitter_ms(),
@@ -402,7 +441,11 @@ impl TimerJobAcquisition {
         let Some(handle) = handle else {
             return;
         };
-        let _ = handle.join();
+        // A panicked acquisition thread means the work loop died; shutdown must not be
+        // reported as clean without a diagnostic.
+        if handle.join().is_err() {
+            tracing::error!("timer job acquisition thread panicked before shutdown completed");
+        }
 
         let mut lifecycle = self
             .lifecycle
@@ -502,7 +545,9 @@ mod tests {
 
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
-            let status = runtime_service.get_timer_coordinator_status();
+            let status = runtime_service
+                .get_timer_coordinator_status()
+                .expect("coordinator status must be readable");
             if status.fencing_token > 0 && status.status == CoordinatorLeadershipStatus::Active {
                 thread::sleep(Duration::from_millis(25));
                 return;
@@ -513,7 +558,7 @@ mod tests {
     }
 
     fn shutdown_task_executor(task_executor: &Arc<Mutex<Option<AsyncTaskExecutor>>>) {
-        if let Some(executor) = task_executor.lock().unwrap().take() {
+        if let Some(executor) = task_executor.lock().unwrap_or_else(|e| e.into_inner()).take() {
             executor.shutdown();
         }
     }
@@ -655,6 +700,7 @@ mod tests {
             .expect("event subprocess work");
         let process_start = deployment_manager
             .get_timer_start_subscriptions(&mut session)
+            .expect("timer start subscription read must succeed")
             .into_iter()
             .find(|subscription| subscription.id == process_start_id)
             .unwrap();
@@ -718,6 +764,7 @@ mod tests {
         let runtime_job = engine
             .get_management_service()
             .find_job_by_id(&runtime_id)
+            .unwrap()
             .unwrap();
         assert!(runtime_job.lock_owner.is_none());
         assert!(runtime_job.lock_time.is_none());
@@ -764,6 +811,7 @@ mod tests {
         let runtime_job = engine
             .get_management_service()
             .find_job_by_id(&runtime_id)
+            .unwrap()
             .unwrap();
         assert_eq!(runtime_job.lock_owner.as_deref(), Some(REJECTION_OWNER));
         assert!(runtime_job.lock_time.is_some());
@@ -869,7 +917,7 @@ mod tests {
 
     #[test]
     fn stop_interrupts_sixty_second_acquisition_wait() {
-        let engine = ProcessEngine::new("interruptible-timer-acquisition".to_string());
+        let engine = ProcessEngine::new("interruptible-timer-acquisition".to_string()).unwrap();
         let runtime_service = engine.get_runtime_service();
         let task_executor = task_executor();
         let acquisition = TimerJobAcquisition::new(sixty_second_wait_config());
@@ -891,7 +939,7 @@ mod tests {
 
     #[test]
     fn stop_is_idempotent_and_acquisition_can_restart() {
-        let engine = ProcessEngine::new("restartable-timer-acquisition".to_string());
+        let engine = ProcessEngine::new("restartable-timer-acquisition".to_string()).unwrap();
         let runtime_service = engine.get_runtime_service();
         let task_executor = task_executor();
         let acquisition = TimerJobAcquisition::new(sixty_second_wait_config());

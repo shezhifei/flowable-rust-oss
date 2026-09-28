@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for Java sequential multi-instance **child execution reuse**.
 //!
 //! Java (`SequentialMultiInstanceBehavior#continueSequentialMultiInstance`, lines
@@ -115,7 +121,7 @@ fn mi_root_id(engine: &ProcessEngine, child_execution_id: &str) -> String {
 /// Java `continueSequentialMultiInstance` keeps the same instance execution.
 #[test]
 fn sequential_mi_reuses_same_child_execution_id_across_rounds() {
-    let engine = ProcessEngine::new("seq-mi-reuse-child-id".to_string());
+    let engine = ProcessEngine::new("seq-mi-reuse-child-id".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "seq_mi_reuse.bpmn20.xml",
@@ -184,7 +190,7 @@ fn sequential_mi_reuses_same_child_execution_id_across_rounds() {
 /// sibling instance rows (Java never ends the reused child between rounds).
 #[test]
 fn sequential_mi_does_not_accumulate_ended_child_rows_between_rounds() {
-    let engine = ProcessEngine::new("seq-mi-reuse-no-ended-pile".to_string());
+    let engine = ProcessEngine::new("seq-mi-reuse-no-ended-pile".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "seq_mi_reuse.bpmn20.xml",
@@ -228,7 +234,7 @@ fn sequential_mi_does_not_accumulate_ended_child_rows_between_rounds() {
 /// exits early and leaves the process on the post-MI activity.
 #[test]
 fn sequential_mi_completion_condition_exits_early() {
-    let engine = ProcessEngine::new("seq-mi-completion-early".to_string());
+    let engine = ProcessEngine::new("seq-mi-completion-early".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "seq_mi_completion.bpmn20.xml",
@@ -275,7 +281,7 @@ fn sequential_mi_completion_condition_exits_early() {
 /// after each round and resumes on the next user-task complete until finished.
 #[test]
 fn sequential_mi_wait_state_suspends_and_resumes_all_rounds() {
-    let engine = ProcessEngine::new("seq-mi-wait-state-resume".to_string());
+    let engine = ProcessEngine::new("seq-mi-wait-state-resume".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "seq_mi_reuse.bpmn20.xml",

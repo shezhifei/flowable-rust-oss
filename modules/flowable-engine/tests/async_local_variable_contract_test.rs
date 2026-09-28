@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the asynchronous execution variable APIs, mirroring Java
 //! `RuntimeService#setVariableLocalAsync` / `#setVariablesLocalAsync` and the
 //! GLOBAL variants `#setVariableAsync` / `#setVariablesAsync`
@@ -105,6 +111,7 @@ fn pending_async_variable_jobs(
     engine
         .get_management_service()
         .list_executable_jobs()
+        .unwrap()
         .into_iter()
         .filter(|job| job.handler_type.as_deref() == Some(job_handler_types::SET_ASYNC_VARIABLES))
         .filter(|job| execution_id.is_none_or(|id| job.execution_id == id))
@@ -113,7 +120,7 @@ fn pending_async_variable_jobs(
 
 #[test]
 fn async_local_variable_is_not_visible_until_the_job_runs() {
-    let engine = ProcessEngine::new("async-local-deferred".to_string());
+    let engine = ProcessEngine::new("async-local-deferred".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -163,7 +170,7 @@ fn async_local_variable_is_not_visible_until_the_job_runs() {
 
 #[test]
 fn async_local_variables_apply_to_the_owning_executions_scope() {
-    let engine = ProcessEngine::new("async-local-scope".to_string());
+    let engine = ProcessEngine::new("async-local-scope".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -224,7 +231,7 @@ fn async_local_variables_apply_to_the_owning_executions_scope() {
 
 #[test]
 fn async_local_variable_shadows_ancestor_value_after_the_job_runs() {
-    let engine = ProcessEngine::new("async-local-shadowing".to_string());
+    let engine = ProcessEngine::new("async-local-shadowing".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -275,7 +282,7 @@ fn async_local_variable_shadows_ancestor_value_after_the_job_runs() {
 
 #[test]
 fn async_local_set_rejects_unknown_execution() {
-    let engine = ProcessEngine::new("async-local-unknown".to_string());
+    let engine = ProcessEngine::new("async-local-unknown".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let error = runtime
@@ -300,7 +307,7 @@ fn async_local_set_rejects_unknown_execution() {
 
 #[test]
 fn async_local_set_rejects_suspended_execution() {
-    let engine = ProcessEngine::new("async-local-suspended".to_string());
+    let engine = ProcessEngine::new("async-local-suspended".to_string()).unwrap();
     let process_instance = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -331,7 +338,7 @@ fn async_local_set_rejects_suspended_execution() {
 
 #[test]
 fn empty_variables_map_creates_no_job() {
-    let engine = ProcessEngine::new("async-local-empty".to_string());
+    let engine = ProcessEngine::new("async-local-empty".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -350,7 +357,7 @@ fn empty_variables_map_creates_no_job() {
 /// (Green before this package's implementation lands.)
 #[test]
 fn sync_local_set_remains_immediate_and_schedules_no_job() {
-    let engine = ProcessEngine::new("async-local-sync-guard".to_string());
+    let engine = ProcessEngine::new("async-local-sync-guard".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -373,7 +380,7 @@ fn sync_local_set_remains_immediate_and_schedules_no_job() {
 
 #[test]
 fn async_global_variable_is_not_visible_until_the_job_runs() {
-    let engine = ProcessEngine::new("async-global-deferred".to_string());
+    let engine = ProcessEngine::new("async-global-deferred".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -420,7 +427,7 @@ fn async_global_variable_is_not_visible_until_the_job_runs() {
 /// place — never copied onto the job's execution.
 #[test]
 fn async_global_variable_updates_the_existing_ancestor_value() {
-    let engine = ProcessEngine::new("async-global-owning-scope".to_string());
+    let engine = ProcessEngine::new("async-global-owning-scope".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -483,7 +490,7 @@ fn async_global_variable_updates_the_existing_ancestor_value() {
 
 #[test]
 fn async_global_set_rejects_unknown_execution() {
-    let engine = ProcessEngine::new("async-global-unknown".to_string());
+    let engine = ProcessEngine::new("async-global-unknown".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let error = runtime
@@ -508,7 +515,7 @@ fn async_global_set_rejects_unknown_execution() {
 
 #[test]
 fn async_global_set_rejects_suspended_execution() {
-    let engine = ProcessEngine::new("async-global-suspended".to_string());
+    let engine = ProcessEngine::new("async-global-suspended".to_string()).unwrap();
     let process_instance = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -541,7 +548,7 @@ fn async_global_set_rejects_suspended_execution() {
 /// (Green before this package's implementation lands.)
 #[test]
 fn sync_global_set_remains_immediate_and_schedules_no_job() {
-    let engine = ProcessEngine::new("async-global-sync-guard".to_string());
+    let engine = ProcessEngine::new("async-global-sync-guard".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");

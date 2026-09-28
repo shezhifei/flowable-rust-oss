@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P2-12: storage fault-injection for the Event Registry delivery pipelines.
 //! Session/commit failures must surface as `FlowableError` instead of
 //! panicking, failure-path persistence failures must combine both errors, and
@@ -88,7 +94,7 @@ impl OutboundChannelAdapter for SabotagingAdapter {
         event: EventPayload,
         _channel_config: &Value,
     ) -> Result<(), FlowableError> {
-        self.tokens.lock().unwrap().push(event.dispatch_token);
+        self.tokens.lock().unwrap_or_else(|e| e.into_inner()).push(event.dispatch_token);
         if self.fail_times.load(Ordering::SeqCst) > 0 {
             self.fail_times.fetch_sub(1, Ordering::SeqCst);
             return Err(FlowableError::ExecutionError(
@@ -107,7 +113,7 @@ fn inbound_service(
     drop_table_in_consumer: bool,
     consumer_fails: bool,
 ) -> (FlowableEventRegistryService, Arc<SabotagingConsumer>) {
-    let engine = Arc::new(ProcessEngine::new(name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(name.to_string()).unwrap());
     let consumer = Arc::new(SabotagingConsumer {
         engine: Arc::clone(&engine),
         invocations: AtomicUsize::new(0),
@@ -131,7 +137,7 @@ fn outbound_service(
     drop_table_in_adapter: bool,
     adapter_fail_times: usize,
 ) -> (FlowableEventRegistryService, Arc<SabotagingAdapter>) {
-    let engine = Arc::new(ProcessEngine::new(name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(name.to_string()).unwrap());
     let adapter = Arc::new(SabotagingAdapter {
         engine: Arc::clone(&engine),
         tokens: Mutex::new(Vec::new()),
@@ -288,7 +294,7 @@ fn published_persist_failure_after_dispatch_reports_at_least_once() {
         .unwrap_err();
 
     // The external system received the event exactly once before the failure.
-    let tokens = adapter.tokens.lock().unwrap().clone();
+    let tokens = adapter.tokens.lock().unwrap_or_else(|e| e.into_inner()).clone();
     assert_eq!(tokens.len(), 1);
     let dispatched_token = tokens[0].clone().expect("adapter must see the dispatch token");
 
@@ -331,7 +337,7 @@ fn dispatch_token_is_adapter_visible_and_stable_across_retry() {
     let retried = service.retry_event_delivery(&failed.id).unwrap();
     assert_eq!(retried.status, EventInstanceStatus::Published);
 
-    let tokens = adapter.tokens.lock().unwrap().clone();
+    let tokens = adapter.tokens.lock().unwrap_or_else(|e| e.into_inner()).clone();
     assert_eq!(tokens.len(), 2, "one original dispatch and one retry dispatch");
     assert!(tokens[0].is_some(), "dispatch token must be adapter-visible");
     assert_eq!(

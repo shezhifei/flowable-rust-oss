@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::persistence::runtime_store::EventSubscriptionKind;
@@ -53,7 +59,7 @@ const EVENT_GATEWAY_MESSAGE_TIMER_XML: &str = r#"<?xml version="1.0" encoding="U
 
 #[test]
 fn test_event_gateway_first_trigger_wins() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -71,7 +77,7 @@ fn test_event_gateway_first_trigger_wins() {
 
     // 1. Should have 2 event wait states
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 2);
 
     let msg_wait_state = wait_states
@@ -84,11 +90,11 @@ fn test_event_gateway_first_trigger_wins() {
         EventSubscriptionKind::Message,
         "msg1".to_string(),
         msg_wait_state.execution_id.clone(),
-    );
+    ).unwrap();
 
     // 3. Signal wait state should be gone, and we should be at Task After Message
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 0);
 
     let tasks = task_service
@@ -106,7 +112,7 @@ fn test_event_gateway_first_trigger_wins() {
 /// can no longer fire.
 #[test]
 fn test_event_gateway_message_cancels_sibling_timer() {
-    let process_engine = ProcessEngine::new("p52-event-gw-msg-timer".to_string());
+    let process_engine = ProcessEngine::new("p52-event-gw-msg-timer".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -128,7 +134,7 @@ fn test_event_gateway_message_cancels_sibling_timer() {
 
     // Before trigger: message wait-state + intermediate timer job both present.
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 1, "expected exactly one message wait state");
     let msg_wait = wait_states
         .iter()
@@ -160,7 +166,7 @@ fn test_event_gateway_message_cancels_sibling_timer() {
         EventSubscriptionKind::Message,
         "msg1".to_string(),
         msg_wait.execution_id.clone(),
-    );
+    ).unwrap();
 
     // Sibling timer subscription/job must be gone; only message branch remains.
     {
@@ -186,7 +192,7 @@ fn test_event_gateway_message_cancels_sibling_timer() {
     }
 
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 0);
 
     let tasks = task_service
@@ -223,7 +229,7 @@ fn test_event_gateway_message_cancels_sibling_timer() {
 /// `delete_reason == None`.
 #[test]
 fn test_event_gateway_cancel_sets_historic_activity_delete_reason() {
-    let process_engine = ProcessEngine::new("p71-event-gw-delete-reason".to_string());
+    let process_engine = ProcessEngine::new("p71-event-gw-delete-reason".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -267,7 +273,7 @@ fn test_event_gateway_cancel_sets_historic_activity_delete_reason() {
     );
 
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     let msg_wait = wait_states
         .iter()
         .find(|ws| ws.event_ref.as_deref() == Some("msg1"))
@@ -277,7 +283,7 @@ fn test_event_gateway_cancel_sets_historic_activity_delete_reason() {
         EventSubscriptionKind::Message,
         "msg1".to_string(),
         msg_wait.execution_id.clone(),
-    );
+    ).unwrap();
 
     let post = history_service
         .create_historic_activity_instance_query()

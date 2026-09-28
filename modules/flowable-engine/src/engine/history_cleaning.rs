@@ -116,7 +116,7 @@ pub fn reschedule_history_cleanup_timer(
     next.error_details = None;
     next.job_state = Some("timer".to_string());
     let (store, session) = command_context.store_and_session();
-    store.insert_timer_job_state(&next, session);
+    store.insert_timer_job_state(&next, session)?;
     Ok(())
 }
 

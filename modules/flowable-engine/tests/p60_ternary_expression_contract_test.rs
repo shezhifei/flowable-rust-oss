@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::el::expression::{Expression, SimpleExpression};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::runtime::execution::Execution;
@@ -43,7 +49,7 @@ fn ternary_expression_only_evaluates_the_selected_branch() {
 
 #[test]
 fn ternary_boolean_result_drives_exclusive_gateway() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
   <process id="p60TernaryGateway">

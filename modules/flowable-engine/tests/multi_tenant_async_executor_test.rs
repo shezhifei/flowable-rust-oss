@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Multi-tenant AsyncExecutor job acquisition filter.
 //!
 //! Java-style tenant-scoped job acquisition: empty `tenant_ids` = all tenants
@@ -201,13 +207,13 @@ fn acquire_async_jobs_respects_tenant_filter() {
     assert_eq!(acquired_a[0].process_instance_id, pi_a);
 
     // Release so B can still be acquired (and re-check empty filter).
-    assert!(runtime.release_timer_job_lock(&acquired_a[0].timer_job_id));
+    assert!(runtime.release_timer_job_lock(&acquired_a[0].timer_job_id).unwrap());
 
     let acquired_b =
         runtime.acquire_async_jobs_for_tenants(5_000, 10, &["tenant-b".to_string()], &[]);
     assert_eq!(acquired_b.len(), 1);
     assert_eq!(acquired_b[0].process_instance_id, pi_b);
-    assert!(runtime.release_timer_job_lock(&acquired_b[0].timer_job_id));
+    assert!(runtime.release_timer_job_lock(&acquired_b[0].timer_job_id).unwrap());
 
     // Empty tenant_ids (shared) acquires both.
     let acquired_all = runtime.acquire_async_jobs_for_tenants(5_000, 10, &[], &[]);

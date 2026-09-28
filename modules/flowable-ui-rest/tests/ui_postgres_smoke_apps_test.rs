@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! The admin, task, and modeler UI surfaces against a real PostgreSQL backend.
 //!
 //! Companion to `ui_postgres_smoke_test.rs` (idm face); same rules: requires the

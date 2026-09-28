@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::service::config::{AuthProviderKind, ServicePolicyConfig};
 
 #[test]
@@ -40,7 +46,9 @@ fn test_timer_coordination_policy_config() {
         flowable_engine::persistence::runtime_store::RuntimeStore::new_with_memory_backend_for_test(
             std::sync::Arc::new(db),
         );
-    let auth_provider = config.to_auth_provider(runtime_store);
+    let auth_provider = config
+        .to_auth_provider(runtime_store)
+        .expect("identity runtime must build");
 
     let admin_principal = auth_provider.authenticate(Some("my-admin-token")).unwrap();
     assert!(admin_principal.has_role("admin"));

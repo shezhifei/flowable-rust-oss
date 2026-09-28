@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::agenda::future_operations::PendingFutureRegistry;
 use flowable_engine::bpmn::http_handler::{
@@ -69,7 +75,7 @@ impl EngineEventListener for RecordingJobEventListener {
         };
         self.events
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push((event.event_type(), job.retries, job.job_state.clone()));
         Ok(())
     }
@@ -82,7 +88,7 @@ struct RecordingJobFailureListener {
 impl EngineEventListener for RecordingJobFailureListener {
     fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
         if let Some(error) = event.error() {
-            self.failures.lock().unwrap().push(format!("{error:?}"));
+            self.failures.lock().unwrap_or_else(|e| e.into_inner()).push(format!("{error:?}"));
         }
         Ok(())
     }
@@ -95,7 +101,7 @@ struct TransactionRecordingJobEventListener {
 
 impl EngineEventListener for TransactionRecordingJobEventListener {
     fn on_event(&self, _event: &EngineEvent) -> Result<(), FlowableError> {
-        self.states.lock().unwrap().push(self.state);
+        self.states.lock().unwrap_or_else(|e| e.into_inner()).push(self.state);
         Ok(())
     }
 
@@ -129,7 +135,7 @@ struct FatalTransactionJobEventListener {
 
 impl EngineEventListener for FatalTransactionJobEventListener {
     fn on_event(&self, _event: &EngineEvent) -> Result<(), FlowableError> {
-        self.states.lock().unwrap().push(self.state);
+        self.states.lock().unwrap_or_else(|e| e.into_inner()).push(self.state);
         Err(FlowableError::ExecutionError(format!(
             "fatal {:?} job event listener",
             self.state
@@ -392,6 +398,7 @@ fn management_execute_job_runs_and_consumes_async_continuation() {
         engine
             .get_management_service()
             .find_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none(),
         "successful manual execution must consume the async job"
     );
@@ -402,7 +409,7 @@ fn management_execute_job_runs_and_consumes_async_continuation() {
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0].task_definition_key, "afterAsyncTask");
     assert_eq!(
-        *observed_events.lock().unwrap(),
+        *observed_events.lock().unwrap_or_else(|e| e.into_inner()),
         vec![(
             EngineEventType::JobExecutionSuccess,
             Some(3),
@@ -453,6 +460,7 @@ fn direct_hint_executes_job_holding_a_valid_executor_row_lock() {
         engine
             .get_management_service()
             .find_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none(),
         "successful direct-hint execution must consume the async job"
     );
@@ -506,6 +514,7 @@ fn direct_hint_skips_job_whose_row_lock_was_reclaimed_by_another_owner() {
     let still_there = engine
         .get_management_service()
         .find_job_by_id(&hinted.timer_job_id)
+        .unwrap()
         .expect("the reclaimed job must remain for its new owner");
     assert_eq!(still_there.lock_owner.as_deref(), Some("some-other-node"));
     let tasks = engine
@@ -557,6 +566,7 @@ fn direct_hint_skips_job_whose_row_lock_has_expired() {
         engine
             .get_management_service()
             .find_job_by_id(&hinted.timer_job_id)
+            .unwrap()
             .is_some(),
         "the job must remain for a fresh acquisition"
     );
@@ -593,10 +603,11 @@ fn management_delete_job_emits_job_canceled_before_committing_deletion() {
         engine
             .get_management_service()
             .find_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     assert_eq!(
-        *observed_events.lock().unwrap(),
+        *observed_events.lock().unwrap_or_else(|e| e.into_inner()),
         vec![(
             EngineEventType::JobCanceled,
             Some(3),
@@ -659,6 +670,7 @@ fn async_service_task_failure_releases_lock_and_decrements_retries() {
     let retried_job = engine
         .get_management_service()
         .find_timer_job_by_id(&initial_job.timer_job_id)
+        .unwrap()
         .expect("Java moves a failed async job to the timer family until its retry is due");
     assert_eq!(retried_job.job_state.as_deref(), Some("timer"));
     assert_eq!(retried_job.retries, Some(1));
@@ -683,6 +695,7 @@ fn async_service_task_failure_releases_lock_and_decrements_retries() {
         engine
             .get_management_service()
             .find_deadletter_job_by_id(&initial_job.timer_job_id)
+            .unwrap()
             .is_none(),
         "job should not move to deadletter until retries are exhausted"
     );
@@ -749,6 +762,7 @@ fn async_service_task_failure_moves_to_deadletter_when_retries_are_exhausted() {
         engine
             .get_management_service()
             .find_executable_job_by_id(&initial_job.timer_job_id)
+            .unwrap()
             .is_none(),
         "exhausted async job should leave the executable set"
     );
@@ -756,6 +770,7 @@ fn async_service_task_failure_moves_to_deadletter_when_retries_are_exhausted() {
     let deadletter = engine
         .get_management_service()
         .find_deadletter_job_by_id(&initial_job.timer_job_id)
+        .unwrap()
         .expect("exhausted async job should be visible as deadletter");
     assert_eq!(deadletter.job_state.as_deref(), Some("deadletter"));
     assert_eq!(deadletter.retries, Some(0));
@@ -856,6 +871,7 @@ fn async_http_job_retry_replays_one_external_post_per_command_attempt() {
     let retry_job = engine
         .get_management_service()
         .find_timer_job_by_id(&initial_job.timer_job_id)
+        .unwrap()
         .expect("one retry should remain after the first failed attempt");
     assert_eq!(retry_job.retries, Some(1));
     assert_eq!(
@@ -883,12 +899,14 @@ fn async_http_job_retry_replays_one_external_post_per_command_attempt() {
         engine
             .get_management_service()
             .find_executable_job_by_id(&initial_job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     assert!(
         engine
             .get_management_service()
             .find_deadletter_job_by_id(&initial_job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     let tasks = engine
@@ -964,6 +982,7 @@ fn exhausted_async_http_job_stops_replaying_external_post_in_deadletter() {
     let deadletter = engine
         .get_management_service()
         .find_deadletter_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("R2 must move the job to deadletter after the second failure");
     assert_eq!(deadletter.retries, Some(0));
     assert_eq!(request_count.load(Ordering::SeqCst), 2);
@@ -1040,6 +1059,7 @@ fn async_http_job_without_retry_cycle_uses_java_default_failed_job_wait() {
     let retry_job = engine
         .get_management_service()
         .find_timer_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("the default retry policy should move the job to the timer family");
     assert_eq!(retry_job.retries, Some(2));
     assert_eq!(
@@ -1164,11 +1184,13 @@ fn unrecoverable_async_http_handler_failure_moves_directly_to_deadletter() {
         engine
             .get_management_service()
             .find_executable_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     let deadletter = engine
         .get_management_service()
         .find_deadletter_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("unrecoverable failure must bypass the remaining R5 retry schedule");
     assert_eq!(deadletter.retries, Some(0));
     assert_eq!(
@@ -1185,7 +1207,7 @@ fn unrecoverable_async_http_handler_failure_moves_directly_to_deadletter() {
     assert!(deadletter.lock_time.is_none());
     assert!(deadletter.lock_expiration_time.is_none());
     assert_eq!(
-        *observed_events.lock().unwrap(),
+        *observed_events.lock().unwrap_or_else(|e| e.into_inner()),
         vec![
             (
                 EngineEventType::JobExecutionFailure,
@@ -1211,12 +1233,12 @@ fn unrecoverable_async_http_handler_failure_moves_directly_to_deadletter() {
         "Java JobRetryCmd dispatches ENTITY_UPDATED before JOB_RETRIES_DECREMENTED"
     );
     assert_eq!(
-        *observed_failures.lock().unwrap(),
+        *observed_failures.lock().unwrap_or_else(|e| e.into_inner()),
         vec!["UnrecoverableJobError(\"response payload cannot be safely processed\")".to_string()],
         "JOB_EXECUTION_FAILURE must retain the typed Rust error corresponding to Java's exception event"
     );
     assert_eq!(
-        *transaction_states.lock().unwrap(),
+        *transaction_states.lock().unwrap_or_else(|e| e.into_inner()),
         vec![TransactionState::Committing, TransactionState::Committed],
         "a successful retry command must not invoke rollback lifecycle listeners"
     );
@@ -1346,11 +1368,13 @@ fn nested_unrecoverable_async_http_handler_failure_preserves_typed_cause_and_dea
         engine
             .get_management_service()
             .find_executable_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     let deadletter = engine
         .get_management_service()
         .find_deadletter_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("nested unrecoverable cause must bypass the remaining R5 retry schedule");
     assert_eq!(deadletter.retries, Some(0));
     assert_eq!(
@@ -1369,7 +1393,7 @@ fn nested_unrecoverable_async_http_handler_failure_preserves_typed_cause_and_dea
     assert!(deadletter.lock_time.is_none());
     assert!(deadletter.lock_expiration_time.is_none());
     assert_eq!(
-        *observed_events.lock().unwrap(),
+        *observed_events.lock().unwrap_or_else(|e| e.into_inner()),
         vec![
             (
                 EngineEventType::JobExecutionFailure,
@@ -1505,7 +1529,7 @@ fn fatal_retry_event_listener_rolls_back_job_update_and_fires_rollback_lifecycle
     assert_eq!(server.join().unwrap(), 1);
     assert_eq!(request_count.load(Ordering::SeqCst), 1);
     assert_eq!(
-        *transaction_states.lock().unwrap(),
+        *transaction_states.lock().unwrap_or_else(|e| e.into_inner()),
         vec![TransactionState::RollingBack, TransactionState::RolledBack],
         "fatal immediate listener must roll back the retry command"
     );
@@ -1513,6 +1537,7 @@ fn fatal_retry_event_listener_rolls_back_job_update_and_fires_rollback_lifecycle
     let unchanged_job = engine
         .get_management_service()
         .find_executable_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("rolled-back retry command must leave the original job executable");
     assert_eq!(unchanged_job.retries, Some(3));
     assert!(unchanged_job.error_message.is_none());
@@ -1521,6 +1546,7 @@ fn fatal_retry_event_listener_rolls_back_job_update_and_fires_rollback_lifecycle
         engine
             .get_management_service()
             .find_deadletter_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     assert!(
@@ -1570,7 +1596,7 @@ fn fatal_committing_retry_listener_rolls_back_job_update_before_database_commit(
             .contains("fatal Committing job event listener")
     );
     assert_eq!(
-        *transaction_states.lock().unwrap(),
+        *transaction_states.lock().unwrap_or_else(|e| e.into_inner()),
         vec![
             TransactionState::Committing,
             TransactionState::Committing,
@@ -1582,6 +1608,7 @@ fn fatal_committing_retry_listener_rolls_back_job_update_before_database_commit(
     let unchanged_job = engine
         .get_management_service()
         .find_executable_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("the retry update must be rolled back before commit");
     assert_eq!(unchanged_job.retries, Some(3));
     assert!(unchanged_job.error_message.is_none());
@@ -1590,6 +1617,7 @@ fn fatal_committing_retry_listener_rolls_back_job_update_before_database_commit(
         engine
             .get_management_service()
             .find_deadletter_job_by_id(&job.timer_job_id)
+            .unwrap()
             .is_none()
     );
     assert!(
@@ -1639,7 +1667,7 @@ fn fatal_committed_retry_listener_returns_error_without_rolling_back_committed_u
             .contains("fatal Committed job event listener")
     );
     assert_eq!(
-        *transaction_states.lock().unwrap(),
+        *transaction_states.lock().unwrap_or_else(|e| e.into_inner()),
         vec![
             TransactionState::Committing,
             TransactionState::Committed,
@@ -1652,6 +1680,7 @@ fn fatal_committed_retry_listener_returns_error_without_rolling_back_committed_u
     let committed_job = engine
         .get_management_service()
         .find_timer_job_by_id(&job.timer_job_id)
+        .unwrap()
         .expect("the retry update must remain committed");
     assert_eq!(committed_job.retries, Some(2));
     assert_eq!(

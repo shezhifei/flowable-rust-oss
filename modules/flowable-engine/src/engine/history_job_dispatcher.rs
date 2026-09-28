@@ -76,7 +76,22 @@ fn dispatcher_loop(
         match rx.recv_timeout(Duration::from_millis(DISPATCHER_RECV_TIMEOUT_MS)) {
             Ok(job_ids) => {
                 for job_id in job_ids {
-                    let mut session = runtime_store.create_session().unwrap();
+                    let mut session = match runtime_store.create_session() {
+                        Ok(session) => session,
+                        Err(error) => {
+                            // Worker-loop rule: log and move on. Returning here would
+                            // end `dispatcher_loop` for good, so one transient storage
+                            // failure would silently stop all history-job processing.
+                            // The polling acquisition cycle still picks the job up later.
+                            tracing::error!(
+                                job_id = %job_id,
+                                error = %error,
+                                "HistoryJobDispatcher: could not open a storage session; \
+                                 skipping this history job"
+                            );
+                            continue;
+                        }
+                    };
                     if let Some(job) = runtime_store.find_timer_job_state(&job_id, &mut session) {
                         let work = TimerWork::RuntimeJob(job);
                         let task = spawn_timer_work(Arc::clone(&runtime_service), work, 0);

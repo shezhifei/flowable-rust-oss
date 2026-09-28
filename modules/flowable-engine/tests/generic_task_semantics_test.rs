@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 #[test]
@@ -13,7 +19,7 @@ fn test_generic_task_semantics() {
         </process>
     </definitions>"#;
 
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

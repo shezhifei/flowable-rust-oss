@@ -97,7 +97,7 @@ impl Command<FormInstance> for CompleteTaskWithFormCmd {
 
         // Java NeedsActiveTaskCmd: runtime task + not suspended.
         let (store, session) = command_context.store_and_session();
-        let task = store.find_task(&input.task_id, session).ok_or_else(|| {
+        let task = store.find_task(&input.task_id, session)?.ok_or_else(|| {
             FlowableError::NotFound(format!("No task found for task id {}", input.task_id))
         })?;
         if task.is_suspended() {
@@ -113,16 +113,16 @@ impl Command<FormInstance> for CompleteTaskWithFormCmd {
         } else {
             Some(task.process_instance_id.clone())
         };
-        let process_definition_id = input
-            .process_definition_id
-            .clone()
-            .or_else(|| {
-                process_instance_id.as_ref().and_then(|pi_id| {
-                    store
-                        .find_process_instance(pi_id, session)
-                        .map(|pi| pi.process_definition_id)
-                })
-            });
+        let process_definition_id = match input.process_definition_id.clone() {
+            Some(id) => Some(id),
+            None => match process_instance_id.as_ref() {
+                Some(pi_id) => store
+                    .find_process_instance(pi_id, session)
+                    .map_err(map_storage_error)?
+                    .map(|pi| pi.process_definition_id),
+                None => None,
+            },
+        };
 
         // Java FormRepositoryService.getFormModelById — missing form model is
         // treated as null and form processing is skipped. Rust form-service
@@ -148,13 +148,16 @@ impl Command<FormInstance> for CompleteTaskWithFormCmd {
         }
 
         let submitted_at = store.time_source().now().timestamp_millis();
-        let tenant_id = task.tenant_id.clone().or_else(|| {
-            process_instance_id.as_ref().and_then(|pi_id| {
-                store
+        let tenant_id = match task.tenant_id.clone() {
+            Some(tenant) => Some(tenant),
+            None => match process_instance_id.as_ref() {
+                Some(pi_id) => store
                     .find_process_instance(pi_id, session)
-                    .and_then(|pi| pi.tenant_id)
-            })
-        });
+                    .map_err(map_storage_error)?
+                    .and_then(|pi| pi.tenant_id),
+                None => None,
+            },
+        };
         let form_values_id = format!("form-values:{}", Uuid::new_v4());
         let form_value_bytes = build_form_value_bytes(&input.form_instance_values);
         let form_instance = FormInstance {

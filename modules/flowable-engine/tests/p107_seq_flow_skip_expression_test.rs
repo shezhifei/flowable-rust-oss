@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P107 — sequence-flow `flowable:skipExpression` converter parse, end-to-end.
 //!
 //! P106 wired the engine-side consumption (`should_skip_sequence_flow`,
@@ -34,7 +40,7 @@ const SKIP_EXPR_GATEWAY_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 fn deploy_and_start(skip_enabled: bool) -> (ProcessEngine, String) {
-    let engine = ProcessEngine::new(format!("p107-skip-expr-{skip_enabled}"));
+    let engine = ProcessEngine::new(format!("p107-skip-expr-{skip_enabled}")).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 

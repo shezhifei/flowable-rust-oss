@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use flowable_engine::service::config::ProcessEngineConfiguration;
@@ -8,7 +14,7 @@ fn secure_script_engine() -> ProcessEngine {
         supported_script_languages: vec!["javascript".to_string()],
         ..Default::default()
     };
-    ProcessEngine::new_with_config("default".to_string(), config)
+    ProcessEngine::new_with_config("default".to_string(), config).unwrap()
 }
 
 fn deploy_skip_expression_process(process_engine: &ProcessEngine, process_id: &str) -> String {
@@ -50,7 +56,7 @@ fn script_task_executes_through_secure_runtime_to_end() {
         supported_script_languages: vec!["javascript".to_string()],
         ..Default::default()
     };
-    let process_engine = ProcessEngine::new_with_config("default".to_string(), config);
+    let process_engine = ProcessEngine::new_with_config("default".to_string(), config).unwrap();
 
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
@@ -234,7 +240,7 @@ fn script_task_skip_expression_requires_boolean_result() {
 #[test]
 fn script_task_rejects_when_secure_scripting_disabled() {
     let config = flowable_engine::service::config::ProcessEngineConfiguration::default();
-    let process_engine = ProcessEngine::new_with_config("default".to_string(), config);
+    let process_engine = ProcessEngine::new_with_config("default".to_string(), config).unwrap();
 
     let repository_service = process_engine.get_repository_service();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>

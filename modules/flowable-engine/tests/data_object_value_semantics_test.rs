@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P24 sub-item 4: data object value semantics — converter-typed, no EL eval.
 
 // The 3.14 below is the literal value in the BPMN fixture being round-tripped,
@@ -75,7 +81,7 @@ fn test_converter_types_data_object_values() {
 
 #[test]
 fn test_runtime_copies_typed_values_without_el() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 

@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::identity::entities::EntityLink;
 use std::sync::Arc;
 
 fn setup() -> Arc<ProcessEngine> {
-    Arc::new(ProcessEngine::new("entity-link-query".to_string()))
+    Arc::new(ProcessEngine::new("entity-link-query".to_string()).unwrap())
 }
 
 #[test]
@@ -20,7 +26,7 @@ fn entity_link_query_filters_by_scope_id_and_scope_type() {
         reference_scope_id: Some("ref-1".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: Some("child".to_string()),
-    });
+    }).unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "reference".to_string(),
@@ -29,7 +35,7 @@ fn entity_link_query_filters_by_scope_id_and_scope_type() {
         reference_scope_id: Some("ref-2".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: Some("child".to_string()),
-    });
+    }).unwrap();
 
     let by_scope = svc
         .create_entity_link_query()
@@ -61,7 +67,7 @@ fn entity_link_query_filters_by_reference_scope() {
         reference_scope_id: Some("ref-a".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: None,
-    });
+    }).unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "reference".to_string(),
@@ -70,7 +76,7 @@ fn entity_link_query_filters_by_reference_scope() {
         reference_scope_id: Some("ref-b".to_string()),
         reference_scope_type: Some("subProcess".to_string()),
         hierarchy_type: None,
-    });
+    }).unwrap();
 
     let by_ref_id = svc
         .create_entity_link_query()
@@ -102,7 +108,7 @@ fn entity_link_query_filters_by_link_type() {
         reference_scope_id: Some("r1".to_string()),
         reference_scope_type: None,
         hierarchy_type: None,
-    });
+    }).unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "dependency".to_string(),
@@ -111,7 +117,7 @@ fn entity_link_query_filters_by_link_type() {
         reference_scope_id: Some("r2".to_string()),
         reference_scope_type: None,
         hierarchy_type: None,
-    });
+    }).unwrap();
 
     let refs = svc
         .create_entity_link_query()
@@ -136,7 +142,7 @@ fn entity_link_query_returns_all_when_no_filter() {
             reference_scope_id: Some(format!("ref-{}", i)),
             reference_scope_type: None,
             hierarchy_type: None,
-        });
+        }).unwrap();
     }
 
     let all = svc.create_entity_link_query().list().unwrap();
@@ -156,11 +162,11 @@ fn entity_link_remove_deletes_link() {
         reference_scope_id: Some("r1".to_string()),
         reference_scope_type: None,
         hierarchy_type: None,
-    });
+    }).unwrap();
 
     assert_eq!(svc.create_entity_link_query().list().unwrap().len(), 1);
 
-    svc.remove_entity_link("el-to-delete");
+    svc.remove_entity_link("el-to-delete").unwrap();
 
     assert_eq!(svc.create_entity_link_query().list().unwrap().len(), 0);
 }
@@ -178,7 +184,7 @@ fn entity_link_query_combined_filters() {
         reference_scope_id: Some("ref-1".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: Some("child".to_string()),
-    });
+    }).unwrap();
     svc.add_entity_link(EntityLink {
         id: "el-2".to_string(),
         link_type: "dependency".to_string(),
@@ -187,7 +193,7 @@ fn entity_link_query_combined_filters() {
         reference_scope_id: Some("ref-2".to_string()),
         reference_scope_type: Some("task".to_string()),
         hierarchy_type: None,
-    });
+    }).unwrap();
 
     let combined = svc
         .create_entity_link_query()

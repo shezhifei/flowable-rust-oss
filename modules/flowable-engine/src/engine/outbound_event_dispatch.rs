@@ -52,7 +52,7 @@ pub struct OutboundEventDispatchRegistry {
 impl fmt::Debug for OutboundEventDispatchRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OutboundEventDispatchRegistry")
-            .field("installed", &self.inner.lock().unwrap().is_some())
+            .field("installed", &self.inner.lock().unwrap_or_else(|e| e.into_inner()).is_some())
             .finish()
     }
 }
@@ -64,22 +64,22 @@ impl OutboundEventDispatchRegistry {
 
     /// Install (or replace) the host outbound pipeline. Last writer wins.
     pub fn install(&self, hook: OutboundEventDispatchHandle) {
-        *self.inner.lock().unwrap() = Some(hook);
+        *self.inner.lock().unwrap_or_else(|e| e.into_inner()) = Some(hook);
     }
 
     /// Remove any installed hook (engine-only no-op path).
     pub fn clear(&self) {
-        *self.inner.lock().unwrap() = None;
+        *self.inner.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     pub fn is_installed(&self) -> bool {
-        self.inner.lock().unwrap().is_some()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).is_some()
     }
 
     /// Run transform + adapter when a hook is installed; otherwise succeed as
     /// in-memory no-op (engine unit tests without event-registry-service).
     pub fn dispatch(&self, request: &OutboundEventDispatchRequest) -> Result<(), FlowableError> {
-        let guard = self.inner.lock().unwrap();
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         match guard.as_ref() {
             Some(hook) => hook.dispatch_outbound(request),
             None => Ok(()),

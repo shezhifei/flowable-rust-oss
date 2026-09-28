@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P18-C contract test: a compensation handler executes against a SNAPSHOT of
 //! the scope variables taken when the compensated activity completed.
 //!
@@ -29,7 +35,7 @@ impl LocalServiceTaskDelegate for RecordXDelegate {
         &self,
         context: &mut LocalServiceTaskDelegateContext<'_>,
     ) -> Result<Value, FlowableError> {
-        *SEEN_X.lock().unwrap() = context.execution.process_variable("x");
+        *SEEN_X.lock().unwrap_or_else(|e| e.into_inner()) = context.execution.process_variable("x");
         Ok(Value::Null)
     }
 }
@@ -68,7 +74,7 @@ fn engine_with_record_x_delegate() -> ProcessEngine {
 
     let mut config = ProcessEngineConfiguration::default();
     config.service_task_delegate_registry = Some(registry);
-    ProcessEngine::new_with_config("p18-compensation-snapshot".to_string(), config)
+    ProcessEngine::new_with_config("p18-compensation-snapshot".to_string(), config).unwrap()
 }
 
 fn complete_single_task(engine: &ProcessEngine, process_instance_id: &str, expected_key: &str) {
@@ -122,11 +128,11 @@ fn compensation_handler_sees_variable_snapshot_taken_at_activity_completion() {
         .set_variable(process_instance.id.clone(), "x".to_string(), json!(2))
         .unwrap();
 
-    *SEEN_X.lock().unwrap() = None;
+    *SEEN_X.lock().unwrap_or_else(|e| e.into_inner()) = None;
     complete_single_task(&engine, &process_instance.id, "gate");
 
     assert_eq!(
-        *SEEN_X.lock().unwrap(),
+        *SEEN_X.lock().unwrap_or_else(|e| e.into_inner()),
         Some(json!(1)),
         "compensation handler must see the variable snapshot taken when the \
          compensated activity completed, not the later value"

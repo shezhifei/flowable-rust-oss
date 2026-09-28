@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P27: message/signal start subscription lifecycle on redeploy / undeploy.
 //!
 //! Java evidence:
@@ -69,17 +75,17 @@ fn deploy(engine: &ProcessEngine, name: &str, resource: &str, xml: String) -> St
 fn redeploy_cancels_old_version_message_start_subscription() {
     // Java EventSubscriptionManager.removeObsoleteMessageEventSubscriptions
     // (EventSubscriptionManager.java:55-67)
-    let engine = ProcessEngine::new("p27-redeploy-message".to_string());
+    let engine = ProcessEngine::new("p27-redeploy-message".to_string()).unwrap();
     deploy(&engine, "v1", "v1.bpmn20.xml", message_start_xml("v1"));
 
-    let subs_v1 = engine.get_event_start_subscriptions();
+    let subs_v1 = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(subs_v1.len(), 1);
     assert_eq!(subs_v1[0].event_kind, EventSubscriptionKind::Message);
     let v1_def = subs_v1[0].process_definition_id.clone();
 
     deploy(&engine, "v2", "v2.bpmn20.xml", message_start_xml("v2"));
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(
         subs.len(),
         1,
@@ -97,17 +103,17 @@ fn redeploy_cancels_old_version_message_start_subscription() {
 fn redeploy_cancels_old_version_signal_start_subscription() {
     // Java EventSubscriptionManager.removeObsoleteSignalEventSubscription
     // (EventSubscriptionManager.java:122-133)
-    let engine = ProcessEngine::new("p27-redeploy-signal".to_string());
+    let engine = ProcessEngine::new("p27-redeploy-signal".to_string()).unwrap();
     deploy(&engine, "v1", "v1.bpmn20.xml", signal_start_xml("v1"));
 
-    let subs_v1 = engine.get_event_start_subscriptions();
+    let subs_v1 = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(subs_v1.len(), 1);
     assert_eq!(subs_v1[0].event_kind, EventSubscriptionKind::Signal);
     let v1_def = subs_v1[0].process_definition_id.clone();
 
     deploy(&engine, "v2", "v2.bpmn20.xml", signal_start_xml("v2"));
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(
         subs.len(),
         1,
@@ -122,9 +128,9 @@ fn redeploy_cancels_old_version_signal_start_subscription() {
 fn undeploy_latest_restores_previous_version_message_start_subscription() {
     // Java DeploymentProcessDefinitionDeletionManagerImpl
     // .restorePreviousStartEventsIfNeeded (:111-155, message at :135)
-    let engine = ProcessEngine::new("p27-undeploy-restore-message".to_string());
+    let engine = ProcessEngine::new("p27-undeploy-restore-message".to_string()).unwrap();
     deploy(&engine, "v1", "v1.bpmn20.xml", message_start_xml("v1"));
-    let v1_def = engine.get_event_start_subscriptions()[0]
+    let v1_def = engine.get_event_start_subscriptions().unwrap()[0]
         .process_definition_id
         .clone();
     let dep2 = deploy(&engine, "v2", "v2.bpmn20.xml", message_start_xml("v2"));
@@ -134,7 +140,7 @@ fn undeploy_latest_restores_previous_version_message_start_subscription() {
         .delete_deployment(&dep2)
         .unwrap();
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(
         subs.len(),
         1,
@@ -149,9 +155,9 @@ fn undeploy_latest_restores_previous_version_message_start_subscription() {
 fn undeploy_latest_restores_previous_version_signal_start_subscription() {
     // Java DeploymentProcessDefinitionDeletionManagerImpl
     // .restorePreviousStartEventsIfNeeded (:111-155, signal at :133)
-    let engine = ProcessEngine::new("p27-undeploy-restore-signal".to_string());
+    let engine = ProcessEngine::new("p27-undeploy-restore-signal".to_string()).unwrap();
     deploy(&engine, "v1", "v1.bpmn20.xml", signal_start_xml("v1"));
-    let v1_def = engine.get_event_start_subscriptions()[0]
+    let v1_def = engine.get_event_start_subscriptions().unwrap()[0]
         .process_definition_id
         .clone();
     let dep2 = deploy(&engine, "v2", "v2.bpmn20.xml", signal_start_xml("v2"));
@@ -161,7 +167,7 @@ fn undeploy_latest_restores_previous_version_signal_start_subscription() {
         .delete_deployment(&dep2)
         .unwrap();
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(
         subs.len(),
         1,
@@ -177,7 +183,7 @@ fn undeploy_old_version_keeps_latest_event_start_subscription() {
     // Java restorePreviousStartEventsIfNeeded only fires when the deleted
     // definition is the latest version (:111-119); deleting an old version
     // leaves the latest subscription untouched.
-    let engine = ProcessEngine::new("p27-undeploy-old-keep".to_string());
+    let engine = ProcessEngine::new("p27-undeploy-old-keep".to_string()).unwrap();
     let dep1 = deploy(&engine, "v1", "v1.bpmn20.xml", message_start_xml("v1"));
     deploy(&engine, "v2", "v2.bpmn20.xml", message_start_xml("v2"));
 
@@ -186,7 +192,7 @@ fn undeploy_old_version_keeps_latest_event_start_subscription() {
         .delete_deployment(&dep1)
         .unwrap();
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(
         subs.len(),
         1,
@@ -200,7 +206,7 @@ fn redeploy_other_tenant_does_not_cancel_subscription() {
     // Java EventSubscriptionManager filters obsolete subscriptions by tenantId
     // (EventSubscriptionManager.java:60-63,127-130); a deploy in another tenant
     // must not delete this tenant's subscription.
-    let engine = ProcessEngine::new("p27-tenant-isolation".to_string());
+    let engine = ProcessEngine::new("p27-tenant-isolation".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     repository_service
         .deploy(
@@ -221,7 +227,7 @@ fn redeploy_other_tenant_does_not_cancel_subscription() {
         )
         .unwrap();
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     assert_eq!(
         subs.len(),
         2,

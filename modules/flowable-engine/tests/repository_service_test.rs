@@ -1,8 +1,14 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 #[test]
 fn deployment_resources_are_queryable_after_deploy() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -29,7 +35,7 @@ fn deployment_resources_are_queryable_after_deploy() {
 
 #[test]
 fn deleting_deployment_removes_process_definitions() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>

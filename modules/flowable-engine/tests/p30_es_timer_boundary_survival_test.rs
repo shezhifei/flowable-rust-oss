@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 // P30: interrupting boundary events must NOT delete process-instance-level
 // event-subprocess timer subscriptions.
 //
@@ -21,7 +27,7 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
     let engine = ProcessEngine::with_time_source(
         "p30-msg-boundary-es-timer".to_string(),
         time_source.clone(),
-    );
+    ).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 
@@ -81,7 +87,7 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
 
     // Fire the interrupting message boundary: host task cancelled, flow moves on.
     runtime_service
-        .trigger_boundary_event_by_message_ref("cancelMessage".to_string(), pi.id.clone());
+        .trigger_boundary_event_by_message_ref("cancelMessage".to_string(), pi.id.clone()).unwrap();
 
     let tasks = engine
         .get_task_service()
@@ -136,7 +142,7 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
     let engine = ProcessEngine::with_time_source(
         "p30-timer-boundary-es-timer".to_string(),
         time_source.clone(),
-    );
+    ).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 

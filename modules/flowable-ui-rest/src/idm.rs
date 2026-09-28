@@ -224,23 +224,30 @@ pub fn router() -> Router {
 ///
 /// Returns `None` when the user row is gone; every caller turns that into a 404,
 /// which is what Java's `NotFoundException` does.
-fn user_information(engine: &Arc<ProcessEngine>, user_id: &str) -> Option<UserRepresentation> {
+fn user_information(
+    engine: &Arc<ProcessEngine>,
+    user_id: &str,
+) -> Result<Option<UserRepresentation>, flowable_engine::error::FlowableError> {
     let identity = engine.get_identity_service();
-    let user = identity.find_user_by_id(user_id)?;
-    let groups = identity.get_groups_by_user(user_id);
+    let Some(user) = identity.find_user_by_id(user_id)? else {
+        return Ok(None);
+    };
+    let groups = identity.get_groups_by_user(user_id)?;
 
     // Java collects into a `HashSet<String>` of names, so duplicates across the
     // user's own grants and their groups' collapse. Sorted here because a set's
     // iteration order is not something to replicate.
     let mut privileges: Vec<String> = identity
-        .get_privileges_for_user(user_id)
+        .get_privileges_for_user(user_id)?
         .into_iter()
         .map(|privilege| privilege.name)
         .collect();
     privileges.sort();
     privileges.dedup();
 
-    Some(UserRepresentation::from_user(user).with_groups_and_privileges(groups, privileges))
+    Ok(Some(
+        UserRepresentation::from_user(user).with_groups_and_privileges(groups, privileges),
+    ))
 }
 
 /// Java `UserQuery.userFullNameLikeIgnoreCase("%" + filter + "%")`.
@@ -321,6 +328,7 @@ async fn account(
     axum::Extension(engine): EngineState,
 ) -> Result<Json<UserRepresentation>, UiError> {
     user_information(&engine, auth.user_id())
+        .map_err(UiError::from)?
         .map(Json)
         .ok_or_else(UiError::not_found)
 }
@@ -425,7 +433,7 @@ async fn create_user(
         }
     }
 
-    if identity.find_user_by_id(&id).is_some() {
+    if identity.find_user_by_id(&id)?.is_some() {
         return Err(UiError::conflict(
             "User already registered",
             "ACCOUNT.SIGNUP.ERROR.ALREADY-REGISTERED",
@@ -440,7 +448,7 @@ async fn create_user(
         password: Some(password),
         tenant_id: request.tenant_id,
     };
-    identity.save_user(user.clone());
+    identity.save_user(user.clone())?;
 
     // Java hands back the in-memory entity, which still holds the plaintext
     // password field; the representation does not expose it, so the only
@@ -476,18 +484,18 @@ async fn update_user(
     axum::Extension(engine): EngineState,
     Path(user_id): Path<String>,
     Json(request): Json<UpdateUsersRequest>,
-) -> StatusCode {
+) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    if let Some(user) = identity.find_user_by_id(&user_id) {
+    if let Some(user) = identity.find_user_by_id(&user_id)? {
         identity.save_user(User {
             first_name: request.first_name,
             last_name: request.last_name,
             email: request.email,
             tenant_id: request.tenant_id,
             ..user
-        });
+        })?;
     }
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 /// `PUT /idm-app/rest/admin/users`.
@@ -498,20 +506,20 @@ async fn bulk_update_users(
     _auth: UiAuth,
     axum::Extension(engine): EngineState,
     Json(request): Json<UpdateUsersRequest>,
-) -> StatusCode {
+) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
     let Some(password) = request.password else {
-        return StatusCode::OK;
+        return Ok(StatusCode::OK);
     };
     for user_id in request.users {
-        if let Some(user) = identity.find_user_by_id(&user_id) {
+        if let Some(user) = identity.find_user_by_id(&user_id)? {
             identity.save_user(User {
                 password: Some(password.clone()),
                 ..user
-            });
+            })?;
         }
     }
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 /// `DELETE /idm-app/rest/admin/users/{userId}`.
@@ -522,21 +530,21 @@ async fn delete_user(
     _auth: UiAuth,
     axum::Extension(engine): EngineState,
     Path(user_id): Path<String>,
-) -> StatusCode {
+) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
 
     // Direct grants only. Java's `createPrivilegeQuery().userId(userId)` does not
     // include privileges the user merely inherits from a group, and those must
     // survive the user's deletion — they belong to the group.
-    for privilege in identity.get_direct_privileges_for_user(&user_id) {
-        identity.delete_user_privilege_mapping(&privilege.id, &user_id);
+    for privilege in identity.get_direct_privileges_for_user(&user_id)? {
+        identity.delete_user_privilege_mapping(&privilege.id, &user_id)?;
     }
-    for group in identity.get_groups_by_user(&user_id) {
-        identity.delete_membership(&user_id, &group.id);
+    for group in identity.get_groups_by_user(&user_id)? {
+        identity.delete_membership(&user_id, &group.id)?;
     }
-    identity.delete_user(&user_id);
+    identity.delete_user(&user_id)?;
 
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 // ── Groups ──
@@ -589,7 +597,7 @@ async fn get_group(
 ) -> Result<Json<GroupRepresentation>, UiError> {
     engine
         .get_identity_service()
-        .find_group_by_id(&group_id)
+        .find_group_by_id(&group_id)?
         .map(|group| Json(GroupRepresentation::from_group(group)))
         .ok_or_else(UiError::not_found)
 }
@@ -614,14 +622,14 @@ async fn group_users(
     axum::Extension(engine): EngineState,
     Path(group_id): Path<String>,
     Query(query): Query<GroupUsersQuery>,
-) -> Json<ResultListDataRepresentation<UserRepresentation>> {
+) -> Result<Json<ResultListDataRepresentation<UserRepresentation>>, UiError> {
     let page = query.page.unwrap_or(0).max(0);
     let page_size = query
         .page_size
         .unwrap_or(DEFAULT_GROUP_USERS_PAGE_SIZE as i32)
         .max(0);
 
-    let mut users = engine.get_identity_service().get_users_by_group(&group_id);
+    let mut users = engine.get_identity_service().get_users_by_group(&group_id)?;
     if let Some(filter) = query.filter.as_deref().filter(|value| !value.is_empty()) {
         users.retain(|user| full_name_matches(user, filter));
     }
@@ -630,12 +638,12 @@ async fn group_users(
     let start = page.saturating_mul(page_size);
     let slice = page_slice(users, start as usize, page_size as usize);
 
-    Json(ResultListDataRepresentation {
+    Ok(Json(ResultListDataRepresentation {
         size: slice.len() as i32,
         total,
         start,
         data: slice.into_iter().map(UserRepresentation::from_user).collect(),
-    })
+    }))
 }
 
 /// `POST /idm-app/rest/admin/groups`.
@@ -656,7 +664,7 @@ async fn create_group(
         name,
         group_type: Some(request.group_type.unwrap_or_else(|| TYPE_ASSIGNMENT.to_string())),
     };
-    engine.get_identity_service().save_group(group.clone());
+    engine.get_identity_service().save_group(group.clone())?;
 
     Ok(Json(GroupRepresentation::from_group(group)))
 }
@@ -675,12 +683,12 @@ async fn update_group(
     };
 
     let identity = engine.get_identity_service();
-    let Some(group) = identity.find_group_by_id(&group_id) else {
+    let Some(group) = identity.find_group_by_id(&group_id)? else {
         return Err(UiError::not_found());
     };
 
     let updated = Group { name, ..group };
-    identity.save_group(updated.clone());
+    identity.save_group(updated.clone())?;
 
     Ok(Json(GroupRepresentation::from_group(updated)))
 }
@@ -692,10 +700,10 @@ async fn delete_group(
     Path(group_id): Path<String>,
 ) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    if identity.find_group_by_id(&group_id).is_none() {
+    if identity.find_group_by_id(&group_id)?.is_none() {
         return Err(UiError::not_found());
     }
-    identity.delete_group(&group_id);
+    identity.delete_group(&group_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -708,12 +716,12 @@ async fn add_group_member(
     Path((group_id, user_id)): Path<(String, String)>,
 ) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    if identity.find_group_by_id(&group_id).is_none()
-        || identity.find_user_by_id(&user_id).is_none()
+    if identity.find_group_by_id(&group_id)?.is_none()
+        || identity.find_user_by_id(&user_id)?.is_none()
     {
         return Err(UiError::not_found());
     }
-    identity.create_membership(user_id, group_id);
+    identity.create_membership(user_id, group_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -724,12 +732,12 @@ async fn delete_group_member(
     Path((group_id, user_id)): Path<(String, String)>,
 ) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    if identity.find_group_by_id(&group_id).is_none()
-        || identity.find_user_by_id(&user_id).is_none()
+    if identity.find_group_by_id(&group_id)?.is_none()
+        || identity.find_user_by_id(&user_id)?.is_none()
     {
         return Err(UiError::not_found());
     }
-    identity.delete_membership(&user_id, &group_id);
+    identity.delete_membership(&user_id, &group_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -742,11 +750,11 @@ async fn delete_group_member(
 async fn list_privileges(
     _auth: UiAuth,
     axum::Extension(engine): EngineState,
-) -> Json<Vec<PrivilegeRepresentation>> {
-    Json(
+) -> Result<Json<Vec<PrivilegeRepresentation>>, UiError> {
+    Ok(Json(
         engine
             .get_identity_service()
-            .list_privileges()
+            .list_privileges()?
             .into_iter()
             .map(|privilege| PrivilegeRepresentation {
                 id: privilege.id,
@@ -755,7 +763,7 @@ async fn list_privileges(
                 groups: None,
             })
             .collect(),
-    )
+    ))
 }
 
 /// Java's `getPrivilege`, shared by three endpoints — the single-privilege view
@@ -766,24 +774,26 @@ fn privilege_detail(
     privilege_id: &str,
 ) -> Result<PrivilegeRepresentation, UiError> {
     let identity = engine.get_identity_service();
-    let Some(privilege) = identity.find_privilege_by_id(privilege_id) else {
+    let Some(privilege) = identity.find_privilege_by_id(privilege_id)? else {
         return Err(UiError::not_found());
     };
 
-    let (user_ids, group_ids) = identity.get_privilege_mapping_ids(privilege_id);
+    let (user_ids, group_ids) = identity.get_privilege_mapping_ids(privilege_id)?;
 
     // Mappings can outlive the rows they point at; Java's join drops those, so
     // unresolvable ids are skipped rather than surfacing as empty entries.
-    let users = user_ids
-        .into_iter()
-        .filter_map(|user_id| identity.find_user_by_id(&user_id))
-        .map(UserRepresentation::from_user)
-        .collect();
-    let groups = group_ids
-        .into_iter()
-        .filter_map(|group_id| identity.find_group_by_id(&group_id))
-        .map(GroupRepresentation::from_group)
-        .collect();
+    let mut users = Vec::new();
+    for user_id in user_ids {
+        if let Some(user) = identity.find_user_by_id(&user_id)? {
+            users.push(UserRepresentation::from_user(user));
+        }
+    }
+    let mut groups = Vec::new();
+    for group_id in group_ids {
+        if let Some(group) = identity.find_group_by_id(&group_id)? {
+            groups.push(GroupRepresentation::from_group(group));
+        }
+    }
 
     Ok(PrivilegeRepresentation {
         id: privilege.id,
@@ -859,13 +869,13 @@ async fn add_user_privilege(
     let identity = engine.get_identity_service();
     let user_id = request.user_id.unwrap_or_default();
 
-    if identity.find_user_by_id(&user_id).is_none() {
+    if identity.find_user_by_id(&user_id)?.is_none() {
         return Err(UiError::bad_request("Invalid user id"));
     }
 
-    let (existing_users, _) = identity.get_privilege_mapping_ids(&privilege_id);
+    let (existing_users, _) = identity.get_privilege_mapping_ids(&privilege_id)?;
     if !existing_users.contains(&user_id) {
-        identity.add_user_privilege_mapping(privilege_id, user_id);
+        identity.add_user_privilege_mapping(privilege_id, user_id)?;
     }
     Ok(StatusCode::OK)
 }
@@ -877,10 +887,10 @@ async fn delete_user_privilege(
     Path((privilege_id, user_id)): Path<(String, String)>,
 ) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    if identity.find_user_by_id(&user_id).is_none() {
+    if identity.find_user_by_id(&user_id)?.is_none() {
         return Err(UiError::bad_request("Invalid user id"));
     }
-    identity.delete_user_privilege_mapping(&privilege_id, &user_id);
+    identity.delete_user_privilege_mapping(&privilege_id, &user_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -894,13 +904,13 @@ async fn add_group_privilege(
     let identity = engine.get_identity_service();
     let group_id = request.group_id.unwrap_or_default();
 
-    if identity.find_group_by_id(&group_id).is_none() {
+    if identity.find_group_by_id(&group_id)?.is_none() {
         return Err(UiError::bad_request("Invalid group id"));
     }
 
-    let (_, existing_groups) = identity.get_privilege_mapping_ids(&privilege_id);
+    let (_, existing_groups) = identity.get_privilege_mapping_ids(&privilege_id)?;
     if !existing_groups.contains(&group_id) {
-        identity.add_group_privilege_mapping(privilege_id, group_id);
+        identity.add_group_privilege_mapping(privilege_id, group_id)?;
     }
     Ok(StatusCode::OK)
 }
@@ -912,10 +922,10 @@ async fn delete_group_privilege(
     Path((privilege_id, group_id)): Path<(String, String)>,
 ) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    if identity.find_group_by_id(&group_id).is_none() {
+    if identity.find_group_by_id(&group_id)?.is_none() {
         return Err(UiError::bad_request("Invalid group id"));
     }
-    identity.delete_group_privilege_mapping(&privilege_id, &group_id);
+    identity.delete_group_privilege_mapping(&privilege_id, &group_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -930,6 +940,7 @@ async fn get_profile(
     axum::Extension(engine): EngineState,
 ) -> Result<Json<UserRepresentation>, UiError> {
     user_information(&engine, auth.user_id())
+        .map_err(UiError::from)?
         .map(Json)
         .ok_or_else(UiError::not_found)
 }
@@ -950,7 +961,7 @@ async fn update_profile(
     };
 
     let identity = engine.get_identity_service();
-    let Some(user) = identity.find_user_by_id(auth.user_id()) else {
+    let Some(user) = identity.find_user_by_id(auth.user_id())? else {
         return Err(UiError::not_found());
     };
 
@@ -960,7 +971,7 @@ async fn update_profile(
         email: Some(email),
         ..user
     };
-    identity.save_user(updated.clone());
+    identity.save_user(updated.clone())?;
 
     Ok(Json(UserRepresentation::from_user(updated)))
 }
@@ -989,19 +1000,19 @@ async fn change_password(
     Json(request): Json<ChangePasswordRequest>,
 ) -> Result<StatusCode, UiError> {
     let identity = engine.get_identity_service();
-    let Some(user) = identity.find_user_by_id(auth.user_id()) else {
+    let Some(user) = identity.find_user_by_id(auth.user_id())? else {
         return Err(UiError::not_found());
     };
 
     let original = request.original_password.unwrap_or_default();
-    if !identity.check_password(auth.user_id(), &original) {
+    if !identity.check_password(auth.user_id(), &original)? {
         return Err(UiError::not_found());
     }
 
     identity.save_user(User {
         password: Some(request.new_password.unwrap_or_default()),
         ..user
-    });
+    })?;
     Ok(StatusCode::OK)
 }
 
@@ -1017,7 +1028,7 @@ async fn get_profile_picture(
     auth: UiAuth,
     axum::Extension(engine): EngineState,
 ) -> Result<Response, UiError> {
-    let Some(picture) = engine.get_identity_service().get_user_picture(auth.user_id()) else {
+    let Some(picture) = engine.get_identity_service().get_user_picture(auth.user_id())? else {
         return Err(UiError::not_found());
     };
 
@@ -1058,7 +1069,7 @@ async fn upload_profile_picture(
             auth.user_id().to_string(),
             content_type,
             bytes.to_vec(),
-        );
+        )?;
         return Ok(StatusCode::OK);
     }
 

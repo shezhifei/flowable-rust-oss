@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use flowable_engine::persistence::runtime_store::EventSubscriptionKind;
 
 #[test]
 fn test_conditional_intermediate_catch() {
-    let engine = ProcessEngine::new("conditional-catch-test".to_string());
+    let engine = ProcessEngine::new("conditional-catch-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 
@@ -40,7 +46,7 @@ fn test_conditional_intermediate_catch() {
     let instance = runtime_service.start_process_instance(pi_builder).unwrap();
 
     let wait_states =
-        runtime_service.get_event_wait_states_by_process_instance_id(instance.id.clone());
+        runtime_service.get_event_wait_states_by_process_instance_id(instance.id.clone()).unwrap();
     let catch_exec = wait_states
         .iter()
         .find(|e| e.activity_id.as_deref() == Some("catchCond"))
@@ -51,12 +57,12 @@ fn test_conditional_intermediate_catch() {
         EventSubscriptionKind::Conditional,
         "${approve == true}".to_string(),
         catch_exec.execution_id.clone(),
-    );
+    ).unwrap();
 }
 
 #[test]
 fn test_link_intermediate_throw_catch() {
-    let engine = ProcessEngine::new("link-test".to_string());
+    let engine = ProcessEngine::new("link-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -106,7 +112,7 @@ fn test_link_intermediate_throw_catch() {
 
 #[test]
 fn test_unsupported_intermediate_event_fails_gracefully() {
-    let engine = ProcessEngine::new("unsupported-event-test".to_string());
+    let engine = ProcessEngine::new("unsupported-event-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 

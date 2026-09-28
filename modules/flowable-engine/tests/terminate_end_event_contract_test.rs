@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P15 contract: terminate end event runtime semantics.
 //!
 //! Java reference: `TerminateEndEventActivityBehavior.java:60-207` and
@@ -16,7 +22,7 @@ use flowable_engine::engine::process_engine::ProcessEngine;
 /// into a terminate end event → the whole PI ends, the waiting task is gone.
 #[test]
 fn terminate_end_event_ends_whole_top_level_instance() {
-    let engine = ProcessEngine::new("terminate-top-level".to_string());
+    let engine = ProcessEngine::new("terminate-top-level".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -111,7 +117,7 @@ fn terminate_end_event_ends_whole_top_level_instance() {
 /// scope; the process continues along the subprocess's outgoing flow.
 #[test]
 fn terminate_end_event_in_embedded_subprocess_continues_outer_flow() {
-    let engine = ProcessEngine::new("terminate-embedded-sub".to_string());
+    let engine = ProcessEngine::new("terminate-embedded-sub".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -269,7 +275,7 @@ fn parent_xml(process_id: &str, called_element: &str) -> String {
 /// child PI ends, the parent continues from the call activity.
 #[test]
 fn terminate_end_event_in_call_activity_child_continues_parent() {
-    let engine = ProcessEngine::new("terminate-call-activity".to_string());
+    let engine = ProcessEngine::new("terminate-call-activity".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -359,7 +365,7 @@ fn terminate_end_event_in_call_activity_child_continues_parent() {
 /// (parent) process instance as well.
 #[test]
 fn terminate_all_in_call_activity_child_ends_parent_too() {
-    let engine = ProcessEngine::new("terminate-all-call-activity".to_string());
+    let engine = ProcessEngine::new("terminate-all-call-activity".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();

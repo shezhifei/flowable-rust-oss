@@ -123,7 +123,7 @@ impl ContentItemQuery {
         validate_unsupported_filters("content item", &self.unsupported_filters)?;
 
         let store = self.engine.get_runtime_store();
-        let mut items = repository::list_content_items(&store);
+        let mut items = repository::list_content_items(&store)?;
         items.retain(|item| matches_optional(&self.id, &item.id));
         items.retain(|item| matches_optional(&self.name, &item.name));
         items.retain(|item| matches_optional_option(&self.mime_type, &item.mime_type));

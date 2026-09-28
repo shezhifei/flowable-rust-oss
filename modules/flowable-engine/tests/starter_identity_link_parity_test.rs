@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::identity::entities::IdentityLink;
@@ -28,7 +34,7 @@ fn deploy_simple_process(engine: &ProcessEngine) -> String {
 
 #[test]
 fn start_with_user_creates_starter_identity_link_and_records_start_user() {
-    let engine = ProcessEngine::new("starter-link-with-user".to_string());
+    let engine = ProcessEngine::new("starter-link-with-user".to_string()).unwrap();
     let process_definition_id = deploy_simple_process(&engine);
 
     let instance = engine
@@ -71,7 +77,7 @@ fn start_with_user_creates_starter_identity_link_and_records_start_user() {
 
 #[test]
 fn start_without_user_creates_no_starter_identity_link() {
-    let engine = ProcessEngine::new("starter-link-without-user".to_string());
+    let engine = ProcessEngine::new("starter-link-without-user".to_string()).unwrap();
     let process_definition_id = deploy_simple_process(&engine);
 
     let instance = engine
@@ -111,7 +117,7 @@ fn start_without_user_creates_no_starter_identity_link() {
 
 #[test]
 fn async_start_with_user_creates_starter_identity_link() {
-    let engine = ProcessEngine::new("starter-link-async-start".to_string());
+    let engine = ProcessEngine::new("starter-link-async-start".to_string()).unwrap();
     let process_definition_id = deploy_simple_process(&engine);
 
     let instance = engine
@@ -147,7 +153,7 @@ fn async_start_with_user_creates_starter_identity_link() {
 
 #[test]
 fn involved_user_matches_any_process_instance_link_type_and_deduplicates() {
-    let engine = ProcessEngine::new("involved-user-link-matching".to_string());
+    let engine = ProcessEngine::new("involved-user-link-matching".to_string()).unwrap();
     let identity_link_service = engine.get_identity_link_service();
 
     for (id, link_type, user_id, process_instance_id, task_id) in [
@@ -165,7 +171,7 @@ fn involved_user_matches_any_process_instance_link_type_and_deduplicates() {
             task_id: task_id.map(str::to_string),
             process_instance_id: process_instance_id.map(str::to_string),
             process_definition_id: None,
-        });
+        }).unwrap();
     }
 
     let store = engine.get_runtime_store();
@@ -188,7 +194,7 @@ fn involved_user_matches_any_process_instance_link_type_and_deduplicates() {
 
 #[test]
 fn historic_process_instance_query_filters_by_involved_user() {
-    let engine = ProcessEngine::new("historic-involved-user".to_string());
+    let engine = ProcessEngine::new("historic-involved-user".to_string()).unwrap();
     let process_definition_id = deploy_simple_process(&engine);
 
     let with_user = engine

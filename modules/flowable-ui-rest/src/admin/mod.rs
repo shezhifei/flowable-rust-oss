@@ -26,6 +26,7 @@ use crate::auth::UiAuth;
 pub use proxy::{ProxyClient, ProxyError};
 pub use server_config::{
     EndpointType, ServerConfig, ServerConfigRepresentation, ServerConfigStore,
+    ServerConfigStoreError,
 };
 
 /// Shared admin state: config store + HTTP proxy client.
@@ -488,7 +489,7 @@ async fn account(
 ) -> Result<Json<Value>, AdminError> {
     let identity = engine.get_identity_service();
     let user = identity
-        .find_user_by_id(auth.user_id())
+        .find_user_by_id(auth.user_id())?
         .ok_or_else(|| AdminError::not_found("Account not found".to_string()))?;
     let full_name = format!(
         "{} {}",
@@ -496,12 +497,12 @@ async fn account(
         user.last_name.clone().unwrap_or_default()
     );
     let groups: Vec<Value> = identity
-        .get_groups_by_user(&user.id)
+        .get_groups_by_user(&user.id)?
         .into_iter()
         .map(|group| json!({ "id": group.id, "name": group.name, "type": group.group_type }))
         .collect();
     let mut privileges: Vec<String> = identity
-        .get_privileges_for_user(&user.id)
+        .get_privileges_for_user(&user.id)?
         .into_iter()
         .map(|privilege| privilege.name)
         .collect();
@@ -542,8 +543,21 @@ async fn update_server_config(
 ) -> Result<impl IntoResponse, AdminError> {
     state
         .configs
-        .update(&server_id, body)
-        .map_err(AdminError::bad_request)?;
+        .update_or_missing(&server_id, body)
+        .map_err(|error| match error {
+            // Only the genuinely-missing row is a client error: Java throws
+            // `BadRequestException("Server with id '...' does not exist")` when
+            // `findOne` returns null
+            // (flowable-engine-6.8.0/.../ui/admin/rest/ServerConfigsResource.java:67-71
+            // -> RestExceptionHandlerAdvice.java:58-63 = 400).
+            ServerConfigStoreError::Missing(message) => AdminError::bad_request(message),
+            // Encrypt/persist failures escape Java as RuntimeException -> 500;
+            // blaming the request would disguise a server-side failure.
+            ServerConfigStoreError::Storage(message) => {
+                tracing::error!(error = %message, "server config update failed");
+                AdminError::internal(message)
+            }
+        })?;
     Ok(StatusCode::OK)
 }
 
@@ -2465,6 +2479,42 @@ async fn upload_to_engine(
 // Display JSON (in-process BpmnModel when engine Extension is present)
 // ---------------------------------------------------------------------------
 
+/// Classify a failed BPMN display-model lookup.
+///
+/// Java parity: `DisplayJsonClientResource.getProcessDefinitionModelJSON` first resolves the
+/// server config, which is the bad-request surface
+/// (`flowable-ui-admin-rest/.../client/DisplayJsonClientResource.java:95` ->
+/// `AbstractClientResource.retrieveServerConfig` throws
+/// `BadRequestException("No server config found")`, `AbstractClientResource.java:34-46`),
+/// and then calls `getProcessDefinitionModel` with **no** try/catch
+/// (`DisplayJsonClientResource.java:98`). So a genuinely absent definition is a
+/// caller-visible miss, while a storage failure is the server's fault.
+///
+/// Wave 4 collapsed both onto 500, which turned "no such definition" into a server
+/// error and regressed `ui_admin_contract_test::process_definition_model_json_with_engine`.
+/// Classify by variant so a storage failure still surfaces as 500.
+fn bpmn_display_model_error(error: flowable_engine::error::FlowableError) -> AdminError {
+    match error.primary_error() {
+        flowable_engine::error::FlowableError::NotFound(message) => {
+            AdminError::bad_request(message.clone())
+        }
+        _ => AdminError::internal(error.to_string()),
+    }
+}
+
+/// CMMN counterpart of [`bpmn_display_model_error`].
+///
+/// Java parity: `CmmnDisplayJsonClientResource.getCaseDefinitionModelJSON` has the same
+/// shape — `retrieveServerConfig(EndpointType.CMMN)` at
+/// `flowable-ui-admin-rest/.../client/CmmnDisplayJsonClientResource.java:62` (bad request
+/// when no CMMN config) and an unguarded `getCaseDefinitionModel` at `:65`.
+fn cmmn_display_model_error(error: flowable_cmmn_engine::CmmnError) -> AdminError {
+    match error {
+        flowable_cmmn_engine::CmmnError::NotFound { message } => AdminError::bad_request(message),
+        other => AdminError::internal(other.to_string()),
+    }
+}
+
 async fn process_definition_model_json(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(process_definition_id): Path<String>,
@@ -2472,7 +2522,7 @@ async fn process_definition_model_json(
     let model = engine
         .get_repository_service()
         .get_bpmn_model(&process_definition_id)
-        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+        .map_err(bpmn_display_model_error)?;
     Ok(Json(display_json::build_process_definition_display(
         model.as_ref(),
     )))
@@ -2490,9 +2540,9 @@ async fn process_instance_model_json(
     let model = engine
         .get_repository_service()
         .get_bpmn_model(&pd_id)
-        .map_err(|e| AdminError::bad_request(e.to_string()))?;
-    let completed = historic_activity_ids(&engine, &process_instance_id, true);
-    let current = runtime_activity_ids(&engine, &process_instance_id);
+        .map_err(bpmn_display_model_error)?;
+    let completed = historic_activity_ids(&engine, &process_instance_id, true)?;
+    let current = runtime_activity_ids(&engine, &process_instance_id)?;
     Ok(Json(display_json::build_process_instance_display(
         model.as_ref(),
         &completed,
@@ -2512,8 +2562,8 @@ async fn process_instance_history_model_json(
     let model = engine
         .get_repository_service()
         .get_bpmn_model(&pd_id)
-        .map_err(|e| AdminError::bad_request(e.to_string()))?;
-    let completed = historic_activity_ids(&engine, &process_instance_id, false);
+        .map_err(bpmn_display_model_error)?;
+    let completed = historic_activity_ids(&engine, &process_instance_id, false)?;
     Ok(Json(display_json::build_history_display(
         model.as_ref(),
         &completed,
@@ -2543,7 +2593,7 @@ async fn case_definition_model_json(
     let definition = cmmn
         .repository_service()
         .get_case_definition(&definition_id)
-        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+        .map_err(cmmn_display_model_error)?;
     // The Rust CMMN converter does not parse CMMNDI, so no graphic info is
     // available; Java returns an empty display object in that case too.
     Ok(Json(display_json::build_case_definition_display(
@@ -2560,17 +2610,20 @@ async fn case_instance_model_json(
     // Java resolves the case definition id from the (historic) case instance.
     let case_definition_id = match cmmn.runtime_service().get_case_instance(&case_instance_id) {
         Ok(instance) => instance.case_definition_id,
-        Err(_) => {
+        // Java parity: only a genuine "not found" falls through to the historic read; a
+        // storage failure must surface (500), not be masked as a completed/historic case.
+        Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => {
             cmmn.history_service()
                 .get_historic_case_instance(&case_instance_id)
-                .map_err(|e| AdminError::bad_request(e.to_string()))?
+                .map_err(cmmn_display_model_error)?
                 .case_definition_id
         }
+        Err(error) => return Err(AdminError::internal(error.to_string())),
     };
     let definition = cmmn
         .repository_service()
         .get_case_definition(&case_definition_id)
-        .map_err(|e| AdminError::bad_request(e.to_string()))?;
+        .map_err(cmmn_display_model_error)?;
     // Java: plan item instances of the case instance drive the highlighting —
     // completed when completed/terminated/occurred time is set, `active` →
     // current, `available` → available; matched on planItemDefinitionId.
@@ -2580,7 +2633,7 @@ async fn case_instance_model_json(
         .case_instance_id(case_instance_id)
         .include_ended()
         .list()
-        .unwrap_or_default();
+        .map_err(|e| AdminError::internal(e.to_string()))?;
     let mut completed = Vec::new();
     let mut current = Vec::new();
     let mut available = Vec::new();
@@ -2604,16 +2657,19 @@ async fn case_instance_model_json(
     )))
 }
 
-fn historic_activity_ids(engine: &ProcessEngine, process_instance_id: &str, only_finished: bool) -> Vec<String> {
-    // Best-effort: read historic activity instances from the store if present.
-    let Ok(rows) = engine
+fn historic_activity_ids(
+    engine: &ProcessEngine,
+    process_instance_id: &str,
+    only_finished: bool,
+) -> Result<Vec<String>, AdminError> {
+    // Java parity: the historic-activity query throws on a storage failure; rendering the
+    // diagram with no highlighted activities would report a broken store as a valid display.
+    let rows = engine
         .get_runtime_store()
         .db_store()
         .find_all::<serde_json::Value>("historic_activity_instances")
-    else {
-        return Vec::new();
-    };
-    rows.into_iter()
+        .map_err(|error| AdminError::internal(error.to_string()))?;
+    Ok(rows.into_iter()
         .filter(|r| {
             r.get("processInstanceId")
                 .and_then(|v| v.as_str())
@@ -2635,18 +2691,20 @@ fn historic_activity_ids(engine: &ProcessEngine, process_instance_id: &str, only
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
         })
-        .collect()
+        .collect())
 }
 
-fn runtime_activity_ids(engine: &ProcessEngine, process_instance_id: &str) -> Vec<String> {
-    let Ok(rows) = engine
+fn runtime_activity_ids(
+    engine: &ProcessEngine,
+    process_instance_id: &str,
+) -> Result<Vec<String>, AdminError> {
+    let rows = engine
         .get_runtime_store()
         .db_store()
         .find_all::<serde_json::Value>("executions")
-    else {
-        return Vec::new();
-    };
-    rows.into_iter()
+        .map_err(|error| AdminError::internal(error.to_string()))?;
+    Ok(rows
+        .into_iter()
         .filter(|r| {
             r.get("processInstanceId")
                 .and_then(|v| v.as_str())
@@ -2659,7 +2717,7 @@ fn runtime_activity_ids(engine: &ProcessEngine, process_instance_id: &str) -> Ve
                 .and_then(|v| v.as_str())
                 .map(str::to_string)
         })
-        .collect()
+        .collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -2768,7 +2826,11 @@ async fn proxy_get_json_value(
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .map_err(|e| AdminError::bad_request(e.to_string()))?;
-    Ok(serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    // A malformed/truncated upstream body must not degrade to `null`: callers read a
+    // missing field as "no child deployment" and answer 200 with an empty result node.
+    serde_json::from_slice(&bytes).map_err(|error| {
+        AdminError::internal(format!("Upstream response was not valid JSON: {error}"))
+    })
 }
 
 async fn proxy_body(
@@ -2859,12 +2921,38 @@ impl AdminError {
             message: message.into(),
         }
     }
+
+    /// Server-side failure: Java surfaces an engine/DAO exception as a 500 rather than
+    /// blaming the request.
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: message.into(),
+        }
+    }
 }
 
 impl From<ProxyError> for AdminError {
     fn from(value: ProxyError) -> Self {
         // Java wraps most proxy failures as BadRequestException with a message.
         Self::bad_request(value.to_string())
+    }
+}
+
+impl From<flowable_engine::error::FlowableError> for AdminError {
+    fn from(error: flowable_engine::error::FlowableError) -> Self {
+        use flowable_engine::error::FlowableError as E;
+        match error {
+            E::NotFound(message) => Self::not_found(message),
+            E::BadRequest(message) | E::DeploymentValidationError(message) => Self::bad_request(message),
+            other => {
+                tracing::error!(error = %other, "admin identity lookup failed");
+                Self {
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Internal server error".to_string(),
+                }
+            }
+        }
     }
 }
 

@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::service::auth::{AuthConfig, RejectAllAuthProvider};
 use crate::service::claim_mapping::ClaimMapping;
 use crate::service::external_auth::ExternalAuthProvider;
@@ -1731,7 +1739,7 @@ impl ServicePolicyConfig {
     pub fn build_identity_runtime(
         &self,
         runtime_store: crate::persistence::runtime_store::RuntimeStore,
-    ) -> IdentityRuntimeComponents {
+    ) -> Result<IdentityRuntimeComponents, crate::persistence::StorageError> {
         let profiles = if self.auth_provider.is_external() {
             self.build_external_profiles()
         } else {
@@ -1746,52 +1754,59 @@ impl ServicePolicyConfig {
         )
     }
 
+    /// Java parity: engine bootstrap is fallible — `ProcessEngineConfigurationImpl.init()`
+    /// and the schema/seed writes it performs run inside the command context, whose
+    /// `flushSessions()` + `rethrowExceptionIfNeeded()` (flowable-engine-common/.../
+    /// interceptor/CommandContext.java:66-115, 216-220) turn any storage failure into a
+    /// thrown exception that aborts startup. Session creation is equally fallible
+    /// (`CommandContext.getSession` L275-287 throws, MyBatis `openSession()` throws).
+    /// Seeding must therefore never be skipped silently.
     pub fn build_identity_runtime_with_components(
         &self,
         profiles: Vec<IssuerProfile>,
         jwks_cache: Arc<JwksCache>,
         revocation_registry: Arc<TokenRevocationRegistry>,
         runtime_store: crate::persistence::runtime_store::RuntimeStore,
-    ) -> IdentityRuntimeComponents {
+    ) -> Result<IdentityRuntimeComponents, crate::persistence::StorageError> {
         let local_auth = self.build_local_auth();
         let rate_limiter = Arc::new(crate::service::rate_limit::RateLimiter::new(
             Default::default(),
         ));
 
-        let mut session = runtime_store.create_session().unwrap();
-        let existing_profiles = runtime_store.list_issuer_profiles(&mut session);
+        let mut session = runtime_store.create_session()?;
+        let existing_profiles = runtime_store.list_issuer_profiles(&mut session)?;
         if existing_profiles.is_empty() {
             for profile in &profiles {
                 runtime_store.insert_issuer_profile(profile.clone(), &mut session);
             }
-            session.flush_and_commit().unwrap();
+            session.flush_and_commit()?;
         } else {
-            session.rollback().unwrap();
+            session.rollback()?;
         }
 
         if !self.auth_provider.is_external() {
-            return IdentityRuntimeComponents {
+            return Ok(IdentityRuntimeComponents {
                 auth_provider: Arc::new(local_auth),
                 profiles,
                 jwks_cache,
                 revocation_registry,
                 runtime_store,
                 rate_limiter,
-            };
+            });
         }
 
         let Some(_) = self.external_provider else {
             tracing::warn!(
                 "External auth provider selected, but external_provider config is missing; rejecting all authenticated requests"
             );
-            return IdentityRuntimeComponents {
+            return Ok(IdentityRuntimeComponents {
                 auth_provider: Arc::new(RejectAllAuthProvider),
                 profiles,
                 jwks_cache,
                 revocation_registry,
                 runtime_store,
                 rate_limiter,
-            };
+            });
         };
 
         let effective_profiles = if profiles.is_empty() {
@@ -1807,20 +1822,20 @@ impl ServicePolicyConfig {
 
         let auth_provider: Arc<dyn AuthProvider> = Arc::new(ext_auth);
 
-        IdentityRuntimeComponents {
+        Ok(IdentityRuntimeComponents {
             auth_provider,
             profiles: effective_profiles,
             jwks_cache,
             revocation_registry,
             runtime_store,
             rate_limiter,
-        }
+        })
     }
 
     pub fn to_auth_provider(
         &self,
         runtime_store: crate::persistence::runtime_store::RuntimeStore,
-    ) -> Arc<dyn AuthProvider> {
-        self.build_identity_runtime(runtime_store).auth_provider
+    ) -> Result<Arc<dyn AuthProvider>, crate::persistence::StorageError> {
+        Ok(self.build_identity_runtime(runtime_store)?.auth_provider)
     }
 }

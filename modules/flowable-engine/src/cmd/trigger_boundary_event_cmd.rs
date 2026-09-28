@@ -92,7 +92,7 @@ fn strip_execution_runtime_state(command_context: &mut CommandContext, execution
 fn retire_process_scope_row_after_interrupt(
     command_context: &mut CommandContext,
     execution_id: &str,
-) {
+) -> Result<(), crate::error::FlowableError> {
     strip_execution_runtime_state(command_context, execution_id);
     if let Some(mut row) = command_context
         .runtime_store
@@ -103,8 +103,9 @@ fn retire_process_scope_row_after_interrupt(
         row.is_ended = true;
         command_context
             .execution_entity_manager
-            .update(&row, &mut command_context.session);
+            .update(&row, &mut command_context.session)?;
     }
+    Ok(())
 }
 
 /// Core boundary event trigger logic shared by all trigger entry points.
@@ -161,12 +162,12 @@ fn execute_boundary_trigger(
                 command_context,
                 &execution_id,
                 Some(&delete_reason),
-            );
+            )?;
             if execution_id == process_instance_id {
                 // Java parity (`BoundaryEventActivityBehavior#executeInterruptingBehavior`
                 // → `deleteChildExecutions`): the process instance execution is
                 // never deleted when an interrupting boundary cancels its host.
-                retire_process_scope_row_after_interrupt(command_context, &execution_id);
+                retire_process_scope_row_after_interrupt(command_context, &execution_id)?;
             } else {
                 delete_execution_runtime_state(command_context, &execution_id);
             }
@@ -231,7 +232,7 @@ fn execute_boundary_trigger(
 
     command_context
         .execution_entity_manager
-        .insert(&boundary_execution, &mut command_context.session);
+        .insert(&boundary_execution, &mut command_context.session)?;
 
     // Plan the boundary event execution
     command_context
@@ -898,12 +899,12 @@ fn execute_timer_boundary_trigger(
                 command_context,
                 &execution_id,
                 Some(&delete_reason),
-            );
+            )?;
             if execution_id == process_instance_id {
                 // Keep the PI scope row (process-level variable store); Java
                 // `deleteChildExecutions` never deletes the process instance
                 // execution. See `execute_boundary_trigger` above.
-                retire_process_scope_row_after_interrupt(command_context, &execution_id);
+                retire_process_scope_row_after_interrupt(command_context, &execution_id)?;
             } else {
                 delete_execution_runtime_state(command_context, &execution_id);
             }
@@ -918,7 +919,7 @@ fn execute_timer_boundary_trigger(
             Some(next_timer_state) => {
                 command_context
                     .runtime_store
-                    .insert_timer_job_state(&next_timer_state, &mut command_context.session);
+                    .insert_timer_job_state(&next_timer_state, &mut command_context.session)?;
             }
             None => {
                 command_context.runtime_store.delete_timer_job_state(
@@ -954,7 +955,7 @@ fn execute_timer_boundary_trigger(
 
     command_context
         .execution_entity_manager
-        .insert(&boundary_execution, &mut command_context.session);
+        .insert(&boundary_execution, &mut command_context.session)?;
 
     command_context
         .agenda

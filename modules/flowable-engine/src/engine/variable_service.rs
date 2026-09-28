@@ -178,7 +178,7 @@ impl Command<()> for SetVariableCmd {
             }
             command_context
                 .execution_entity_manager
-                .update(&execution, &mut command_context.session);
+                .update(&execution, &mut command_context.session)?;
 
             let process_instance_id = execution
                 .process_instance_id
@@ -194,7 +194,7 @@ impl Command<()> for SetVariableCmd {
                     &id,
                     self.value.clone(),
                     &mut command_context.session,
-                );
+                )?;
             } else {
                 command_context.history_manager.record_variable_created(
                     &id,
@@ -205,7 +205,7 @@ impl Command<()> for SetVariableCmd {
                     Some(&execution.id),
                     None,
                     &mut command_context.session,
-                );
+                )?;
             }
 
             crate::bpmn::behavior::variable_listener_event_behavior::evaluate_variable_listener_event_subprocesses(
@@ -309,7 +309,7 @@ impl Command<()> for DeleteVariableCmd {
 
         command_context
             .execution_entity_manager
-            .update(&execution, &mut command_context.session);
+            .update(&execution, &mut command_context.session)?;
         store.delete_variable_by_execution_id_and_name(
             &execution.id,
             &self.name,
@@ -318,7 +318,7 @@ impl Command<()> for DeleteVariableCmd {
         command_context.history_manager.record_variable_removed(
             &format!("{}:{}", execution.id, &self.name),
             &mut command_context.session,
-        );
+        )?;
 
         let process_instance_id = execution
             .process_instance_id
@@ -337,12 +337,21 @@ impl Command<()> for DeleteVariableCmd {
 /// Shared lookup used by every execution-local command: Java's local-scope operations act
 /// on one specific execution and raise `FlowableObjectNotFoundException` when it is absent,
 /// instead of walking the parent chain.
+///
+/// A sticky storage failure (`note_write_error` from a failed `find_execution`) must surface
+/// as `Internal` (500 / PersistenceException), not as `NotFound` (404): Java's
+/// `NeedsActiveExecutionCmd` only throws `FlowableObjectNotFoundException` after a
+/// successful empty lookup.
 pub(crate) fn require_execution(
     command_context: &mut CommandContext,
     execution_id: &str,
 ) -> Result<crate::runtime::execution::Execution, crate::error::FlowableError> {
     let (store, session) = command_context.store_and_session();
-    store.find_execution(execution_id, session).ok_or_else(|| {
+    let found = store.find_execution(execution_id, session);
+    if let Some(error) = session.take_write_error() {
+        return Err(error.into());
+    }
+    found.ok_or_else(|| {
         crate::error::FlowableError::NotFound(format!("Execution '{}' was not found", execution_id))
     })
 }
@@ -355,7 +364,7 @@ fn record_execution_local_variable(
     execution: &crate::runtime::execution::Execution,
     name: &str,
     value: serde_json::Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let id = format!("{}:{}", execution.id, name);
     let process_instance_id = execution
         .process_instance_id
@@ -370,7 +379,7 @@ fn record_execution_local_variable(
             &id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         command_context.history_manager.record_variable_created(
             &id,
@@ -381,8 +390,9 @@ fn record_execution_local_variable(
             Some(&execution.id),
             None,
             &mut command_context.session,
-        );
+        )?;
     }
+    Ok(())
 }
 
 /// Java parity: `RuntimeService#setVariableLocal` / `#setVariablesLocal`.
@@ -411,9 +421,9 @@ impl Command<()> for SetVariablesLocalCmd {
         }
         command_context
             .execution_entity_manager
-            .update(&execution, &mut command_context.session);
+            .update(&execution, &mut command_context.session)?;
         for (name, value) in &self.variables {
-            record_execution_local_variable(command_context, &execution, name, value.clone());
+            record_execution_local_variable(command_context, &execution, name, value.clone())?;
         }
         Ok(())
     }
@@ -468,7 +478,7 @@ impl Command<()> for SetAsyncExecutionVariablesCmd {
                 &execution,
                 &self.variables,
                 self.is_local,
-            );
+            )?;
         }
         Ok(())
     }
@@ -498,12 +508,12 @@ pub(crate) fn create_set_async_variables_job(
     execution: &crate::runtime::execution::Execution,
     variables: &HashMap<String, serde_json::Value>,
     is_local: bool,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let payload = serde_json::to_string(&SetAsyncVariablesPayload {
         variables: variables.clone(),
         is_local,
     })
-    .expect("serializing a string-keyed map cannot fail");
+    .map_err(crate::persistence::StorageError::from)?;
     let process_instance_id = execution
         .process_instance_id
         .clone()
@@ -552,7 +562,8 @@ pub(crate) fn create_set_async_variables_job(
         execution.process_definition_id.clone(),
         execution.activity_name.clone(),
     );
-    store.insert_timer_job_state(&job, &mut command_context.session);
+    store.insert_timer_job_state(&job, &mut command_context.session)?;
+    Ok(())
 }
 
 /// Java `SetAsyncVariablesJobHandler#execute`: applies the pending values to the
@@ -593,9 +604,9 @@ pub(crate) fn execute_set_async_variables_job(
         }
         command_context
             .execution_entity_manager
-            .update(&execution, &mut command_context.session);
+            .update(&execution, &mut command_context.session)?;
         for (name, value) in &payload.variables {
-            record_execution_local_variable(command_context, &execution, name, value.clone());
+            record_execution_local_variable(command_context, &execution, name, value.clone())?;
         }
     } else {
         // Java: `executionEntity.setVariable(name, value)` — the owning-scope
@@ -747,7 +758,7 @@ impl Command<()> for RemoveVariablesLocalCmd {
         }
         command_context
             .execution_entity_manager
-            .update(&execution, &mut command_context.session);
+            .update(&execution, &mut command_context.session)?;
         let store = command_context.runtime_store.clone();
         for name in &removed {
             store.delete_variable_by_execution_id_and_name(
@@ -758,7 +769,7 @@ impl Command<()> for RemoveVariablesLocalCmd {
             command_context.history_manager.record_variable_removed(
                 &format!("{}:{}", execution.id, name),
                 &mut command_context.session,
-            );
+            )?;
         }
         Ok(())
     }
@@ -827,32 +838,44 @@ impl Command<Vec<VariableInstance>> for VariableInstanceQueryCmd {
         &self,
         command_context: &mut CommandContext,
     ) -> Result<Vec<VariableInstance>, crate::error::FlowableError> {
-        let rows = command_context.session().find_raw_all("variables").unwrap();
+        let rows = match command_context.session().find_raw_all("variables") {
+            Ok(found) => found,
+            Err(error) => {
+                // Java parity: VariableInstanceQueryImpl.list() -> AbstractQuery.list()
+                // (AbstractQuery.java:119-129) throws on a storage failure; an empty result
+                // is only valid for a successful no-row query.
+                command_context.session().note_write_error(error);
+                Vec::new()
+            }
+        };
 
-        Ok(rows
-            .into_iter()
-            .map(|r| {
-                let value = serde_json::from_str::<serde_json::Value>(&r.data).unwrap();
-                VariableInstance {
-                    id: r.id,
-                    execution_id: r
-                        .extras
-                        .get("execution_id")
-                        .cloned()
-                        .flatten()
-                        .unwrap_or_default(),
-                    process_instance_id: r
-                        .extras
-                        .get("process_instance_id")
-                        .cloned()
-                        .flatten()
-                        .unwrap_or_default(),
-                    name: r.extras.get("name").cloned().flatten().unwrap_or_default(),
-                    variable_type: variable_type_name(&value).to_string(),
-                    value,
-                }
-            })
-            .collect())
+        let mut instances = Vec::with_capacity(rows.len());
+        for r in rows {
+            // Java parity: a corrupt stored variable is a PersistenceException,
+            // not a silent Value::Null (which would look like a legitimate null).
+            let value = serde_json::from_str::<serde_json::Value>(&r.data).map_err(|e| {
+                crate::persistence::StorageError::Deserialization(e.to_string())
+            })?;
+            instances.push(VariableInstance {
+                id: r.id,
+                execution_id: r
+                    .extras
+                    .get("execution_id")
+                    .cloned()
+                    .flatten()
+                    .unwrap_or_default(),
+                process_instance_id: r
+                    .extras
+                    .get("process_instance_id")
+                    .cloned()
+                    .flatten()
+                    .unwrap_or_default(),
+                name: r.extras.get("name").cloned().flatten().unwrap_or_default(),
+                variable_type: variable_type_name(&value).to_string(),
+                value,
+            });
+        }
+        Ok(instances)
     }
 }
 

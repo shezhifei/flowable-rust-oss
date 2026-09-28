@@ -46,7 +46,10 @@ impl IdentitySyncPoller {
             while !stop_signal.load(Ordering::SeqCst) {
                 let start_poll = Instant::now();
 
-                let mut session = rs.create_session().unwrap();
+                let Ok(mut session) = rs.create_session() else {
+                    std::thread::sleep(interval);
+                    continue;
+                };
                 let records =
                     rs.find_timer_admin_audit_records_since(last_processed_ts, &mut session);
 
@@ -66,10 +69,22 @@ impl IdentitySyncPoller {
                             // In timer_coordination_service, we audit profile mutations with target "profile:id".
                             // We might need to lookup the issuer by profile_id if it's not in the record.
                             if let Some(ref profile_id) = record.profile_id {
-                                if let Some(profile) =
-                                    rs.find_issuer_profile(profile_id, &mut session)
-                                {
-                                    jc.invalidate_issuer(&profile.issuer);
+                                // Java parity: a failed profile read throws in Java rather
+                                // than being treated as an absent profile; this poller must
+                                // keep running, so log and skip instead of silently
+                                // assuming the profile does not exist.
+                                match rs.find_issuer_profile(profile_id, &mut session) {
+                                    Ok(Some(profile)) => {
+                                        jc.invalidate_issuer(&profile.issuer);
+                                    }
+                                    Ok(None) => {}
+                                    Err(error) => {
+                                        tracing::error!(
+                                            error = %error,
+                                            profile_id = %profile_id,
+                                            "identity sync: issuer profile read failed"
+                                        );
+                                    }
                                 }
                             } else if record.target.starts_with("issuer:") {
                                 let issuer = &record.target[7..];
@@ -92,7 +107,7 @@ impl IdentitySyncPoller {
                         last_processed_ts = record.timestamp;
                     }
                 }
-                session.rollback().unwrap();
+                session.rollback().unwrap_or_default();
 
                 // Sleep until next interval, accounting for time spent polling
                 let elapsed = start_poll.elapsed();

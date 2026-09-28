@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::service::config::ProcessEngineConfiguration;
@@ -34,7 +40,7 @@ const PARALLEL_MI_HISTORY_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn sequential_mi_records_one_activity_instance_per_child() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -104,7 +110,7 @@ fn sequential_mi_records_one_activity_instance_per_child() {
 
 #[test]
 fn parallel_mi_records_one_activity_instance_per_child() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -176,7 +182,7 @@ fn test_historic_process_instance_query() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    );
+    ).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let history_service = process_engine.get_history_service();
@@ -217,7 +223,7 @@ fn test_historic_activity_instance_query() {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    );
+    ).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let history_service = process_engine.get_history_service();

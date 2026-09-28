@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::service::config::ProcessEngineConfiguration;
 use flowable_rest::run_server;
@@ -14,7 +20,7 @@ async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
             shell_tasks_enabled: true,
             ..Default::default()
         },
-    ));
+    ).unwrap());
 
     engine
         .get_identity_service()
@@ -25,7 +31,7 @@ async fn setup() -> (String, Arc<ProcessEngine>, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

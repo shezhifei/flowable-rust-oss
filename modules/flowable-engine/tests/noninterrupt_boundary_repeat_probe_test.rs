@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract: non-interrupting boundary events with **repeat** semantics keep
 //! their subscription after each fire and can be re-triggered while the host
 //! activity is still active. The subscription is removed only when the host
@@ -65,7 +71,7 @@ fn deploy_and_start(engine: &ProcessEngine) -> String {
 
 #[test]
 fn non_interrupting_message_boundary_subscription_survives_and_fires_twice() {
-    let engine = ProcessEngine::new("p9-4-repeat".to_string());
+    let engine = ProcessEngine::new("p9-4-repeat".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
     let instance_id = deploy_and_start(&engine);
@@ -130,7 +136,7 @@ fn non_interrupting_boundary_subscription_removed_when_host_task_completes() {
     // Cleanup-side contract: after a non-interrupting fire, completing the host
     // user task must remove the boundary state (Java: subscription removed with
     // host). Guards against over-fix that leaks subscriptions forever.
-    let engine = ProcessEngine::new("p9-4-host-cleanup".to_string());
+    let engine = ProcessEngine::new("p9-4-host-cleanup".to_string()).unwrap();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
     let instance_id = deploy_and_start(&engine);

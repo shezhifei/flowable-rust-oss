@@ -397,7 +397,7 @@ impl Command<HashMap<String, DataObject>> for GetTaskDataObjectsCmd {
         }
         let task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 FlowableError::NotFound(format!("task {} doesn't exist", self.task_id))
             })?;

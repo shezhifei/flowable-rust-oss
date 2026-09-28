@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P74 contract: remaining `DeleteReason` constants on historic activities.
 //!
 //! Java evidence (checkout `flowable-engine`):
@@ -66,7 +72,7 @@ const BOUNDARY_INTERRUPT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// cancelled host userTask historic activity.
 #[test]
 fn interrupting_boundary_sets_host_historic_activity_delete_reason() {
-    let engine = ProcessEngine::new("p74-boundary-delete-reason".to_string());
+    let engine = ProcessEngine::new("p74-boundary-delete-reason".to_string()).unwrap();
     deploy(&engine, "p74_boundary_delete_reason", BOUNDARY_INTERRUPT_XML);
     let pi = start_by_key(&engine, "p74BoundaryDeleteReason");
 
@@ -149,7 +155,7 @@ const EVENT_SUBPROCESS_INTERRUPT_XML: &str = r#"<?xml version="1.0" encoding="UT
 /// the cancelled main-flow host activity.
 #[test]
 fn interrupting_event_subprocess_sets_host_historic_activity_delete_reason() {
-    let engine = ProcessEngine::new("p74-es-delete-reason".to_string());
+    let engine = ProcessEngine::new("p74-es-delete-reason".to_string()).unwrap();
     deploy(
         &engine,
         "p74_es_delete_reason",
@@ -171,7 +177,7 @@ fn interrupting_event_subprocess_sets_host_historic_activity_delete_reason() {
 
     let _ = engine
         .get_runtime_service()
-        .trigger_event_subprocess_by_message("cancelMessage".to_string(), pi.clone());
+        .trigger_event_subprocess_by_message("cancelMessage".to_string(), pi.clone()).unwrap();
 
     let post = history
         .create_historic_activity_instance_query()
@@ -245,7 +251,7 @@ const TRANSACTION_CANCEL_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// on historic activities destroyed inside the transaction scope.
 #[test]
 fn cancel_end_sets_transaction_canceled_delete_reason_on_destroyed_host() {
-    let engine = ProcessEngine::new("p74-tx-cancel-delete-reason".to_string());
+    let engine = ProcessEngine::new("p74-tx-cancel-delete-reason".to_string()).unwrap();
     deploy(&engine, "p74_tx_cancel_delete_reason", TRANSACTION_CANCEL_XML);
     let pi = start_by_key(&engine, "p74TxCancelDeleteReason");
 

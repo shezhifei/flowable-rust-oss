@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the P53 typed-event bus extension.
 //!
 //! Verifies Java `FlowableEngineEventType` parity for the new event types
@@ -36,7 +42,7 @@ impl EventCollector {
     }
 
     fn snapshot(&self) -> Vec<(EngineEventType, EntityKind, String)> {
-        self.events.lock().unwrap().clone()
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -45,7 +51,7 @@ impl EngineEventListener for EventCollector {
         if let EngineEvent::Entity { event_type, data } = event {
             self.events
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push((*event_type, data.entity_kind, data.entity_id.clone()));
         }
         Ok(())
@@ -59,7 +65,7 @@ fn collect_for(xml: &str, definitions_id: &str) -> (ProcessEngine, EventCollecto
     config
         .engine_event_dispatcher
         .add_event_listener(Arc::new(collector.clone()));
-    let engine = ProcessEngine::new_with_config("p53-typed-events".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p53-typed-events".to_string(), config).unwrap();
     let repo = engine.get_repository_service();
     repo.deploy(
         repo.create_deployment()

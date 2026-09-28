@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::Utc;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
@@ -24,7 +30,7 @@ fn cleanup_snapshot_file(path: &Path) {
 fn exports_snapshot_file_and_restores_user_task_process_state() {
     let snapshot_path = unique_snapshot_path("user-task");
 
-    let engine1 = ProcessEngine::new("snapshot_export_engine".to_string());
+    let engine1 = ProcessEngine::new("snapshot_export_engine".to_string()).unwrap();
     let deployment_builder = engine1
         .get_repository_service()
         .create_deployment()
@@ -66,7 +72,7 @@ fn exports_snapshot_file_and_restores_user_task_process_state() {
         .export_recovery_snapshot_to_file(&snapshot_path)
         .unwrap();
 
-    let engine2 = ProcessEngine::new("snapshot_import_engine".to_string());
+    let engine2 = ProcessEngine::new("snapshot_import_engine".to_string()).unwrap();
     engine2
         .import_recovery_snapshot_from_file(&snapshot_path)
         .unwrap();
@@ -100,7 +106,7 @@ fn imports_snapshot_file_and_recovers_timer_wait_and_timer_start_state() {
     let engine1 = ProcessEngine::with_time_source(
         "snapshot_timer_export_engine".to_string(),
         time_source.clone(),
-    );
+    ).unwrap();
 
     let deployment_builder = engine1
         .get_repository_service()
@@ -156,7 +162,13 @@ fn imports_snapshot_file_and_recovers_timer_wait_and_timer_start_state() {
         )
         .unwrap();
 
-    assert_eq!(engine1.get_timer_start_subscriptions().len(), 1);
+    assert_eq!(
+        engine1
+            .get_timer_start_subscriptions()
+            .expect("timer start subscription read must succeed")
+            .len(),
+        1
+    );
 
     engine1
         .export_recovery_snapshot_to_file(&snapshot_path)
@@ -165,12 +177,18 @@ fn imports_snapshot_file_and_recovers_timer_wait_and_timer_start_state() {
     let engine2 = ProcessEngine::with_time_source(
         "snapshot_timer_import_engine".to_string(),
         time_source.clone(),
-    );
+    ).unwrap();
     engine2
         .import_recovery_snapshot_from_file(&snapshot_path)
         .unwrap();
 
-    assert_eq!(engine2.get_timer_start_subscriptions().len(), 1);
+    assert_eq!(
+        engine2
+            .get_timer_start_subscriptions()
+            .expect("timer start subscription read must succeed")
+            .len(),
+        1
+    );
 
     time_source.advance_time(2 * 60 * 60 * 1000);
 

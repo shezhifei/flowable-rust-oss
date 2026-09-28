@@ -37,7 +37,13 @@ impl FlowableContentService {
     }
 
     pub fn with_storage(engine: Arc<ProcessEngine>, storage: Arc<dyn ContentStorage>) -> Self {
-        repository::ensure_schema(&engine.get_runtime_store());
+        // Constructing a service must not fail, so a schema failure here is only
+        // logged. It is never lost: every per-call repository path re-runs
+        // `ensure_schema` and propagates the failure as `FlowableError::Internal`
+        // (REST 500) rather than reporting an empty result set.
+        if let Err(e) = repository::ensure_schema(&engine.get_runtime_store()) {
+            tracing::warn!(error = %e, "content schema ensure failed");
+        }
         Self { engine, storage }
     }
 
@@ -87,7 +93,7 @@ impl FlowableContentService {
                 &store,
                 "task_id = ? AND name = ?",
                 params,
-            ));
+            )?);
         }
         if let Some(proc_id) = request.process_instance_id.as_ref() {
             let mut params = DbParams::new();
@@ -97,7 +103,7 @@ impl FlowableContentService {
                 &store,
                 "process_instance_id = ? AND name = ?",
                 params,
-            ));
+            )?);
         }
         if let (Some(scope_id), Some(scope_type)) =
             (request.scope_id.as_ref(), request.scope_type.as_ref())
@@ -110,7 +116,7 @@ impl FlowableContentService {
                 &store,
                 "scope_id = ? AND scope_type = ? AND name = ?",
                 params,
-            ));
+            )?);
         }
 
         let max_version = matching_items
@@ -172,14 +178,14 @@ impl FlowableContentService {
     pub fn cleanup_expired_items(&self) -> Result<usize, FlowableError> {
         let store = self.engine.get_runtime_store();
         let now = store.time_source().now().timestamp_millis();
-        let expired_items = repository::find_expired_content_items(&store, now);
+        let expired_items = repository::find_expired_content_items(&store, now)?;
         let count = expired_items.len();
 
         for item in &expired_items {
             if let Some(ref storage_id) = item.storage_id {
                 let _ = self.storage.delete(storage_id);
             }
-            repository::delete_content_item(&store, &item.id);
+            repository::delete_content_item(&store, &item.id)?;
         }
 
         Ok(count)
@@ -191,7 +197,7 @@ impl FlowableContentService {
 
     pub fn get_content_item(&self, content_item_id: &str) -> Result<ContentItem, FlowableError> {
         let store = self.engine.get_runtime_store();
-        repository::find_content_item(&store, content_item_id).ok_or_else(|| {
+        repository::find_content_item(&store, content_item_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!("Content item '{}' was not found", content_item_id))
         })
     }
@@ -201,7 +207,7 @@ impl FlowableContentService {
         content_item_id: &str,
     ) -> Result<ContentItemData, FlowableError> {
         let store = self.engine.get_runtime_store();
-        let item = repository::find_content_item(&store, content_item_id).ok_or_else(|| {
+        let item = repository::find_content_item(&store, content_item_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!(
                 "Content item data for '{}' was not found",
                 content_item_id
@@ -274,17 +280,17 @@ impl FlowableContentService {
         // Capture FS storage_id (if any, from Content Service extension path)
         // before the command deletes the DB row; best-effort FS cleanup after
         // successful commit. Session-backed blobs are removed inside the command.
-        let preexisting = self.get_content_item(attachment_id).ok();
+        // A storage failure here propagates (500) instead of silently skipping
+        // the cleanup, and a genuine absence keeps reporting "not found" (404)
+        // exactly as the delete command below would.
+        let preexisting = self.get_content_item(attachment_id)?;
         let cmd = DeleteTaskAttachmentCmd::new(
             task_id.to_string(),
             attachment_id.to_string(),
             user_id.map(str::to_string),
         );
         let item = self.engine.get_command_executor().execute(&cmd)?;
-        if let Some(storage_id) = preexisting
-            .as_ref()
-            .and_then(|i| i.storage_id.as_deref())
-        {
+        if let Some(storage_id) = preexisting.storage_id.as_deref() {
             let _ = self.storage.delete(storage_id);
         }
         Ok(item)
@@ -315,7 +321,10 @@ impl FlowableContentService {
         let cmd =
             GetTaskAttachmentContentCmd::new(task_id.to_string(), attachment_id.to_string());
         let result = self.engine.get_command_executor().execute(&cmd);
-        if result.is_ok() {
+        if !matches!(result, Err(FlowableError::NotFound(_))) {
+            // Either the session blob served the request, or the command failed
+            // for a reason that is NOT absence (a storage failure surfaces here
+            // as 500 and must not be re-routed through the fallback below).
             return result;
         }
         // Fallback: attachment created via Content Service FS path (extension).
@@ -351,17 +360,14 @@ impl FlowableContentService {
         attachment_id: &str,
         user_id: Option<&str>,
     ) -> Result<ContentItem, FlowableError> {
-        let preexisting = self.get_content_item(attachment_id).ok();
+        let preexisting = self.get_content_item(attachment_id)?;
         let cmd = DeleteProcessAttachmentCmd::new(
             process_instance_id.to_string(),
             attachment_id.to_string(),
             user_id.map(str::to_string),
         );
         let item = self.engine.get_command_executor().execute(&cmd)?;
-        if let Some(storage_id) = preexisting
-            .as_ref()
-            .and_then(|i| i.storage_id.as_deref())
-        {
+        if let Some(storage_id) = preexisting.storage_id.as_deref() {
             let _ = self.storage.delete(storage_id);
         }
         Ok(item)
@@ -401,7 +407,9 @@ impl FlowableContentService {
             attachment_id.to_string(),
         );
         let result = self.engine.get_command_executor().execute(&cmd);
-        if result.is_ok() {
+        if !matches!(result, Err(FlowableError::NotFound(_))) {
+            // Same rule as the task variant: only a genuine absence may fall
+            // back to the FS path; any other failure is returned untouched.
             return result;
         }
         let item = self.get_process_attachment(process_instance_id, attachment_id)?;
@@ -418,13 +426,13 @@ impl FlowableContentService {
     pub fn delete_content_item(&self, content_item_id: &str) -> Result<(), FlowableError> {
         let store = self.engine.get_runtime_store();
 
-        if let Some(item) = repository::find_content_item(&store, content_item_id)
+        if let Some(item) = repository::find_content_item(&store, content_item_id)?
             && let Some(ref storage_id) = item.storage_id
         {
             let _ = self.storage.delete(storage_id);
         }
 
-        if repository::delete_content_item(&store, content_item_id) {
+        if repository::delete_content_item(&store, content_item_id)? {
             Ok(())
         } else {
             Err(FlowableError::NotFound(format!(
@@ -441,19 +449,21 @@ impl FlowableContentService {
         let store = self.engine.get_runtime_store();
         let mut params = DbParams::new();
         params.push(process_instance_id);
-        self.delete_storage_for_items_by_filter(&store, "process_instance_id = ?", params);
+        self.delete_storage_for_items_by_filter(&store, "process_instance_id = ?", params)?;
         Ok(repository::delete_content_items_by_process_instance_id(
             &store,
             process_instance_id,
-        ))
+        )?)
     }
 
     pub fn delete_content_items_by_task_id(&self, task_id: &str) -> Result<usize, FlowableError> {
         let store = self.engine.get_runtime_store();
         let mut params = DbParams::new();
         params.push(task_id);
-        self.delete_storage_for_items_by_filter(&store, "task_id = ?", params);
-        Ok(repository::delete_content_items_by_task_id(&store, task_id))
+        self.delete_storage_for_items_by_filter(&store, "task_id = ?", params)?;
+        Ok(repository::delete_content_items_by_task_id(
+            &store, task_id,
+        )?)
     }
 
     pub fn delete_content_items_by_scope_id_and_scope_type(
@@ -465,10 +475,10 @@ impl FlowableContentService {
         let mut params = DbParams::new();
         params.push(scope_id);
         params.push(scope_type);
-        self.delete_storage_for_items_by_filter(&store, "scope_id = ? AND scope_type = ?", params);
+        self.delete_storage_for_items_by_filter(&store, "scope_id = ? AND scope_type = ?", params)?;
         Ok(repository::delete_content_items_by_scope_id_and_scope_type(
             &store, scope_id, scope_type,
-        ))
+        )?)
     }
 
     pub fn get_content_item_object_metadata(
@@ -476,7 +486,7 @@ impl FlowableContentService {
         content_item_id: &str,
     ) -> Result<ContentObjectStorageMetadata, FlowableError> {
         let store = self.engine.get_runtime_store();
-        let item = repository::find_content_item(&store, content_item_id).ok_or_else(|| {
+        let item = repository::find_content_item(&store, content_item_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!("Content item '{}' was not found", content_item_id))
         })?;
 
@@ -501,13 +511,14 @@ impl FlowableContentService {
         store: &flowable_engine::persistence::runtime_store::RuntimeStore,
         predicate: &str,
         params: DbParams,
-    ) {
-        let items = repository::find_content_items_by_filter(store, predicate, params);
+    ) -> Result<(), FlowableError> {
+        let items = repository::find_content_items_by_filter(store, predicate, params)?;
         for item in &items {
             if let Some(ref storage_id) = item.storage_id {
                 let _ = self.storage.delete(storage_id);
             }
         }
+        Ok(())
     }
 }
 

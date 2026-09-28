@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for `collect_execution_variables` vs `Execution::process_variable`
 //! in-row precedence consistency.
 //!
@@ -115,7 +121,7 @@ fn scope_execution_id(engine: &ProcessEngine) -> String {
 
 #[test]
 fn cross_row_nearest_scope_wins_in_collect() {
-    let engine = ProcessEngine::new("precedence-cross-row".to_string());
+    let engine = ProcessEngine::new("precedence-cross-row".to_string()).unwrap();
     deploy_fork(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -152,7 +158,7 @@ fn cross_row_nearest_scope_wins_in_collect() {
 
 #[test]
 fn in_row_precedence_is_consistent_between_get_variable_and_get_variables() {
-    let engine = ProcessEngine::new("precedence-in-row".to_string());
+    let engine = ProcessEngine::new("precedence-in-row".to_string()).unwrap();
     let _pi_id = deploy_simple(&engine);
     let runtime = engine.get_runtime_service();
 

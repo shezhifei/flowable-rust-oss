@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P78 — ad-hoc subprocess auto-complete + cancelRemainingInstances.
 //!
 //! Java parity:
@@ -110,7 +116,7 @@ fn start_with_completed_false(engine: &ProcessEngine, xml: &str, resource: &str)
 /// completion condition true after normal task complete → adhoc ends, afterTask.
 #[test]
 fn p78_completion_condition_true_auto_ends_adhoc() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
     let (pi_id, adhoc_id) =
@@ -168,7 +174,7 @@ fn p78_completion_condition_true_auto_ends_adhoc() {
 /// cancelRemainingInstances=true (default): sibling tasks deleted when condition fires.
 #[test]
 fn p78_cancel_remaining_instances_true_deletes_siblings() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
     let (pi_id, adhoc_id) =
@@ -215,7 +221,7 @@ fn p78_cancel_remaining_instances_true_deletes_siblings() {
 /// cancelRemainingInstances=false: siblings survive until all finished; then auto-end.
 #[test]
 fn p78_cancel_remaining_instances_false_waits_for_siblings() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
     let (pi_id, adhoc_id) =
@@ -267,7 +273,7 @@ fn p78_cancel_remaining_instances_false_waits_for_siblings() {
 /// completion condition false: adhoc does not auto-end; siblings can still run.
 #[test]
 fn p78_completion_condition_false_keeps_adhoc_open() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
     let (pi_id, adhoc_id) =
@@ -321,7 +327,7 @@ fn p78_completion_condition_false_keeps_adhoc_open() {
 /// adhoc completion condition (not only the leaf/no-outgoing shortcut).
 #[test]
 fn p78_take_outgoing_path_evaluates_completion_condition() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
     let (pi_id, adhoc_id) =
@@ -370,7 +376,7 @@ fn p78_take_outgoing_path_evaluates_completion_condition() {
 /// (Java CompleteAdhocSubProcessCmd.java:53-56 — not cancelRemaining).
 #[test]
 fn p78_explicit_complete_api_errors_with_running_children() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let (_pi_id, adhoc_id) =
         start_with_completed_false(&engine, PARALLEL_CANCEL_TRUE_XML, "p78-api.bpmn20.xml");

@@ -8,3 +8,7 @@ license.workspace = true
 [dependencies]
 schemars = "1.2.2"
 serde = { version = "1.0.228", features = ["derive"] }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

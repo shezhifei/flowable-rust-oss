@@ -73,41 +73,53 @@ impl FlowableHistoryService {
             .create_process_instance_log_query(process_instance_id)
     }
 
-    pub fn get_historic_process_instance(&self, id: &str) -> Option<HistoricProcessInstance> {
+    pub fn get_historic_process_instance(
+        &self,
+        id: &str,
+    ) -> Result<Option<HistoricProcessInstance>, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
-        store.get_historic_process_instance(id, &mut session)
+        let mut session = store.create_session()?;
+        Ok(store.get_historic_process_instance(id, &mut session))
     }
 
     pub fn get_historic_activity_instance(
         &self,
         execution_id: &str,
         activity_id: &str,
-    ) -> Option<HistoricActivityInstance> {
+    ) -> Result<Option<HistoricActivityInstance>, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
-        store.get_historic_activity_instance_by_execution_and_activity(
+        let mut session = store.create_session()?;
+        Ok(store.get_historic_activity_instance_by_execution_and_activity(
             execution_id,
             activity_id,
             &mut session,
-        )
+        ))
     }
 
-    pub fn get_historic_task_instance(&self, task_id: &str) -> Option<HistoricTaskInstance> {
+    pub fn get_historic_task_instance(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<HistoricTaskInstance>, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
-        store.get_historic_task_instance(task_id, &mut session)
+        let mut session = store.create_session()?;
+        Ok(store.get_historic_task_instance(task_id, &mut session))
     }
 
-    pub fn get_historic_variable_instance(&self, id: &str) -> Option<HistoricVariableInstance> {
+    pub fn get_historic_variable_instance(
+        &self,
+        id: &str,
+    ) -> Result<Option<HistoricVariableInstance>, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
-        store.get_historic_variable_instance(id, &mut session)
+        let mut session = store.create_session()?;
+        Ok(store.get_historic_variable_instance(id, &mut session))
     }
 
-    pub fn get_historic_audit_log(&self, id: &str) -> Option<HistoricAuditLog> {
+    pub fn get_historic_audit_log(
+        &self,
+        id: &str,
+    ) -> Result<Option<HistoricAuditLog>, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
-        store.get_historic_audit_log(id, &mut session)
+        let mut session = store.create_session()?;
+        Ok(store.get_historic_audit_log(id, &mut session))
     }
 }

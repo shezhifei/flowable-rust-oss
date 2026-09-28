@@ -945,10 +945,9 @@ async fn list_tables(
     let mut tables = table_names(&engine)?
         .into_iter()
         .map(|name| {
-            let count = count_table_rows(&engine, &name).unwrap_or_default();
-            table_response(name, count)
+            count_table_rows(&engine, &name).map(|count| table_response(name, count))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, ApiError>>()?;
     tables.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(Json(tables))
 }
@@ -1004,9 +1003,9 @@ async fn get_job(
 ) -> Result<Json<ManagementJobResponse>, ApiError> {
     let job = engine
         .get_management_service()
-        .find_executable_job_by_id(&job_id)
+        .find_executable_job_by_id(&job_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Job '{}' not found", job_id)))?;
-    Ok(Json(executable_job_to_management_job(&engine, job)))
+    Ok(Json(executable_job_to_management_job(&engine, job)?))
 }
 
 async fn delete_job(
@@ -1078,7 +1077,7 @@ async fn get_job_exception_stacktrace(
     // ids from the timer/deadletter/suspended/history families are 404 here.
     let job = engine
         .get_management_service()
-        .find_executable_job_by_id(&job_id)
+        .find_executable_job_by_id(&job_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Job '{}' not found", job_id)))?;
     job_stacktrace_response("Job", job.timer_job_id, job.error_details)
 }
@@ -1095,12 +1094,11 @@ async fn get_timer_job(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(job_id): Path<String>,
 ) -> Result<Json<ManagementJobResponse>, ApiError> {
-    engine
+    let job = engine
         .get_management_service()
-        .find_timer_job_by_id(&job_id)
-        .map(|job| timer_job_to_management_job(&engine, job))
-        .map(Json)
-        .ok_or_else(|| ApiError::NotFound(format!("Timer job '{}' not found", job_id)))
+        .find_timer_job_by_id(&job_id)?
+        .ok_or_else(|| ApiError::NotFound(format!("Timer job '{}' not found", job_id)))?;
+    Ok(Json(timer_job_to_management_job(&engine, job)?))
 }
 
 async fn delete_timer_job(
@@ -1182,7 +1180,7 @@ async fn get_timer_job_exception_stacktrace(
 ) -> Result<Response, ApiError> {
     let job = engine
         .get_management_service()
-        .find_timer_job_by_id(&job_id)
+        .find_timer_job_by_id(&job_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Timer job '{}' not found", job_id)))?;
     job_stacktrace_response("Timer job", job.timer_job_id, job.error_details)
 }
@@ -1215,7 +1213,7 @@ async fn post_deadletter_jobs_bulk(
 
     let management_service = engine.get_management_service();
     let existing_ids = management_service
-        .list_deadletter_jobs()
+        .list_deadletter_jobs()?
         .into_iter()
         .map(|job| job.timer_job_id)
         .collect::<BTreeSet<_>>();
@@ -1251,12 +1249,11 @@ async fn get_deadletter_job(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(job_id): Path<String>,
 ) -> Result<Json<ManagementJobResponse>, ApiError> {
-    engine
+    let job = engine
         .get_management_service()
-        .find_deadletter_job_by_id(&job_id)
-        .map(|job| deadletter_job_to_management_job(&engine, job))
-        .map(Json)
-        .ok_or_else(|| ApiError::NotFound(format!("Deadletter job '{}' not found", job_id)))
+        .find_deadletter_job_by_id(&job_id)?
+        .ok_or_else(|| ApiError::NotFound(format!("Deadletter job '{}' not found", job_id)))?;
+    Ok(Json(deadletter_job_to_management_job(&engine, job)?))
 }
 
 async fn delete_deadletter_job(
@@ -1334,7 +1331,7 @@ async fn get_deadletter_job_exception_stacktrace(
 ) -> Result<Response, ApiError> {
     let job = engine
         .get_management_service()
-        .find_deadletter_job_by_id(&job_id)
+        .find_deadletter_job_by_id(&job_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Deadletter job '{}' not found", job_id)))?;
     job_stacktrace_response("Deadletter job", job.timer_job_id, job.error_details)
 }
@@ -1356,12 +1353,11 @@ async fn get_history_job(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(job_id): Path<String>,
 ) -> Result<Json<ManagementHistoryJobResponse>, ApiError> {
-    engine
+    let job = engine
         .get_management_service()
-        .find_history_job_by_id(&job_id)
-        .map(|job| history_job_to_management_history_job(&engine, job))
-        .map(Json)
-        .ok_or_else(|| ApiError::NotFound(format!("History job '{}' not found", job_id)))
+        .find_history_job_by_id(&job_id)?
+        .ok_or_else(|| ApiError::NotFound(format!("History job '{}' not found", job_id)))?;
+    Ok(Json(history_job_to_management_history_job(&engine, job)?))
 }
 
 async fn delete_history_job(
@@ -1409,12 +1405,11 @@ async fn get_suspended_job(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(job_id): Path<String>,
 ) -> Result<Json<ManagementJobResponse>, ApiError> {
-    engine
+    let job = engine
         .get_management_service()
-        .find_suspended_job_by_id(&job_id)
-        .map(|job| suspended_job_to_management_job(&engine, job))
-        .map(Json)
-        .ok_or_else(|| ApiError::NotFound(format!("Suspended job '{}' not found", job_id)))
+        .find_suspended_job_by_id(&job_id)?
+        .ok_or_else(|| ApiError::NotFound(format!("Suspended job '{}' not found", job_id)))?;
+    Ok(Json(suspended_job_to_management_job(&engine, job)?))
 }
 
 async fn delete_suspended_job(
@@ -1468,7 +1463,7 @@ async fn get_suspended_job_exception_stacktrace(
 ) -> Result<Response, ApiError> {
     let job = engine
         .get_management_service()
-        .find_suspended_job_by_id(&job_id)
+        .find_suspended_job_by_id(&job_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Suspended job '{}' not found", job_id)))?;
     job_stacktrace_response("Suspended job", job.timer_job_id, job.error_details)
 }
@@ -1588,7 +1583,7 @@ fn jmx_runtime_ledger_response(
     ensure_runtime_ledger_enabled(&state.operations_support_contract)?;
 
     let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let process_instance_count = runtime_store.snapshot_process_instances(&mut session).len();
     let execution_count = runtime_store.snapshot_executions(&mut session).len();
     let task_count = engine
@@ -1641,7 +1636,11 @@ fn jmx_timer_ledger_response(
     let locked_timer_job_count = timer_jobs.len() - active_timer_job_count;
 
     let runtime_service = engine.get_runtime_service();
-    let coordinator = timer_coordinator_response(runtime_service.get_timer_coordinator_status());
+    let coordinator = timer_coordinator_response(
+        runtime_service
+            .get_timer_coordinator_status()
+            .map_err(|error| ApiError::InternalServerError(error.to_string()))?,
+    );
     let nodes = runtime_service
         .list_timer_nodes()
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?
@@ -1669,6 +1668,11 @@ fn operations_topology_response(
     ensure_topology_ledger_enabled(&state.operations_support_contract)?;
 
     let runtime_service = engine.get_runtime_service();
+    let coordinator = timer_coordinator_response(
+        runtime_service
+            .get_timer_coordinator_status()
+            .map_err(|error| ApiError::InternalServerError(error.to_string()))?,
+    );
     let nodes = runtime_service
         .list_timer_nodes()
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?
@@ -1692,7 +1696,7 @@ fn operations_topology_response(
                 .runtime_membership_read_enabled,
         },
         operations: operations_support_response(&state.operations_support_contract),
-        coordinator: timer_coordinator_response(runtime_service.get_timer_coordinator_status()),
+        coordinator,
         nodes,
     })
 }
@@ -1755,7 +1759,7 @@ fn directory_reconcile_response(
         .create_group_query()
         .list()
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
-    let stored_memberships = identity_service.list_memberships();
+    let stored_memberships = identity_service.list_memberships()?;
 
     let live_user_ids = live_snapshot
         .users
@@ -1837,7 +1841,7 @@ fn directory_reconcile_response(
     let mut removed_memberships = 0;
 
     if apply {
-        let mut session = engine.get_runtime_store().create_session().unwrap();
+        let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         match mode {
             DirectoryReconcileMode::LiveWins => {
                 for membership in &shadowed_memberships {
@@ -1906,7 +1910,9 @@ fn directory_reconcile_response(
                 removed_groups = owned_only_group_ids.len();
             }
         }
-        session.flush_and_commit().unwrap();
+        session
+            .flush_and_commit()
+            .map_err(|e| ApiError::from(flowable_engine::error::FlowableError::from(e)))?;
     }
 
     Ok(DirectoryReconcileResponse {
@@ -2550,33 +2556,33 @@ fn is_safe_table_name(table_name: &str) -> bool {
 fn timer_job_to_management_job(
     engine: &ProcessEngine,
     job: RuntimeTimerJobState,
-) -> ManagementJobResponse {
+) -> Result<ManagementJobResponse, ApiError> {
     timer_job_to_management_job_with_type(engine, job, "timer", "/management/timer-jobs")
 }
 
 fn executable_job_to_management_job(
     engine: &ProcessEngine,
     job: RuntimeTimerJobState,
-) -> ManagementJobResponse {
+) -> Result<ManagementJobResponse, ApiError> {
     timer_job_to_management_job_with_type(engine, job, "executable", "/management/jobs")
 }
 
 fn deadletter_job_to_management_job(
     engine: &ProcessEngine,
     job: RuntimeTimerJobState,
-) -> ManagementJobResponse {
+) -> Result<ManagementJobResponse, ApiError> {
     timer_job_to_management_job_with_type(engine, job, "deadletter", "/management/deadletter-jobs")
 }
 
 fn history_job_to_management_history_job(
     engine: &ProcessEngine,
     job: RuntimeTimerJobState,
-) -> ManagementHistoryJobResponse {
+) -> Result<ManagementHistoryJobResponse, ApiError> {
     let management_service = engine.get_management_service();
-    let tenant_id = job
-        .tenant_id
-        .clone()
-        .or_else(|| management_service.job_tenant_id(&job));
+    let tenant_id = match job.tenant_id.clone() {
+        Some(id) => Some(id),
+        None => management_service.job_tenant_id(&job)?,
+    };
     let job_handler_type = job_handler_type(&job, JobFamily::History.default_job_type());
     // Java GET fills advancedJobHandlerConfiguration via getHistoryJobHistoryJson
     // (advanced config byte array). Fall back to the inline time_duration payload
@@ -2586,7 +2592,7 @@ fn history_job_to_management_history_job(
         .clone()
         .or_else(|| job.time_duration.clone());
     let id = job.timer_job_id;
-    ManagementHistoryJobResponse {
+    Ok(ManagementHistoryJobResponse {
         url: format!("/management/history-jobs/{id}"),
         id,
         scope_type: job.scope_type,
@@ -2600,13 +2606,13 @@ fn history_job_to_management_history_job(
         create_time: format_millis(job.create_time),
         lock_owner: job.lock_owner,
         lock_expiration_time: format_millis(job.lock_expiration_time),
-    }
+    })
 }
 
 fn suspended_job_to_management_job(
     engine: &ProcessEngine,
     job: RuntimeTimerJobState,
-) -> ManagementJobResponse {
+) -> Result<ManagementJobResponse, ApiError> {
     timer_job_to_management_job_with_type(engine, job, "suspended", "/management/suspended-jobs")
 }
 
@@ -2615,21 +2621,21 @@ fn timer_job_to_management_job_with_type(
     job: RuntimeTimerJobState,
     job_type: &str,
     url_prefix: &str,
-) -> ManagementJobResponse {
+) -> Result<ManagementJobResponse, ApiError> {
     let management_service = engine.get_management_service();
     // Prefer denormalized columns; fall back to execution joins for legacy rows.
-    let process_definition_id = job
-        .process_definition_id
-        .clone()
-        .or_else(|| management_service.job_process_definition_id(&job));
-    let tenant_id = job
-        .tenant_id
-        .clone()
-        .or_else(|| management_service.job_tenant_id(&job));
-    let element_name = job
-        .element_name
-        .clone()
-        .or_else(|| management_service.job_element_name(&job));
+    let process_definition_id = match job.process_definition_id.clone() {
+        Some(id) => Some(id),
+        None => management_service.job_process_definition_id(&job)?,
+    };
+    let tenant_id = match job.tenant_id.clone() {
+        Some(id) => Some(id),
+        None => management_service.job_tenant_id(&job)?,
+    };
+    let element_name = match job.element_name.clone() {
+        Some(name) => Some(name),
+        None => management_service.job_element_name(&job)?,
+    };
     let handler_type = job_handler_type(&job, job_type);
     let process_instance_id = non_empty_string(job.process_instance_id.clone());
     let execution_id = non_empty_string(job.execution_id.clone());
@@ -2644,7 +2650,7 @@ fn timer_job_to_management_job_with_type(
         .as_ref()
         .map(|id| format!("/runtime/executions/{id}"));
     let id = job.timer_job_id;
-    ManagementJobResponse {
+    Ok(ManagementJobResponse {
         url: format!("{url_prefix}/{id}"),
         id,
         job_type: job_type.to_string(),
@@ -2665,7 +2671,7 @@ fn timer_job_to_management_job_with_type(
         retries: job.retries.unwrap_or(1),
         exception_message: job.error_message,
         tenant_id,
-    }
+    })
 }
 
 fn non_empty_string(value: String) -> Option<String> {
@@ -2745,14 +2751,13 @@ fn list_management_jobs<T>(
     engine: &ProcessEngine,
     query: &ManagementListQuery,
     family: JobFamily,
-    map: impl Fn(&ProcessEngine, RuntimeTimerJobState) -> T,
+    map: impl Fn(&ProcessEngine, RuntimeTimerJobState) -> Result<T, ApiError>,
 ) -> Result<Json<PagedResponse<T>>, ApiError> {
     let page = query_management_jobs(engine, query, family)?;
-    let data = page
-        .data
-        .into_iter()
-        .map(|job| map(engine, job))
-        .collect::<Vec<_>>();
+    let mut data = Vec::with_capacity(page.data.len());
+    for job in page.data {
+        data.push(map(engine, job)?);
+    }
     Ok(Json(PagedResponse {
         data,
         total: page.total,

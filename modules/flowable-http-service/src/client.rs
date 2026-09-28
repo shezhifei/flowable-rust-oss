@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::ssrf_guard::{
     safe_url_display, validate_outbound_url, OutboundUrlGuardConfig, OutboundUrlGuardError,
 };
@@ -394,7 +402,7 @@ impl RealHttpClient {
         };
 
         {
-            let token_lock = self.oauth_token.lock().unwrap();
+            let token_lock = self.oauth_token.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((ref token, expiry)) = *token_lock
                 && Instant::now() < expiry
             {
@@ -422,7 +430,7 @@ impl RealHttpClient {
             let expiry_instant =
                 Instant::now() + Duration::from_secs(expires_in.saturating_sub(10));
 
-            let mut token_lock = self.oauth_token.lock().unwrap();
+            let mut token_lock = self.oauth_token.lock().unwrap_or_else(|e| e.into_inner());
             *token_lock = Some((token.to_string(), expiry_instant));
             return Some(token.to_string());
         }
@@ -431,7 +439,7 @@ impl RealHttpClient {
 
     /// Check circuit breaker status
     fn check_circuit_breaker(&self, host: &str) -> Result<(), HttpServiceError> {
-        let mut cb_lock = self.circuit_breakers.lock().unwrap();
+        let mut cb_lock = self.circuit_breakers.lock().unwrap_or_else(|e| e.into_inner());
         let state = cb_lock
             .entry(host.to_string())
             .or_insert(CircuitBreakerState::Closed { failure_count: 0 });
@@ -455,7 +463,7 @@ impl RealHttpClient {
 
     /// Record request outcome to circuit breaker
     fn record_circuit_breaker(&self, host: &str, success: bool) {
-        let mut cb_lock = self.circuit_breakers.lock().unwrap();
+        let mut cb_lock = self.circuit_breakers.lock().unwrap_or_else(|e| e.into_inner());
         let state = cb_lock
             .entry(host.to_string())
             .or_insert(CircuitBreakerState::Closed { failure_count: 0 });
@@ -689,7 +697,7 @@ impl HttpRuntime for RealHttpClient {
 
         // M42: Cache lookup for GET requests
         if self.config.cache_enabled && method == "GET" {
-            let cache_lock = self.cache.lock().unwrap();
+            let cache_lock = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((cached_exchange, cached_at)) = cache_lock.get(&url)
                 && cached_at.elapsed() < Duration::from_millis(self.config.cache_ttl_ms)
             {
@@ -718,7 +726,7 @@ impl HttpRuntime for RealHttpClient {
 
         // M42: Cache insertion
         if self.config.cache_enabled && method == "GET" {
-            let mut cache_lock = self.cache.lock().unwrap();
+            let mut cache_lock = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             cache_lock.insert(url, (exchange.clone(), Instant::now()));
         }
 

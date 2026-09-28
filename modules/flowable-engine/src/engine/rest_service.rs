@@ -1,4 +1,5 @@
 use crate::engine::process_engine::ProcessEngine;
+use crate::error::FlowableError;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
@@ -11,20 +12,17 @@ impl RestService {
         Self { process_engine }
     }
 
-    pub fn get_process_instance(&self, id: &str) -> Value {
+    pub fn get_process_instance(&self, id: &str) -> Result<Value, FlowableError> {
         let store = self.process_engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
-        match store.find_process_instance(id, &mut session) {
-            Some(pi) => json!(pi),
-            None => json!({"error": "Not found"}),
-        }
+        let mut session = store.create_session()?;
+        let instance = store.find_process_instance(id, &mut session)?
+            .ok_or_else(|| FlowableError::NotFound(format!("Process instance {id} not found")))?;
+        Ok(json!(instance))
     }
 
-    pub fn get_tasks(&self, process_instance_id: &str) -> Value {
-        let ts = self.process_engine.get_task_service();
-        match ts.get_tasks_by_process_instance_id(process_instance_id.to_string()) {
-            Ok(tasks) => json!(tasks),
-            Err(e) => json!({"error": format!("{:?}", e)}),
-        }
+    pub fn get_tasks(&self, process_instance_id: &str) -> Result<Value, FlowableError> {
+        let tasks = self.process_engine.get_task_service()
+            .get_tasks_by_process_instance_id(process_instance_id.to_string())?;
+        Ok(json!(tasks))
     }
 }

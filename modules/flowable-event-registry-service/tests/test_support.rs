@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_event_registry_service::{
     EventRegistryConfiguration, EventRegistryDeployment, EventRegistryDeploymentRequest,
@@ -17,7 +23,7 @@ pub fn service(name: &str) -> FlowableEventRegistryService {
         })
         .build();
     FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new(name.to_string())),
+        Arc::new(ProcessEngine::new(name.to_string()).unwrap()),
         configuration,
     )
 }
@@ -30,7 +36,7 @@ pub fn service_with_tenant_fallback(name: &str) -> FlowableEventRegistryService 
         .fallback_to_default_tenant(true)
         .build();
     FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new(name.to_string())),
+        Arc::new(ProcessEngine::new(name.to_string()).unwrap()),
         configuration,
     )
 }

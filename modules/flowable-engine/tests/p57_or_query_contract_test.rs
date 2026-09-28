@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P57 contract tests for TaskQuery `or()` composite queries.
 //!
 //! Java evidence:
@@ -41,7 +47,7 @@ fn standalone_task_with_key(engine: &ProcessEngine, task_id: &str, name: &str, d
 /// to A plus open tasks with candidate group G (TaskQueryImpl.java:172-174).
 #[test]
 fn or_block_ors_conditions_inside_block() {
-    let engine = ProcessEngine::new("p57-or-basic".to_string());
+    let engine = ProcessEngine::new("p57-or-basic".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "t-assigned", "Assigned Task");
@@ -74,7 +80,7 @@ fn or_block_ors_conditions_inside_block() {
 /// (Java Task.xml: orQueryObjects render as additional AND groups).
 #[test]
 fn or_block_ands_with_main_criteria() {
-    let engine = ProcessEngine::new("p57-or-and-main".to_string());
+    let engine = ProcessEngine::new("p57-or-and-main".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "t-match", "Target");
@@ -107,7 +113,7 @@ fn or_block_ands_with_main_criteria() {
 /// Multiple or() blocks all AND together (TaskQueryImpl.java:173 list).
 #[test]
 fn multiple_or_blocks_and_together() {
-    let engine = ProcessEngine::new("p57-or-multi-block".to_string());
+    let engine = ProcessEngine::new("p57-or-multi-block".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "t-both", "Alpha");
@@ -162,7 +168,7 @@ fn multiple_or_blocks_and_together() {
 /// (Task.xml:867-870) applies unless ignoreAssigneeValue is set in the block.
 #[test]
 fn or_block_candidate_user_keeps_p49_semantics() {
-    let engine = ProcessEngine::new("p57-or-candidate-p49".to_string());
+    let engine = ProcessEngine::new("p57-or-candidate-p49".to_string()).unwrap();
     let identity = engine.get_identity_service();
     let task_service = engine.get_task_service();
 
@@ -170,8 +176,8 @@ fn or_block_candidate_user_keeps_p49_semantics() {
         id: "sales".to_string(),
         name: "Sales".to_string(),
         group_type: None,
-    });
-    identity.create_membership("aSalesUser".to_string(), "sales".to_string());
+    }).unwrap();
+    identity.create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
 
     standalone_task(&engine, "t-open", "Open");
     task_service
@@ -220,7 +226,7 @@ fn or_block_candidate_user_keeps_p49_semantics() {
 /// Nested or() reports the Java message (TaskQueryImpl.java:2049-2050).
 #[test]
 fn nested_or_reports_java_error() {
-    let engine = ProcessEngine::new("p57-or-nested-error".to_string());
+    let engine = ProcessEngine::new("p57-or-nested-error".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     let result = task_service
@@ -241,7 +247,7 @@ fn nested_or_reports_java_error() {
 /// endOr() without or() reports the Java message (TaskQueryImpl.java:2066-2067).
 #[test]
 fn end_or_without_or_reports_java_error() {
-    let engine = ProcessEngine::new("p57-endor-error".to_string());
+    let engine = ProcessEngine::new("p57-endor-error".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     let result = task_service.create_task_query().end_or().list();
@@ -257,7 +263,7 @@ fn end_or_without_or_reports_java_error() {
 /// clauses for an empty orQueryObject).
 #[test]
 fn empty_or_block_matches_everything() {
-    let engine = ProcessEngine::new("p57-or-empty-block".to_string());
+    let engine = ProcessEngine::new("p57-or-empty-block".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "t-a", "A");
@@ -276,7 +282,7 @@ fn empty_or_block_matches_everything() {
 /// terms inside a block.
 #[test]
 fn or_block_priority_due_and_like_terms() {
-    let engine = ProcessEngine::new("p57-or-scalar-terms".to_string());
+    let engine = ProcessEngine::new("p57-or-scalar-terms".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     standalone_task(&engine, "t-prio", "Priority Task");

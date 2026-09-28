@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract: scheduled process-definition suspend/activate timers must run the
 //! *same* transactional command whether they are fired manually
 //! (`RuntimeService::execute_timer_job_by_id`) or by the real timer worker
@@ -138,7 +144,7 @@ fn timer_exists(engine: &ProcessEngine, timer_job_id: &str) -> bool {
 /// Drive the real timer worker one cycle, returning the executed job ids.
 fn run_real_worker(engine: &ProcessEngine) -> Vec<String> {
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(LEASE_MS);
+    let works = worker.acquire_due_timers(LEASE_MS).expect("timer acquisition must read storage");
     let mut executed = Vec::new();
     for work in &works {
         // execute_timer only runs when a valid fencing token was acquired.

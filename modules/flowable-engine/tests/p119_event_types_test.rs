@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P119 — EngineEventType completion for missing Java `FlowableEngineEventType`s.
 //!
 //! Verifies typed-event bus listeners receive newly wired types with key
@@ -38,7 +44,7 @@ impl EventCollector {
     fn types(&self) -> Vec<EngineEventType> {
         self.events
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .map(|e| e.event_type())
             .collect()
@@ -47,7 +53,7 @@ impl EventCollector {
     fn entity_events_of(&self, ty: EngineEventType) -> Vec<(EntityKind, String, Option<String>)> {
         self.events
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter_map(|e| match e {
                 EngineEvent::Entity { event_type, data } if *event_type == ty => Some((
@@ -63,7 +69,7 @@ impl EventCollector {
     fn job_events_of(&self, ty: EngineEventType) -> Vec<String> {
         self.events
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter_map(|e| match e {
                 EngineEvent::Job { event_type, job } if *event_type == ty => {
@@ -75,13 +81,13 @@ impl EventCollector {
     }
 
     fn clear(&self) {
-        self.events.lock().unwrap().clear();
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
 }
 
 impl EngineEventListener for EventCollector {
     fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
-        self.events.lock().unwrap().push(event.clone());
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(event.clone());
         Ok(())
     }
 }
@@ -93,7 +99,7 @@ fn engine_with_collector(name: &str) -> (ProcessEngine, EventCollector) {
     config
         .engine_event_dispatcher
         .add_event_listener(Arc::new(collector.clone()));
-    let engine = ProcessEngine::new_with_config(name.to_string(), config);
+    let engine = ProcessEngine::new_with_config(name.to_string(), config).unwrap();
     (engine, collector)
 }
 
@@ -107,7 +113,7 @@ fn engine_with_typed_listener(
     config
         .engine_event_dispatcher
         .add_typed_event_listener(event_type, Arc::new(collector.clone()));
-    let engine = ProcessEngine::new_with_config(name.to_string(), config);
+    let engine = ProcessEngine::new_with_config(name.to_string(), config).unwrap();
     (engine, collector)
 }
 

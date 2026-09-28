@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 fn extract_process_definition_version(process_definition_id: &str) -> i32 {
@@ -11,7 +17,7 @@ fn extract_process_definition_version(process_definition_id: &str) -> i32 {
 
 #[test]
 fn repeated_deployment_increments_process_definition_version() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>

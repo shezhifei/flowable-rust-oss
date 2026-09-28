@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_rest::run_server;
 use serde_json::{Value, json};
@@ -6,7 +12,7 @@ use tokio::net::TcpListener;
 
 #[tokio::test]
 async fn runtime_signals_trigger_waiting_signal_events_and_validate_payloads() {
-    let engine = Arc::new(ProcessEngine::new("rest-bpmn-runtime-signals".to_string()));
+    let engine = Arc::new(ProcessEngine::new("rest-bpmn-runtime-signals".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -17,7 +23,7 @@ async fn runtime_signals_trigger_waiting_signal_events_and_validate_payloads() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

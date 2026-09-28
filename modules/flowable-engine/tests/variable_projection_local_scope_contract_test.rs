@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the runtime `variables` projection table vs the
 //! dual-map execution row (`Execution::variables` ∪ `Execution::local_variables`).
 //!
@@ -49,7 +55,7 @@ fn deploy_and_start(engine: &ProcessEngine) -> String {
 /// merely rewrites projection behaviour wholesale.
 #[test]
 fn process_variable_remains_visible_in_the_runtime_projection() {
-    let engine = ProcessEngine::new("proj-process-var-regression".to_string());
+    let engine = ProcessEngine::new("proj-process-var-regression".to_string()).unwrap();
     let process_instance_id = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
 
@@ -63,7 +69,7 @@ fn process_variable_remains_visible_in_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(
         projected.get("processNote"),
         Some(&json!("from-process")),
@@ -91,7 +97,7 @@ fn process_variable_remains_visible_in_the_runtime_projection() {
 /// fix the local write must appear in the projection table / query.
 #[test]
 fn set_variable_local_is_visible_in_the_runtime_projection() {
-    let engine = ProcessEngine::new("proj-local-var-gap".to_string());
+    let engine = ProcessEngine::new("proj-local-var-gap".to_string()).unwrap();
     let process_instance_id = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
 
@@ -108,7 +114,7 @@ fn set_variable_local_is_visible_in_the_runtime_projection() {
     // Direct store projection (what insert_execution dual-writes).
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(
         projected.get("localNote"),
         Some(&json!("from-local")),
@@ -136,7 +142,7 @@ fn set_variable_local_is_visible_in_the_runtime_projection() {
 /// the surviving value must be the local one.
 #[test]
 fn local_variable_shadows_process_variable_in_the_projection() {
-    let engine = ProcessEngine::new("proj-local-shadow".to_string());
+    let engine = ProcessEngine::new("proj-local-shadow".to_string()).unwrap();
     let process_instance_id = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
 
@@ -165,7 +171,7 @@ fn local_variable_shadows_process_variable_in_the_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(
         projected.get("shared"),
         Some(&json!("local-value")),
@@ -195,7 +201,7 @@ fn local_variable_shadows_process_variable_in_the_projection() {
 /// Batch local write path (`set_variables_local`) must project every name.
 #[test]
 fn set_variables_local_batch_is_visible_in_the_runtime_projection() {
-    let engine = ProcessEngine::new("proj-local-batch".to_string());
+    let engine = ProcessEngine::new("proj-local-batch".to_string()).unwrap();
     let process_instance_id = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
 
@@ -208,7 +214,7 @@ fn set_variables_local_batch_is_visible_in_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(projected.get("a"), Some(&json!(1)));
     assert_eq!(projected.get("b"), Some(&json!(2)));
 }
@@ -220,7 +226,7 @@ fn set_variables_local_batch_is_visible_in_the_runtime_projection() {
 /// is needed for a scope-routed write to be visible in the projection table.
 #[test]
 fn scope_cmd_mutation_is_visible_in_the_runtime_projection() {
-    let engine = ProcessEngine::new("proj-scope-cmd".to_string());
+    let engine = ProcessEngine::new("proj-scope-cmd".to_string()).unwrap();
     let process_instance_id = deploy_and_start(&engine);
 
     engine
@@ -238,7 +244,7 @@ fn scope_cmd_mutation_is_visible_in_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(
         projected.get("scopedNote"),
         Some(&json!("from-scope-cmd")),
@@ -265,7 +271,7 @@ fn scope_cmd_mutation_is_visible_in_the_runtime_projection() {
 /// two maps exactly instead of accumulating orphan rows.
 #[test]
 fn removed_variable_disappears_from_the_runtime_projection() {
-    let engine = ProcessEngine::new("proj-remove-sweep".to_string());
+    let engine = ProcessEngine::new("proj-remove-sweep".to_string()).unwrap();
     let process_instance_id = deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
 
@@ -288,7 +294,7 @@ fn removed_variable_disappears_from_the_runtime_projection() {
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(
         projected.get("doomed"),
         None,
@@ -333,7 +339,7 @@ const DATA_INPUT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// shrunken map exactly — rows for dropped names are orphans and must go.
 #[test]
 fn projection_sweeps_rows_for_names_dropped_from_the_execution_maps() {
-    let engine = ProcessEngine::new("proj-orphan-sweep".to_string());
+    let engine = ProcessEngine::new("proj-orphan-sweep".to_string()).unwrap();
     let repo = engine.get_repository_service();
     repo.deploy(repo.create_deployment().add_string(
         "proj_data_input.bpmn20.xml".to_string(),
@@ -365,7 +371,7 @@ fn projection_sweeps_rows_for_names_dropped_from_the_execution_maps() {
         "test premise: the data input association shrinks the variables map"
     );
 
-    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session);
+    let projected = store.find_variables_by_execution_id(&process_instance_id, &mut session).unwrap();
     assert_eq!(
         projected.get("taskVar"),
         Some(&json!("value1")),

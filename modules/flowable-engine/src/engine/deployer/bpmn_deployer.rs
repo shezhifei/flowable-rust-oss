@@ -38,7 +38,7 @@ impl BpmnDeployer {
                             deployment.tenant_id.as_deref(),
                             &process_key,
                             session,
-                        );
+                        )?;
                         // Java DefaultHistoryConfigurationSettings
                         // .getProcessDefinitionHistoryLevel:68-73 reads
                         // process extensionElements["historyLevel"] text.

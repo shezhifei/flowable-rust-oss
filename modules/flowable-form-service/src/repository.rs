@@ -9,8 +9,11 @@ const FORM_DEPLOYMENTS_TABLE: &str = "m14_form_deployments";
 const FORM_DEFINITIONS_TABLE: &str = "m14_form_definitions";
 const FORM_INSTANCES_TABLE: &str = "m40_form_instances";
 
-pub(crate) fn ensure_schema(store: &RuntimeStore) {
-    let mut session = store.db_store().create_session().unwrap();
+pub(crate) fn ensure_schema(store: &RuntimeStore) -> Result<(), FlowableError> {
+    let mut session = store
+        .db_store()
+        .create_session()
+        .map_err(FlowableError::from)?;
 
     let id = session.dialect().varchar_type(255);
     let short = session.dialect().varchar_type(255);
@@ -23,129 +26,135 @@ pub(crate) fn ensure_schema(store: &RuntimeStore) {
         .execute_raw_sql(&format!(
             "CREATE TABLE IF NOT EXISTS {FORM_DEPLOYMENTS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, name {short} NOT NULL, deployed_at {big} NOT NULL)"
         ))
-        .unwrap();
+        .map_err(FlowableError::from)?;
     session
         .execute_raw_sql(&format!(
             "CREATE TABLE IF NOT EXISTS {FORM_DEFINITIONS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, deployment_id {short} NOT NULL, form_key {short} NOT NULL, name {short} NOT NULL, version {int} NOT NULL, resource_name {short} NOT NULL, active {int} NOT NULL DEFAULT 1)"
         ))
-        .unwrap();
+        .map_err(FlowableError::from)?;
     session
         .execute_raw_sql(&format!(
             "CREATE TABLE IF NOT EXISTS {FORM_INSTANCES_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, form_definition_id {short} NOT NULL, form_definition_key {short} NOT NULL, process_definition_id {short}, process_instance_id {short}, task_id {short}, scope_type {short} NOT NULL, scope_id {short} NOT NULL, scope_definition_id {short}, submitted_at {big} NOT NULL, submitted_by {short}, tenant_id {short}, form_values_id {short})"
         ))
-        .unwrap();
+        .map_err(FlowableError::from)?;
 
     create_index(
         &mut session,
         "idx_form_deployments_name",
         FORM_DEPLOYMENTS_TABLE,
         "name",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_deployments_deployed_at",
         FORM_DEPLOYMENTS_TABLE,
         "deployed_at",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_definitions_key",
         FORM_DEFINITIONS_TABLE,
         "form_key",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_definitions_deployment_id",
         FORM_DEFINITIONS_TABLE,
         "deployment_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_definitions_name",
         FORM_DEFINITIONS_TABLE,
         "name",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_definitions_resource_name",
         FORM_DEFINITIONS_TABLE,
         "resource_name",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_definition_id",
         FORM_INSTANCES_TABLE,
         "form_definition_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_definition_key",
         FORM_INSTANCES_TABLE,
         "form_definition_key",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_process_definition_id",
         FORM_INSTANCES_TABLE,
         "process_definition_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_process_instance_id",
         FORM_INSTANCES_TABLE,
         "process_instance_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_task_id",
         FORM_INSTANCES_TABLE,
         "task_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_scope",
         FORM_INSTANCES_TABLE,
         "scope_type, scope_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_scope_definition_id",
         FORM_INSTANCES_TABLE,
         "scope_definition_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_tenant_id",
         FORM_INSTANCES_TABLE,
         "tenant_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_form_values_id",
         FORM_INSTANCES_TABLE,
         "form_values_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_form_instances_submitted_at",
         FORM_INSTANCES_TABLE,
         "submitted_at",
-    );
+    )?;
 
-    migrate_form_instance_columns(&mut session);
+    migrate_form_instance_columns(&mut session)?;
 
     create_index(
         &mut session,
         "idx_form_instances_submitted_by",
         FORM_INSTANCES_TABLE,
         "submitted_by",
-    );
+    )?;
 
-    session.flush_and_commit().unwrap();
+    session.flush_and_commit().map_err(FlowableError::from)?;
+    Ok(())
 }
 
 /// MySQL 8.0 没有 CREATE INDEX IF NOT EXISTS，重复索引按成功处理（对齐 engine db_store.rs）。
-fn create_index(session: &mut DbSession, name: &str, table: &str, columns: &str) {
+fn create_index(
+    session: &mut DbSession,
+    name: &str,
+    table: &str,
+    columns: &str,
+) -> Result<(), FlowableError> {
     let sql = session.dialect().create_index_if_not_exists(name, table, columns);
     if let Err(error) = session.execute_raw_sql(&sql) {
         let message = error.to_string();
@@ -153,16 +162,19 @@ fn create_index(session: &mut DbSession, name: &str, table: &str, columns: &str)
             || message.contains("Duplicate key name")
             || message.contains("already exists")
         {
-            return;
+            return Ok(());
         }
-        panic!("index DDL failed: {error} | SQL: {sql}");
+        return Err(FlowableError::Internal(format!(
+            "index DDL failed: {error} | SQL: {sql}"
+        )));
     }
+    Ok(())
 }
 
-fn migrate_form_instance_columns(session: &mut DbSession) {
+fn migrate_form_instance_columns(session: &mut DbSession) -> Result<(), FlowableError> {
     let column_names: std::collections::BTreeSet<String> = session
         .table_columns(FORM_INSTANCES_TABLE)
-        .unwrap()
+        .map_err(FlowableError::from)?
         .into_iter()
         .map(|column| column.name)
         .collect();
@@ -178,12 +190,16 @@ fn migrate_form_instance_columns(session: &mut DbSession) {
                 .execute_raw_sql(&format!(
                     "ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN {column} {ddl_type}"
                 ))
-                .unwrap();
+                .map_err(FlowableError::from)?;
         }
     }
+    Ok(())
 }
 
-pub(crate) fn insert_form_deployment(store: &RuntimeStore, deployment: FormDeployment) {
+pub(crate) fn insert_form_deployment(
+    store: &RuntimeStore,
+    deployment: FormDeployment,
+) -> Result<(), FlowableError> {
     store
         .db_store()
         .insert_json_with_extra(
@@ -196,10 +212,14 @@ pub(crate) fn insert_form_deployment(store: &RuntimeStore, deployment: FormDeplo
                 Some(deployment.deployed_at.to_string()),
             ],
         )
-        .unwrap();
+        .map_err(map_storage_error)?;
+    Ok(())
 }
 
-pub(crate) fn insert_form_definition(store: &RuntimeStore, definition: FormDefinition) {
+pub(crate) fn insert_form_definition(
+    store: &RuntimeStore,
+    definition: FormDefinition,
+) -> Result<(), FlowableError> {
     let active_val = if definition.active.unwrap_or(true) {
         1
     } else {
@@ -221,25 +241,37 @@ pub(crate) fn insert_form_definition(store: &RuntimeStore, definition: FormDefin
                 Some(active_val.to_string()),
             ],
         )
-        .unwrap();
+        .map_err(map_storage_error)?;
+    Ok(())
 }
 
-pub(crate) fn find_form_definition(store: &RuntimeStore, id: &str) -> Option<FormDefinition> {
+pub(crate) fn find_form_definition(
+    store: &RuntimeStore,
+    id: &str,
+) -> Result<Option<FormDefinition>, FlowableError> {
     store
         .db_store()
         .find_by_id(FORM_DEFINITIONS_TABLE, id)
-        .unwrap()
+        .map_err(map_storage_error)
 }
 
-pub(crate) fn list_form_definitions(store: &RuntimeStore) -> Vec<FormDefinition> {
-    store.db_store().find_all(FORM_DEFINITIONS_TABLE).unwrap()
+pub(crate) fn list_form_definitions(
+    store: &RuntimeStore,
+) -> Result<Vec<FormDefinition>, FlowableError> {
+    store
+        .db_store()
+        .find_all(FORM_DEFINITIONS_TABLE)
+        .map_err(map_storage_error)
 }
 
-pub(crate) fn list_form_definitions_by_key(store: &RuntimeStore, key: &str) -> Vec<FormDefinition> {
+pub(crate) fn list_form_definitions_by_key(
+    store: &RuntimeStore,
+    key: &str,
+) -> Result<Vec<FormDefinition>, FlowableError> {
     store
         .db_store()
         .find_all_by(FORM_DEFINITIONS_TABLE, "form_key", key)
-        .unwrap()
+        .map_err(map_storage_error)
 }
 
 pub(crate) fn find_form_definitions_by_key(
@@ -461,31 +493,6 @@ pub(crate) fn update_form_definition_activation(
     Ok(())
 }
 
-#[allow(dead_code)]
-pub(crate) fn insert_form_instance(store: &RuntimeStore, form_instance: FormInstance) {
-    store.db_store().insert_json_with_extra(
-        FORM_INSTANCES_TABLE,
-        &form_instance.id,
-        &form_instance,
-        "form_definition_id, form_definition_key, process_definition_id, process_instance_id, task_id, scope_type, scope_id, scope_definition_id, submitted_at, submitted_by, tenant_id, form_values_id",
-        &[
-            Some(form_instance.form_definition_id.clone()),
-            Some(form_instance.form_definition_key.clone()),
-            Some(form_instance.process_definition_id.clone().unwrap_or_default()),
-            Some(form_instance.process_instance_id.clone().unwrap_or_default()),
-            Some(form_instance.task_id.clone().unwrap_or_default()),
-            Some(form_instance.scope_type.clone()),
-            Some(form_instance.scope_id.clone()),
-            Some(form_instance.scope_definition_id.clone().unwrap_or_default()),
-            Some(form_instance.submitted_at.to_string()),
-            Some(form_instance.submitted_by.clone().unwrap_or_default()),
-            Some(form_instance.tenant_id.clone().unwrap_or_default()),
-            Some(form_instance.form_values_id.clone().unwrap_or_default()),
-        ],
-    )
-    .unwrap();
-}
-
 /// Ensure form tables exist on the caller's session (no nested commit).
 /// Used by `CompleteTaskWithFormCmd` so form instance + task complete share one TX.
 pub fn ensure_form_schema_in_session(session: &mut DbSession) -> Result<(), StorageError> {
@@ -498,21 +505,45 @@ pub fn ensure_form_schema_in_session(session: &mut DbSession) -> Result<(), Stor
     session.execute_raw_sql(&format!(
         "CREATE TABLE IF NOT EXISTS {FORM_INSTANCES_TABLE} (id TEXT PRIMARY KEY, data TEXT NOT NULL, form_definition_id TEXT NOT NULL, form_definition_key TEXT NOT NULL, process_definition_id TEXT, process_instance_id TEXT, task_id TEXT, scope_type TEXT NOT NULL, scope_id TEXT NOT NULL, scope_definition_id TEXT, submitted_at INTEGER NOT NULL, submitted_by TEXT, tenant_id TEXT, form_values_id TEXT)"
     ))?;
-    // Best-effort migrations for sessions that opened an older table shape.
-    // DDL may auto-commit depending on dialect; still keeps new columns available.
-    let _ = session.execute_raw_sql(&format!(
-        "ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN scope_definition_id TEXT"
-    ));
-    let _ = session.execute_raw_sql(&format!(
-        "ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN tenant_id TEXT"
-    ));
-    let _ = session.execute_raw_sql(&format!(
-        "ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN form_values_id TEXT"
-    ));
-    let _ = session.execute_raw_sql(&format!(
-        "ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN submitted_by TEXT"
-    ));
+    // Java parity: schema DDL failures are never swallowed.
+    // `AbstractSqlScriptBasedDbSchemaManager.executeSchemaOperation`
+    // (flowable-engine-common/.../impl/db/AbstractSqlScriptBasedDbSchemaManager.java:320-349)
+    // records every failed statement (L322-327) and then rethrows it (L341-343, wrapped at
+    // L347-349). Java only avoids re-running an upgrade because upgrade scripts are
+    // version-gated (`ProcessDbSchemaManager.schemaUpdate` L146+, `isUpgradeNeeded` L176-178);
+    // the equivalent gate here is tolerating the dialect's "column already exists" error,
+    // which is logged at debug. Every other DDL failure propagates.
+    for statement in [
+        format!("ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN scope_definition_id TEXT"),
+        format!("ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN tenant_id TEXT"),
+        format!("ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN form_values_id TEXT"),
+        format!("ALTER TABLE {FORM_INSTANCES_TABLE} ADD COLUMN submitted_by TEXT"),
+    ] {
+        match session.execute_raw_sql(&statement) {
+            Ok(()) => {}
+            Err(error) if is_already_applied_schema_error(&error) => {
+                tracing::debug!(
+                    error = %error,
+                    "form schema column already present; skipping migration"
+                );
+            }
+            Err(error) => return Err(error),
+        }
+    }
     Ok(())
+}
+
+/// True when a DDL failure means the migration was already applied.
+///
+/// Java `ProcessDbSchemaManager.schemaUpdate` runs each upgrade script at most once
+/// because upgrades are version-gated, so "already applied" never surfaces as an error
+/// there; this path re-runs `ADD COLUMN` on every call and must treat the dialect's
+/// duplicate-column error as the expected no-op. Any other error is a genuine failure.
+fn is_already_applied_schema_error(error: &StorageError) -> bool {
+    let message = error.to_string().to_ascii_lowercase();
+    message.contains("duplicate column")
+        || message.contains("already exists")
+        || message.contains("duplicate field name")
 }
 
 /// Insert form instance on the caller's session (Java `saveFormInstance` in same command).
@@ -524,7 +555,10 @@ pub fn insert_form_instance_in_session(
 
     let mut params = DbParams::new();
     params.push(form_instance.id.clone());
-    params.push(serde_json::to_string(form_instance).unwrap());
+    params.push(
+        serde_json::to_string(form_instance)
+            .map_err(|e| StorageError::Serialization(e.to_string()))?,
+    );
     params.push(form_instance.form_definition_id.clone());
     params.push(form_instance.form_definition_key.clone());
     params.push(
@@ -589,10 +623,15 @@ pub fn find_form_definition_in_session(
         &format!("SELECT data FROM {FORM_DEFINITIONS_TABLE} WHERE id = ?"),
         params,
     )?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| row.get_text("data"))
-        .find_map(|json| serde_json::from_str::<FormDefinition>(&json).ok()))
+    for row in rows {
+        if let Some(json) = row.get_text("data") {
+            return Ok(Some(
+                serde_json::from_str::<FormDefinition>(&json)
+                    .map_err(|e| StorageError::Deserialization(e.to_string()))?,
+            ));
+        }
+    }
+    Ok(None)
 }
 
 /// List form instances for a task using the caller's session (tests / rollback checks).
@@ -607,18 +646,26 @@ pub fn find_form_instances_by_task_id_in_session(
         &format!("SELECT data FROM {FORM_INSTANCES_TABLE} WHERE task_id = ?"),
         params,
     )?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| row.get_text("data"))
-        .filter_map(|json| serde_json::from_str::<FormInstance>(&json).ok())
-        .collect())
+    let mut instances = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(json) = row.get_text("data") {
+            instances.push(
+                serde_json::from_str::<FormInstance>(&json)
+                    .map_err(|e| StorageError::Deserialization(e.to_string()))?,
+            );
+        }
+    }
+    Ok(instances)
 }
 
-pub(crate) fn find_form_instance(store: &RuntimeStore, id: &str) -> Option<FormInstance> {
+pub(crate) fn find_form_instance(
+    store: &RuntimeStore,
+    id: &str,
+) -> Result<Option<FormInstance>, FlowableError> {
     store
         .db_store()
         .find_by_id(FORM_INSTANCES_TABLE, id)
-        .unwrap()
+        .map_err(map_storage_error)
 }
 
 /// Physical-column filters pushed into the repository (Java query parity).
@@ -646,10 +693,13 @@ pub(crate) struct FormInstanceListFilter<'a> {
 pub(crate) fn list_form_instances_filtered(
     store: &RuntimeStore,
     filter: FormInstanceListFilter<'_>,
-) -> Vec<FormInstance> {
-    let mut session = store.db_store().create_session().unwrap();
+) -> Result<Vec<FormInstance>, FlowableError> {
+    let mut session = store
+        .db_store()
+        .create_session()
+        .map_err(map_storage_error)?;
     // ensure columns exist for filtered queries
-    let _ = ensure_form_schema_in_session(&mut session);
+    ensure_form_schema_in_session(&mut session).map_err(map_storage_error)?;
 
     let mut clauses = Vec::new();
     let mut params = DbParams::new();
@@ -721,15 +771,20 @@ pub(crate) fn list_form_instances_filtered(
         format!(" WHERE {}", clauses.join(" AND "))
     };
     let sql = format!("SELECT data FROM {FORM_INSTANCES_TABLE}{where_clause}");
-    let rows = session.raw_query(&sql, params).unwrap();
-    let instances = rows
-        .into_iter()
-        .filter_map(|row| row.get_text("data"))
-        .filter_map(|json| serde_json::from_str::<FormInstance>(&json).ok())
-        .collect();
+    let rows = session.raw_query(&sql, params).map_err(map_storage_error)?;
+    let mut instances = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(json) = row.get_text("data") {
+            instances.push(
+                serde_json::from_str::<FormInstance>(&json)
+                    .map_err(|e| StorageError::Deserialization(e.to_string()))
+                    .map_err(map_storage_error)?,
+            );
+        }
+    }
     // Read-only query: release the session lock without writing.
     session.rollback().ok();
-    instances
+    Ok(instances)
 }
 
 pub(crate) fn delete_form_instance(

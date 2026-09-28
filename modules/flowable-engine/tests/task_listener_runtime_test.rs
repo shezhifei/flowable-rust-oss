@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Runtime tests for BPMN taskListener execution via the local registry.
 
 use flowable_engine::bpmn::listener::{
@@ -83,7 +89,7 @@ fn engine_with_delete_listener() -> ProcessEngine {
     registry.register("deleteListener", Arc::new(DeleteListener));
     let mut config = ProcessEngineConfiguration::default();
     config.task_listener_registry = Some(registry);
-    ProcessEngine::new_with_config("delete-listener-test".to_string(), config)
+    ProcessEngine::new_with_config("delete-listener-test".to_string(), config).unwrap()
 }
 
 #[test]
@@ -176,7 +182,7 @@ fn engine_with_task_listeners() -> ProcessEngine {
 
     let mut config = ProcessEngineConfiguration::default();
     config.task_listener_registry = Some(registry);
-    ProcessEngine::new_with_config("task-listener-test".to_string(), config)
+    ProcessEngine::new_with_config("task-listener-test".to_string(), config).unwrap()
 }
 
 #[test]
@@ -248,7 +254,7 @@ fn task_listeners_fire_on_create_assignment_and_complete() {
 
 #[test]
 fn unregistered_task_listener_fails_with_clear_error() {
-    let process_engine = ProcessEngine::new("task-listener-missing".to_string());
+    let process_engine = ProcessEngine::new("task-listener-missing".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

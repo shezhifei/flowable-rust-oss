@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::historical_migration::HistoricalMigrationRawDialect;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
@@ -163,7 +169,7 @@ fn imports_postgres_raw_dump_into_fresh_engine_baseline() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_raw_postgres_import".to_string(),
             target_db.to_str().unwrap(),
-        );
+        ).unwrap();
         let result = engine
             .import_historical_migration_from_sql_dump(
                 &dump_path,
@@ -215,7 +221,7 @@ fn imports_copy_based_postgres_raw_dump_into_fresh_engine_baseline() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_raw_postgres_copy_import".to_string(),
             target_db.to_str().unwrap(),
-        );
+        ).unwrap();
         let result = engine
             .import_historical_migration_from_sql_dump(
                 &dump_path,
@@ -259,7 +265,7 @@ fn imports_h2_raw_dump_into_fresh_engine_baseline() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_raw_h2_import".to_string(),
             target_db.to_str().unwrap(),
-        );
+        ).unwrap();
         let result = engine
             .import_historical_migration_from_sql_dump(
                 &dump_path,

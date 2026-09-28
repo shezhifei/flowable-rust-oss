@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P24 sub-item 2: ad-hoc subprocess engine APIs.
 //! Java parity: AdhocSubProcessTest.testSimpleAdhocSubProcess /
 //! testSimpleAdhocSubProcessViaExecution.
@@ -36,7 +42,7 @@ const SEQUENTIAL_ADHOC_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn test_simple_adhoc_subprocess_engine_api() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_svc = engine.get_task_service();
@@ -106,7 +112,7 @@ fn test_simple_adhoc_subprocess_engine_api() {
 
 #[test]
 fn test_sequential_adhoc_blocks_second_execute() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 

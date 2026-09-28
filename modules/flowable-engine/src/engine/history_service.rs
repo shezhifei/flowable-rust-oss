@@ -61,15 +61,13 @@ impl Command<Vec<HistoricProcessInstance>> for HistoricProcessInstanceQueryCmd {
         let mut rows = if let Some(pi_id) = &self.query.process_instance_id {
             command_context
                 .session()
-                .find("historic_process_instances", pi_id)
-                .unwrap()
+                .find::<HistoricProcessInstance>("historic_process_instances", pi_id)?
                 .into_iter()
                 .collect::<Vec<_>>()
         } else {
             command_context
                 .session()
-                .find_all::<HistoricProcessInstance>("historic_process_instances")
-                .unwrap()
+                .find_all::<HistoricProcessInstance>("historic_process_instances")?
         };
         if let Some(involved_user) = &self.query.involved_user {
             // P77: Java HistoricProcessInstance.xml:903-904 filters via
@@ -251,13 +249,11 @@ impl Command<Vec<HistoricActivityInstance>> for HistoricActivityInstanceQueryCmd
                     "historic_activity_instances",
                     "process_instance_id",
                     pi_id,
-                )
-                .unwrap()
+                )?
         } else {
             command_context
                 .session()
-                .find_all::<HistoricActivityInstance>("historic_activity_instances")
-                .unwrap()
+                .find_all::<HistoricActivityInstance>("historic_activity_instances")?
         };
         Ok(rows)
     }
@@ -511,9 +507,17 @@ impl Command<Vec<HistoricTaskInstance>> for HistoricTaskInstanceQueryCmd {
         }
 
         let (store, session) = command_context.store_and_session();
-        let mut tasks: Vec<HistoricTaskInstance> = session
-            .find_with_filters("historic_task_instances", &filters, None, None)
-            .unwrap();
+        let mut tasks: Vec<HistoricTaskInstance> =
+            match session.find_with_filters("historic_task_instances", &filters, None, None) {
+                Ok(found) => found,
+                Err(error) => {
+                    // Java parity: HistoricTaskInstanceQueryImpl.list() -> AbstractQuery.list()
+                    // (AbstractQuery.java:119-129) throws on a storage failure; an empty result
+                    // is only valid for a successful no-row query.
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
 
         use std::collections::HashSet;
         // Java HistoricTaskInstanceQueryImpl.getCandidateGroups (HistoricTaskInstanceQueryImpl.java:2221-2246)
@@ -566,6 +570,19 @@ impl Command<Vec<HistoricTaskInstance>> for HistoricTaskInstanceQueryCmd {
             if !self.query.ignore_assignee {
                 tasks.retain(|task| task.assignee.is_none());
             }
+        }
+
+        // `get_groups_by_user` and `find_identity_links_by_tasks` substitute an
+        // empty result and record the failure on the session. Without this check
+        // an unreachable store reads as "this user is in no groups", which
+        // silently drops every group-expanded candidate task from the result.
+        // Java parity: the group query runs inside the command and a SQL error
+        // escapes as a PersistenceException
+        // (DbSqlSession.java:282-299); only a successful zero-row query is empty.
+        if command_context.session().has_pending_error() {
+            return Err(crate::error::FlowableError::Internal(
+                "historic task candidate query could not read the identity store".to_string(),
+            ));
         }
 
         Ok(tasks)
@@ -702,10 +719,19 @@ impl Command<Vec<HistoricVariableInstance>> for HistoricVariableInstanceQueryCmd
             ));
         }
 
-        let mut variables: Vec<HistoricVariableInstance> = command_context
+        let mut variables: Vec<HistoricVariableInstance> = match command_context
             .session()
             .find_with_filters("historic_variable_instances", &filters, None, None)
-            .unwrap();
+        {
+            Ok(found) => found,
+            Err(error) => {
+                // Java parity: HistoricVariableInstanceQueryImpl.list() -> AbstractQuery.list()
+                // (AbstractQuery.java:119-129) throws on a storage failure rather than
+                // returning an empty list.
+                command_context.session().note_write_error(error);
+                Vec::new()
+            }
+        };
 
         if let Some(execution_id) = &self.query.execution_id {
             variables.retain(|variable| variable.execution_id.as_deref() == Some(execution_id));
@@ -810,8 +836,7 @@ impl Command<Vec<HistoricAuditLog>> for HistoricAuditLogQueryCmd {
     ) -> Result<Vec<HistoricAuditLog>, crate::error::FlowableError> {
         let rows = command_context
             .session()
-            .find_all::<HistoricAuditLog>("historic_audit_logs")
-            .unwrap();
+            .find_all::<HistoricAuditLog>("historic_audit_logs")?;
 
         let mut audit_logs: Vec<HistoricAuditLog> = rows
             .into_iter()
@@ -1394,9 +1419,7 @@ impl Command<Vec<HistoricIdentityLink>> for HistoricIdentityLinkQueryCmd {
         } else if let Some(user_id) = &self.query.user_id {
             store.find_historic_identity_links_by_user(user_id, session)
         } else {
-            session
-                .find_all("historic_identity_links")
-                .unwrap_or_default()
+            session.find_all("historic_identity_links")?
         };
         // Additional filters when a primary dimension was used.
         if let Some(process_instance_id) = &self.query.process_instance_id

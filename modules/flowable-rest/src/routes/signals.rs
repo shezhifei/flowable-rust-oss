@@ -66,12 +66,20 @@ pub(crate) async fn signal_event_received(
         let signal_name_owned = signal_name.to_string();
         let tenant_id_owned = tenant_id.clone();
         tokio::spawn(async move {
-            let _ = trigger_signal(
+            // The 202 is already committed, so a storage failure cannot become a response —
+            // but it must not be silent either.
+            if let Err(error) = trigger_signal(
                 engine_clone,
                 &signal_name_owned,
                 &[],
                 tenant_id_owned.as_deref(),
-            );
+            ) {
+                tracing::error!(
+                    error = ?error,
+                    signal_name = %signal_name_owned,
+                    "async signal trigger failed"
+                );
+            }
         });
         return Ok(StatusCode::ACCEPTED);
     }
@@ -104,7 +112,7 @@ pub(crate) fn trigger_signal(
     let runtime_store = engine.get_runtime_store();
     let runtime_service = engine.get_runtime_service();
     let (mut execution_ids, boundary_process_ids, event_subprocess_process_ids) = {
-        let mut session = runtime_store.create_session().unwrap();
+        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         let execution_ids: Vec<String> = runtime_store
             .snapshot_event_wait_states(&mut session)
             .into_values()
@@ -119,6 +127,7 @@ pub(crate) fn trigger_signal(
                         })
                     && matches_tenant(
                         &runtime_store,
+                        &mut session,
                         wait_state.process_instance_id.as_str(),
                         tenant_id,
                     )
@@ -131,7 +140,12 @@ pub(crate) fn trigger_signal(
             .filter(|state| {
                 state.event_subscription.kind == EventSubscriptionKind::Signal
                     && state.event_subscription.event_ref == signal_name
-                    && matches_tenant(&runtime_store, &state.process_instance_id, tenant_id)
+                    && matches_tenant(
+                        &runtime_store,
+                        &mut session,
+                        &state.process_instance_id,
+                        tenant_id,
+                    )
             })
             .map(|state| state.process_instance_id)
             .collect();
@@ -143,7 +157,12 @@ pub(crate) fn trigger_signal(
             )
             .into_iter()
             .filter(|subscription| {
-                matches_tenant(&runtime_store, &subscription.process_instance_id, tenant_id)
+                matches_tenant(
+                    &runtime_store,
+                    &mut session,
+                    &subscription.process_instance_id,
+                    tenant_id,
+                )
             })
             .map(|subscription| subscription.process_instance_id)
             .collect();
@@ -166,34 +185,36 @@ pub(crate) fn trigger_signal(
         }
         // Java parity: global signal broadcast does NOT check suspension
         runtime_service
-            .trigger_global_signal_intermediate_catch(signal_name.to_string(), execution_id);
+            .trigger_global_signal_intermediate_catch(signal_name.to_string(), execution_id)?;
     }
 
     for process_instance_id in boundary_process_ids {
         runtime_service
-            .trigger_boundary_event_by_signal_ref(signal_name.to_string(), process_instance_id);
+            .trigger_boundary_event_by_signal_ref(signal_name.to_string(), process_instance_id)?;
     }
 
     for process_instance_id in event_subprocess_process_ids {
         runtime_service
-            .trigger_event_subprocess_by_signal(signal_name.to_string(), process_instance_id);
+            .trigger_event_subprocess_by_signal(signal_name.to_string(), process_instance_id)?;
     }
 
-    let start_subscriptions: Vec<_> = engine
-        .get_event_start_subscriptions()
-        .into_iter()
-        .filter(|subscription| {
-            subscription.event_kind == EventSubscriptionKind::Signal
-                && subscription.event_ref == signal_name
-                && matches_definition_tenant(
-                    &engine,
-                    &subscription.process_definition_id,
-                    tenant_id,
-                )
-        })
-        .collect();
+    let mut start_subscriptions: Vec<_> = Vec::new();
+    for subscription in engine.get_event_start_subscriptions()? {
+        if subscription.event_kind != EventSubscriptionKind::Signal
+            || subscription.event_ref != signal_name
+        {
+            continue;
+        }
+        if matches_definition_tenant(
+            &engine,
+            &subscription.process_definition_id,
+            tenant_id,
+        )? {
+            start_subscriptions.push(subscription);
+        }
+    }
     if !start_subscriptions.is_empty() {
-        let _ = runtime_service.start_process_instance_by_signal(signal_name.to_string());
+        runtime_service.start_process_instance_by_signal(signal_name.to_string())?;
     }
 
     Ok(())
@@ -201,33 +222,38 @@ pub(crate) fn trigger_signal(
 
 fn matches_tenant(
     runtime_store: &RuntimeStore,
+    session: &mut flowable_engine::persistence::DbSession,
     process_instance_id: &str,
     tenant_id: Option<&str>,
 ) -> bool {
     let Some(filter_tenant) = tenant_id else {
         return true;
     };
-    let mut session = runtime_store.create_session().unwrap();
-    runtime_store
-        .find_process_instance(process_instance_id, &mut session)
-        .and_then(|pi| pi.tenant_id)
-        .as_deref()
-        == Some(filter_tenant)
+    // Storage failure is not a tenant mismatch: sticky-error so the caller
+    // can answer 500 instead of silently dropping the row.
+    match runtime_store.find_process_instance(process_instance_id, session) {
+        Ok(found) => found.and_then(|pi| pi.tenant_id).as_deref() == Some(filter_tenant),
+        Err(error) => {
+            session.note_write_error(error);
+            false
+        }
+    }
 }
 
 fn matches_definition_tenant(
     engine: &ProcessEngine,
     process_definition_id: &str,
     tenant_id: Option<&str>,
-) -> bool {
+) -> Result<bool, ApiError> {
     let Some(filter_tenant) = tenant_id else {
-        return true;
+        return Ok(true);
     };
-    engine
+    match engine
         .get_repository_service()
         .get_process_definition(process_definition_id)
-        .ok()
-        .and_then(|def| def.tenant_id)
-        .as_deref()
-        == Some(filter_tenant)
+    {
+        Ok(def) => Ok(def.tenant_id.as_deref() == Some(filter_tenant)),
+        Err(flowable_engine::error::FlowableError::NotFound(_)) => Ok(false),
+        Err(e) => Err(ApiError::InternalServerError(e.to_string())),
+    }
 }

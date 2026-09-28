@@ -158,15 +158,11 @@ fn write_output(
     push_optional(&mut node, "label", output.label.as_deref());
     push_optional(&mut node, "name", output.name.as_deref());
     push_optional(&mut node, "typeRef", output.type_ref.as_deref());
-    if output.output_values.is_none() {
+    let Some(values) = output.output_values.as_ref() else {
         return event(writer, Event::Empty(node));
-    }
+    };
     event(writer, Event::Start(node))?;
-    write_unary_tests(
-        writer,
-        "outputValues",
-        output.output_values.as_ref().unwrap(),
-    )?;
+    write_unary_tests(writer, "outputValues", values)?;
     event(writer, Event::End(BytesEnd::new("output")))
 }
 

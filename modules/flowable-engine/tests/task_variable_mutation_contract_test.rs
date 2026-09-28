@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Engine contract tests for the atomic task-variable mutation command
 //! (P2-TVAR): scope (local/global), modes (create-only/update-only/upsert),
 //! validation-before-write atomicity, suspension guards, read resolution and
@@ -71,7 +77,7 @@ fn variables(pairs: &[(&str, serde_json::Value)]) -> HashMap<String, serde_json:
 
 #[test]
 fn missing_task_rejected_and_nothing_written() {
-    let engine = ProcessEngine::new("task-var-missing-task".to_string());
+    let engine = ProcessEngine::new("task-var-missing-task".to_string()).unwrap();
     let task_service = engine.get_task_service();
 
     let err = task_service
@@ -101,7 +107,7 @@ fn missing_task_rejected_and_nothing_written() {
 
 #[test]
 fn suspended_task_rejects_local_write_without_side_effects() {
-    let engine = ProcessEngine::new("task-var-suspended-local".to_string());
+    let engine = ProcessEngine::new("task-var-suspended-local".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "suspendedLocalProcess");
 
     engine
@@ -142,7 +148,7 @@ fn suspended_task_rejects_local_write_without_side_effects() {
 
 #[test]
 fn suspended_process_rejects_global_write_without_side_effects() {
-    let engine = ProcessEngine::new("task-var-suspended-global".to_string());
+    let engine = ProcessEngine::new("task-var-suspended-global".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "suspendedGlobalProcess");
 
     let task = engine
@@ -185,7 +191,7 @@ fn suspended_process_rejects_global_write_without_side_effects() {
 
 #[test]
 fn suspended_task_rejects_remove_without_side_effects() {
-    let engine = ProcessEngine::new("task-var-suspended-remove".to_string());
+    let engine = ProcessEngine::new("task-var-suspended-remove".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "suspendedRemoveProcess");
 
     let task_service = engine.get_task_service();
@@ -230,7 +236,7 @@ fn suspended_task_rejects_remove_without_side_effects() {
 
 #[test]
 fn standalone_task_rejects_global_scope() {
-    let engine = ProcessEngine::new("task-var-standalone-global".to_string());
+    let engine = ProcessEngine::new("task-var-standalone-global".to_string()).unwrap();
     insert_standalone_task(&engine, "standalone-task-1");
     let task_service = engine.get_task_service();
 
@@ -271,7 +277,7 @@ fn standalone_task_rejects_global_scope() {
 
 #[test]
 fn create_only_conflict_aborts_whole_batch() {
-    let engine = ProcessEngine::new("task-var-create-conflict".to_string());
+    let engine = ProcessEngine::new("task-var-create-conflict".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "createConflictProcess");
     let task_service = engine.get_task_service();
 
@@ -299,7 +305,7 @@ fn create_only_conflict_aborts_whole_batch() {
 
 #[test]
 fn update_only_missing_variable_aborts_whole_batch() {
-    let engine = ProcessEngine::new("task-var-update-missing".to_string());
+    let engine = ProcessEngine::new("task-var-update-missing".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "updateMissingProcess");
     let task_service = engine.get_task_service();
 
@@ -341,7 +347,7 @@ fn update_only_missing_variable_aborts_whole_batch() {
 
 #[test]
 fn invalid_name_aborts_whole_batch() {
-    let engine = ProcessEngine::new("task-var-invalid-name".to_string());
+    let engine = ProcessEngine::new("task-var-invalid-name".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "invalidNameProcess");
     let task_service = engine.get_task_service();
 
@@ -365,7 +371,7 @@ fn invalid_name_aborts_whole_batch() {
 
 #[test]
 fn local_variable_shadows_global_on_read() {
-    let engine = ProcessEngine::new("task-var-shadow".to_string());
+    let engine = ProcessEngine::new("task-var-shadow".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "shadowProcess");
     let task_service = engine.get_task_service();
 
@@ -405,7 +411,7 @@ fn local_variable_shadows_global_on_read() {
 
 #[test]
 fn read_falls_back_to_global_after_local_removal() {
-    let engine = ProcessEngine::new("task-var-fallback".to_string());
+    let engine = ProcessEngine::new("task-var-fallback".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "fallbackProcess");
     let task_service = engine.get_task_service();
 
@@ -435,7 +441,7 @@ fn read_falls_back_to_global_after_local_removal() {
 
 #[test]
 fn remove_all_local_leaves_global_variables_untouched() {
-    let engine = ProcessEngine::new("task-var-remove-all-local".to_string());
+    let engine = ProcessEngine::new("task-var-remove-all-local".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "removeAllLocalProcess");
     let task_service = engine.get_task_service();
 
@@ -467,7 +473,7 @@ fn remove_all_local_leaves_global_variables_untouched() {
 
 #[test]
 fn history_create_update_delete_lifecycle() {
-    let engine = ProcessEngine::new("task-var-history".to_string());
+    let engine = ProcessEngine::new("task-var-history".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "historyProcess");
     let task_service = engine.get_task_service();
     let history_service = engine.get_history_service();
@@ -567,7 +573,7 @@ fn history_create_update_delete_lifecycle() {
 
 #[test]
 fn duplicate_create_only_second_writer_conflicts() {
-    let engine = ProcessEngine::new("task-var-duplicate-create".to_string());
+    let engine = ProcessEngine::new("task-var-duplicate-create".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "duplicateCreateProcess");
     let task_service = engine.get_task_service();
 

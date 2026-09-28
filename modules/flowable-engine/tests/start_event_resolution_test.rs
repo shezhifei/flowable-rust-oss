@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::task_service::EventWaitKind;
 use std::collections::HashMap;
 
 #[test]
 fn test_start_process_instance_uses_deployed_start_event_id() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
 
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
@@ -43,7 +49,7 @@ fn test_start_process_instance_uses_deployed_start_event_id() {
 
 #[test]
 fn test_single_bpmn_resource_starts_each_process_definition_by_id() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
 
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
@@ -124,7 +130,7 @@ fn test_single_bpmn_resource_starts_each_process_definition_by_id() {
     assert_eq!(user_tasks[0].task_definition_key, "userTaskA");
 
     let message_wait_states = runtime_service
-        .get_event_wait_states_by_process_instance_id(message_wait_instance.id.clone());
+        .get_event_wait_states_by_process_instance_id(message_wait_instance.id.clone()).unwrap();
     assert_eq!(message_wait_states.len(), 1);
     assert_eq!(
         message_wait_states[0].wait_kind,

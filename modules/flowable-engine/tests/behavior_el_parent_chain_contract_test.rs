@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for behavior-internal EL evaluation walking the parent
 //! VariableScope chain (P6-B).
 //!
@@ -101,7 +107,7 @@ const SKIP_EXPRESSION_FORK_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// and the task is never skipped.
 #[test]
 fn forked_user_task_skip_expression_resolves_process_variable() {
-    let engine = ProcessEngine::new("p6b-skip-expr".to_string());
+    let engine = ProcessEngine::new("p6b-skip-expr".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         SKIP_EXPRESSION_FORK_XML,
@@ -128,7 +134,7 @@ fn forked_user_task_skip_expression_resolves_process_variable() {
 /// Must stay green before and after the evaluation fix.
 #[test]
 fn forked_user_task_skip_expression_false_keeps_task() {
-    let engine = ProcessEngine::new("p6b-skip-expr-false".to_string());
+    let engine = ProcessEngine::new("p6b-skip-expr-false".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         SKIP_EXPRESSION_FORK_XML,
@@ -154,7 +160,7 @@ fn forked_user_task_skip_expression_false_keeps_task() {
 /// even if `skip=true`. Must stay green before and after the fix.
 #[test]
 fn forked_user_task_skip_expression_disabled_switch_keeps_task() {
-    let engine = ProcessEngine::new("p6b-skip-expr-disabled".to_string());
+    let engine = ProcessEngine::new("p6b-skip-expr-disabled".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         SKIP_EXPRESSION_FORK_XML,
@@ -197,7 +203,7 @@ const ASSIGNEE_FORK_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// evaluates to None and the task is created without an assignee.
 #[test]
 fn forked_user_task_assignee_resolves_process_variable() {
-    let engine = ProcessEngine::new("p6b-assignee".to_string());
+    let engine = ProcessEngine::new("p6b-assignee".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         ASSIGNEE_FORK_XML,
@@ -224,7 +230,7 @@ fn forked_user_task_assignee_resolves_process_variable() {
 /// Must stay green before and after the fix.
 #[test]
 fn forked_user_task_literal_assignee_still_works() {
-    let engine = ProcessEngine::new("p6b-assignee-literal".to_string());
+    let engine = ProcessEngine::new("p6b-assignee-literal".to_string()).unwrap();
     let xml = ASSIGNEE_FORK_XML.replace(
         r#"flowable:assignee="${assignee}""#,
         r#"flowable:assignee="literalUser""#,
@@ -278,7 +284,7 @@ fn secure_script_engine(name: &str) -> ProcessEngine {
         supported_script_languages: vec!["javascript".to_string()],
         ..Default::default()
     };
-    ProcessEngine::new_with_config(name.to_string(), config)
+    ProcessEngine::new_with_config(name.to_string(), config).unwrap()
 }
 
 /// Gap test (red before P6-B): a script task on a forked child execution must
@@ -390,7 +396,7 @@ fn engine_with_echo_delegate(name: &str) -> ProcessEngine {
         service_task_delegate_registry: Some(registry),
         ..Default::default()
     };
-    ProcessEngine::new_with_config(name.to_string(), config)
+    ProcessEngine::new_with_config(name.to_string(), config).unwrap()
 }
 
 /// Gap test (red before P6-B): `delegateExpression="${delegateName}"` on a
@@ -536,7 +542,7 @@ fn forked_task_listener_field_expression_resolves_process_variable() {
         task_listener_registry: Some(registry),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("p6b-task-listener-field".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p6b-task-listener-field".to_string(), config).unwrap();
     deploy_and_start(
         &engine,
         TASK_LISTENER_FIELD_FORK_XML,
@@ -567,7 +573,7 @@ fn forked_execution_listener_field_expression_resolves_process_variable() {
         execution_listener_registry: Some(registry),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("p6b-execution-listener-field".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p6b-execution-listener-field".to_string(), config).unwrap();
     deploy_and_start(
         &engine,
         EXECUTION_LISTENER_FIELD_FORK_XML,
@@ -630,7 +636,7 @@ const CALL_ACTIVITY_CHILD_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// variables are already present, so this stays green before and after the fix.
 #[test]
 fn call_activity_expression_resolves_process_variable() {
-    let engine = ProcessEngine::new("p6b-call-activity".to_string());
+    let engine = ProcessEngine::new("p6b-call-activity".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let builder = repository_service
         .create_deployment()
@@ -731,7 +737,7 @@ const ASYNC_CATEGORY_FORK_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// resolution the category silently drops to `None`.
 #[test]
 fn forked_async_continuation_job_category_resolves_process_variable() {
-    let engine = ProcessEngine::new("p6b-async-category".to_string());
+    let engine = ProcessEngine::new("p6b-async-category".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         ASYNC_CATEGORY_FORK_XML,
@@ -790,7 +796,7 @@ const BOUNDARY_CATEGORY_FORK_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"
 /// without parent-chain resolution the category silently drops to `None`.
 #[test]
 fn forked_boundary_timer_job_category_resolves_process_variable() {
-    let engine = ProcessEngine::new("p6b-boundary-category".to_string());
+    let engine = ProcessEngine::new("p6b-boundary-category".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         BOUNDARY_CATEGORY_FORK_XML,
@@ -850,7 +856,7 @@ fn forked_async_job_retry_cycle_resolves_process_variable() {
     use flowable_engine::error::FlowableError;
     use flowable_engine::interceptor::command_executor::CommandExecutor;
 
-    let engine = ProcessEngine::new("p6b-retry-cycle".to_string());
+    let engine = ProcessEngine::new("p6b-retry-cycle".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         ASYNC_RETRY_CYCLE_FORK_XML,
@@ -956,7 +962,7 @@ fn business_rule_engine(name: &str) -> ProcessEngine {
         dmn_engine: Some(dmn_engine),
         ..Default::default()
     };
-    ProcessEngine::new_with_config(name.to_string(), config)
+    ProcessEngine::new_with_config(name.to_string(), config).unwrap()
 }
 
 const BUSINESS_RULE_FORK_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>

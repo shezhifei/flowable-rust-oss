@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::engine::async_task_executor::{
     AsyncTask, AsyncTaskExecutor, AsyncTaskSender, RejectedExecutionError,
 };
@@ -78,7 +86,7 @@ impl AsyncJobAcquisition {
         task_executor: Arc<Mutex<Option<AsyncTaskExecutor>>>,
     ) {
         {
-            let guard = self.handle.lock().unwrap();
+            let guard = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             if guard.is_some() {
                 return;
             }
@@ -87,15 +95,15 @@ impl AsyncJobAcquisition {
         let is_active = Arc::clone(&self.is_active);
         let config = self.config.clone();
         let (stop_tx, stop_rx) = bounded::<()>(1);
-        *self.stop_tx.lock().unwrap() = Some(stop_tx);
+        *self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()) = Some(stop_tx);
         let task_sender: Option<crate::engine::async_task_executor::AsyncTaskSender> = {
-            let guard = task_executor.lock().unwrap();
+            let guard = task_executor.lock().unwrap_or_else(|e| e.into_inner());
             guard.as_ref().and_then(|e| e.try_clone_sender())
         };
         let handle = thread::spawn(move || {
             acquisition_loop(runtime_service, task_sender, is_active, config, stop_rx);
         });
-        *self.handle.lock().unwrap() = Some(handle);
+        *self.handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
     }
 
     pub fn stop(&self) {
@@ -105,19 +113,19 @@ impl AsyncJobAcquisition {
 
     pub(crate) fn request_stop(&self) {
         self.is_active.store(false, Ordering::SeqCst);
-        if let Some(tx) = self.stop_tx.lock().unwrap().as_ref() {
+        if let Some(tx) = self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             let _ = tx.try_send(());
         }
     }
 
     pub(crate) fn await_stopped(&self) {
-        let mut guard = self.handle.lock().unwrap();
+        let mut guard = self.handle.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(handle) = guard.take() {
             if handle.join().is_err() {
                 tracing::error!("async acquisition thread panicked");
             }
         }
-        *self.stop_tx.lock().unwrap() = None;
+        *self.stop_tx.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 }
 
@@ -423,7 +431,7 @@ mod tests {
 
     impl EngineEventListener for RejectingJobEventListener {
         fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
-            self.observed_jobs.lock().unwrap().push(event.job().clone());
+            self.observed_jobs.lock().unwrap_or_else(|e| e.into_inner()).push(event.job().clone());
             Err(FlowableError::ExecutionError(
                 "rejected job listener failed".to_string(),
             ))
@@ -541,7 +549,7 @@ mod tests {
                 rejected: job_ids.len(),
             }
         );
-        let observed = observed_jobs.lock().unwrap();
+        let observed = observed_jobs.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(observed.len(), job_ids.len());
         assert!(observed.iter().all(|job| job.lock_owner.is_some()));
         assert!(
@@ -587,7 +595,7 @@ mod tests {
             .as_ref()
             .expect("fatal listener error should be present");
         assert!(fatal.to_string().contains("rejected job listener failed"));
-        let observed = observed_jobs.lock().unwrap();
+        let observed = observed_jobs.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(observed.len(), 1);
         assert_eq!(observed[0].lock_owner, locked_job.lock_owner);
         assert_eq!(
@@ -700,7 +708,7 @@ mod tests {
         assert!(fatal.to_string().contains("rejected job listener failed"));
 
         // Only the first job was observed by the listener before short-circuit.
-        let observed = observed_jobs.lock().unwrap();
+        let observed = observed_jobs.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(
             observed.len(),
             1,
@@ -795,7 +803,7 @@ mod tests {
         );
 
         // All 3 jobs were observed by the listener (no short-circuit).
-        let observed = observed_jobs.lock().unwrap();
+        let observed = observed_jobs.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(
             observed.len(),
             3,

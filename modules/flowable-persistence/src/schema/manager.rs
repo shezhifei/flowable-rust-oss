@@ -230,20 +230,16 @@ impl SchemaManager for FlowableSchemaManager {
         let scripts = self.get_scripts_for_database(&database_type);
         let all_versions = self.all_versions();
 
-        if all_versions.is_empty() {
+        let Some(latest) = all_versions.last().cloned() else {
             return Ok(());
-        }
-
-        let latest = all_versions.last().unwrap().clone();
+        };
 
         // Fresh database — run everything.
-        if current_version.is_none() {
+        let Some(current) = current_version else {
             self.execute_scripts(executor, &scripts)?;
             self.ensure_version_record(executor, &latest)?;
             return Ok(());
-        }
-
-        let current = current_version.unwrap();
+        };
 
         // No-op if already at the latest version.
         if compare_versions(&current, &latest) == std::cmp::Ordering::Equal {

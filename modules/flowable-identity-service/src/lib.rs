@@ -18,47 +18,47 @@ impl FlowableIdentityService {
         self.engine.get_identity_service()
     }
 
-    pub fn authenticate_password(&self, user_id: &str, password: &str) -> bool {
+    pub fn authenticate_password(&self, user_id: &str, password: &str) -> Result<bool, flowable_engine::error::FlowableError> {
         self.identity_service().check_password(user_id, password)
     }
 
-    pub fn save_user(&self, user: User) {
+    pub fn save_user(&self, user: User) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().save_user(user)
     }
 
-    pub fn find_user_by_id(&self, user_id: &str) -> Option<User> {
+    pub fn find_user_by_id(&self, user_id: &str) -> Result<Option<User>, flowable_engine::error::FlowableError> {
         self.identity_service().find_user_by_id(user_id)
     }
 
-    pub fn delete_user(&self, user_id: &str) {
+    pub fn delete_user(&self, user_id: &str) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().delete_user(user_id)
     }
 
-    pub fn save_group(&self, group: Group) {
+    pub fn save_group(&self, group: Group) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().save_group(group)
     }
 
-    pub fn find_group_by_id(&self, group_id: &str) -> Option<Group> {
+    pub fn find_group_by_id(&self, group_id: &str) -> Result<Option<Group>, flowable_engine::error::FlowableError> {
         self.identity_service().find_group_by_id(group_id)
     }
 
-    pub fn create_membership(&self, user_id: String, group_id: String) {
+    pub fn create_membership(&self, user_id: String, group_id: String) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().create_membership(user_id, group_id)
     }
 
-    pub fn delete_membership(&self, user_id: &str, group_id: &str) {
+    pub fn delete_membership(&self, user_id: &str, group_id: &str) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().delete_membership(user_id, group_id)
     }
 
-    pub fn get_groups_by_user(&self, user_id: &str) -> Vec<Group> {
+    pub fn get_groups_by_user(&self, user_id: &str) -> Result<Vec<Group>, flowable_engine::error::FlowableError> {
         self.identity_service().get_groups_by_user(user_id)
     }
 
-    pub fn get_users_by_group(&self, group_id: &str) -> Vec<User> {
+    pub fn get_users_by_group(&self, group_id: &str) -> Result<Vec<User>, flowable_engine::error::FlowableError> {
         self.identity_service().get_users_by_group(group_id)
     }
 
-    pub fn membership_exists(&self, user_id: &str, group_id: &str) -> bool {
+    pub fn membership_exists(&self, user_id: &str, group_id: &str) -> Result<bool, flowable_engine::error::FlowableError> {
         self.identity_service().membership_exists(user_id, group_id)
     }
 
@@ -74,84 +74,84 @@ impl FlowableIdentityService {
         self.identity_service().create_token_query()
     }
 
-    pub fn save_privilege(&self, privilege: Privilege) {
+    pub fn save_privilege(&self, privilege: Privilege) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().save_privilege(privilege)
     }
 
-    pub fn find_privilege_by_id(&self, privilege_id: &str) -> Option<Privilege> {
+    pub fn find_privilege_by_id(&self, privilege_id: &str) -> Result<Option<Privilege>, flowable_engine::error::FlowableError> {
         self.identity_service().find_privilege_by_id(privilege_id)
     }
 
-    pub fn delete_privilege(&self, privilege_id: &str) {
+    pub fn delete_privilege(&self, privilege_id: &str) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().delete_privilege(privilege_id)
     }
 
-    pub fn add_user_privilege_mapping(&self, privilege_id: String, user_id: String) {
+    pub fn add_user_privilege_mapping(&self, privilege_id: String, user_id: String) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service()
             .add_user_privilege_mapping(privilege_id, user_id)
     }
 
-    pub fn add_group_privilege_mapping(&self, privilege_id: String, group_id: String) {
+    pub fn add_group_privilege_mapping(&self, privilege_id: String, group_id: String) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service()
             .add_group_privilege_mapping(privilege_id, group_id)
     }
 
-    pub fn delete_user_privilege_mapping(&self, privilege_id: &str, user_id: &str) {
+    pub fn delete_user_privilege_mapping(&self, privilege_id: &str, user_id: &str) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service()
             .delete_user_privilege_mapping(privilege_id, user_id)
     }
 
-    pub fn delete_group_privilege_mapping(&self, privilege_id: &str, group_id: &str) {
+    pub fn delete_group_privilege_mapping(&self, privilege_id: &str, group_id: &str) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service()
             .delete_group_privilege_mapping(privilege_id, group_id)
     }
 
-    pub fn get_privileges_for_user(&self, user_id: &str) -> Vec<Privilege> {
+    pub fn get_privileges_for_user(&self, user_id: &str) -> Result<Vec<Privilege>, flowable_engine::error::FlowableError> {
         self.identity_service().get_privileges_for_user(user_id)
     }
 
-    pub fn get_privileges_for_group(&self, group_id: &str) -> Vec<Privilege> {
+    pub fn get_privileges_for_group(&self, group_id: &str) -> Result<Vec<Privilege>, flowable_engine::error::FlowableError> {
         self.identity_service().get_privileges_for_group(group_id)
     }
 
-    pub fn save_token(&self, token: Token) {
+    pub fn save_token(&self, token: Token) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().save_token(token)
     }
 
-    pub fn find_token_by_id(&self, token_id: &str) -> Option<Token> {
+    pub fn find_token_by_id(&self, token_id: &str) -> Result<Option<Token>, flowable_engine::error::FlowableError> {
         self.identity_service().find_token_by_id(token_id)
     }
 
-    pub fn delete_token(&self, token_id: &str) {
+    pub fn delete_token(&self, token_id: &str) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service().delete_token(token_id)
     }
 
-    pub fn set_user_info(&self, user_id: String, key: String, value: String) -> UserInfo {
+    pub fn set_user_info(&self, user_id: String, key: String, value: String) -> Result<UserInfo, flowable_engine::error::FlowableError> {
         self.identity_service().set_user_info(user_id, key, value)
     }
 
-    pub fn get_user_info(&self, user_id: &str, key: &str) -> Option<UserInfo> {
+    pub fn get_user_info(&self, user_id: &str, key: &str) -> Result<Option<UserInfo>, flowable_engine::error::FlowableError> {
         self.identity_service().get_user_info(user_id, key)
     }
 
-    pub fn get_user_info_keys(&self, user_id: &str) -> Vec<String> {
+    pub fn get_user_info_keys(&self, user_id: &str) -> Result<Vec<String>, flowable_engine::error::FlowableError> {
         self.identity_service().get_user_info_keys(user_id)
     }
 
-    pub fn delete_user_info(&self, user_id: &str, key: &str) -> bool {
+    pub fn delete_user_info(&self, user_id: &str, key: &str) -> Result<bool, flowable_engine::error::FlowableError> {
         self.identity_service().delete_user_info(user_id, key)
     }
 
-    pub fn set_user_picture(&self, user_id: String, mime_type: String, bytes: Vec<u8>) {
+    pub fn set_user_picture(&self, user_id: String, mime_type: String, bytes: Vec<u8>) -> Result<(), flowable_engine::error::FlowableError> {
         self.identity_service()
             .set_user_picture(user_id, mime_type, bytes)
     }
 
-    pub fn get_user_picture(&self, user_id: &str) -> Option<UserPicture> {
+    pub fn get_user_picture(&self, user_id: &str) -> Result<Option<UserPicture>, flowable_engine::error::FlowableError> {
         self.identity_service().get_user_picture(user_id)
     }
 
-    pub fn delete_user_picture(&self, user_id: &str) -> bool {
+    pub fn delete_user_picture(&self, user_id: &str) -> Result<bool, flowable_engine::error::FlowableError> {
         self.identity_service().delete_user_picture(user_id)
     }
 }

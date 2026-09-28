@@ -37,9 +37,11 @@ pub fn generate_event_correlation_keys(
         return Vec::new();
     }
     let ordered: Vec<(&String, &Option<String>)> = params.iter().collect();
-    let subset_count = 1usize
-        .checked_shl(ordered.len() as u32)
-        .expect("correlation power-set overflow: too many parameters (2^n must fit usize)");
+    // n >= 64 would OOM Java with a giant HashSet; degrade to no keys (no
+    // correlation) instead of panicking.
+    let Some(subset_count) = 1usize.checked_shl(ordered.len() as u32) else {
+        return Vec::new();
+    };
     let mut keys = Vec::with_capacity(subset_count - 1);
     for counter in 1..subset_count {
         let mut subset = BTreeMap::new();

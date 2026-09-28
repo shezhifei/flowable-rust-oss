@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P76 — BPMN `caseServiceTask` full chain contract tests.
 //!
 //! Java parity:
@@ -101,7 +107,7 @@ fn deploy_cmmn(engine: &ProcessEngine, name: &str, model: CmmnModel) {
 
 #[test]
 fn p76_case_service_task_starts_case_maps_in_out_and_continues() {
-    let engine = ProcessEngine::new_with_memory_backend("p76-case-task".into());
+    let engine = ProcessEngine::new_with_memory_backend("p76-case-task".into()).unwrap();
     deploy_bpmn(&engine, "p76-case-service", BPMN_CASE_SERVICE_TASK);
     deploy_cmmn(&engine, "p76-child-case", child_case_model());
 
@@ -207,7 +213,7 @@ fn p76_case_service_task_starts_case_maps_in_out_and_continues() {
 
 #[test]
 fn p76_case_definition_key_el_and_sync_auto_complete_case() {
-    let engine = ProcessEngine::new_with_memory_backend("p76-case-el".into());
+    let engine = ProcessEngine::new_with_memory_backend("p76-case-el".into()).unwrap();
     deploy_bpmn(&engine, "p76-case-el", BPMN_CASE_EL_KEY);
     deploy_cmmn(&engine, "p76-auto-case", auto_case_model());
 

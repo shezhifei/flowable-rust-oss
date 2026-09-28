@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::agenda::FlowableEngineAgenda;
 use crate::delegate::activity_behavior::ActivityBehavior;
 use crate::interceptor::command_context::CommandContext;
@@ -293,7 +301,7 @@ impl AdhocSubProcessActivityBehavior {
 
         command_context
             .execution_entity_manager
-            .insert(&child_execution, &mut command_context.session);
+            .insert(&child_execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(child_execution);
@@ -332,7 +340,7 @@ impl AdhocSubProcessActivityBehavior {
         ended_execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(&ended_execution, &mut command_context.session);
+            .update(&ended_execution, &mut command_context.session)?;
 
         // Java TakeOutgoingSequenceFlowsOperation.handleAdhocSubProcess
         // (:293-326): leaf tasks with no outgoing flows also evaluate the
@@ -438,7 +446,7 @@ impl AdhocSubProcessActivityBehavior {
 
         command_context
             .execution_entity_manager
-            .insert(&child_execution, &mut command_context.session);
+            .insert(&child_execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(child_execution.clone());
@@ -478,7 +486,7 @@ impl AdhocSubProcessActivityBehavior {
             execution.is_ended = true;
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
 
             let parent = command_context
                 .runtime_store
@@ -507,7 +515,7 @@ impl AdhocSubProcessActivityBehavior {
             };
             command_context
                 .execution_entity_manager
-                .insert(&outgoing, &mut command_context.session);
+                .insert(&outgoing, &mut command_context.session)?;
 
             command_context
                 .execution_entity_manager
@@ -522,7 +530,7 @@ impl AdhocSubProcessActivityBehavior {
             execution.is_scope = false;
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_take_outgoing_sequence_flows_operation(execution.clone());
@@ -636,7 +644,7 @@ pub fn try_auto_complete_adhoc_after_child_leave(
         crate::bpmn::behavior::multi_instance_support::delete_execution_tree(
             command_context,
             &child_id,
-        );
+        )?;
     }
 
     AdhocSubProcessActivityBehavior::new()
@@ -917,7 +925,7 @@ impl ActivityBehavior for AdhocSubProcessActivityBehavior {
             execution.is_scope = true;
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
 
             let child_execution = Execution {
                 id: Uuid::new_v4().to_string(),
@@ -945,7 +953,7 @@ impl ActivityBehavior for AdhocSubProcessActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&child_execution, &mut command_context.session);
+                .insert(&child_execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(child_execution);
@@ -958,7 +966,7 @@ impl ActivityBehavior for AdhocSubProcessActivityBehavior {
             execution.is_active = false;
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
         }
 
         Ok(())

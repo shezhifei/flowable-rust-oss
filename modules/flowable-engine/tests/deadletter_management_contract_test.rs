@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::{TestTimeSource, TimeSource};
@@ -76,9 +82,13 @@ fn deletion_lock_guard_matches_each_java_job_family() {
     assert!(
         management
             .find_executable_job_by_id("locked-executable")
+            .unwrap()
             .is_some()
     );
-    assert!(management.find_timer_job_by_id("locked-timer").is_some());
+    assert!(management
+        .find_timer_job_by_id("locked-timer")
+        .unwrap()
+        .is_some());
 
     management
         .delete_deadletter_job("locked-deadletter")
@@ -93,16 +103,19 @@ fn deletion_lock_guard_matches_each_java_job_family() {
     assert!(
         management
             .find_deadletter_job_by_id("locked-deadletter")
+            .unwrap()
             .is_none()
     );
     assert!(
         management
             .find_history_job_by_id("locked-history")
+            .unwrap()
             .is_none()
     );
     assert!(
         management
             .find_suspended_job_by_id("locked-suspended")
+            .unwrap()
             .is_none()
     );
 }
@@ -130,6 +143,7 @@ fn move_timer_job_to_deadletter_is_supported() {
     let found = engine
         .get_management_service()
         .find_deadletter_job_by_id("timer-1")
+        .unwrap()
         .expect("deadletter query should see moved timer job");
     assert_eq!(found.job_state.as_deref(), Some("deadletter"));
 }
@@ -170,12 +184,14 @@ fn set_job_retries_does_not_auto_move_to_deadletter() {
         engine
             .get_management_service()
             .find_executable_job_by_id("async-1")
+            .unwrap()
             .is_some()
     );
     assert!(
         engine
             .get_management_service()
             .find_deadletter_job_by_id("async-1")
+            .unwrap()
             .is_none()
     );
 
@@ -214,12 +230,14 @@ fn moving_timer_to_executable_preserves_due_time_and_any_retry_value() {
             engine
                 .get_management_service()
                 .find_timer_job_by_id(id)
+                .unwrap()
                 .is_none()
         );
         assert!(
             engine
                 .get_management_service()
                 .find_executable_job_by_id(id)
+                .unwrap()
                 .is_some()
         );
     }
@@ -284,18 +302,21 @@ fn moving_deadletter_to_executable_accepts_zero_and_negative_retries() {
             engine
                 .get_management_service()
                 .find_executable_job_by_id(id)
+                .unwrap()
                 .is_some()
         );
         assert!(
             engine
                 .get_management_service()
                 .find_timer_job_by_id(id)
+                .unwrap()
                 .is_none()
         );
         assert!(
             engine
                 .get_management_service()
                 .find_deadletter_job_by_id(id)
+                .unwrap()
                 .is_none()
         );
     }
@@ -355,12 +376,14 @@ fn direct_deadletter_moves_validate_the_destination_family() {
         engine
             .get_management_service()
             .find_deadletter_job_by_id("history-origin")
+            .unwrap()
             .is_some()
     );
     assert!(
         engine
             .get_management_service()
             .find_deadletter_job_by_id("runtime-origin")
+            .unwrap()
             .is_some()
     );
 }
@@ -422,15 +445,19 @@ fn bulk_move_deadletter_jobs_revives_each_id() {
         .expect("bulk move should ignore missing ids and route existing jobs");
 
     for id in ["dl-a", "dl-b"] {
+        // A storage failure propagates from the first `unwrap`; a missing row
+        // from the second. Neither is masked.
         let job = engine
             .get_management_service()
             .find_executable_job_by_id(id)
-            .unwrap_or_else(|| panic!("{id} should be executable after bulk move"));
+            .unwrap()
+            .unwrap();
         assert_eq!(job.retries, Some(0));
         assert!(
             engine
                 .get_management_service()
                 .find_deadletter_job_by_id(id)
+                .unwrap()
                 .is_none()
         );
     }
@@ -438,6 +465,7 @@ fn bulk_move_deadletter_jobs_revives_each_id() {
     let history = engine
         .get_management_service()
         .find_history_job_by_id("dl-history")
+        .unwrap()
         .expect("history-origin job should return to the history family");
     assert_eq!(history.retries, Some(0));
 }
@@ -460,6 +488,7 @@ fn bulk_move_deadletter_jobs_to_history_jobs() {
     let restored = engine
         .get_management_service()
         .find_history_job_by_id("hist-dl")
+        .unwrap()
         .expect("history job should be restored");
     assert_eq!(restored.job_state.as_deref(), Some("history"));
     assert_eq!(restored.retries, Some(3));
@@ -486,6 +515,7 @@ fn bulk_history_move_ignores_missing_ids_and_accepts_negative_retries() {
     let restored = engine
         .get_management_service()
         .find_history_job_by_id("hist-existing")
+        .unwrap()
         .expect("existing history-origin deadletter should be restored");
     assert_eq!(restored.retries, Some(-1));
 }
@@ -520,6 +550,7 @@ fn bulk_history_move_validates_all_jobs_before_writing() {
             engine
                 .get_management_service()
                 .find_deadletter_job_by_id(id)
+                .unwrap()
                 .is_some(),
             "{id} must remain deadletter after validation failure"
         );
@@ -527,6 +558,7 @@ fn bulk_history_move_validates_all_jobs_before_writing() {
             engine
                 .get_management_service()
                 .find_history_job_by_id(id)
+                .unwrap()
                 .is_none()
         );
     }

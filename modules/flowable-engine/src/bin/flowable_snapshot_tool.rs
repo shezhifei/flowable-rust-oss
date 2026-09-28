@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use flowable_engine::engine::historical_migration::HistoricalMigrationRawDialect;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
@@ -84,7 +92,7 @@ fn run_export(args: &[String]) -> Result<(), SnapshotError> {
     let engine_name = optional_arg(args, "--engine-name")
         .unwrap_or_else(|| "flowable_snapshot_export".to_string());
 
-    let engine = ProcessEngine::new_with_db_path(engine_name, &db_path);
+    let engine = ProcessEngine::new_with_db_path(engine_name, &db_path)?;
     engine.export_recovery_snapshot_to_file(&snapshot_path)?;
 
     println!("Exported recovery snapshot to {}", snapshot_path);
@@ -97,7 +105,7 @@ fn run_import(args: &[String]) -> Result<(), SnapshotError> {
     let engine_name = optional_arg(args, "--engine-name")
         .unwrap_or_else(|| "flowable_snapshot_import".to_string());
 
-    let engine = ProcessEngine::new_with_db_path(engine_name, &db_path);
+    let engine = ProcessEngine::new_with_db_path(engine_name, &db_path)?;
     engine.import_recovery_snapshot_from_file(&snapshot_path)?;
 
     println!("Imported recovery snapshot from {}", snapshot_path);
@@ -165,7 +173,7 @@ fn run_import_historical_sqlite(args: &[String]) -> Result<(), SnapshotError> {
     let engine_name = optional_arg(args, "--engine-name")
         .unwrap_or_else(|| "flowable_historical_import".to_string());
 
-    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db);
+    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db)?;
     let result = engine.import_historical_migration_from_sqlite(&source_db)?;
 
     if let Some(path) = report_path {
@@ -185,7 +193,7 @@ fn run_import_historical_source(args: &[String]) -> Result<(), SnapshotError> {
     let engine_name = optional_arg(args, "--engine-name")
         .unwrap_or_else(|| "flowable_historical_source_import".to_string());
 
-    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db);
+    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db)?;
     let result = engine.import_historical_migration_from_source_manifest(&source_manifest)?;
 
     if let Some(path) = report_path {
@@ -205,7 +213,7 @@ fn run_import_historical_bundle(args: &[String]) -> Result<(), SnapshotError> {
     let engine_name = optional_arg(args, "--engine-name")
         .unwrap_or_else(|| "flowable_historical_bundle_import".to_string());
 
-    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db);
+    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db)?;
     let result = engine.import_historical_migration_from_bundle(&source_bundle)?;
 
     if let Some(path) = report_path {
@@ -242,7 +250,7 @@ fn run_import_historical_raw(args: &[String]) -> Result<(), SnapshotError> {
     let engine_name = optional_arg(args, "--engine-name")
         .unwrap_or_else(|| "flowable_historical_raw_import".to_string());
 
-    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db);
+    let engine = ProcessEngine::new_with_db_path(engine_name, &target_db)?;
     let result = engine.import_historical_migration_from_sql_dump(&source_dump, dialect)?;
 
     if let Some(path) = report_path {

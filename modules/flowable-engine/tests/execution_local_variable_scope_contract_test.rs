@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the persistent execution-local variable scope, mirroring Java
 //! `RuntimeService#setVariableLocal` / `#getVariablesLocal` / `#removeVariableLocal` and
 //! `ExecutionEntity` scope resolution:
@@ -97,7 +103,7 @@ fn scope_execution_id(engine: &ProcessEngine) -> String {
 
 #[test]
 fn local_variable_survives_the_command_transaction() {
-    let engine = ProcessEngine::new("local-scope-persistence".to_string());
+    let engine = ProcessEngine::new("local-scope-persistence".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let execution_id = child_execution_id(&engine, "taskA");
@@ -119,7 +125,7 @@ fn local_variable_survives_the_command_transaction() {
 
 #[test]
 fn child_local_variable_is_invisible_from_parent_scope() {
-    let engine = ProcessEngine::new("local-scope-isolation".to_string());
+    let engine = ProcessEngine::new("local-scope-isolation".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -161,7 +167,7 @@ fn child_local_variable_is_invisible_from_parent_scope() {
 
 #[test]
 fn local_variable_shadows_ancestor_value_without_overwriting_it() {
-    let engine = ProcessEngine::new("local-scope-shadowing".to_string());
+    let engine = ProcessEngine::new("local-scope-shadowing".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -202,7 +208,7 @@ fn local_variable_shadows_ancestor_value_without_overwriting_it() {
 
 #[test]
 fn remove_variable_local_only_removes_the_own_copy() {
-    let engine = ProcessEngine::new("local-scope-remove".to_string());
+    let engine = ProcessEngine::new("local-scope-remove".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -240,7 +246,7 @@ fn remove_variable_local_only_removes_the_own_copy() {
 
 #[test]
 fn has_variable_local_is_scope_strict_while_has_variable_walks_the_chain() {
-    let engine = ProcessEngine::new("local-scope-has".to_string());
+    let engine = ProcessEngine::new("local-scope-has".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -280,7 +286,7 @@ fn has_variable_local_is_scope_strict_while_has_variable_walks_the_chain() {
 
 #[test]
 fn set_variable_resolves_to_the_owning_scope_otherwise_root() {
-    let engine = ProcessEngine::new("local-scope-set-resolution".to_string());
+    let engine = ProcessEngine::new("local-scope-set-resolution".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let scope = scope_execution_id(&engine);
@@ -327,7 +333,7 @@ fn set_variable_resolves_to_the_owning_scope_otherwise_root() {
 
 #[test]
 fn bulk_local_variable_operations() {
-    let engine = ProcessEngine::new("local-scope-bulk".to_string());
+    let engine = ProcessEngine::new("local-scope-bulk".to_string()).unwrap();
     deploy_and_start(&engine);
     let runtime = engine.get_runtime_service();
     let task_a = child_execution_id(&engine, "taskA");
@@ -357,7 +363,7 @@ fn bulk_local_variable_operations() {
 
 #[test]
 fn local_variable_apis_reject_unknown_execution() {
-    let engine = ProcessEngine::new("local-scope-unknown".to_string());
+    let engine = ProcessEngine::new("local-scope-unknown".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let set_error = runtime

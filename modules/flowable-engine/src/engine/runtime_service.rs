@@ -205,7 +205,7 @@ impl Command<()> for MigrateProcessInstanceCmd {
             validate_change_state_process_instance(command_context, &self.process_instance_id)?;
         let target_definition = {
             let (dm, session) = command_context.dm_and_session();
-            dm.get_process_definitions(session)
+            dm.get_process_definitions(session)?
                 .remove(&self.target_process_definition_id)
                 .ok_or_else(|| {
                     crate::error::FlowableError::NotFound(format!(
@@ -286,7 +286,7 @@ impl Command<()> for MigrateProcessInstanceCmd {
             }
             command_context
                 .execution_entity_manager
-                .update(&execution, &mut command_context.session);
+                .update(&execution, &mut command_context.session)?;
         }
 
         for execution in active_executions
@@ -312,7 +312,7 @@ impl Command<()> for MigrateProcessInstanceCmd {
             &self.process_instance_id,
             &target_definition,
             &single_activity_mappings,
-        );
+        )?;
         update_migrated_wait_states(
             command_context,
             &self.process_instance_id,
@@ -608,7 +608,7 @@ impl Command<MigrationValidationReport> for ValidateMigrationPlanCmd {
         &self,
         command_context: &mut CommandContext,
     ) -> Result<MigrationValidationReport, crate::error::FlowableError> {
-        Ok(validate_migration_plan(command_context, &self.plan))
+        validate_migration_plan(command_context, &self.plan)
     }
 }
 
@@ -621,7 +621,7 @@ impl Command<MigrationValidationReport> for ValidateMigrationPlanCmd {
 pub(crate) fn validate_migration_plan(
     command_context: &mut CommandContext,
     plan: &MigrationPlan,
-) -> MigrationValidationReport {
+) -> Result<MigrationValidationReport, crate::error::FlowableError> {
     let mut report = MigrationValidationReport::new();
 
     if plan.process_instance_id.trim().is_empty() {
@@ -659,7 +659,7 @@ pub(crate) fn validate_migration_plan(
     // Target definition lookup.
     let target_definition_exists = {
         let (dm, session) = command_context.dm_and_session();
-        dm.get_process_definitions(session)
+        dm.get_process_definitions(session)?
             .contains_key(&plan.target_process_definition_id)
     };
     if !target_definition_exists {
@@ -670,13 +670,13 @@ pub(crate) fn validate_migration_plan(
                 plan.target_process_definition_id
             ),
         ));
-        return report;
+        return Ok(report);
     }
 
     // Process instance lookup and state.
     let process_instance = command_context
         .runtime_store
-        .find_process_instance(&plan.process_instance_id, &mut command_context.session);
+        .find_process_instance(&plan.process_instance_id, &mut command_context.session)?;
     let process_instance = match process_instance {
         Some(pi) if !pi.is_ended => pi,
         Some(_) => {
@@ -687,7 +687,7 @@ pub(crate) fn validate_migration_plan(
                     plan.process_instance_id
                 ),
             ));
-            return report;
+            return Ok(report);
         }
         None => {
             report.push(MigrationValidationIssue::error(
@@ -697,7 +697,7 @@ pub(crate) fn validate_migration_plan(
                     plan.process_instance_id
                 ),
             ));
-            return report;
+            return Ok(report);
         }
     };
 
@@ -717,7 +717,7 @@ pub(crate) fn validate_migration_plan(
         Ok(lookup) => lookup,
         Err(_) => {
             // Already reported as a single error above.
-            return report;
+            return Ok(report);
         }
     };
 
@@ -783,7 +783,7 @@ pub(crate) fn validate_migration_plan(
         }
     }
 
-    report
+    Ok(report)
 }
 
 impl SetProcessDefinitionVersionCmd {
@@ -819,7 +819,7 @@ impl Command<()> for SetProcessDefinitionVersionCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let process_instance = {
             let (store, session) = command_context.store_and_session();
-            store.find_process_instance(&self.process_instance_id, session)
+            store.find_process_instance(&self.process_instance_id, session)?
         };
         let Some(mut process_instance) = process_instance else {
             // Java: an existing child execution id yields IllegalArgument, an
@@ -846,7 +846,7 @@ impl Command<()> for SetProcessDefinitionVersionCmd {
         // raises FlowableObjectNotFoundException when absent.
         let target_definition = {
             let (dm, session) = command_context.dm_and_session();
-            dm.get_process_definitions(session)
+            dm.get_process_definitions(session)?
                 .into_values()
                 .find(|definition| {
                     definition.key == process_instance.process_definition_key
@@ -896,7 +896,7 @@ impl Command<()> for SetProcessDefinitionVersionCmd {
             update_execution_definition_metadata(&mut execution, &target_definition);
             command_context
                 .execution_entity_manager
-                .update(&execution, &mut command_context.session);
+                .update(&execution, &mut command_context.session)?;
         }
 
         // Java `HistoryManager.recordProcessDefinitionChange`.
@@ -966,7 +966,7 @@ impl Command<()> for BulkDeleteProcessInstancesCmd {
             let exists = {
                 let (store, session) = command_context.store_and_session();
                 store
-                    .find_process_instance(process_instance_id, session)
+                    .find_process_instance(process_instance_id, session)?
                     .is_some()
             };
             if !exists {
@@ -980,7 +980,7 @@ impl Command<()> for BulkDeleteProcessInstancesCmd {
         for process_instance_id in &self.process_instance_ids {
             let process_instance = {
                 let (store, session) = command_context.store_and_session();
-                store.find_process_instance(process_instance_id, session)
+                store.find_process_instance(process_instance_id, session)?
             };
             let Some(process_instance) = process_instance else {
                 tracing::error!(
@@ -1023,7 +1023,7 @@ impl Command<()> for BulkDeleteProcessInstancesCmd {
                         &task.id,
                         delete_reason,
                         &mut command_context.session,
-                    );
+                    )?;
                 }
                 command_context
                     .task_entity_manager
@@ -1044,7 +1044,7 @@ impl Command<()> for BulkDeleteProcessInstancesCmd {
                     );
                 let process_definition_id = command_context
                     .runtime_store
-                    .find_process_instance(process_instance_id, &mut command_context.session)
+                    .find_process_instance(process_instance_id, &mut command_context.session)?
                     .map(|pi| pi.process_definition_id);
                 let message_cancels: Vec<(String, String, String)> = waits
                     .into_iter()
@@ -1121,7 +1121,7 @@ impl Command<()> for BulkDeleteProcessInstancesCmd {
                     process_instance_id,
                     delete_reason,
                     &mut command_context.session,
-                );
+                )?;
             }
             {
                 let (store, session) = command_context.store_and_session();
@@ -1175,7 +1175,7 @@ impl Command<()> for InjectUserTaskCmd {
         let process_instance = {
             let (store, session) = command_context.store_and_session();
             store
-                .find_process_instance(&self.process_instance_id, session)
+                .find_process_instance(&self.process_instance_id, session)?
                 .ok_or_else(|| {
                     crate::error::FlowableError::NotFound(format!(
                         "Process instance '{}' was not found",
@@ -1209,11 +1209,11 @@ impl Command<()> for InjectUserTaskCmd {
         task.tenant_id = process_instance.tenant_id.clone();
         {
             let (store, session) = command_context.store_and_session();
-            store.insert_task(&task, session);
+            store.insert_task(&task, session)?;
         }
         command_context
             .history_manager
-            .record_task_created(&task, &mut command_context.session);
+            .record_task_created(&task, &mut command_context.session)?;
         command_context.history_manager.record_audit_event(
             "inject-task",
             Some(&self.process_instance_id),
@@ -1320,7 +1320,7 @@ impl Command<()> for InjectSubprocessActivityCmd {
 
         command_context
             .execution_entity_manager
-            .insert(&execution, &mut command_context.session);
+            .insert(&execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(execution);
@@ -1413,7 +1413,7 @@ impl Command<()> for EvaluateConditionalEventsCmd {
         let process_instance = {
             let (store, session) = command_context.store_and_session();
             store
-                .find_process_instance(&self.process_instance_id, session)
+                .find_process_instance(&self.process_instance_id, session)?
                 .ok_or_else(|| {
                     crate::error::FlowableError::NotFound(format!(
                         "Process instance '{}' was not found",
@@ -1458,7 +1458,7 @@ impl Command<()> for EvaluateConditionalEventsCmd {
             }
             command_context
                 .execution_entity_manager
-                .update(&root_execution, &mut command_context.session);
+                .update(&root_execution, &mut command_context.session)?;
         }
 
         let conditional_waits = {
@@ -2049,7 +2049,7 @@ impl Command<()> for ActivateExecutionActivityCmd {
             parent_execution.is_scope = true;
             command_context
                 .execution_entity_manager
-                .update(&parent_execution, &mut command_context.session);
+                .update(&parent_execution, &mut command_context.session)?;
         }
 
         let child_execution = Execution {
@@ -2085,7 +2085,7 @@ impl Command<()> for ActivateExecutionActivityCmd {
 
         command_context
             .execution_entity_manager
-            .insert(&child_execution, &mut command_context.session);
+            .insert(&child_execution, &mut command_context.session)?;
 
         command_context
             .agenda
@@ -2473,7 +2473,7 @@ fn update_migrated_tasks(
     process_instance_id: &str,
     target_definition: &ProcessDefinition,
     activity_mappings: &HashMap<String, String>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     for mut task in command_context
         .runtime_store
         .find_tasks_by_process_instance_id(process_instance_id, &mut command_context.session)
@@ -2487,12 +2487,13 @@ fn update_migrated_tasks(
             // not through insert_task's silent sync.
             command_context
                 .history_manager
-                .record_task_updated(&task, &mut command_context.session);
+                .record_task_updated(&task, &mut command_context.session)?;
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
         }
     }
+    Ok(())
 }
 
 fn update_migrated_wait_states(
@@ -2595,7 +2596,7 @@ fn validate_change_state_process_instance(
 ) -> Result<ProcessInstance, crate::error::FlowableError> {
     let process_instance = command_context
         .runtime_store
-        .find_process_instance(process_instance_id, &mut command_context.session)
+        .find_process_instance(process_instance_id, &mut command_context.session)?
         .ok_or_else(|| {
             crate::error::FlowableError::NotFound(format!(
                 "Process instance '{}' was not found",
@@ -2821,7 +2822,7 @@ fn apply_change_state_process_variables(
     }
     command_context
         .execution_entity_manager
-        .update(&root_execution, &mut command_context.session);
+        .update(&root_execution, &mut command_context.session)?;
     Ok(())
 }
 
@@ -2879,7 +2880,7 @@ fn move_executions_to_activity_ids_with_variables(
 
     source_executions.sort_by(|left, right| left.id.cmp(&right.id));
     for execution in &source_executions {
-        cancel_execution_runtime_state(command_context, execution);
+        cancel_execution_runtime_state(command_context, execution)?;
     }
 
     // Preserve the first source as the template for identity + locals. Re-read after
@@ -2933,7 +2934,7 @@ fn move_executions_to_activity_ids_with_variables(
         }
         command_context
             .execution_entity_manager
-            .update(&execution, &mut command_context.session);
+            .update(&execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(execution);
@@ -3276,14 +3277,14 @@ fn find_event_subprocess_start_event<'a>(
     search_elements(&process.flow_elements, start_event_id)
 }
 
-fn cancel_execution_runtime_state(command_context: &mut CommandContext, execution: &Execution) {
+fn cancel_execution_runtime_state(command_context: &mut CommandContext, execution: &Execution) -> Result<(), crate::error::FlowableError> {
     if let Some(activity_id) = execution.activity_id.as_deref() {
         command_context.history_manager.record_activity_end(
             &execution.id,
             activity_id,
             None,
             &mut command_context.session,
-        );
+        )?;
     }
     if let Some(task) = command_context
         .runtime_store
@@ -3293,7 +3294,7 @@ fn cancel_execution_runtime_state(command_context: &mut CommandContext, executio
             &task.id,
             Some("change-state"),
             &mut command_context.session,
-        );
+        )?;
         command_context
             .task_entity_manager
             .delete(&task.id, &mut command_context.session);
@@ -3310,6 +3311,7 @@ fn cancel_execution_runtime_state(command_context: &mut CommandContext, executio
     command_context
         .runtime_store
         .delete_timer_job_states_by_execution_id(&execution.id, &mut command_context.session);
+    Ok(())
 }
 
 fn cancel_activity_executions(
@@ -3319,7 +3321,7 @@ fn cancel_activity_executions(
 ) -> Result<(), crate::error::FlowableError> {
     executions.sort_by(|left, right| left.id.cmp(&right.id));
     for execution in &executions {
-        cancel_execution_runtime_state(command_context, execution);
+        cancel_execution_runtime_state(command_context, execution)?;
         command_context
             .execution_entity_manager
             .delete(&execution.id, &mut command_context.session);
@@ -3342,7 +3344,7 @@ fn cancel_activity_executions(
             &process_instance.id,
             Some("change-state"),
             &mut command_context.session,
-        );
+        )?;
         ended_process_instance = Some(updated);
     }
 
@@ -3656,7 +3658,7 @@ fn evaluate_event_subprocesses(
                             // the parent (line 101-103). Non-interrupting: keep parent
                             // and its children intact.
                             if start_event.interrupting {
-                                delete_child_executions(command_context, parent_execution_id);
+                                delete_child_executions(command_context, parent_execution_id)?;
                             }
 
                             // Create event subprocess scope execution
@@ -3678,7 +3680,7 @@ fn evaluate_event_subprocesses(
 
                             command_context
                                 .execution_entity_manager
-                                .insert(&es_scope_execution, &mut command_context.session);
+                                .insert(&es_scope_execution, &mut command_context.session)?;
 
                             // Record activity start for the event subprocess
                             // Java: line 109
@@ -3689,7 +3691,7 @@ fn evaluate_event_subprocesses(
                                 &process_instance.id,
                                 &es_scope_id,
                                 &mut command_context.session,
-                            );
+                            )?;
 
                             // Create start event execution
                             // Java: lines 111-112
@@ -3709,7 +3711,7 @@ fn evaluate_event_subprocesses(
 
                             command_context
                                 .execution_entity_manager
-                                .insert(&start_event_execution, &mut command_context.session);
+                                .insert(&start_event_execution, &mut command_context.session)?;
 
                             // Plan continue process operation from the start event
                             // Java: line 114
@@ -3737,7 +3739,7 @@ fn evaluate_event_subprocesses(
 /// rather than creating a child. This function therefore also cleans up the parent
 /// execution's own runtime data (tasks, timers, etc.) — but does NOT delete the
 /// parent execution row itself.
-fn delete_child_executions(command_context: &mut CommandContext, parent_execution_id: &str) {
+fn delete_child_executions(command_context: &mut CommandContext, parent_execution_id: &str) -> Result<(), crate::error::FlowableError> {
     let child_ids: Vec<String> = command_context
         .execution_entity_manager
         .find_child_executions_by_parent_execution_id(
@@ -3751,7 +3753,7 @@ fn delete_child_executions(command_context: &mut CommandContext, parent_executio
         crate::bpmn::behavior::multi_instance_support::delete_execution_tree(
             command_context,
             &child_id,
-        );
+        )?;
     }
     // Clean up the parent execution's own runtime data (tasks, timers, etc.).
     // In Rust's flat execution tree, child activities may reuse the parent
@@ -3760,6 +3762,7 @@ fn delete_child_executions(command_context: &mut CommandContext, parent_executio
         command_context,
         parent_execution_id,
     );
+    Ok(())
 }
 
 struct ExecuteAsyncDelegateCmd {
@@ -4140,34 +4143,40 @@ impl RuntimeService {
     // session creation, commit/rollback, and returns enough context for the
     // caller to perform side effects (e.g. jwks_cache invalidation).
 
-    pub fn list_issuer_profiles(&self) -> Vec<crate::service::issuer_profile::IssuerProfile> {
+    pub fn list_issuer_profiles(
+        &self,
+    ) -> Result<Vec<crate::service::issuer_profile::IssuerProfile>, crate::persistence::StorageError>
+    {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        let profiles = store.list_issuer_profiles(&mut session);
-        session.rollback().unwrap();
-        profiles
+        let mut session = store.create_session()?;
+        let profiles = store.list_issuer_profiles(&mut session)?;
+        let _ = session.rollback();
+        Ok(profiles)
     }
 
     pub fn find_issuer_profile(
         &self,
         profile_id: &str,
-    ) -> Option<crate::service::issuer_profile::IssuerProfile> {
+    ) -> Result<
+        Option<crate::service::issuer_profile::IssuerProfile>,
+        crate::persistence::StorageError,
+    > {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        let found = store.find_issuer_profile(profile_id, &mut session);
-        session.rollback().unwrap();
-        found
+        let mut session = store.create_session()?;
+        let found = store.find_issuer_profile(profile_id, &mut session)?;
+        let _ = session.rollback();
+        Ok(found)
     }
 
     pub fn insert_issuer_profile(
         &self,
         profile: crate::service::issuer_profile::IssuerProfile,
-    ) -> crate::service::issuer_profile::IssuerProfile {
+    ) -> Result<crate::service::issuer_profile::IssuerProfile, crate::persistence::StorageError> {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
+        let mut session = store.create_session()?;
         store.insert_issuer_profile(profile.clone(), &mut session);
-        session.flush_and_commit().unwrap();
-        profile
+        session.flush_and_commit()?;
+        Ok(profile)
     }
 
     /// Result of a successful issuer profile update.
@@ -4179,29 +4188,36 @@ impl RuntimeService {
         expected_version: i64,
     ) -> Result<UpdateIssuerProfileResult, crate::persistence::StorageError> {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        let old_profile = store.find_issuer_profile(&profile.id, &mut session);
+        // Java parity: IdmIdentityService failures throw, never abort.
+        let mut session = store.create_session()?;
+        let old_profile = store.find_issuer_profile(&profile.id, &mut session)?;
         match old_profile {
             Some(old) => {
                 match store.update_issuer_profile(profile.clone(), expected_version, &mut session) {
                     Ok(()) => {
+                        // Java parity: a failed re-read must surface as a storage error,
+                        // not fall back to the caller-supplied profile.
                         let new_profile = store
-                            .find_issuer_profile(&profile.id, &mut session)
-                            .unwrap_or(profile);
-                        session.flush_and_commit().unwrap();
+                            .find_issuer_profile(&profile.id, &mut session)?
+                            .ok_or_else(|| {
+                                crate::persistence::StorageError::Sql(
+                                    "Issuer profile not found after update".into(),
+                                )
+                            })?;
+                        session.flush_and_commit()?;
                         Ok(UpdateIssuerProfileResult {
                             old_profile: old,
                             new_profile,
                         })
                     }
                     Err(e) => {
-                        session.rollback().unwrap();
+                        let _ = session.rollback();
                         Err(e)
                     }
                 }
             }
             None => {
-                session.rollback().unwrap();
+                let _ = session.rollback();
                 Err(crate::persistence::StorageError::Sql(
                     "Issuer profile not found".into(),
                 ))
@@ -4214,13 +4230,14 @@ impl RuntimeService {
     pub fn delete_issuer_profile(
         &self,
         profile_id: &str,
-    ) -> Option<crate::service::issuer_profile::IssuerProfile> {
+    ) -> Result<Option<crate::service::issuer_profile::IssuerProfile>, crate::persistence::StorageError>
+    {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        let found_profile = store.find_issuer_profile(profile_id, &mut session);
+        let mut session = store.create_session()?;
+        let found_profile = store.find_issuer_profile(profile_id, &mut session)?;
         store.delete_issuer_profile(profile_id, &mut session);
-        session.flush_and_commit().unwrap();
-        found_profile
+        session.flush_and_commit()?;
+        Ok(found_profile)
     }
 
     // ── Identity runtime construction ──
@@ -4231,7 +4248,10 @@ impl RuntimeService {
     pub fn build_identity_runtime(
         &self,
         config: &crate::service::config::ServicePolicyConfig,
-    ) -> crate::service::config::IdentityRuntimeComponents {
+    ) -> Result<
+        crate::service::config::IdentityRuntimeComponents,
+        crate::persistence::StorageError,
+    > {
         let store = self.command_executor.runtime_store().clone();
         config.build_identity_runtime(store)
     }
@@ -4242,7 +4262,10 @@ impl RuntimeService {
         profiles: Vec<crate::service::issuer_profile::IssuerProfile>,
         jwks_cache: Arc<crate::service::jwks::JwksCache>,
         revocation_registry: Arc<crate::service::revocation::TokenRevocationRegistry>,
-    ) -> crate::service::config::IdentityRuntimeComponents {
+    ) -> Result<
+        crate::service::config::IdentityRuntimeComponents,
+        crate::persistence::StorageError,
+    > {
         let store = self.command_executor.runtime_store().clone();
         config.build_identity_runtime_with_components(
             profiles,
@@ -4676,13 +4699,13 @@ impl RuntimeService {
         &self,
         message_ref: String,
         process_instance_id: String,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, crate::error::FlowableError> {
         let cmd = TriggerEventSubprocessByEventCmd::new(
             EventSubscriptionKind::Message,
             message_ref,
             process_instance_id,
         );
-        self.command_executor.execute(&cmd).unwrap()
+        self.command_executor.execute(&cmd)
     }
 
     /// Triggers a signal event subprocess within a running process instance.
@@ -4690,13 +4713,13 @@ impl RuntimeService {
         &self,
         signal_ref: String,
         process_instance_id: String,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, crate::error::FlowableError> {
         let cmd = TriggerEventSubprocessByEventCmd::new(
             EventSubscriptionKind::Signal,
             signal_ref,
             process_instance_id,
         );
-        self.command_executor.execute(&cmd).unwrap()
+        self.command_executor.execute(&cmd)
     }
 
     // ── Unified event subscription trigger API ──
@@ -4705,9 +4728,9 @@ impl RuntimeService {
     pub fn trigger_intermediate_catch_event_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerIntermediateCatchEventCmd::new(process_instance_id);
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Unified: triggers an intermediate catch event by subscription kind + event_ref + execution_id.
@@ -4716,9 +4739,9 @@ impl RuntimeService {
         subscription_kind: EventSubscriptionKind,
         event_ref: String,
         execution_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerEventIntermediateCatchCmd::new(subscription_kind, event_ref, execution_id);
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Triggers a waiting send-event service task (triggerable send-and-receive).
@@ -4772,12 +4795,12 @@ impl RuntimeService {
         &self,
         message_ref: String,
         execution_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.trigger_event_intermediate_catch(
             EventSubscriptionKind::Message,
             message_ref,
             execution_id,
-        );
+        )
     }
 
     /// Stable entry point for signal intermediate catch.
@@ -4785,12 +4808,12 @@ impl RuntimeService {
         &self,
         signal_ref: String,
         execution_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.trigger_event_intermediate_catch(
             EventSubscriptionKind::Signal,
             signal_ref,
             execution_id,
-        );
+        )
     }
 
     /// Global signal broadcast entry point. Java parity: `SignalEventReceivedCmd`
@@ -4799,14 +4822,14 @@ impl RuntimeService {
         &self,
         signal_ref: String,
         execution_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerEventIntermediateCatchCmd::new(
             EventSubscriptionKind::Signal,
             signal_ref,
             execution_id,
         )
         .without_suspension_check();
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Triggers a timer intermediate catch event.
@@ -4823,16 +4846,16 @@ impl RuntimeService {
     pub fn get_event_wait_states_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) -> Vec<EventWaitState> {
+    ) -> Result<Vec<EventWaitState>, crate::error::FlowableError> {
         let cmd = QueryEventWaitStatesByProcessInstanceIdCmd::new(process_instance_id);
-        self.command_executor.execute(&cmd).unwrap()
+        self.command_executor.execute(&cmd)
     }
 
     /// Type alias for callers that depend on the older name
     pub fn get_message_style_wait_states_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) -> Vec<EventWaitState> {
+    ) -> Result<Vec<EventWaitState>, crate::error::FlowableError> {
         self.get_event_wait_states_by_process_instance_id(process_instance_id)
     }
 
@@ -4854,13 +4877,13 @@ impl RuntimeService {
         subscription_kind: EventSubscriptionKind,
         event_ref: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerBoundaryEventByEventRefCmd::new(
             subscription_kind,
             event_ref,
             process_instance_id,
         );
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Stable entry point for message boundary trigger.
@@ -4868,9 +4891,9 @@ impl RuntimeService {
         &self,
         message_ref: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerBoundaryEventByMessageRefCmd::new(message_ref, process_instance_id);
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Stable entry point for signal boundary trigger.
@@ -4878,9 +4901,9 @@ impl RuntimeService {
         &self,
         signal_ref: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerBoundaryEventBySignalRefCmd::new(signal_ref, process_instance_id);
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Triggers a timer boundary event by its ID.
@@ -4888,9 +4911,9 @@ impl RuntimeService {
         &self,
         boundary_event_id: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = TriggerTimerBoundaryEventCmd::new(boundary_event_id, process_instance_id);
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     // ── Unified Message Correlation API ──
@@ -5018,7 +5041,9 @@ impl RuntimeService {
             Arc::clone(&self.timer_owner_id),
             worker_type.to_string(),
         );
-        self.command_executor.execute(&cmd).unwrap();
+        // Java parity: RuntimeService command failures throw FlowableException,
+        // never abort the process.
+        self.command_executor.execute(&cmd)?;
         Ok(())
     }
 
@@ -5154,22 +5179,25 @@ impl RuntimeService {
         &self,
         lock_duration_ms: i64,
         max_jobs: usize,
-    ) -> Vec<RuntimeTimerJobState> {
+    ) -> Result<Vec<RuntimeTimerJobState>, crate::error::FlowableError> {
         let cmd = crate::cmd::run_due_timers_cmd::AcquireHistoryJobsCmd::new(
             Arc::clone(&self.timer_owner_id),
             lock_duration_ms,
             max_jobs,
             Arc::clone(&self.timer_metrics),
         );
-        self.command_executor.execute(&cmd).unwrap_or_default()
+        self.command_executor.execute(&cmd)
     }
 
-    pub fn release_timer_job_lock(&self, timer_job_id: &str) -> bool {
+    pub fn release_timer_job_lock(
+        &self,
+        timer_job_id: &str,
+    ) -> Result<bool, crate::error::FlowableError> {
         let cmd = crate::cmd::run_due_timers_cmd::ReleaseTimerJobLockCmd::new(
             timer_job_id.to_string(),
             Arc::clone(&self.timer_owner_id),
         );
-        self.command_executor.execute(&cmd).unwrap_or(false)
+        self.command_executor.execute(&cmd)
     }
 
     /// Releases this executor owner's executable async jobs, optionally scoped
@@ -5268,9 +5296,12 @@ impl RuntimeService {
         }
     }
 
-    pub fn reset_expired_timer_job_locks(&self, page_size: usize) -> usize {
+    pub fn reset_expired_timer_job_locks(
+        &self,
+        page_size: usize,
+    ) -> Result<usize, crate::error::FlowableError> {
         let cmd = crate::cmd::run_due_timers_cmd::ResetExpiredTimerJobLocksCmd::new(page_size);
-        self.command_executor.execute(&cmd).unwrap_or(0)
+        self.command_executor.execute(&cmd)
     }
 
     pub fn reset_expired_jobs_batch(
@@ -5304,7 +5335,7 @@ impl RuntimeService {
     pub fn acquire_timer_work(
         &self,
         fencing_token: i64,
-    ) -> Vec<crate::engine::timer_worker::TimerWork> {
+    ) -> Result<Vec<crate::engine::timer_worker::TimerWork>, crate::error::FlowableError> {
         self.acquire_timer_work_for_tenants(fencing_token, &[], &[])
     }
 
@@ -5315,7 +5346,7 @@ impl RuntimeService {
         fencing_token: i64,
         tenant_ids: &[String],
         enabled_job_categories: &[String],
-    ) -> Vec<crate::engine::timer_worker::TimerWork> {
+    ) -> Result<Vec<crate::engine::timer_worker::TimerWork>, crate::error::FlowableError> {
         let cmd = crate::cmd::run_due_timers_cmd::AcquireTimerWorkCmd::new(
             Arc::clone(&self.timer_owner_id),
             fencing_token,
@@ -5323,7 +5354,7 @@ impl RuntimeService {
         )
         .with_tenant_ids(tenant_ids.to_vec())
         .with_enabled_job_categories(enabled_job_categories.to_vec());
-        self.command_executor.execute(&cmd).unwrap()
+        self.command_executor.execute(&cmd)
     }
 
     pub(crate) fn acquire_scheduled_timer_work_for_tenants(
@@ -5332,7 +5363,7 @@ impl RuntimeService {
         tenant_ids: &[String],
         enabled_job_categories: &[String],
         max_jobs: usize,
-    ) -> Vec<crate::engine::timer_worker::TimerWork> {
+    ) -> Result<Vec<crate::engine::timer_worker::TimerWork>, crate::error::FlowableError> {
         let cmd = crate::cmd::run_due_timers_cmd::AcquireTimerWorkCmd::new(
             Arc::clone(&self.timer_owner_id),
             fencing_token,
@@ -5342,7 +5373,7 @@ impl RuntimeService {
         .with_enabled_job_categories(enabled_job_categories.to_vec())
         .scheduled_timers_only()
         .with_max_jobs(max_jobs);
-        self.command_executor.execute(&cmd).unwrap()
+        self.command_executor.execute(&cmd)
     }
 
     pub(crate) fn acquire_scheduled_timer_work_global_for_tenants(
@@ -5572,14 +5603,14 @@ impl RuntimeService {
         &self,
         work: &crate::engine::timer_worker::TimerWork,
         fencing_token: i64,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let cmd = crate::cmd::renew_timer_lease_cmd::RenewTimerLeaseCmd::new(
             work.clone(),
             Arc::clone(&self.timer_owner_id),
             fencing_token,
             Arc::clone(&self.timer_metrics),
         );
-        self.command_executor.execute(&cmd).unwrap();
+        self.command_executor.execute(&cmd)
     }
 
     /// Acquires all due timers and executes them in batch.
@@ -5591,7 +5622,14 @@ impl RuntimeService {
         // heartbeat-based early-takeover path is active).
         let _ = self.heartbeat_timer_node("run_due_timers");
         if let Ok(Some(token)) = self.acquire_coordinator_lease(300_000) {
-            let works = self.acquire_timer_work(token);
+            let works = match self.acquire_timer_work(token) {
+                Ok(works) => works,
+                Err(error) => {
+                    tracing::error!("failed to acquire timer work: {error}");
+                    let _ = self.release_coordinator_lease(token);
+                    return Err(error);
+                }
+            };
             for work in works {
                 if let Some(id) = self.execute_timer_work(&work, token) {
                     executed.push(id);
@@ -5610,19 +5648,24 @@ impl RuntimeService {
 
     // ── Control Surface API ──
 
-    /// Get the current status of the timer coordinator
+    /// Get the current status of the timer coordinator.
+    ///
+    /// A store failure is reported rather than degraded to `NoLeader`: callers
+    /// must not read an outage as "no leader has been elected".
     pub fn get_timer_coordinator_status(
         &self,
-    ) -> crate::persistence::runtime_store::TimerCoordinatorStatus {
+    ) -> Result<
+        crate::persistence::runtime_store::TimerCoordinatorStatus,
+        crate::error::FlowableError,
+    > {
         use crate::cmd::timer_coordination_control_cmd::{
             CoordinatorStatusResult, TimerCoordinationControlCmd,
         };
         let cmd = TimerCoordinationControlCmd::status();
-        let result: CoordinatorStatusResult = self
-            .command_executor
-            .execute(&cmd as &dyn crate::interceptor::command::Command<CoordinatorStatusResult>)
-            .unwrap();
-        result.status
+        let result: CoordinatorStatusResult = self.command_executor.execute(
+            &cmd as &dyn crate::interceptor::command::Command<CoordinatorStatusResult>,
+        )?;
+        Ok(result.status)
     }
 
     /// List all timer worker nodes with their status
@@ -5637,7 +5680,7 @@ impl RuntimeService {
         let result: NodesListResult = self
             .command_executor
             .execute(&cmd as &dyn crate::interceptor::command::Command<NodesListResult>)
-            .unwrap();
+            ?;
         Ok(result.nodes)
     }
 
@@ -5654,7 +5697,7 @@ impl RuntimeService {
         let result: ReleaseResult = self
             .command_executor
             .execute(&cmd as &dyn crate::interceptor::command::Command<ReleaseResult>)
-            .unwrap();
+            ?;
         Ok(result.success)
     }
 
@@ -5667,7 +5710,7 @@ impl RuntimeService {
         let result: StepDownResult = self
             .command_executor
             .execute(&cmd as &dyn crate::interceptor::command::Command<StepDownResult>)
-            .unwrap();
+            ?;
         Ok((result.success, result.new_fencing_token))
     }
 
@@ -5683,7 +5726,7 @@ impl RuntimeService {
         let result: DeregisterResult = self
             .command_executor
             .execute(&cmd as &dyn crate::interceptor::command::Command<DeregisterResult>)
-            .unwrap();
+            ?;
         Ok(result.success)
     }
 
@@ -5696,7 +5739,7 @@ impl RuntimeService {
         let result: CleanupResult = self
             .command_executor
             .execute(&cmd as &dyn crate::interceptor::command::Command<CleanupResult>)
-            .unwrap();
+            ?;
         Ok(result.cleaned_count)
     }
 
@@ -5712,7 +5755,7 @@ impl RuntimeService {
         let _result: AuditAdminActionResult = self
             .command_executor
             .execute(&cmd as &dyn crate::interceptor::command::Command<AuditAdminActionResult>)
-            .unwrap();
+            ?;
         Ok(())
     }
 
@@ -5826,7 +5869,7 @@ impl Command<()> for MoveDeadLetterJobToExecutableJobCmd {
 
         command_context
             .runtime_store
-            .insert_timer_job_state(&job, &mut command_context.session);
+            .insert_timer_job_state(&job, &mut command_context.session)?;
         Ok(())
     }
 }

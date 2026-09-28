@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for `SetProcessDefinitionVersionCmd`, mirroring Java
 //! `org.flowable.engine.impl.cmd.SetProcessDefinitionVersionCmd` semantics:
 //!   - constructor validation -> FlowableIllegalArgumentException (BadRequest);
@@ -57,7 +63,7 @@ fn deploy_and_start(engine: &ProcessEngine) -> ProcessInstance {
 
 #[test]
 fn blank_process_instance_id_rejected_with_bad_request() {
-    let engine = ProcessEngine::new("set-version-blank-id".to_string());
+    let engine = ProcessEngine::new("set-version-blank-id".to_string()).unwrap();
     let error = engine
         .get_runtime_service()
         .set_process_definition_version("", 1)
@@ -72,7 +78,7 @@ fn blank_process_instance_id_rejected_with_bad_request() {
 
 #[test]
 fn non_positive_version_rejected_with_bad_request() {
-    let engine = ProcessEngine::new("set-version-non-positive".to_string());
+    let engine = ProcessEngine::new("set-version-non-positive".to_string()).unwrap();
     let error = engine
         .get_runtime_service()
         .set_process_definition_version("some-instance", 0)
@@ -83,7 +89,7 @@ fn non_positive_version_rejected_with_bad_request() {
 
 #[test]
 fn unknown_process_instance_yields_not_found() {
-    let engine = ProcessEngine::new("set-version-unknown-instance".to_string());
+    let engine = ProcessEngine::new("set-version-unknown-instance".to_string()).unwrap();
     let error = engine
         .get_runtime_service()
         .set_process_definition_version("does-not-exist", 1)
@@ -98,7 +104,7 @@ fn unknown_process_instance_yields_not_found() {
 
 #[test]
 fn child_execution_id_rejected_with_bad_request() {
-    let engine = ProcessEngine::new("set-version-child-execution".to_string());
+    let engine = ProcessEngine::new("set-version-child-execution".to_string()).unwrap();
 
     // A parallel split produces child executions with their own ids, which is
     // what Java's "points to a child execution" guard is about.
@@ -148,7 +154,7 @@ fn child_execution_id_rejected_with_bad_request() {
 
 #[test]
 fn unknown_target_version_yields_not_found() {
-    let engine = ProcessEngine::new("set-version-unknown-version".to_string());
+    let engine = ProcessEngine::new("set-version-unknown-version".to_string()).unwrap();
     let instance = deploy_and_start(&engine);
 
     let error = engine
@@ -165,7 +171,7 @@ fn unknown_target_version_yields_not_found() {
 
 #[test]
 fn missing_current_activity_in_new_version_yields_execution_error() {
-    let engine = ProcessEngine::new("set-version-missing-activity".to_string());
+    let engine = ProcessEngine::new("set-version-missing-activity".to_string()).unwrap();
     let instance = deploy_and_start(&engine);
 
     // Version 2 renames the wait-state activity, so the running instance's
@@ -198,7 +204,7 @@ fn missing_current_activity_in_new_version_yields_execution_error() {
 
 #[test]
 fn switches_instance_executions_and_history_to_target_version() {
-    let engine = ProcessEngine::new("set-version-happy-path".to_string());
+    let engine = ProcessEngine::new("set-version-happy-path".to_string()).unwrap();
     let instance = deploy_and_start(&engine);
     assert_eq!(instance.process_definition_version, 1);
 

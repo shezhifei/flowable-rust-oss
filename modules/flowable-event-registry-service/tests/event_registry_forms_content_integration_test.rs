@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 mod test_support;
 
 use flowable_content_service::{CreateContentItemRequest, FlowableContentService};
@@ -11,9 +17,9 @@ use std::sync::Arc;
 
 #[test]
 fn event_registry_coexists_with_owned_m14_forms_and_content_slice() {
-    let engine = Arc::new(ProcessEngine::new("m14-event-registry".to_string()));
+    let engine = Arc::new(ProcessEngine::new("m14-event-registry".to_string()).unwrap());
     let event_registry = FlowableEventRegistryService::new(Arc::clone(&engine));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
     let content_service = FlowableContentService::new(Arc::clone(&engine));
 
     test_support::deploy_sample_definitions(&event_registry);

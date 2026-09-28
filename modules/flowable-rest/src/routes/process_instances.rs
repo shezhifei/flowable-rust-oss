@@ -267,26 +267,33 @@ fn load_runtime_process_instance(
     engine: &ProcessEngine,
     process_instance_id: &str,
 ) -> Result<ProcessInstance, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    engine
+    // Java parity: command/session failures map to 500, missing entity to 404.
+    let mut session = engine
         .get_runtime_store()
-        .find_process_instance(process_instance_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Process instance '{}' was not found",
-                process_instance_id
-            ))
-        })
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
+        .get_runtime_store()
+        .find_process_instance(process_instance_id, &mut session)?;
+    ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!(
+            "Process instance '{}' was not found",
+            process_instance_id
+        ))
+    })
 }
 
 fn load_historic_or_runtime_process_instance_id(
     engine: &ProcessEngine,
     process_instance_id: &str,
 ) -> Result<String, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if engine
         .get_runtime_store()
-        .find_process_instance(process_instance_id, &mut session)
+        .find_process_instance(process_instance_id, &mut session)?
         .is_some()
     {
         return Ok(process_instance_id.to_string());
@@ -836,7 +843,7 @@ pub(crate) async fn get_process_instance(
         .get_runtime_store()
         .db_store()
         .find_by_id::<ProcessInstance>("process_instances", &process_instance_id)
-        .unwrap()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
                 "Process instance '{}' was not found",
@@ -930,16 +937,16 @@ fn ensure_process_instance_suspend_action_allowed(
     process_instance_id: &str,
     suspend: bool,
 ) -> Result<(), ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    let process_instance = engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
-        .find_process_instance(process_instance_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Process instance '{}' was not found",
-                process_instance_id
-            ))
-        })?;
+        .find_process_instance(process_instance_id, &mut session)?;
+    let process_instance = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!(
+            "Process instance '{}' was not found",
+            process_instance_id
+        ))
+    })?;
     if suspend && process_instance.is_suspended {
         return Err(ApiError::Conflict(format!(
             "Process instance with id '{}' is already suspended.",
@@ -1127,9 +1134,10 @@ fn resolve_process_instance_id_for_execution(
     let mut session = store
         .create_session()
         .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
-    let execution = store
-        .find_execution(execution_id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Execution '{execution_id}' was not found")))?;
+    let found = store.find_execution(execution_id, &mut session);
+    let execution = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Execution '{execution_id}' was not found"))
+    })?;
     if execution.is_ended {
         return Err(ApiError::NotFound(format!(
             "Execution '{execution_id}' was not found"
@@ -1555,7 +1563,11 @@ fn parse_string_map_entry(
     if object.len() != 1 {
         return Ok(None);
     }
-    let (source, target) = object.iter().next().unwrap();
+    // len==1 guarantees Some; ok_or avoids panic, maps to 400 parity.
+    let (source, target) = object
+        .iter()
+        .next()
+        .ok_or_else(|| ApiError::BadRequest(format!("{field_name} entries must be objects")))?;
     if is_move_descriptor_field(source) {
         return Ok(None);
     }
@@ -1575,7 +1587,10 @@ fn parse_string_array_map_entry(
     if object.len() != 1 {
         return Ok(None);
     }
-    let (key, array_value) = object.iter().next().unwrap();
+    let (key, array_value) = object
+        .iter()
+        .next()
+        .ok_or_else(|| ApiError::BadRequest(format!("{field_name} entries must be objects")))?;
     if is_move_descriptor_field(key) {
         return Ok(None);
     }
@@ -1693,7 +1708,11 @@ fn normalize_change_activity_state_request(
                 "moveActivityIdTo supports exactly one source and target activity".to_string(),
             ));
         }
-        let (source, target) = request.move_activity_id_to.iter().next().unwrap();
+        let (source, target) = request.move_activity_id_to.iter().next().ok_or_else(|| {
+            ApiError::BadRequest(
+                "moveActivityIdTo supports exactly one source and target activity".to_string(),
+            )
+        })?;
         request.cancel_activity_ids =
             vec![non_blank_activity_id(source, "moveActivityIdTo source")?];
         request.start_activity_ids =
@@ -1709,7 +1728,12 @@ fn normalize_change_activity_state_request(
             .move_activity_ids_to_single_activity_id
             .iter()
             .next()
-            .unwrap();
+            .ok_or_else(|| {
+                ApiError::BadRequest(
+                    "moveActivityIdsToSingleActivityId supports exactly one target activity"
+                        .to_string(),
+                )
+            })?;
         if sources.is_empty() {
             return Err(ApiError::BadRequest(
                 "moveActivityIdsToSingleActivityId must contain at least one source activity id"
@@ -1735,7 +1759,12 @@ fn normalize_change_activity_state_request(
             .move_single_activity_id_to_activity_ids
             .iter()
             .next()
-            .unwrap();
+            .ok_or_else(|| {
+                ApiError::BadRequest(
+                    "moveSingleActivityIdToActivityIds supports exactly one source activity"
+                        .to_string(),
+                )
+            })?;
         if targets.is_empty() {
             return Err(ApiError::BadRequest(
                 "moveSingleActivityIdToActivityIds must contain at least one target activity id"
@@ -1801,10 +1830,10 @@ pub(crate) async fn inject_process_instance_activity(
 ) -> Result<StatusCode, ApiError> {
     let parsed = parse_inject_activity_request(&body)?;
     let payload = parsed.payload;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if engine
         .get_runtime_store()
-        .find_process_instance(&process_instance_id, &mut session)
+        .find_process_instance(&process_instance_id, &mut session)?
         .is_none()
     {
         return Err(ApiError::NotFound(format!(
@@ -1949,7 +1978,7 @@ fn active_activity_ids_for_process_instance(
     process_instance_id: &str,
 ) -> Result<Vec<String>, ApiError> {
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut activity_ids = store
         .snapshot_executions(&mut session)
         .into_values()
@@ -2104,10 +2133,10 @@ pub(crate) fn validate_process_instance_migration_request(
     process_instance_id: &str,
     request: &ProcessInstanceMigrationRequest,
 ) -> Result<MigrationValidationResultResponse, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let instance = engine
         .get_runtime_store()
-        .find_process_instance(process_instance_id, &mut session)
+        .find_process_instance(process_instance_id, &mut session)?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
                 "Process instance '{}' was not found",
@@ -2147,7 +2176,7 @@ pub(crate) fn validate_process_instance_migration_request(
     )?);
 
     if instance.process_definition_id != target_definition_id
-        && process_instance_has_active_runtime_state(engine, &instance.id)
+        && process_instance_has_active_runtime_state(engine, &instance.id)?
         && !validation_messages.is_empty()
     {
         validation_messages.push(format!(
@@ -2195,7 +2224,7 @@ fn validate_runtime_wait_state_migration(
         })
         .collect::<HashMap<_, _>>();
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let active_executions = store
         .snapshot_executions(&mut session)
         .into_values()
@@ -2273,9 +2302,11 @@ fn validate_runtime_wait_state_migration(
 pub(crate) fn process_instance_has_active_runtime_state(
     engine: &ProcessEngine,
     process_instance_id: &str,
-) -> bool {
+) -> Result<bool, ApiError> {
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if store
         .snapshot_executions(&mut session)
         .into_values()
@@ -2284,32 +2315,32 @@ pub(crate) fn process_instance_has_active_runtime_state(
                 && !execution.is_ended
         })
     {
-        return true;
+        return Ok(true);
     }
     if store
         .find_tasks_by_process_instance_id(process_instance_id, &mut session)
         .into_iter()
         .any(|task| !task.is_completed)
     {
-        return true;
+        return Ok(true);
     }
     if !store
         .find_event_wait_states_by_process_instance_id(process_instance_id, &mut session)
         .is_empty()
     {
-        return true;
+        return Ok(true);
     }
     if !store
         .find_boundary_event_states_by_process_instance_id(process_instance_id, &mut session)
         .is_empty()
     {
-        return true;
+        return Ok(true);
     }
     if !store
         .find_timer_job_states_by_process_instance_id(process_instance_id, &mut session)
         .is_empty()
     {
-        return true;
+        return Ok(true);
     }
     if !store
         .find_event_subprocess_timer_subscriptions_by_process_instance_id(
@@ -2318,7 +2349,7 @@ pub(crate) fn process_instance_has_active_runtime_state(
         )
         .is_empty()
     {
-        return true;
+        return Ok(true);
     }
     if !store
         .find_event_subprocess_event_subscriptions_by_process_instance_id(
@@ -2327,11 +2358,11 @@ pub(crate) fn process_instance_has_active_runtime_state(
         )
         .is_empty()
     {
-        return true;
+        return Ok(true);
     }
-    !store
+    Ok(!store
         .find_compensation_subscriptions_by_process_instance_id(process_instance_id, &mut session)
-        .is_empty()
+        .is_empty())
 }
 
 #[derive(Debug, Deserialize)]
@@ -2575,7 +2606,9 @@ fn find_current_execution_for_process_instance(
     process_instance_id: &str,
 ) -> Result<Execution, ApiError> {
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if let Some(execution) = store
         .find_execution(process_instance_id, &mut session)
         .filter(|execution| {
@@ -2590,7 +2623,7 @@ fn find_current_execution_for_process_instance(
         .get_runtime_store()
         .db_store()
         .find_all::<Execution>("executions")
-        .unwrap()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?
         .into_iter()
         .filter(|execution| {
             execution.process_instance_id.as_deref() == Some(process_instance_id)
@@ -2619,10 +2652,11 @@ fn find_current_execution_for_process_instance(
 
 fn find_execution(engine: &ProcessEngine, execution_id: &str) -> Result<Execution, ApiError> {
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
-    store
-        .find_execution(execution_id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Execution '{}' was not found", execution_id)))
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = store.find_execution(execution_id, &mut session);
+    ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Execution '{}' was not found", execution_id))
+    })
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -2775,7 +2809,7 @@ fn resolve_scoped_variable_mutations(
         let value = storage_value_for_data_backed_variable_request(request)?;
         mutations.push(ExecutionVariableMutation { name, value });
     }
-    let scope = shared_scope.expect("non-empty batch has a shared scope");
+    let Some(scope) = shared_scope else { return Err(ApiError::BadRequest("Variable batch must not be empty".to_string())); };
     Ok((scope, mutations))
 }
 
@@ -3494,7 +3528,7 @@ pub(crate) async fn execution_signal_event_received(
     let variables = parse_trigger_variables(request.variables)?;
     let runtime_store = engine.get_runtime_store();
     let runtime_service = engine.get_runtime_service();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     let wait_state = runtime_store
         .snapshot_event_wait_states(&mut session)
@@ -3522,7 +3556,7 @@ pub(crate) async fn execution_signal_event_received(
         runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
             signal_name.to_string(),
             execution_id,
-        );
+        )?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -3546,7 +3580,7 @@ pub(crate) async fn execution_signal_event_received(
         runtime_service.trigger_boundary_event_by_signal_ref(
             signal_name.to_string(),
             state.process_instance_id,
-        );
+        )?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -3581,7 +3615,7 @@ pub(crate) async fn execution_message_event_received(
     let variables = parse_trigger_variables(request.variables)?;
     let runtime_store = engine.get_runtime_store();
     let runtime_service = engine.get_runtime_service();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     let wait_state = runtime_store
         .snapshot_event_wait_states(&mut session)
@@ -3613,7 +3647,7 @@ pub(crate) async fn execution_message_event_received(
         runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
             message_name.to_string(),
             execution_id,
-        );
+        )?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -3637,7 +3671,7 @@ pub(crate) async fn execution_message_event_received(
         runtime_service.trigger_boundary_event_by_message_ref(
             message_name.to_string(),
             state.process_instance_id,
-        );
+        )?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -3694,7 +3728,7 @@ pub(crate) async fn perform_execution_action(
 
             let runtime_store = engine.get_runtime_store();
             let wait_state = {
-                let mut session = runtime_store.create_session().unwrap();
+                let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
                 runtime_store
                     .snapshot_event_wait_states(&mut session)
                     .into_values()
@@ -3734,7 +3768,7 @@ pub(crate) async fn perform_execution_action(
                     .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
                         subscription.event_ref,
                         execution_id.clone(),
-                    );
+                    )?;
             } else {
                 return Err(ApiError::InternalServerError(format!(
                     "Cannot trigger execution '{}' because it is not waiting in a triggerable state",
@@ -3772,7 +3806,7 @@ pub(crate) async fn perform_execution_action(
 
     // Java parity: re-fetch — the action may have completed the execution.
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     match store.find_execution(&execution_id, &mut session) {
         None => Ok(StatusCode::NO_CONTENT.into_response()),
         Some(execution) => Ok((
@@ -3805,7 +3839,7 @@ fn perform_targeted_signal_event(
     let variables = parse_trigger_variables(variables)?;
     let runtime_store = engine.get_runtime_store();
     let runtime_service = engine.get_runtime_service();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     let wait_state = runtime_store
         .snapshot_event_wait_states(&mut session)
@@ -3833,7 +3867,7 @@ fn perform_targeted_signal_event(
         runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
             signal_name.to_string(),
             execution_id.to_string(),
-        );
+        )?;
         return Ok(());
     }
 
@@ -3857,7 +3891,7 @@ fn perform_targeted_signal_event(
         runtime_service.trigger_boundary_event_by_signal_ref(
             signal_name.to_string(),
             state.process_instance_id,
-        );
+        )?;
         return Ok(());
     }
 
@@ -3887,7 +3921,7 @@ fn perform_targeted_message_event(
     let variables = parse_trigger_variables(variables)?;
     let runtime_store = engine.get_runtime_store();
     let runtime_service = engine.get_runtime_service();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     let wait_state = runtime_store
         .snapshot_event_wait_states(&mut session)
@@ -3928,7 +3962,7 @@ fn perform_targeted_message_event(
             runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
                 message_name.to_string(),
                 execution_id.to_string(),
-            );
+            )?;
         }
         return Ok(());
     }
@@ -3953,7 +3987,7 @@ fn perform_targeted_message_event(
         runtime_service.trigger_boundary_event_by_message_ref(
             message_name.to_string(),
             state.process_instance_id,
-        );
+        )?;
         return Ok(());
     }
 

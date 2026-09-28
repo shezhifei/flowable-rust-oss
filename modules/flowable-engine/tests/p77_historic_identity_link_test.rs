@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P77 — Historic identity link independent storage (`ACT_HI_IDENTITYLINK` /
 //! `historic_identity_links`).
 //!
@@ -69,7 +75,7 @@ fn deploy_and_start(engine: &ProcessEngine, key: &str) -> (String, String) {
 fn participant_create_writes_historic_snapshot_delete_removes_historic_row() {
     // Java: create inserts historic with same id; delete removes historic row
     // (DefaultHistoryManager:396-417) — not an append-only snapshot.
-    let engine = ProcessEngine::new("p77-participant-mirror".to_string());
+    let engine = ProcessEngine::new("p77-participant-mirror".to_string()).unwrap();
     let (pi_id, _task_id) = deploy_and_start(&engine, "p77Participant");
 
     let link = IdentityLink {
@@ -81,7 +87,7 @@ fn participant_create_writes_historic_snapshot_delete_removes_historic_row() {
         process_instance_id: Some(pi_id.clone()),
         process_definition_id: None,
     };
-    engine.get_identity_link_service().add_identity_link(link);
+    engine.get_identity_link_service().add_identity_link(link).unwrap();
 
     let historic = engine
         .get_history_service()
@@ -102,7 +108,7 @@ fn participant_create_writes_historic_snapshot_delete_removes_historic_row() {
 
     engine
         .get_identity_link_service()
-        .remove_identity_link("hil-participant-1");
+        .remove_identity_link("hil-participant-1").unwrap();
 
     let historic_after = engine
         .get_history_service()
@@ -118,7 +124,7 @@ fn participant_create_writes_historic_snapshot_delete_removes_historic_row() {
 
 #[test]
 fn task_candidate_create_and_delete_mirror_historic_table() {
-    let engine = ProcessEngine::new("p77-task-candidate".to_string());
+    let engine = ProcessEngine::new("p77-task-candidate".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p77Candidate");
 
     engine
@@ -162,7 +168,7 @@ fn audit_gate_skips_historic_identity_link_when_history_none() {
     // (DefaultHistoryConfigurationSettings:291-294).
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::None;
-    let engine = ProcessEngine::new_with_config("p77-history-none".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p77-history-none".to_string(), config).unwrap();
 
     // With history None, process start may not create historic PI; still test
     // identity-link service path with an explicit PI id.
@@ -175,7 +181,7 @@ fn audit_gate_skips_historic_identity_link_when_history_none() {
         process_instance_id: Some("pi-none".to_string()),
         process_definition_id: None,
     };
-    engine.get_identity_link_service().add_identity_link(link);
+    engine.get_identity_link_service().add_identity_link(link).unwrap();
 
     let mut session = engine.get_runtime_store().create_session().unwrap();
     let historic = engine
@@ -190,7 +196,7 @@ fn audit_gate_skips_historic_identity_link_when_history_none() {
 #[test]
 fn process_definition_only_links_are_not_historicized() {
     // Java DefaultHistoryManager:397-400 skips links without task/processInstance.
-    let engine = ProcessEngine::new("p77-procdef-only".to_string());
+    let engine = ProcessEngine::new("p77-procdef-only".to_string()).unwrap();
     let link = IdentityLink {
         id: "hil-pd-1".to_string(),
         link_type: "candidate".to_string(),
@@ -200,7 +206,7 @@ fn process_definition_only_links_are_not_historicized() {
         process_instance_id: None,
         process_definition_id: Some("pd-1".to_string()),
     };
-    engine.get_identity_link_service().add_identity_link(link);
+    engine.get_identity_link_service().add_identity_link(link).unwrap();
 
     let mut session = engine.get_runtime_store().create_session().unwrap();
     assert!(
@@ -220,7 +226,7 @@ fn process_definition_only_links_are_not_historicized() {
 
 #[test]
 fn cascade_delete_historic_process_instance_removes_historic_identity_links() {
-    let engine = ProcessEngine::new("p77-cascade-pi".to_string());
+    let engine = ProcessEngine::new("p77-cascade-pi".to_string()).unwrap();
     let (pi_id, _task_id) = deploy_and_start(&engine, "p77CascadePi");
 
     engine.get_identity_link_service().add_identity_link(IdentityLink {
@@ -231,7 +237,7 @@ fn cascade_delete_historic_process_instance_removes_historic_identity_links() {
         task_id: None,
         process_instance_id: Some(pi_id.clone()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     assert_eq!(
         engine
@@ -261,7 +267,7 @@ fn cascade_delete_historic_process_instance_removes_historic_identity_links() {
 
 #[test]
 fn cascade_delete_historic_task_removes_task_historic_identity_links() {
-    let engine = ProcessEngine::new("p77-cascade-task".to_string());
+    let engine = ProcessEngine::new("p77-cascade-task".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p77CascadeTask");
 
     engine
@@ -298,7 +304,7 @@ fn cascade_delete_historic_task_removes_task_historic_identity_links() {
 
 #[test]
 fn involved_user_historic_query_uses_historic_identity_links() {
-    let engine = ProcessEngine::new("p77-involved-user".to_string());
+    let engine = ProcessEngine::new("p77-involved-user".to_string()).unwrap();
     let (pi_id, _task_id) = deploy_and_start(&engine, "p77Involved");
 
     engine.get_identity_link_service().add_identity_link(IdentityLink {
@@ -309,7 +315,7 @@ fn involved_user_historic_query_uses_historic_identity_links() {
         task_id: None,
         process_instance_id: Some(pi_id.clone()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let found = engine
         .get_history_service()
@@ -325,7 +331,7 @@ fn involved_user_historic_query_uses_historic_identity_links() {
     // After deleting the link, historic row is gone → no match (Java parity).
     engine
         .get_identity_link_service()
-        .remove_identity_link("hil-involved-1");
+        .remove_identity_link("hil-involved-1").unwrap();
     let after = engine
         .get_history_service()
         .create_historic_process_instance_query()
@@ -337,7 +343,7 @@ fn involved_user_historic_query_uses_historic_identity_links() {
 
 #[test]
 fn historic_identity_link_query_filters_by_task_and_process() {
-    let engine = ProcessEngine::new("p77-query-dims".to_string());
+    let engine = ProcessEngine::new("p77-query-dims".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "p77QueryDims");
 
     engine
@@ -357,7 +363,7 @@ fn historic_identity_link_query_filters_by_task_and_process() {
         task_id: None,
         process_instance_id: Some(pi_id.clone()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let by_task = engine
         .get_history_service()

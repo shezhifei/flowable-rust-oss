@@ -123,8 +123,8 @@ impl RepositoryService {
     /// Retrieves all process definition IDs deployed (for testing)
     pub fn get_process_definition_ids(&self) -> Result<Vec<String>, crate::error::FlowableError> {
         let dm = self.command_executor.deployment_manager();
-        let mut session = dm.create_session().unwrap();
-        let pds = dm.get_process_definitions(&mut session);
+        let mut session = dm.create_session()?;
+        let pds = dm.get_process_definitions(&mut session)?;
         let mut ids: Vec<String> = pds.into_keys().collect();
         ids.sort();
         let _ = session.rollback();
@@ -135,9 +135,9 @@ impl RepositoryService {
         &self,
     ) -> Result<Vec<ProcessDefinition>, crate::error::FlowableError> {
         let dm = self.command_executor.deployment_manager();
-        let mut session = dm.create_session().unwrap();
+        let mut session = dm.create_session()?;
         let mut definitions = dm
-            .get_process_definitions(&mut session)
+            .get_process_definitions(&mut session)?
             .into_values()
             .collect::<Vec<_>>();
         definitions.sort_by(|left, right| left.key.cmp(&right.key).then(left.id.cmp(&right.id)));
@@ -150,9 +150,9 @@ impl RepositoryService {
     /// `GET /repository/deployments` (default ordering by id).
     pub fn get_deployments(&self) -> Result<Vec<Deployment>, crate::error::FlowableError> {
         let dm = self.command_executor.deployment_manager();
-        let mut session = dm.create_session().unwrap();
+        let mut session = dm.create_session()?;
         let mut deployments = dm
-            .get_deployments(&mut session)
+            .get_deployments(&mut session)?
             .into_values()
             .collect::<Vec<_>>();
         deployments.sort_by(|left, right| left.id.cmp(&right.id));
@@ -165,9 +165,9 @@ impl RepositoryService {
         process_definition_id: &str,
     ) -> Result<ProcessDefinition, crate::error::FlowableError> {
         let dm = self.command_executor.deployment_manager();
-        let mut session = dm.create_session().unwrap();
+        let mut session = dm.create_session()?;
         let result = dm
-            .get_process_definitions(&mut session)
+            .get_process_definitions(&mut session)?
             .remove(process_definition_id)
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
@@ -258,9 +258,9 @@ impl RepositoryService {
             ..Default::default()
         };
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        store.insert_timer_job_state(&job, &mut session);
-        session.flush_and_commit().unwrap();
+        let mut session = store.create_session()?;
+        store.insert_timer_job_state(&job, &mut session)?;
+        session.flush_and_commit()?;
         Ok(job)
     }
 
@@ -269,15 +269,15 @@ impl RepositoryService {
         definition: ProcessDefinition,
     ) -> Result<ProcessDefinition, crate::error::FlowableError> {
         let dm = self.command_executor.deployment_manager();
-        let mut session = dm.create_session().unwrap();
-        dm.update_process_definition(definition.clone(), &mut session)
+        let mut session = dm.create_session()?;
+        dm.update_process_definition(definition.clone(), &mut session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Process definition '{}' was not found",
                     definition.id
                 ))
             })?;
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit()?;
         Ok(definition)
     }
 

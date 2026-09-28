@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -101,7 +107,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
             )));
         }
 
-        let sequence = self.case_instances.lock().unwrap().len() + 1;
+        let sequence = self.case_instances.lock().unwrap_or_else(|e| e.into_inner()).len() + 1;
         let now = "2026-04-21T09:30:00Z".to_string();
         let case_instance = CaseInstanceRecord {
             id: format!("case-instance-{sequence}"),
@@ -124,11 +130,11 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
 
         self.case_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(case_instance.clone());
         self.plan_item_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(PlanItemInstanceRecord {
                 id: format!("plan-item-{sequence}"),
                 case_instance_id: case_instance.id.clone(),
@@ -163,7 +169,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
         let filtered = self
             .case_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|instance| {
                 query.id.as_ref().is_none_or(|value| instance.id == *value)
@@ -197,7 +203,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
         let filtered = self
             .plan_item_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|plan_item| {
                 query.id.as_ref().is_none_or(|value| plan_item.id == *value)
@@ -222,7 +228,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
 
     fn complete_plan_item_instance(&self, plan_item_instance_id: &str) -> Result<(), ApiError> {
         let ended_at = "2026-04-21T09:45:00Z".to_string();
-        let mut plan_items = self.plan_item_instances.lock().unwrap();
+        let mut plan_items = self.plan_item_instances.lock().unwrap_or_else(|e| e.into_inner());
         let plan_item = plan_items
             .iter_mut()
             .find(|plan_item| plan_item.id == plan_item_instance_id)
@@ -237,7 +243,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
 
         self.historic_plan_item_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(HistoricPlanItemInstanceRecord {
                 id: plan_item.id.clone(),
                 case_instance_id: plan_item.case_instance_id.clone(),
@@ -254,7 +260,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
                 ended_at: plan_item.ended_at.clone(),
             });
 
-        let mut case_instances = self.case_instances.lock().unwrap();
+        let mut case_instances = self.case_instances.lock().unwrap_or_else(|e| e.into_inner());
         let case_instance = case_instances
             .iter_mut()
             .find(|instance| instance.id == plan_item.case_instance_id)
@@ -263,7 +269,7 @@ impl cmmn::CmmnRuntimeApi for MockCmmnApi {
 
         self.historic_case_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(HistoricCaseInstanceRecord {
                 id: case_instance.id.clone(),
                 case_definition_id: case_instance.case_definition_id.clone(),
@@ -292,7 +298,7 @@ impl cmmn::CmmnHistoryApi for MockCmmnApi {
         let filtered = self
             .historic_case_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|instance| {
                 query.id.as_ref().is_none_or(|value| instance.id == *value)
@@ -326,7 +332,7 @@ impl cmmn::CmmnHistoryApi for MockCmmnApi {
         let filtered = self
             .historic_plan_item_instances
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|plan_item| {
                 query.id.as_ref().is_none_or(|value| plan_item.id == *value)
@@ -427,7 +433,7 @@ async fn spawn_server(api: Arc<MockCmmnApi>) -> (String, reqwest::Client) {
 }
 
 async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -437,7 +443,7 @@ async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P136 2 (BPMN): tenant key-based dedup + multi-key dual start (fix under-delivery).
 //!
 //! Java: BaseEventRegistryEventConsumer.java:177-268.
@@ -129,7 +135,7 @@ fn process_count(engine: &ProcessEngine) -> usize {
 /// Different keys under tenant T + tenantless: both must start (old Rust only started T).
 #[test]
 fn different_keys_tenant_and_tenantless_both_start() {
-    let engine = Arc::new(ProcessEngine::new("p136-bpmn-dual".into()));
+    let engine = Arc::new(ProcessEngine::new("p136-bpmn-dual".into()).unwrap());
     let service = service(Arc::clone(&engine), true);
     deploy_event(&service, "dualEvt", "chDual");
 
@@ -158,7 +164,7 @@ fn different_keys_tenant_and_tenantless_both_start() {
 /// Same key under tenant T + tenantless: only tenant T starts (dedup).
 #[test]
 fn same_key_tenant_and_tenantless_dedup_starts_once() {
-    let engine = Arc::new(ProcessEngine::new("p136-bpmn-dedup".into()));
+    let engine = Arc::new(ProcessEngine::new("p136-bpmn-dedup".into()).unwrap());
     let service = service(Arc::clone(&engine), true);
     deploy_event(&service, "sameKeyEvt", "chSame");
 
@@ -191,7 +197,7 @@ fn same_key_tenant_and_tenantless_dedup_starts_once() {
 /// to the configured default tenant, not tenantless).
 #[test]
 fn real_default_tenant_does_not_dedup() {
-    let engine = Arc::new(ProcessEngine::new("p136-bpmn-real-default".into()));
+    let engine = Arc::new(ProcessEngine::new("p136-bpmn-real-default".into()).unwrap());
     let config = EventRegistryConfiguration::builder()
         .fallback_to_default_tenant(true)
         .default_tenant("defaultTenant")

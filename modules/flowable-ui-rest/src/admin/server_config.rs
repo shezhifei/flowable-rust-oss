@@ -9,6 +9,42 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use uuid::Uuid;
 
+/// Failure kind of a server-config store operation.
+///
+/// Java parity:
+/// - `Missing` is exactly the case the resource turns into
+///   `BadRequestException` — `ServerConfigsResource.updateServer` throws it when
+///   `serverConfigService.findOne(serverId)` returns `null`
+///   (`flowable-engine-6.8.0/.../ui/admin/rest/ServerConfigsResource.java:67-71`),
+///   which `RestExceptionHandlerAdvice.handleBadRequest` answers with HTTP 400
+///   (`.../ui/common/rest/exception/RestExceptionHandlerAdvice.java:58-63`).
+/// - `Storage` covers encryption / persistence failures. Java lets those
+///   `RuntimeException`s escape `AbstractEncryptingService.encrypt/decrypt`
+///   (`.../admin/service/engine/AbstractEncryptingService.java:48-69`, both
+///   `throw new RuntimeException(nsae)`) and the MyBatis
+///   `ServerConfigRepositoryImpl.save` call
+///   (`.../admin/repository/ServerConfigRepositoryImpl.java:52-60`), so Spring's
+///   default handler answers HTTP 500 — `RestExceptionHandlerAdvice` declares no
+///   handler for `RuntimeException`, and the same surface uses
+///   `InternalServerErrorException` for persistence failures elsewhere, e.g.
+///   `RelatedContentResource.java:80` "ContentItem on task could not be saved".
+///   Reporting them as 400 would blame the caller for a server-side failure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServerConfigStoreError {
+    /// No config with that id — HTTP 400 in Java (`BadRequestException`).
+    Missing(String),
+    /// Encryption or persistence failure — HTTP 500 in Java.
+    Storage(String),
+}
+
+impl std::fmt::Display for ServerConfigStoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Missing(message) | Self::Storage(message) => f.write_str(message),
+        }
+    }
+}
+
 /// Endpoint type codes matching Java `EndpointType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(i32)]
@@ -161,7 +197,7 @@ impl ServerConfigStore {
         if list.is_empty() {
             return false;
         }
-        let mut guard = self.configs.write().expect("server config lock");
+        let mut guard = self.configs.write().unwrap_or_else(|e| e.into_inner());
         guard.clear();
         for cfg in list {
             guard.insert(cfg.id.clone(), cfg);
@@ -173,11 +209,41 @@ impl ServerConfigStore {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let guard = self.configs.read().expect("server config lock");
+        let guard = self.configs.read().unwrap_or_else(|e| e.into_inner());
         let mut list: Vec<_> = guard.values().cloned().collect();
         list.sort_by_key(|c| c.endpoint_type);
         let bytes = serde_json::to_vec_pretty(&list).map_err(|e| e.to_string())?;
         std::fs::write(&self.path, bytes).map_err(|e| e.to_string())
+    }
+
+    /// True when a server config row for `server_id` exists.
+    ///
+    /// Used by the REST layer to separate the one case Java reports as a client
+    /// error from the cases it reports as a server error.
+    pub fn contains(&self, server_id: &str) -> bool {
+        self.configs
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(server_id)
+    }
+
+    /// Updates an existing server config, reporting the failure kind.
+    ///
+    /// Java parity (see [`ServerConfigStoreError`]): the missing-row case is a
+    /// `BadRequestException` (400) while an encrypt/persist failure is a
+    /// `RuntimeException` (500), so the two must not collapse into one status.
+    pub fn update_or_missing(
+        &self,
+        server_id: &str,
+        rep: ServerConfigRepresentation,
+    ) -> Result<(), ServerConfigStoreError> {
+        if !self.contains(server_id) {
+            return Err(ServerConfigStoreError::Missing(format!(
+                "Server with id '{server_id}' does not exist"
+            )));
+        }
+        self.update(server_id, rep)
+            .map_err(ServerConfigStoreError::Storage)
     }
 
     fn seed_defaults(&self) {
@@ -206,30 +272,46 @@ impl ServerConfigStore {
                 endpoint_type: endpoint.code(),
                 tenant_id: None,
             };
-            cfg.password = self
-                .cipher
-                .encrypt(&cfg.password)
-                .expect("default password encrypt");
+            // Never persist a cleartext secret. `ServerConfig` documents its `password` as
+            // "always encrypted at rest" (doc comment above this struct), and the previous
+            // `.unwrap_or_else(|_| cfg.password.clone())` wrote the cleartext password to disk
+            // whenever the cipher failed — a silent downgrade that turned a crypto fault into a
+            // plaintext-on-disk vulnerability. Java has no such fallback: the admin
+            // `EncryptingService` throws and the failure propagates instead of degrading, so a
+            // startup that cannot encrypt is not trustworthy and must not proceed.
+            cfg.password = match self.cipher.encrypt(&cfg.password) {
+                Ok(encrypted) => encrypted,
+                Err(error) => panic!(
+                    "refusing to seed the default server configs: password encryption failed ({error}). \
+                     Persisting the cleartext password would break the encrypted-at-rest contract on \
+                     `ServerConfig`, so startup is aborted instead."
+                ),
+            };
             self.configs
                 .write()
-                .expect("server config lock")
+                .unwrap_or_else(|e| e.into_inner())
                 .insert(cfg.id.clone(), cfg);
         }
     }
 
     pub fn list_representations(&self) -> Vec<ServerConfigRepresentation> {
-        let guard = self.configs.read().expect("server config lock");
+        let guard = self.configs.read().unwrap_or_else(|e| e.into_inner());
         let mut list: Vec<_> = guard.values().map(ServerConfigRepresentation::from).collect();
         list.sort_by_key(|c| c.endpoint_type);
         list
     }
 
     pub fn get(&self, id: &str) -> Option<ServerConfig> {
-        self.configs.read().expect("server config lock").get(id).cloned()
+        // Java parity: lock poisoning recovers, never aborts (ConcurrentHashMap has no poison).
+        self.configs
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(id)
+            .cloned()
     }
 
     pub fn get_by_endpoint(&self, endpoint: EndpointType) -> Result<ServerConfig, String> {
-        let guard = self.configs.read().expect("server config lock");
+        let guard = self.configs.read().unwrap_or_else(|e| e.into_inner());
         let matches: Vec<_> = guard
             .values()
             .filter(|c| c.endpoint_type == endpoint.code())
@@ -237,7 +319,8 @@ impl ServerConfigStore {
             .collect();
         match matches.len() {
             0 => Err("No server config found".into()),
-            1 => Ok(matches.into_iter().next().unwrap()),
+            // len==1 guarantees Some; ok_or avoids panic, maps to 404 parity.
+            1 => matches.into_iter().next().ok_or("No server config found".into()),
             _ => Err("Only one server config per endpoint type allowed".into()),
         }
     }
@@ -252,7 +335,7 @@ impl ServerConfigStore {
         rep: ServerConfigRepresentation,
     ) -> Result<(), String> {
         {
-            let mut guard = self.configs.write().expect("server config lock");
+            let mut guard = self.configs.write().unwrap_or_else(|e| e.into_inner());
             let config = guard
                 .get_mut(server_id)
                 .ok_or_else(|| format!("Server with id '{server_id}' does not exist"))?;
@@ -280,7 +363,7 @@ impl ServerConfigStore {
         }
         self.configs
             .write()
-            .expect("server config lock")
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
             .insert(config.id.clone(), config);
         self.persist()
     }

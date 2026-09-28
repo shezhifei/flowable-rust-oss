@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::event_dispatcher::{
     EngineEvent, EngineEventDispatcher, EngineEventListener, EngineEventType, TransactionState,
 };
@@ -59,7 +65,7 @@ impl EngineEventListener for EventRecorder {
         };
         self.events
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(format!("{}:{}", self.name, detail));
 
         if let Some(msg) = self.error_msg {
@@ -173,7 +179,7 @@ fn deploy_single_user_task(engine: &ProcessEngine) -> String {
 fn engine_with_dispatcher(name: &str, event_dispatcher: EngineEventDispatcher) -> ProcessEngine {
     let mut config = ProcessEngineConfiguration::default();
     config.engine_event_dispatcher = event_dispatcher;
-    ProcessEngine::new_with_config(name.to_string(), config)
+    ProcessEngine::new_with_config(name.to_string(), config).unwrap()
 }
 
 #[test]
@@ -202,14 +208,14 @@ fn entity_suspended_events_dispatched_in_correct_order() {
         .unwrap();
 
     // Clear any startup events
-    recorded_events.lock().unwrap().clear();
+    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
 
     // Suspend
     runtime
         .suspend_process_instance(pi.id.clone(), ProcessInstanceUpdate::default())
         .unwrap();
 
-    let events = recorded_events.lock().unwrap();
+    let events = recorded_events.lock().unwrap_or_else(|e| e.into_inner());
     // Expected order (global before typed for each entity):
     // Root execution: global:EntitySuspended:execution:<pi_id>, typed:EntitySuspended:execution:<pi_id>
     // Child executions: none in this case
@@ -246,13 +252,13 @@ fn entity_activated_events_dispatched_in_correct_order() {
     runtime
         .suspend_process_instance(pi.id.clone(), ProcessInstanceUpdate::default())
         .unwrap();
-    recorded_events.lock().unwrap().clear();
+    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
 
     runtime
         .activate_process_instance(pi.id.clone(), ProcessInstanceUpdate::default())
         .unwrap();
 
-    let events = recorded_events.lock().unwrap();
+    let events = recorded_events.lock().unwrap_or_else(|e| e.into_inner());
     assert!(!events.is_empty(), "should have activation events");
     assert!(events[0].contains("EntityActivated:execution"));
     assert!(events[events.len() - 1].contains("EntityActivated:task"));
@@ -280,12 +286,12 @@ fn global_listener_fires_before_typed_listener() {
         )
         .unwrap();
 
-    recorded_events.lock().unwrap().clear();
+    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
     runtime
         .suspend_process_instance(pi.id, ProcessInstanceUpdate::default())
         .unwrap();
 
-    let events = recorded_events.lock().unwrap();
+    let events = recorded_events.lock().unwrap_or_else(|e| e.into_inner());
     for pair in events.chunks(2) {
         if pair.len() == 2 {
             assert!(pair[0].starts_with("global:"), "{:?}", pair);
@@ -382,12 +388,12 @@ fn transaction_listener_receives_entity_events_after_commit() {
         )
         .unwrap();
 
-    recorded_events.lock().unwrap().clear();
+    recorded_events.lock().unwrap_or_else(|e| e.into_inner()).clear();
     runtime
         .suspend_process_instance(pi.id, ProcessInstanceUpdate::default())
         .unwrap();
 
-    let events = recorded_events.lock().unwrap();
+    let events = recorded_events.lock().unwrap_or_else(|e| e.into_inner());
     assert_eq!(events.len(), 2);
     assert!(events[0].contains("committed:EntitySuspended:execution"));
     assert!(events[1].contains("committed:EntitySuspended:task"));
@@ -436,7 +442,7 @@ fn rollback_reverts_suspension_and_events() {
         }
     }
 
-    let engine = ProcessEngine::new("rollback-suspension".to_string());
+    let engine = ProcessEngine::new("rollback-suspension".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let def_id = deploy_single_user_task(&engine);
 

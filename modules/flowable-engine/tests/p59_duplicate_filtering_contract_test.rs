@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 fn process_xml(process_name: &str) -> String {
@@ -35,7 +41,7 @@ fn deploy(
 
 #[test]
 fn identical_latest_deployment_is_reused_without_bumping_version() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let xml = process_xml("first");
 
     let first = deploy(&engine, &xml, None, true);
@@ -55,7 +61,7 @@ fn identical_latest_deployment_is_reused_without_bumping_version() {
 
 #[test]
 fn changed_latest_resource_creates_new_version_and_then_becomes_reusable() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let first = deploy(&engine, &process_xml("first"), None, true);
     let changed_xml = process_xml("changed");
 
@@ -77,7 +83,7 @@ fn changed_latest_resource_creates_new_version_and_then_becomes_reusable() {
 
 #[test]
 fn duplicate_filtering_is_tenant_aware_and_opt_in() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let xml = process_xml("tenant-aware");
 
     let tenant_a = deploy(&engine, &xml, Some("tenant-a"), true);

@@ -707,9 +707,12 @@ fn evaluate_any_hit(
         // non-strict: two-level validationMessage; result is LAST matched row
         // (HitPolicyAny.java:57-64, :73-78 get(size-1)). Distinct from the
         // success path which keeps the first row for content-equal matches.
-        let last_rule = matched_rules
-            .last()
-            .expect("matched_rules non-empty after conflict");
+        let Some(last_rule) = matched_rules.last() else {
+            return Err(DmnError::execution(format!(
+                "ANY hit policy violation for decision '{}' but no matched rules were retained",
+                definition.key
+            )));
+        };
         let last_outputs = cached_outputs_for_rule(evaluated_outputs, last_rule)?;
         let mut rule_messages = HashMap::new();
         // Java sets messages on the compared pair; also mark all matched rules

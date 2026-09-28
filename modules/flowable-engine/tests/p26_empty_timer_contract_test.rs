@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P26 contract tests: empty `<timerEventDefinition />` (no timeDate /
 //! timeCycle / timeDuration) must hard-fail instead of silently inserting a
 //! never-firing timer.
@@ -20,7 +26,7 @@ fn deploy_xml(xml: &str) -> Result<(), flowable_engine::error::FlowableError> {
     let process_engine = ProcessEngine::new_with_config(
         "default".to_string(),
         ProcessEngineConfiguration::default(),
-    );
+    ).unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let builder = repository_service

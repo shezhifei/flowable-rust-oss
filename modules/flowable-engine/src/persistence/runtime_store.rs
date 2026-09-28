@@ -1091,7 +1091,7 @@ impl RuntimeStore {
         &self.db_store
     }
 
-    pub fn insert_execution(&self, execution: &Execution, session: &mut DbSession) {
+    pub fn insert_execution(&self, execution: &Execution, session: &mut DbSession) -> Result<(), StorageError> {
         let process_instance_id = execution.process_instance_id.clone().unwrap_or_default();
 
         // P58: register the owning process instance for the end-of-command
@@ -1134,8 +1134,7 @@ impl RuntimeStore {
                         ),
                         ("name".into(), Some(name.clone())),
                     ],
-                )
-                .unwrap();
+                )?;
         }
         for (name, value) in &execution.local_variables {
             let id = format!("{}:{}", execution.id, name);
@@ -1152,8 +1151,7 @@ impl RuntimeStore {
                         ),
                         ("name".into(), Some(name.clone())),
                     ],
-                )
-                .unwrap();
+                )?;
         }
 
         session
@@ -1162,8 +1160,7 @@ impl RuntimeStore {
                 &execution.id,
                 &execution,
                 &[("process_instance_id".into(), Some(process_instance_id))],
-            )
-            .unwrap();
+            )?;
 
         // ADR-0001 Phase 5: dual-write normalized ACT_RU_EXECUTION via DataManager.
         // Prefer update when the row already exists (JSON path uses upsert semantics).
@@ -1174,53 +1171,57 @@ impl RuntimeStore {
         // On PostgreSQL a failed statement aborts the whole transaction — silent swallow
         // either pollutes later work or allows JSON primary writes to diverge from ACT_*.
         Self::dual_write_execution(session, execution);
-    }
+        Ok(())
+}
 
-    /// Queue + immediately flush ACT_RU_EXECUTION dual-write; panics on any failure.
+    /// Queue + immediately flush ACT_RU_EXECUTION dual-write; sticky-notes failures
+    /// so the session commit fails (Java command/transaction failure semantics).
     fn dual_write_execution(session: &mut DbSession, execution: &Execution) {
         let manager = flowable_persistence::ExecutionDataManager::new();
         match manager.find_by_id(session.inner_mut(), &execution.id) {
             Ok(Some(existing)) => {
                 let mut entity = crate::persistence::entity_mapping::execution_to_entity(execution);
                 entity.revision = existing.revision;
-                manager
-                    .update(session.inner_mut(), entity)
-                    .unwrap_or_else(|err| {
-                        panic!(
+                if let Err(err) = manager.update(session.inner_mut(), entity) {
+                    session.note_write_error(crate::persistence::StorageError::Persistence(
+                        format!(
                             "dual-write ACT_RU_EXECUTION update failed for id={}: {err}",
                             execution.id
-                        )
-                    });
+                        ),
+                    ));
+                }
             }
             Ok(None) => {
                 let entity = crate::persistence::entity_mapping::execution_to_entity(execution);
-                manager
-                    .insert(session.inner_mut(), entity)
-                    .unwrap_or_else(|err| {
-                        panic!(
+                if let Err(err) = manager.insert(session.inner_mut(), entity) {
+                    session.note_write_error(crate::persistence::StorageError::Persistence(
+                        format!(
                             "dual-write ACT_RU_EXECUTION insert failed for id={}: {err}",
                             execution.id
-                        )
-                    });
+                        ),
+                    ));
+                }
             }
             Err(err) => {
-                panic!(
-                    "dual-write ACT_RU_EXECUTION find_by_id failed for id={}: {err}",
-                    execution.id
-                );
+                session.note_write_error(crate::persistence::StorageError::Persistence(
+                    format!(
+                        "dual-write ACT_RU_EXECUTION find_by_id failed for id={}: {err}",
+                        execution.id
+                    ),
+                ));
             }
         }
         // Force SQL now so failures are attributed to dual-write, not a later flush.
-        session.inner_mut().flush().unwrap_or_else(|err| {
-            panic!(
+        if let Err(err) = session.inner_mut().flush() {
+            session.note_write_error(crate::persistence::StorageError::Persistence(format!(
                 "dual-write ACT_RU_EXECUTION flush failed for id={}: {err}",
                 execution.id
-            )
-        });
+            )));
+        }
     }
 
-    pub fn update_execution(&self, execution: &Execution, session: &mut DbSession) {
-        self.insert_execution(execution, session);
+    pub fn update_execution(&self, execution: &Execution, session: &mut DbSession) -> Result<(), StorageError> {
+        self.insert_execution(execution, session)
     }
 
     /// Java parity (P45): `VariableScopeImpl.transientVariables` are pure memory
@@ -1258,7 +1259,7 @@ impl RuntimeStore {
                 execution,
                 &[("process_instance_id".into(), Some(process_instance_id))],
             )
-            .unwrap();
+            .unwrap_or_default();
 
         // Hard-fail dual-write (P73a): same rationale as insert_execution.
         Self::dual_write_execution(session, execution);
@@ -1273,34 +1274,52 @@ impl RuntimeStore {
         }
         self.delete_variables_by_execution_id(id, session);
         let _ = session.delete("executions", id);
-        // Dual-delete ACT_RU_EXECUTION: queue + flush immediately (P73a hard-fail).
+        // Dual-delete ACT_RU_EXECUTION: queue + flush immediately; sticky-note failures.
         match flowable_persistence::ExecutionDataManager::new().find_by_id(session.inner_mut(), id)
         {
             Ok(Some(entity)) => {
-                flowable_persistence::ExecutionDataManager::new()
+                if let Err(err) = flowable_persistence::ExecutionDataManager::new()
                     .delete(session.inner_mut(), &entity)
-                    .unwrap_or_else(|err| {
-                        panic!("dual-delete ACT_RU_EXECUTION failed for id={id}: {err}")
-                    });
-                session.inner_mut().flush().unwrap_or_else(|err| {
-                    panic!("dual-delete ACT_RU_EXECUTION flush failed for id={id}: {err}")
-                });
+                {
+                    session.note_write_error(crate::persistence::StorageError::Persistence(
+                        format!("dual-delete ACT_RU_EXECUTION failed for id={id}: {err}"),
+                    ));
+                }
+                if let Err(err) = session.inner_mut().flush() {
+                    session.note_write_error(crate::persistence::StorageError::Persistence(
+                        format!("dual-delete ACT_RU_EXECUTION flush failed for id={id}: {err}"),
+                    ));
+                }
             }
             Ok(None) => {}
             Err(err) => {
-                panic!("dual-delete ACT_RU_EXECUTION find_by_id failed for id={id}: {err}");
+                session.note_write_error(crate::persistence::StorageError::Persistence(format!(
+                    "dual-delete ACT_RU_EXECUTION find_by_id failed for id={id}: {err}"
+                )));
             }
         }
     }
 
     pub fn find_execution(&self, id: &str, session: &mut DbSession) -> Option<Execution> {
-        session.find("executions", id).unwrap_or_default()
+        match session.find("executions", id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
     }
 
     pub fn snapshot_executions(&self, session: &mut DbSession) -> HashMap<String, Execution> {
-        session
-            .find_all::<Execution>("executions")
-            .unwrap_or_default()
+        {
+            match session.find_all::<Execution>("executions") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| (e.id.clone(), e))
             .collect()
@@ -1321,7 +1340,7 @@ impl RuntimeStore {
                     Some(process_instance.process_definition_id.clone()),
                 )],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn update_process_instance(
@@ -1342,17 +1361,23 @@ impl RuntimeStore {
         &self,
         id: &str,
         session: &mut DbSession,
-    ) -> Option<ProcessInstance> {
-        session.find("process_instances", id).ok().flatten()
+    ) -> Result<Option<ProcessInstance>, StorageError> {
+        session.find("process_instances", id)
     }
 
     pub fn snapshot_process_instances(
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, ProcessInstance> {
-        session
-            .find_all::<ProcessInstance>("process_instances")
-            .unwrap_or_default()
+        {
+            match session.find_all::<ProcessInstance>("process_instances") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| (e.id.clone(), e))
             .collect()
@@ -1381,9 +1406,15 @@ impl RuntimeStore {
         now: i64,
         session: &mut DbSession,
     ) -> bool {
-        let existing: Option<ProcessInstanceLockState> = session
-            .find("process_instance_locks", process_instance_id)
-            .unwrap_or_default();
+        let existing: Option<ProcessInstanceLockState> = {
+            match session.find("process_instance_locks", process_instance_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        };
         match existing {
             None => {
                 let state = ProcessInstanceLockState {
@@ -1456,9 +1487,15 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Option<ProcessInstanceLockState> {
-        session
-            .find("process_instance_locks", process_instance_id)
-            .unwrap_or_default()
+        {
+            match session.find("process_instance_locks", process_instance_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     // ── Event Registry methods ──
@@ -1481,7 +1518,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_event_registry_deployment(
@@ -1489,29 +1526,39 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<EventRegistryDeployment> {
-        session
-            .find("event_registry_deployments", id)
-            .ok()
-            .flatten()
+        // Java parity: DbSqlSession.selectById throws on SQL error; None means a no-row query, not a storage failure.
+        match session.find("event_registry_deployments", id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
     }
 
     pub fn delete_event_registry_deployment(&self, id: &str, session: &mut DbSession) {
         let _ = session.delete("event_registry_deployments", id);
         session
             .delete_by("event_registry_channel_definitions", "deployment_id", id)
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by("event_registry_event_definitions", "deployment_id", id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_event_registry_deployments(
         &self,
         session: &mut DbSession,
     ) -> Vec<EventRegistryDeployment> {
-        session
-            .find_all("event_registry_deployments")
-            .unwrap_or_default()
+        {
+            match session.find_all("event_registry_deployments") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn insert_event_registry_channel_definition(
@@ -1538,7 +1585,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_event_registry_channel_definition(
@@ -1546,10 +1593,14 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<EventRegistryChannelDefinition> {
-        session
-            .find("event_registry_channel_definitions", id)
-            .ok()
-            .flatten()
+        // Java parity: DbSqlSession.selectById throws on SQL error; None means a no-row query, not a storage failure.
+        match session.find("event_registry_channel_definitions", id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
     }
 
     pub fn find_event_registry_channel_definition_by_key(
@@ -1558,9 +1609,14 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Option<EventRegistryChannelDefinition> {
         // Task 9: SQL WHERE pushdown on indexed `key` column replaces full-table load + memory filter.
-        let definitions: Vec<EventRegistryChannelDefinition> = session
-            .find_by("event_registry_channel_definitions", "key", key)
-            .unwrap_or_default();
+        let definitions: Vec<EventRegistryChannelDefinition> =
+            match session.find_by("event_registry_channel_definitions", "key", key) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         definitions.into_iter().max_by(|left, right| {
             left.version
                 .cmp(&right.version)
@@ -1575,9 +1631,14 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Option<EventRegistryChannelDefinition> {
         // Task 9: SQL WHERE pushdown on `key` column; tenant filter remains in-memory (sparse).
-        let definitions: Vec<EventRegistryChannelDefinition> = session
-            .find_by("event_registry_channel_definitions", "key", key)
-            .unwrap_or_default();
+        let definitions: Vec<EventRegistryChannelDefinition> =
+            match session.find_by("event_registry_channel_definitions", "key", key) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
 
         if let Some(tenant_id) = tenant_id
             && let Some(definition) = definitions
@@ -1607,9 +1668,15 @@ impl RuntimeStore {
         &self,
         session: &mut DbSession,
     ) -> Vec<EventRegistryChannelDefinition> {
-        session
-            .find_all("event_registry_channel_definitions")
-            .unwrap_or_default()
+        {
+            match session.find_all("event_registry_channel_definitions") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn insert_event_registry_event_definition(
@@ -1637,7 +1704,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_event_registry_event_definition(
@@ -1645,9 +1712,15 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<EventRegistryEventDefinition> {
-        session
-            .find("event_registry_event_definitions", id)
-            .unwrap_or_default()
+        {
+            match session.find("event_registry_event_definitions", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_event_registry_event_definition_by_key(
@@ -1704,18 +1777,29 @@ impl RuntimeStore {
         event_type: &str,
         session: &mut DbSession,
     ) -> Vec<EventRegistryEventDefinition> {
-        session
-            .find_by("event_registry_event_definitions", "event_type", event_type)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("event_registry_event_definitions", "event_type", event_type) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn list_event_registry_event_definitions(
         &self,
         session: &mut DbSession,
     ) -> Vec<EventRegistryEventDefinition> {
-        session
-            .find_all("event_registry_event_definitions")
-            .unwrap_or_default()
+        {
+            match session.find_all("event_registry_event_definitions") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn insert_event_registry_event_instance_delivery(
@@ -1738,7 +1822,7 @@ impl RuntimeStore {
                     "direction".into(),
                     Some(
                         serde_json::to_string(&delivery.direction)
-                            .unwrap()
+                            .map_err(StorageError::from)?
                             .trim_matches('"')
                             .to_string(),
                     ),
@@ -1747,7 +1831,7 @@ impl RuntimeStore {
                     "status".into(),
                     Some(
                         serde_json::to_string(&delivery.status)
-                            .unwrap()
+                            .map_err(StorageError::from)?
                             .trim_matches('"')
                             .to_string(),
                     ),
@@ -1841,14 +1925,19 @@ impl RuntimeStore {
         &self,
         session: &mut DbSession,
     ) -> Vec<EventRegistryChangeRecord> {
-        let mut records: Vec<EventRegistryChangeRecord> = session
-            .find_with_filters(
+        let mut records: Vec<EventRegistryChangeRecord> =
+            match session.find_with_filters(
                 "event_registry_change_records",
                 &[],
                 Some(("revision", true)),
                 None,
-            )
-            .unwrap_or_default();
+            ) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         // Stable tie-break for legacy rows that predate the unique revision index.
         records.sort_by(|left, right| {
             left.revision
@@ -1866,17 +1955,21 @@ impl RuntimeStore {
         limit: usize,
         session: &mut DbSession,
     ) -> Vec<EventRegistryChangeRecord> {
-        session
-            .find_with_filters(
-                "event_registry_change_records",
-                &[(
-                    "revision".to_string(),
-                    FilterOp::GreaterThan(after_revision as i64),
-                )],
-                Some(("revision", true)),
-                Some(limit),
-            )
-            .unwrap_or_default()
+        match session.find_with_filters(
+            "event_registry_change_records",
+            &[(
+                "revision".to_string(),
+                FilterOp::GreaterThan(after_revision as i64),
+            )],
+            Some(("revision", true)),
+            Some(limit),
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     // ── Forms methods ──
@@ -1895,7 +1988,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_form_deployment(
@@ -1903,11 +1996,27 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<FormDeployment> {
-        session.find("form_deployments", id).ok().flatten()
+        {
+            match session.find("form_deployments", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn list_form_deployments(&self, session: &mut DbSession) -> Vec<FormDeployment> {
-        session.find_all("form_deployments").unwrap_or_default()
+        {
+            match session.find_all("form_deployments") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn insert_form_definition(&self, definition: FormDefinition, session: &mut DbSession) {
@@ -1930,7 +2039,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_form_definition(
@@ -1938,7 +2047,15 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<FormDefinition> {
-        session.find("form_definitions", id).ok().flatten()
+        {
+            match session.find("form_definitions", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_form_definition_by_key(
@@ -1946,15 +2063,28 @@ impl RuntimeStore {
         key: &str,
         session: &mut DbSession,
     ) -> Option<FormDefinition> {
-        session
-            .find_by::<FormDefinition>("form_definitions", "key", key)
-            .unwrap_or_default()
-            .into_iter()
-            .next()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        (match session.find_by::<FormDefinition>("form_definitions", "key", key) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .next()
     }
 
     pub fn list_form_definitions(&self, session: &mut DbSession) -> Vec<FormDefinition> {
-        session.find_all("form_definitions").unwrap_or_default()
+        {
+            match session.find_all("form_definitions") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     // ── Content methods ──
@@ -1971,7 +2101,7 @@ impl RuntimeStore {
                     ("created_at".into(), Some(item.created_at.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn update_content_item(&self, item: ContentItem, session: &mut DbSession) {
@@ -1979,11 +2109,27 @@ impl RuntimeStore {
     }
 
     pub fn find_content_item(&self, id: &str, session: &mut DbSession) -> Option<ContentItem> {
-        session.find("content_items", id).unwrap_or_default()
+        {
+            match session.find("content_items", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn list_content_items(&self, session: &mut DbSession) -> Vec<ContentItem> {
-        session.find_all("content_items").unwrap_or_default()
+        {
+            match session.find_all("content_items") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn delete_content_item(&self, id: &str, session: &mut DbSession) {
@@ -2018,7 +2164,7 @@ impl RuntimeStore {
                     ("comment_type".into(), Some(projected_type)),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_historic_comment(
@@ -2026,7 +2172,15 @@ impl RuntimeStore {
         comment_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricComment> {
-        session.find("historic_comments", comment_id).ok().flatten()
+        {
+            match session.find("historic_comments", comment_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_historic_comments_by_task_id(
@@ -2036,9 +2190,14 @@ impl RuntimeStore {
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
         // Java Comment.xml `selectCommentsByTaskId`: TYPE_ = 'comment', TIME_ desc.
         // Custom-type comments are excluded (use find_historic_comments_by_task_id_and_type).
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = session
-            .find_by("historic_comments", "task_id", task_id)
-            .unwrap_or_default();
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
+            match session.find_by("historic_comments", "task_id", task_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         comments.retain(|comment| {
             comment.resolved_type()
                 == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
@@ -2055,21 +2214,31 @@ impl RuntimeStore {
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
         // Prefer the projected type index; fall back to resolved_type so legacy
         // rows with a NULL comment_type column still match.
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = session
-            .find_by_two(
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
+            match session.find_by_two(
                 "historic_comments",
                 "task_id",
                 task_id,
                 "comment_type",
                 comment_type,
-            )
-            .unwrap_or_default();
+            ) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
             || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
         {
-            let by_task: Vec<crate::history::historic_entities::HistoricComment> = session
-                .find_by("historic_comments", "task_id", task_id)
-                .unwrap_or_default();
+            let by_task: Vec<crate::history::historic_entities::HistoricComment> =
+                match session.find_by("historic_comments", "task_id", task_id) {
+                    Ok(found) => found,
+                    Err(error) => {
+                        session.note_write_error(error);
+                        Vec::new()
+                    }
+                };
             for comment in by_task {
                 if comment.resolved_type() == comment_type
                     && !comments.iter().any(|existing| existing.id == comment.id)
@@ -2091,13 +2260,18 @@ impl RuntimeStore {
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
         // Java `selectCommentsByProcessInstanceId` does not filter by type
         // (includes event-style comments such as identity-link audit rows).
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = session
-            .find_by(
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
+            match session.find_by(
                 "historic_comments",
                 "process_instance_id",
                 process_instance_id,
-            )
-            .unwrap_or_default();
+            ) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         // Java Comment.xml `selectCommentsByProcessInstanceId`: order by TIME_ desc
         comments.sort_by(|left, right| right.time.cmp(&left.time).then(right.id.cmp(&left.id)));
         comments
@@ -2109,25 +2283,35 @@ impl RuntimeStore {
         comment_type: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = session
-            .find_by_two(
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
+            match session.find_by_two(
                 "historic_comments",
                 "process_instance_id",
                 process_instance_id,
                 "comment_type",
                 comment_type,
-            )
-            .unwrap_or_default();
+            ) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
             || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
         {
-            let by_pi: Vec<crate::history::historic_entities::HistoricComment> = session
-                .find_by(
+            let by_pi: Vec<crate::history::historic_entities::HistoricComment> =
+                match session.find_by(
                     "historic_comments",
                     "process_instance_id",
                     process_instance_id,
-                )
-                .unwrap_or_default();
+                ) {
+                    Ok(found) => found,
+                    Err(error) => {
+                        session.note_write_error(error);
+                        Vec::new()
+                    }
+                };
             for comment in by_pi {
                 if comment.resolved_type() == comment_type
                     && !comments.iter().any(|existing| existing.id == comment.id)
@@ -2148,16 +2332,29 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricComment> {
         // Index path for projected types.
-        let mut comments: Vec<crate::history::historic_entities::HistoricComment> = session
-            .find_by("historic_comments", "comment_type", comment_type)
-            .unwrap_or_default();
+        let mut comments: Vec<crate::history::historic_entities::HistoricComment> =
+            match session.find_by("historic_comments", "comment_type", comment_type) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         // Legacy JSON rows may lack both the projected column and the field;
         // include those whose resolved_type matches (Java TYPE_COMMENT/EVENT).
         if comment_type == crate::history::historic_entities::HistoricComment::TYPE_COMMENT
             || comment_type == crate::history::historic_entities::HistoricComment::TYPE_EVENT
         {
             let all: Vec<crate::history::historic_entities::HistoricComment> =
-                session.find_all("historic_comments").unwrap_or_default();
+                {
+            match session.find_all("historic_comments") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        };
             for comment in all {
                 if comment.resolved_type() == comment_type
                     && !comments.iter().any(|existing| existing.id == comment.id)
@@ -2194,7 +2391,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_historic_task_event(
@@ -2202,9 +2399,15 @@ impl RuntimeStore {
         event_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricTaskEvent> {
-        session
-            .find("historic_task_events", event_id)
-            .unwrap_or_default()
+        {
+            match session.find("historic_task_events", event_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_historic_task_events_by_task_id(
@@ -2212,9 +2415,14 @@ impl RuntimeStore {
         task_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricTaskEvent> {
-        let mut events: Vec<crate::history::historic_entities::HistoricTaskEvent> = session
-            .find_by("historic_task_events", "task_id", task_id)
-            .unwrap_or_default();
+        let mut events: Vec<crate::history::historic_entities::HistoricTaskEvent> =
+            match session.find_by("historic_task_events", "task_id", task_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         // Java Comment.xml `selectEventsByTaskId`: order by TIME_ desc
         events.sort_by(|left, right| right.time.cmp(&left.time).then(right.id.cmp(&left.id)));
         events
@@ -2227,7 +2435,7 @@ impl RuntimeStore {
     pub fn next_historic_task_log_number(&self, session: &mut DbSession) -> i64 {
         session
             .max("historic_task_log_entries", "log_number", &[])
-            .unwrap()
+            .unwrap_or_default()
             .unwrap_or(0)
             + 1
     }
@@ -2260,18 +2468,22 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_historic_task_log_entries(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricTaskLogEntry> {
-        let mut entries = session
-            .find_all::<crate::history::historic_entities::HistoricTaskLogEntry>(
-                "historic_task_log_entries",
-            )
-            .unwrap_or_default();
+        let mut entries = {
+            match session.find_all::<crate::history::historic_entities::HistoricTaskLogEntry>("historic_task_log_entries") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        };
         entries.sort_by_key(|left| left.log_number);
         entries
     }
@@ -2297,7 +2509,7 @@ impl RuntimeStore {
                         "status".into(),
                         Some(
                             serde_json::to_string(&record.status)
-                                .unwrap()
+                                .unwrap_or_default()
                                 .trim_matches('"')
                                 .to_string(),
                         ),
@@ -2305,11 +2517,19 @@ impl RuntimeStore {
                     ("created_at".into(), Some(record.created_at.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_http_task_records(&self, session: &mut DbSession) -> Vec<HttpTaskRecord> {
-        session.find_all("http_task_records").unwrap_or_default()
+        {
+            match session.find_all("http_task_records") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn find_http_task_records_by_process_instance_id(
@@ -2317,13 +2537,18 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<HttpTaskRecord> {
-        session
-            .find_by(
-                "http_task_records",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "http_task_records",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     // ── Mail outbox methods ──
@@ -2347,7 +2572,7 @@ impl RuntimeStore {
                         "status".into(),
                         Some(
                             serde_json::to_string(&record.status)
-                                .unwrap()
+                                .unwrap_or_default()
                                 .trim_matches('"')
                                 .to_string(),
                         ),
@@ -2355,11 +2580,19 @@ impl RuntimeStore {
                     ("created_at".into(), Some(record.created_at.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_mail_outbox_records(&self, session: &mut DbSession) -> Vec<MailOutboxRecord> {
-        session.find_all("mail_outbox_records").unwrap_or_default()
+        {
+            match session.find_all("mail_outbox_records") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn find_mail_outbox_records_by_process_instance_id(
@@ -2367,18 +2600,23 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<MailOutboxRecord> {
-        session
-            .find_by(
-                "mail_outbox_records",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "mail_outbox_records",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     // ── Task methods ──
 
-    pub fn insert_task(&self, task: &crate::task::Task, session: &mut DbSession) {
+    pub fn insert_task(&self, task: &crate::task::Task, session: &mut DbSession) -> Result<(), StorageError> {
         let mut task = task.clone();
         // Task 6: single batched resolve replaces 4 separate XML parses.
         // Only resolve when at least one property is missing.
@@ -2394,7 +2632,7 @@ impl RuntimeStore {
                 &task.execution_id,
                 &task.task_definition_key,
                 session,
-            );
+            )?;
             if task.assignee.is_none() {
                 task.assignee = props.assignee;
             }
@@ -2440,24 +2678,31 @@ impl RuntimeStore {
                             .map(|due_date| due_date.timestamp_millis().to_string()),
                     ),
                 ],
-            )
-            .unwrap();
+            )?;
         // P97: no silent historic sync here. History writes belong to the
         // HistoryManager (gating + async buffer + identity-link diff); syncing
         // the historic row in the store consumed the IL diff in
         // record_task_updated and bypassed history_disabled/async_history.
-    }
+        Ok(())
+}
 
-    pub fn update_task(&self, task: &crate::task::Task, session: &mut DbSession) {
-        self.insert_task(task, session);
-    }
+    pub fn update_task(&self, task: &crate::task::Task, session: &mut DbSession) -> Result<(), crate::persistence::StorageError> {
+        self.insert_task(task, session)?;
+        Ok(())
+}
 
     pub fn delete_task(&self, id: &str, session: &mut DbSession) {
         let _ = session.delete("tasks", id);
     }
 
-    pub fn find_task(&self, id: &str, session: &mut DbSession) -> Option<crate::task::Task> {
-        session.find("tasks", id).unwrap_or_default()
+    /// A successful query may have no row; a failed query must stop its caller.
+    /// Java DbSqlSession.selectOne propagates the persistence exception here.
+    pub fn find_task(
+        &self,
+        id: &str,
+        session: &mut DbSession,
+    ) -> Result<Option<crate::task::Task>, StorageError> {
+        session.find("tasks", id)
     }
 
     pub fn find_tasks_by_process_instance_id(
@@ -2465,9 +2710,14 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::task::Task> {
-        session
-            .find_by("tasks", "process_instance_id", process_instance_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("tasks", "process_instance_id", process_instance_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_task_by_execution_id(
@@ -2475,11 +2725,16 @@ impl RuntimeStore {
         execution_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::task::Task> {
-        session
-            .find_by::<crate::task::Task>("tasks", "execution_id", execution_id)
-            .unwrap_or_default()
-            .into_iter()
-            .next()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        (match session.find_by::<crate::task::Task>("tasks", "execution_id", execution_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .next()
     }
 
     pub fn find_tasks_by_parent_task_id(
@@ -2487,15 +2742,26 @@ impl RuntimeStore {
         parent_task_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::task::Task> {
-        session
-            .find_by("tasks", "parent_task_id", parent_task_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("tasks", "parent_task_id", parent_task_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn snapshot_tasks(&self, session: &mut DbSession) -> HashMap<String, crate::task::Task> {
-        session
-            .find_all::<crate::task::Task>("tasks")
-            .unwrap_or_default()
+        {
+            match session.find_all::<crate::task::Task>("tasks") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|t| (t.id.clone(), t))
             .collect()
@@ -2507,7 +2773,7 @@ impl RuntimeStore {
         execution_id: &str,
         task_definition_key: &str,
         session: &mut DbSession,
-    ) -> Option<String> {
+    ) -> Result<Option<String>, StorageError> {
         self.resolve_user_task_property(
             process_instance_id,
             execution_id,
@@ -2523,7 +2789,7 @@ impl RuntimeStore {
         execution_id: &str,
         task_definition_key: &str,
         session: &mut DbSession,
-    ) -> Option<String> {
+    ) -> Result<Option<String>, StorageError> {
         self.resolve_user_task_property(
             process_instance_id,
             execution_id,
@@ -2539,7 +2805,7 @@ impl RuntimeStore {
         execution_id: &str,
         task_definition_key: &str,
         session: &mut DbSession,
-    ) -> Option<i32> {
+    ) -> Result<Option<i32>, StorageError> {
         self.resolve_user_task_property(
             process_instance_id,
             execution_id,
@@ -2560,7 +2826,7 @@ impl RuntimeStore {
         execution_id: &str,
         task_definition_key: &str,
         session: &mut DbSession,
-    ) -> Option<DateTime<Utc>> {
+    ) -> Result<Option<DateTime<Utc>>, StorageError> {
         let now = self.time_source.now();
         self.resolve_user_task_property(
             process_instance_id,
@@ -2587,40 +2853,31 @@ impl RuntimeStore {
         execution_id: &str,
         task_definition_key: &str,
         session: &mut DbSession,
-    ) -> UserTaskProperties {
+    ) -> Result<UserTaskProperties, StorageError> {
         let execution = self.find_execution(execution_id, session);
-        let process_definition_id = match execution
-            .as_ref()
-            .and_then(|execution| execution.process_definition_id.clone())
-            .or_else(|| {
-                self.find_process_instance(process_instance_id, session)
-                    .map(|instance| instance.process_definition_id)
-            }) {
-            Some(id) => id,
-            None => return UserTaskProperties::default(),
+        let process_definition_id = match execution.as_ref().and_then(|execution| execution.process_definition_id.clone()) {
+            Some(id) => Some(id),
+            None => self.find_process_instance(process_instance_id, session)?.map(|instance| instance.process_definition_id),
         };
+        let Some(process_definition_id) = process_definition_id else { return Ok(UserTaskProperties::default()); };
         let activity_id = execution
             .as_ref()
             .and_then(|execution| execution.activity_id.clone())
             .unwrap_or_else(|| task_definition_key.to_string());
-        let process_definition: ProcessDefinition = match session
-            .find("process_definitions", &process_definition_id)
-            .unwrap_or_default()
-        {
-            Some(pd) => pd,
-            None => return UserTaskProperties::default(),
+        let Some(process_definition) = session.find::<ProcessDefinition>("process_definitions", &process_definition_id)? else {
+            return Ok(UserTaskProperties::default());
         };
         let deployment_id = match process_definition.deployment_id {
             Some(id) => id,
-            None => return UserTaskProperties::default(),
+            None => return Ok(UserTaskProperties::default()),
         };
         let resource_name = match process_definition.resource_name {
             Some(name) => name,
-            None => return UserTaskProperties::default(),
+            None => return Ok(UserTaskProperties::default()),
         };
         let bytes = match self.deployment_resource_bytes(&deployment_id, &resource_name, session) {
             Some(b) => b,
-            None => return UserTaskProperties::default(),
+            None => return Ok(UserTaskProperties::default()),
         };
 
         // Prefer cache; fall back to direct parse for backward compatibility.
@@ -2629,7 +2886,7 @@ impl RuntimeStore {
         } else {
             let xml = match std::str::from_utf8(&bytes).ok() {
                 Some(s) => s,
-                None => return UserTaskProperties::default(),
+                None => return Ok(UserTaskProperties::default()),
             };
             BpmnXMLConverter::new()
                 .try_convert_to_bpmn_model(xml)
@@ -2638,7 +2895,7 @@ impl RuntimeStore {
         };
 
         let Some(model) = model else {
-            return UserTaskProperties::default();
+            return Ok(UserTaskProperties::default());
         };
 
         // Single pass over flow_elements to extract all properties.
@@ -2674,7 +2931,7 @@ impl RuntimeStore {
                             .ok()
                             .flatten()
                         });
-                        return UserTaskProperties {
+                        return Ok(UserTaskProperties {
                             assignee: user_task.assignee.clone(),
                             owner: user_task.owner.clone(),
                             priority: user_task
@@ -2684,12 +2941,12 @@ impl RuntimeStore {
                             due_date,
                             category: user_task.category.clone(),
                             form_key: user_task.form_key.clone(),
-                        };
+                        });
                     }
                 }
             }
         }
-        UserTaskProperties::default()
+        Ok(UserTaskProperties::default())
     }
 
     fn resolve_user_task_property<T>(
@@ -2699,31 +2956,24 @@ impl RuntimeStore {
         task_definition_key: &str,
         property: impl Fn(&flowable_bpmn_model::model::UserTask) -> Option<T>,
         session: &mut DbSession,
-    ) -> Option<T> {
+    ) -> Result<Option<T>, StorageError> {
         let execution = self.find_execution(execution_id, session);
-        let process_definition_id = execution
-            .as_ref()
-            .and_then(|execution| execution.process_definition_id.clone())
-            .or_else(|| {
-                self.find_process_instance(process_instance_id, session)
-                    .map(|instance| instance.process_definition_id)
-            })?;
+        let process_definition_id = match execution.as_ref().and_then(|execution| execution.process_definition_id.clone()) {
+            Some(id) => Some(id),
+            None => self.find_process_instance(process_instance_id, session)?.map(|instance| instance.process_definition_id),
+        };
+        let Some(process_definition_id) = process_definition_id else { return Ok(None); };
         let activity_id = execution
             .and_then(|execution| execution.activity_id)
             .unwrap_or_else(|| task_definition_key.to_string());
-        let process_definition: ProcessDefinition = session
-            .find("process_definitions", &process_definition_id)
-            .ok()
-            .flatten()?;
-        let deployment_id = process_definition.deployment_id?;
-        let resource_name = process_definition.resource_name?;
-        let bytes = self.deployment_resource_bytes(&deployment_id, &resource_name, session)?;
-        let xml = std::str::from_utf8(&bytes).ok()?;
-        let model = BpmnXMLConverter::new()
-            .try_convert_to_bpmn_model(xml)
-            .ok()?;
+        let Some(process_definition) = session.find::<ProcessDefinition>("process_definitions", &process_definition_id)? else { return Ok(None); };
+        let Some(deployment_id) = process_definition.deployment_id else { return Ok(None); };
+        let Some(resource_name) = process_definition.resource_name else { return Ok(None); };
+        let Some(bytes) = self.deployment_resource_bytes(&deployment_id, &resource_name, session) else { return Ok(None); };
+        let Some(xml) = std::str::from_utf8(&bytes).ok() else { return Ok(None); };
+        let Some(model) = BpmnXMLConverter::new().try_convert_to_bpmn_model(xml).ok() else { return Ok(None); };
 
-        model
+        Ok(model
             .processes
             .iter()
             .flat_map(|process| process.flow_elements.iter())
@@ -2742,7 +2992,7 @@ impl RuntimeStore {
                     property(user_task)
                 }
                 _ => None,
-            })
+            }))
     }
 
     fn deployment_resource_bytes(
@@ -2751,16 +3001,21 @@ impl RuntimeStore {
         name: &str,
         session: &mut DbSession,
     ) -> Option<Vec<u8>> {
-        session
-            .find_blob_by_two(
-                "deployment_resources",
-                "deployment_id",
-                deployment_id,
-                "name",
-                name,
-                "bytes",
-            )
-            .unwrap()
+        // Java parity: a blob SELECT throws on SQL error; None means a no-row query, not a storage failure.
+        match session.find_blob_by_two(
+            "deployment_resources",
+            "deployment_id",
+            deployment_id,
+            "name",
+            name,
+            "bytes",
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
     }
 
     // ── Identity-Link methods ──
@@ -2790,7 +3045,7 @@ impl RuntimeStore {
                     ("group_id".into(), link.group_id.clone()),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_identity_link(&self, link_id: &str, session: &mut DbSession) {
@@ -2802,7 +3057,15 @@ impl RuntimeStore {
         link_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::IdentityLink> {
-        session.find("identity_links", link_id).ok().flatten()
+        {
+            match session.find("identity_links", link_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_identity_links_by_task(
@@ -2810,9 +3073,13 @@ impl RuntimeStore {
         task_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session
-            .find_by("identity_links", "task_id", task_id)
-            .unwrap_or_default()
+        match session.find_by("identity_links", "task_id", task_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     /// Batch-query identity links for multiple task IDs in a single SQL call.
@@ -2827,9 +3094,13 @@ impl RuntimeStore {
         }
         let filters: Vec<(String, FilterOp)> =
             vec![("task_id".to_string(), FilterOp::In(task_ids.to_vec()))];
-        session
-            .find_with_filters("identity_links", &filters, None, None)
-            .unwrap()
+        match session.find_with_filters("identity_links", &filters, None, None) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_identity_links_by_process_instance(
@@ -2837,9 +3108,13 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session
-            .find_by("identity_links", "process_instance_id", process_instance_id)
-            .unwrap_or_default()
+        match session.find_by("identity_links", "process_instance_id", process_instance_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_identity_links_by_process_definition(
@@ -2847,13 +3122,17 @@ impl RuntimeStore {
         process_definition_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session
-            .find_by(
-                "identity_links",
-                "process_definition_id",
-                process_definition_id,
-            )
-            .unwrap_or_default()
+        match session.find_by(
+            "identity_links",
+            "process_definition_id",
+            process_definition_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_identity_links_by_user(
@@ -2861,9 +3140,13 @@ impl RuntimeStore {
         user_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session
-            .find_by("identity_links", "user_id", user_id)
-            .unwrap_or_default()
+        match session.find_by("identity_links", "user_id", user_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     /// Returns distinct process-instance ids linked to `user_id`, regardless
@@ -2889,9 +3172,13 @@ impl RuntimeStore {
         group_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session
-            .find_by("identity_links", "group_id", group_id)
-            .unwrap_or_default()
+        match session.find_by("identity_links", "group_id", group_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_identity_links_by_type(
@@ -2899,16 +3186,28 @@ impl RuntimeStore {
         link_type: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session
-            .find_by("identity_links", "link_type", link_type)
-            .unwrap_or_default()
+        match session.find_by("identity_links", "link_type", link_type) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn list_identity_links(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::IdentityLink> {
-        session.find_all("identity_links").unwrap_or_default()
+        {
+            match session.find_all("identity_links") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     // ── Historic identity-link methods (P77 / ACT_HI_IDENTITYLINK) ──
@@ -2947,7 +3246,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_historic_identity_link(&self, link_id: &str, session: &mut DbSession) {
@@ -2959,10 +3258,13 @@ impl RuntimeStore {
         link_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricIdentityLink> {
-        session
-            .find("historic_identity_links", link_id)
-            .ok()
-            .flatten()
+        match session.find("historic_identity_links", link_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
     }
 
     pub fn find_historic_identity_links_by_task(
@@ -2970,9 +3272,13 @@ impl RuntimeStore {
         task_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricIdentityLink> {
-        session
-            .find_by("historic_identity_links", "task_id", task_id)
-            .unwrap_or_default()
+        match session.find_by("historic_identity_links", "task_id", task_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_historic_identity_links_by_process_instance(
@@ -2980,13 +3286,17 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricIdentityLink> {
-        session
-            .find_by(
-                "historic_identity_links",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        match session.find_by(
+            "historic_identity_links",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_historic_identity_links_by_user(
@@ -2994,9 +3304,13 @@ impl RuntimeStore {
         user_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricIdentityLink> {
-        session
-            .find_by("historic_identity_links", "user_id", user_id)
-            .unwrap_or_default()
+        match session.find_by("historic_identity_links", "user_id", user_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_historic_identity_links_by_scope(
@@ -3005,9 +3319,14 @@ impl RuntimeStore {
         scope_type: Option<&str>,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricIdentityLink> {
-        let mut links: Vec<crate::history::historic_entities::HistoricIdentityLink> = session
-            .find_by("historic_identity_links", "scope_id", scope_id)
-            .unwrap_or_default();
+        let mut links: Vec<crate::history::historic_entities::HistoricIdentityLink> =
+            match session.find_by("historic_identity_links", "scope_id", scope_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         if let Some(scope_type) = scope_type {
             links.retain(|link| link.scope_type.as_deref() == Some(scope_type));
         }
@@ -3054,7 +3373,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_entity_link(&self, link_id: &str, session: &mut DbSession) {
@@ -3066,9 +3385,14 @@ impl RuntimeStore {
         scope_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::EntityLink> {
-        session
-            .find_by("entity_links", "scope_id", scope_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("entity_links", "scope_id", scope_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_entity_links_by_reference_scope(
@@ -3076,9 +3400,14 @@ impl RuntimeStore {
         reference_scope_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::EntityLink> {
-        session
-            .find_by("entity_links", "reference_scope_id", reference_scope_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("entity_links", "reference_scope_id", reference_scope_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_entity_links_by_link_type(
@@ -3086,16 +3415,29 @@ impl RuntimeStore {
         link_type: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::EntityLink> {
-        session
-            .find_by("entity_links", "link_type", link_type)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("entity_links", "link_type", link_type) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn list_entity_links(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::EntityLink> {
-        session.find_all("entity_links").unwrap_or_default()
+        {
+            match session.find_all("entity_links") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     // ── Batch methods ──
@@ -3120,7 +3462,7 @@ impl RuntimeStore {
                     ("tenant_id".into(), batch.tenant_id.clone()),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_engine_properties(
@@ -3322,21 +3664,37 @@ impl RuntimeStore {
         batch_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::BatchEntity> {
-        session.find("batch_entities", batch_id).unwrap_or_default()
+        {
+            match session.find("batch_entities", batch_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn delete_batch(&self, batch_id: &str, session: &mut DbSession) {
         let _ = session.delete("batch_entities", batch_id);
         session
             .delete_by("batch_part_entities", "batch_id", batch_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_batches(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::BatchEntity> {
-        session.find_all("batch_entities").unwrap_or_default()
+        {
+            match session.find_all("batch_entities") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn find_batches_by_status(
@@ -3344,9 +3702,14 @@ impl RuntimeStore {
         status: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::BatchEntity> {
-        session
-            .find_by("batch_entities", "status", status)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("batch_entities", "status", status) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_batches_by_type(
@@ -3354,9 +3717,14 @@ impl RuntimeStore {
         batch_type: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::BatchEntity> {
-        session
-            .find_by("batch_entities", "batch_type", batch_type)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("batch_entities", "batch_type", batch_type) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_batches_by_tenant_id(
@@ -3364,9 +3732,14 @@ impl RuntimeStore {
         tenant_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::BatchEntity> {
-        session
-            .find_by("batch_entities", "tenant_id", tenant_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("batch_entities", "tenant_id", tenant_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn insert_batch_part(
@@ -3389,7 +3762,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_batch_part(
@@ -3397,9 +3770,15 @@ impl RuntimeStore {
         batch_part_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::BatchPartEntity> {
-        session
-            .find("batch_part_entities", batch_part_id)
-            .unwrap_or_default()
+        {
+            match session.find("batch_part_entities", batch_part_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_batch_parts_by_batch_id(
@@ -3407,9 +3786,14 @@ impl RuntimeStore {
         batch_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::BatchPartEntity> {
-        session
-            .find_by("batch_part_entities", "batch_id", batch_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("batch_part_entities", "batch_id", batch_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_batch_parts_by_batch_id_and_status(
@@ -3449,34 +3833,35 @@ impl RuntimeStore {
                     ("name".into(), Some(name.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_variables_by_execution_id(
         &self,
         execution_id: &str,
         session: &mut DbSession,
-    ) -> HashMap<String, serde_json::Value> {
-        session
-            .find_raw_by("variables", "execution_id", execution_id)
-            .unwrap()
-            .into_iter()
-            .map(|row| {
-                let name = row
-                    .extras
-                    .get("name")
-                    .and_then(|n| n.clone())
-                    .unwrap_or_default();
-                let value = serde_json::from_str(&row.data).unwrap();
-                (name, value)
-            })
-            .collect()
+    ) -> Result<HashMap<String, serde_json::Value>, StorageError> {
+        let rows = session.find_raw_by("variables", "execution_id", execution_id)?;
+        let mut out = HashMap::with_capacity(rows.len());
+        for row in rows {
+            let name = row
+                .extras
+                .get("name")
+                .and_then(|n| n.clone())
+                .unwrap_or_default();
+            // Java parity: corrupt variable JSON is a persistence failure, not null.
+            let value = serde_json::from_str(&row.data).map_err(|e| {
+                StorageError::Deserialization(format!("variable '{name}' in execution '{execution_id}': {e}"))
+            })?;
+            out.insert(name, value);
+        }
+        Ok(out)
     }
 
     pub fn delete_variables_by_execution_id(&self, execution_id: &str, session: &mut DbSession) {
         session
             .delete_by("variables", "execution_id", execution_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_variable_by_execution_id_and_name(
@@ -3496,7 +3881,7 @@ impl RuntimeStore {
     ) {
         session
             .delete_by("variables", "process_instance_id", process_instance_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     // ── Event Subscription methods ──
@@ -3526,7 +3911,7 @@ impl RuntimeStore {
                     ("event_kind".into(), Some(event_kind.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_event_subscriptions_by_execution_id(
@@ -3534,9 +3919,14 @@ impl RuntimeStore {
         execution_id: &str,
         session: &mut DbSession,
     ) -> Vec<serde_json::Value> {
-        session
-            .find_by("event_subscriptions", "execution_id", execution_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("event_subscriptions", "execution_id", execution_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn delete_event_subscriptions_by_execution_id(
@@ -3546,7 +3936,7 @@ impl RuntimeStore {
     ) {
         session
             .delete_by("event_subscriptions", "execution_id", execution_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     // ── Event wait state methods ──
@@ -3572,7 +3962,7 @@ impl RuntimeStore {
                     // Java event-subscription eventType for registry events.
                     EventSubscriptionKind::EventRegistry => "event-registry",
                 },
-                serde_json::to_value(wait_state).unwrap(),
+                serde_json::to_value(wait_state).unwrap_or(serde_json::Value::Null),
                 session,
             );
         }
@@ -3587,7 +3977,7 @@ impl RuntimeStore {
                     Some(wait_state.process_instance_id.clone()),
                 )],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn insert_message_style_wait_state(
@@ -3620,9 +4010,15 @@ impl RuntimeStore {
         execution_id: &str,
         session: &mut DbSession,
     ) -> Option<RuntimeEventWaitState> {
-        session
-            .find("event_wait_states", execution_id)
-            .unwrap_or_default()
+        {
+            match session.find("event_wait_states", execution_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_message_style_wait_state_by_execution_id(
@@ -3638,13 +4034,18 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<RuntimeEventWaitState> {
-        session
-            .find_by(
-                "event_wait_states",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "event_wait_states",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn delete_event_wait_states_by_process_instance_id(
@@ -3658,7 +4059,7 @@ impl RuntimeStore {
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_message_style_wait_states_by_process_instance_id(
@@ -3673,9 +4074,15 @@ impl RuntimeStore {
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, RuntimeEventWaitState> {
-        session
-            .find_all::<RuntimeEventWaitState>("event_wait_states")
-            .unwrap_or_default()
+        {
+            match session.find_all::<RuntimeEventWaitState>("event_wait_states") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| (e.execution_id.clone(), e))
             .collect()
@@ -3712,7 +4119,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_boundary_event_state(
@@ -3736,7 +4143,7 @@ impl RuntimeStore {
                 "host_execution_id",
                 host_execution_id,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_boundary_event_state(
@@ -3746,9 +4153,15 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Option<RuntimeBoundaryEventState> {
         let key = format!("{}:{}", process_instance_id, boundary_event_id);
-        session
-            .find("boundary_event_states", &key)
-            .unwrap_or_default()
+        {
+            match session.find("boundary_event_states", &key) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_boundary_event_states_by_host_execution_id(
@@ -3756,13 +4169,18 @@ impl RuntimeStore {
         host_execution_id: &str,
         session: &mut DbSession,
     ) -> Vec<RuntimeBoundaryEventState> {
-        session
-            .find_by(
-                "boundary_event_states",
-                "host_execution_id",
-                host_execution_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "boundary_event_states",
+            "host_execution_id",
+            host_execution_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_boundary_event_states_by_process_instance_id(
@@ -3770,13 +4188,18 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<RuntimeBoundaryEventState> {
-        session
-            .find_by(
-                "boundary_event_states",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "boundary_event_states",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn delete_boundary_event_states_by_process_instance_id(
@@ -3790,16 +4213,22 @@ impl RuntimeStore {
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn snapshot_boundary_event_states(
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, RuntimeBoundaryEventState> {
-        session
-            .find_all::<RuntimeBoundaryEventState>("boundary_event_states")
-            .unwrap_or_default()
+        {
+            match session.find_all::<RuntimeBoundaryEventState>("boundary_event_states") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| {
                 (
@@ -3812,17 +4241,18 @@ impl RuntimeStore {
 
     // ── Timer Job State methods ──
 
-    pub fn insert_timer_job_state(&self, state: &RuntimeTimerJobState, session: &mut DbSession) {
+    pub fn insert_timer_job_state(&self, state: &RuntimeTimerJobState, session: &mut DbSession) -> Result<(), crate::persistence::StorageError> {
         let job_type = self.find_timer_job_type(&state.timer_job_id, session);
-        self.insert_timer_job_state_with_type(state, job_type.as_ref(), session);
-    }
+        self.insert_timer_job_state_with_type(state, job_type.as_ref(), session)?;
+        Ok(())
+}
 
     pub fn insert_timer_job_state_with_type(
         &self,
         state: &RuntimeTimerJobState,
         job_type: Option<&RuntimeJobType>,
         session: &mut DbSession,
-    ) {
+    ) -> Result<(), StorageError> {
         // Ensure create-time / correlation / handler / query-metadata defaults for
         // every write so updates (retries, family moves) keep stable dimensions.
         let mut state = state.clone();
@@ -3860,7 +4290,7 @@ impl RuntimeStore {
                 && !state.process_instance_id.is_empty()
             {
                 if let Some(instance) =
-                    self.find_process_instance(&state.process_instance_id, session)
+                    self.find_process_instance(&state.process_instance_id, session)?
                 {
                     if state.tenant_id.is_none() {
                         state.tenant_id = instance.tenant_id.clone();
@@ -3942,21 +4372,25 @@ impl RuntimeStore {
                         opt_text(&state.scope_definition_id),
                     ),
                 ],
-            )
-            .unwrap();
-    }
+            )?;
+        Ok(())
+}
 
     pub fn find_timer_job_type(
         &self,
         timer_job_id: &str,
         session: &mut DbSession,
     ) -> Option<RuntimeJobType> {
-        session
-            .find_raw("timer_job_states", timer_job_id)
-            .ok()
-            .flatten()
-            .and_then(|row| row.extras.get("job_type").cloned().flatten())
-            .map(|value| RuntimeJobType::from_persisted(&value))
+        // Java parity: DbSqlSession.selectOne throws on SQL error; None means a no-row query, not a storage failure.
+        (match session.find_raw("timer_job_states", timer_job_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        })
+        .and_then(|row| row.extras.get("job_type").cloned().flatten())
+        .map(|value| RuntimeJobType::from_persisted(&value))
     }
 
     /// Java external-worker query family isolation:
@@ -3970,14 +4404,14 @@ impl RuntimeStore {
         &self,
         job: &RuntimeTimerJobState,
         session: &mut DbSession,
-    ) -> bool {
+    ) -> Result<bool, StorageError> {
         if self.find_timer_job_type(&job.timer_job_id, session)
             != Some(RuntimeJobType::ExternalWorker)
         {
-            return false;
+            return Ok(false);
         }
         if job.job_state.as_deref() != Some("timer") {
-            return false;
+            return Ok(false);
         }
         self.external_worker_parent_allows_visibility(job, session)
     }
@@ -4002,17 +4436,17 @@ impl RuntimeStore {
         &self,
         job: &RuntimeTimerJobState,
         session: &mut DbSession,
-    ) -> bool {
+    ) -> Result<bool, StorageError> {
         if !matches!(job.job_state.as_deref(), None | Some("timer")) {
-            return false;
+            return Ok(false);
         }
         if is_process_definition_schedule_timer(job) {
-            return false;
+            return Ok(false);
         }
-        if !self.external_worker_parent_allows_visibility(job, session) {
-            return false;
+        if !self.external_worker_parent_allows_visibility(job, session)? {
+            return Ok(false);
         }
-        match self.find_timer_job_type(&job.timer_job_id, session) {
+        Ok(match self.find_timer_job_type(&job.timer_job_id, session) {
             Some(RuntimeJobType::ExternalWorker) => true,
             // Legacy untyped promotion path — preserved, not deleted wholesale.
             None => true,
@@ -4020,20 +4454,20 @@ impl RuntimeStore {
             Some(RuntimeJobType::Timer | RuntimeJobType::History | RuntimeJobType::Other(_)) => {
                 false
             }
-        }
+        })
     }
 
     fn external_worker_parent_allows_visibility(
         &self,
         job: &RuntimeTimerJobState,
         session: &mut DbSession,
-    ) -> bool {
+    ) -> Result<bool, StorageError> {
         if job.process_instance_id.is_empty() {
-            return true;
+            return Ok(true);
         }
-        !self
-            .find_process_instance(&job.process_instance_id, session)
-            .is_some_and(|process_instance| process_instance.is_suspended)
+        Ok(!self
+            .find_process_instance(&job.process_instance_id, session)?
+            .is_some_and(|process_instance| process_instance.is_suspended))
     }
 
     pub fn delete_timer_job_state(&self, timer_job_id: &str, session: &mut DbSession) {
@@ -4047,7 +4481,7 @@ impl RuntimeStore {
     ) {
         session
             .delete_by("timer_job_states", "execution_id", execution_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_timer_job_state(
@@ -4055,9 +4489,15 @@ impl RuntimeStore {
         timer_job_id: &str,
         session: &mut DbSession,
     ) -> Option<RuntimeTimerJobState> {
-        session
-            .find("timer_job_states", timer_job_id)
-            .unwrap_or_default()
+        {
+            match session.find("timer_job_states", timer_job_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_timer_job_states_by_execution_id(
@@ -4065,9 +4505,14 @@ impl RuntimeStore {
         execution_id: &str,
         session: &mut DbSession,
     ) -> Vec<RuntimeTimerJobState> {
-        session
-            .find_by("timer_job_states", "execution_id", execution_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("timer_job_states", "execution_id", execution_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_timer_job_states_by_process_instance_id(
@@ -4075,13 +4520,18 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<RuntimeTimerJobState> {
-        session
-            .find_by(
-                "timer_job_states",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "timer_job_states",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn delete_timer_job_states_by_process_instance_id(
@@ -4095,16 +4545,22 @@ impl RuntimeStore {
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn snapshot_timer_job_states(
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, RuntimeTimerJobState> {
-        session
-            .find_all::<RuntimeTimerJobState>("timer_job_states")
-            .unwrap_or_default()
+        {
+            match session.find_all::<RuntimeTimerJobState>("timer_job_states") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| (e.timer_job_id.clone(), e))
             .collect()
@@ -4345,18 +4801,18 @@ impl RuntimeStore {
         job: &RuntimeTimerJobState,
         tenant_filter: Option<&[String]>,
         session: &mut DbSession,
-    ) -> bool {
+    ) -> Result<bool, StorageError> {
         let Some(filter) = tenant_filter else {
-            return true;
+            return Ok(true);
         };
         if filter.is_empty() {
-            return true;
+            return Ok(true);
         }
         let process_tenant = self
-            .find_process_instance(&job.process_instance_id, session)
+            .find_process_instance(&job.process_instance_id, session)?
             .and_then(|pi| pi.tenant_id)
             .unwrap_or_default();
-        filter.iter().any(|t| t == &process_tenant)
+        Ok(filter.iter().any(|t| t == &process_tenant))
     }
 
     pub fn acquire_due_timer_jobs(
@@ -4390,7 +4846,10 @@ impl RuntimeStore {
             category_filter,
             session,
         )
-        .expect("timer-job acquisition storage operation failed")
+        .unwrap_or_else(|error| {
+            tracing::warn!("timer-job acquisition storage operation failed: {error:?}");
+            (Vec::new(), 0, 0)
+        })
     }
 
     pub(crate) fn try_acquire_due_timer_jobs_filtered(
@@ -4432,13 +4891,17 @@ impl RuntimeStore {
         // Unlocked-only: expired locks must be cleared by reset before reacquire.
         candidates.retain(|job| job.lock_owner.is_none());
         if tenant_filter.map(|f| !f.is_empty()).unwrap_or(false) {
-            candidates.retain(|job| self.job_matches_tenant_filter(job, tenant_filter, session));
+            let mut filtered = Vec::with_capacity(candidates.len());
+            for job in candidates {
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+            }
+            candidates = filtered;
         }
         if has_category_filter {
             candidates.retain(|job| {
                 job.category
                     .as_ref()
-                    .map(|cat| category_filter.unwrap().contains(cat))
+                    .map(|cat| category_filter.is_some_and(|f| f.contains(cat)))
                     .unwrap_or(false)
             });
         }
@@ -4548,7 +5011,7 @@ impl RuntimeStore {
         tenant_filter: Option<&[String]>,
         category_filter: Option<&[String]>,
         session: &mut DbSession,
-    ) -> Vec<RuntimeTimerJobState> {
+    ) -> Result<Vec<RuntimeTimerJobState>, StorageError> {
         let has_category_filter = category_filter.map(|f| !f.is_empty()).unwrap_or(false);
         let filters: Vec<(String, FilterOp)> = vec![
             ("due_time".to_string(), FilterOp::LessThanOrEqual(now)),
@@ -4558,27 +5021,25 @@ impl RuntimeStore {
             ),
             ("retries".to_string(), FilterOp::GreaterThan(0)),
         ];
-        let mut candidates = session
-            .find_with_filters::<RuntimeTimerJobState>(
-                "timer_job_states",
-                &filters,
-                Some(("due_time", true)),
-                None,
-            )
-            .unwrap_or_default();
+        let mut candidates = session.find_with_filters::<RuntimeTimerJobState>(
+            "timer_job_states", &filters, Some(("due_time", true)), None)?;
         // Expired locks require the reset path; acquisition only sees unlocked jobs.
         candidates.retain(|job| job.lock_owner.is_none());
         if tenant_filter
             .map(|filter| !filter.is_empty())
             .unwrap_or(false)
         {
-            candidates.retain(|job| self.job_matches_tenant_filter(job, tenant_filter, session));
+            let mut filtered = Vec::with_capacity(candidates.len());
+            for job in candidates {
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+            }
+            candidates = filtered;
         }
         if has_category_filter {
             candidates.retain(|job| {
                 job.category
                     .as_ref()
-                    .map(|cat| category_filter.unwrap().contains(cat))
+                    .map(|cat| category_filter.is_some_and(|f| f.contains(cat)))
                     .unwrap_or(false)
             });
         }
@@ -4587,7 +5048,7 @@ impl RuntimeStore {
                 .cmp(&right.due_time)
                 .then_with(|| left.timer_job_id.cmp(&right.timer_job_id))
         });
-        candidates
+        Ok(candidates)
     }
 
     pub(crate) fn acquire_selected_scheduled_timer_jobs_filtered(
@@ -4772,13 +5233,17 @@ impl RuntimeStore {
             JobLockEligibility::UnlockedOnly => job.lock_owner.is_none(),
         });
         if tenant_filter.map(|f| !f.is_empty()).unwrap_or(false) {
-            candidates.retain(|job| self.job_matches_tenant_filter(job, tenant_filter, session));
+            let mut filtered = Vec::with_capacity(candidates.len());
+            for job in candidates {
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+            }
+            candidates = filtered;
         }
         if has_category_filter {
             candidates.retain(|job| {
                 job.category
                     .as_ref()
-                    .map(|cat| category_filter.unwrap().contains(cat))
+                    .map(|cat| category_filter.is_some_and(|f| f.contains(cat)))
                     .unwrap_or(false)
             });
         }
@@ -4944,7 +5409,11 @@ impl RuntimeStore {
                 Some(select_limit),
             )?;
         if apply_tenant {
-            candidates.retain(|job| self.job_matches_tenant_filter(job, tenant_filter, session));
+            let mut filtered = Vec::with_capacity(candidates.len());
+            for job in candidates {
+                if self.job_matches_tenant_filter(&job, tenant_filter, session)? { filtered.push(job); }
+            }
+            candidates = filtered;
         }
         if apply_category {
             let categories = category_filter.unwrap_or_default();
@@ -5012,21 +5481,25 @@ impl RuntimeStore {
         Ok(outcome)
     }
 
+    /// Resets expired locks across every job class.
+    ///
+    /// Java parity: `ResetExpiredJobsCmd` / `JobExecutor` treat a SQL failure as
+    /// `FlowableException` (retryable, logged by the acquisition loop). Folding
+    /// a `StorageError` into `0` would report "no expired locks" and silently
+    /// stop recovery, which is strictly worse than panicking or failing the command.
     pub fn reset_expired_timer_job_locks(
         &self,
         now: i64,
         page_size: usize,
         session: &mut DbSession,
-    ) -> usize {
-        ExpiredJobClass::ALL
-            .iter()
-            .copied()
-            .map(|job_class| {
-                self.reset_expired_job_locks_batch(now, job_class, page_size, None, None, session)
-                    .map(|outcome| outcome.reset)
-                    .unwrap_or_default()
-            })
-            .sum()
+    ) -> Result<usize, StorageError> {
+        let mut total = 0usize;
+        for job_class in ExpiredJobClass::ALL.iter().copied() {
+            let outcome =
+                self.reset_expired_job_locks_batch(now, job_class, page_size, None, None, session)?;
+            total += outcome.reset;
+        }
+        Ok(total)
     }
 
     pub fn release_timer_job_lock(
@@ -5097,18 +5570,13 @@ impl RuntimeStore {
             .map(|filter| !filter.is_empty())
             .unwrap_or(false)
         {
-            candidates.retain(|job| {
-                let Some(process_instance) =
-                    self.find_process_instance(&job.process_instance_id, session)
-                else {
-                    return false;
-                };
-                let tenant_id = process_instance.tenant_id.unwrap_or_default();
-                tenant_filter
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|expected| expected == &tenant_id)
-            });
+            let mut filtered = Vec::with_capacity(candidates.len());
+            for job in candidates {
+                let Some(instance) = self.find_process_instance(&job.process_instance_id, session)? else { continue; };
+                let tenant_id = instance.tenant_id.unwrap_or_default();
+                if tenant_filter.unwrap_or_default().iter().any(|expected| expected == &tenant_id) { filtered.push(job); }
+            }
+            candidates = filtered;
         }
         candidates.sort_by(|left, right| left.timer_job_id.cmp(&right.timer_job_id));
 
@@ -5161,28 +5629,17 @@ impl RuntimeStore {
         lock_duration_ms: i64,
         topic: Option<&str>,
         session: &mut DbSession,
-    ) -> Vec<RuntimeTimerJobState> {
-        let mut candidates: Vec<RuntimeTimerJobState> = session
-            .find_all::<RuntimeTimerJobState>("timer_job_states")
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|job| {
-                job.due_time.map(|d| d <= now).unwrap_or(false)
-                    && job.retries.map(|r| r > 0).unwrap_or(false)
-                    && job
-                        .lock_owner
-                        .as_ref()
-                        .map(|_| job.lock_expiration_time.map(|e| e <= now).unwrap_or(false))
-                        .unwrap_or(true)
-                    && self.is_fetchable_external_worker_candidate(job, session)
-                    // Java AcquireExternalWorkerJobsCmd.java:55-58 + entity manager
-                    // topic match on jobHandlerConfiguration.
-                    && match topic {
-                        Some(t) => job.job_handler_configuration.as_deref() == Some(t),
-                        None => true,
-                    }
-            })
-            .collect();
+    ) -> Result<Vec<RuntimeTimerJobState>, StorageError> {
+        let mut candidates = Vec::new();
+        for job in session.find_all::<RuntimeTimerJobState>("timer_job_states")? {
+            if job.due_time.is_some_and(|due| due <= now)
+                && job.retries.is_some_and(|retries| retries > 0)
+                && (job.lock_owner.is_none() || job.lock_expiration_time.is_some_and(|expires| expires <= now))
+                && self.is_fetchable_external_worker_candidate(&job, session)?
+                && topic.is_none_or(|topic| job.job_handler_configuration.as_deref() == Some(topic)) {
+                candidates.push(job);
+            }
+        }
         candidates.sort_by(|a, b| {
             a.due_time
                 .cmp(&b.due_time)
@@ -5205,7 +5662,7 @@ impl RuntimeStore {
             // already-typed externalWorker rows keep their type.
             let job_type_extra = Some(RuntimeJobType::ExternalWorker.as_str().to_string());
 
-            let json = serde_json::to_string(&timer_job).unwrap_or_else(|_| "{}".to_string());
+            let json = serde_json::to_string(&timer_job)?;
             let affected = {
                 if let (Some(ref old_owner), Some(ref old_exp_time)) =
                     (old_lock_owner, old_lock_expiration_time)
@@ -5236,8 +5693,7 @@ impl RuntimeStore {
                                     Some(old_exp_time.to_string()),
                                 ),
                             ],
-                        )
-                        .unwrap()
+                        )?
                 } else {
                     session
                         .cas_update(
@@ -5259,8 +5715,7 @@ impl RuntimeStore {
                                 ("job_type".into(), job_type_extra),
                             ],
                             &[("lock_owner".into(), None)],
-                        )
-                        .unwrap()
+                        )?
                 }
             };
 
@@ -5269,7 +5724,7 @@ impl RuntimeStore {
             }
         }
 
-        locked_jobs
+        Ok(locked_jobs)
     }
 
     pub fn replace_timer_job_state_if_locked(
@@ -5330,7 +5785,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
         affected > 0
     }
 
@@ -5355,7 +5810,7 @@ impl RuntimeStore {
                     ("lock_time".into(), sub.lock_time.map(|v| v.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_event_subprocess_timer_subscription(
@@ -5365,7 +5820,7 @@ impl RuntimeStore {
     ) {
         session
             .delete("event_subprocess_timer_subscriptions", subscription_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_event_subprocess_timer_subscriptions_by_process_instance_id(
@@ -5379,7 +5834,7 @@ impl RuntimeStore {
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_event_subprocess_timer_subscriptions_by_process_instance_id(
@@ -5387,22 +5842,33 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<EventSubprocessTimerSubscription> {
-        session
-            .find_by(
-                "event_subprocess_timer_subscriptions",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "event_subprocess_timer_subscriptions",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn snapshot_event_subprocess_timer_subscriptions(
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, EventSubprocessTimerSubscription> {
-        session
-            .find_all::<EventSubprocessTimerSubscription>("event_subprocess_timer_subscriptions")
-            .unwrap_or_default()
+        {
+            match session.find_all::<EventSubprocessTimerSubscription>("event_subprocess_timer_subscriptions") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| (e.subscription_id.clone(), e))
             .collect()
@@ -5442,7 +5908,7 @@ impl RuntimeStore {
             JobLockEligibility::UnlockedOnly,
             AcquisitionWritePolicy::Optimistic,
         )
-        .unwrap()
+        .unwrap_or_default()
     }
 
     pub(crate) fn find_due_event_subprocess_timer_subscription_candidates(
@@ -5457,7 +5923,7 @@ impl RuntimeStore {
         let mut candidates: Vec<_> = self
             .snapshot_event_subprocess_timer_subscriptions(session)
             .into_values()
-            .filter(|t| t.due_time.is_some() && t.due_time.unwrap() <= now)
+            .filter(|t| t.due_time.is_some_and(|d| d <= now))
             .filter(|t| t.lock_owner.is_none())
             .filter(|t| {
                 if !has_category_filter {
@@ -5465,15 +5931,13 @@ impl RuntimeStore {
                 }
                 t.category
                     .as_ref()
-                    .map(|cat| category_filter.unwrap().contains(cat))
+                    .map(|cat| category_filter.is_some_and(|f| f.contains(cat)))
                     .unwrap_or(false)
             })
             .collect();
         // Deterministic ordering: due time, then id (for stability)
         candidates.sort_by(|a, b| {
-            a.due_time
-                .unwrap()
-                .cmp(&b.due_time.unwrap())
+            a.due_time.cmp(&b.due_time)
                 .then(a.subscription_id.cmp(&b.subscription_id))
         });
         candidates
@@ -5498,7 +5962,7 @@ impl RuntimeStore {
             JobLockEligibility::UnlockedOnly,
             AcquisitionWritePolicy::Optimistic,
         )
-        .unwrap()
+        .unwrap_or_default()
     }
 
     pub(crate) fn acquire_selected_event_subprocess_timer_subscriptions_global(
@@ -5675,7 +6139,7 @@ impl RuntimeStore {
                     ("event_ref".into(), Some(sub.event_ref.clone())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_event_subprocess_event_subscription(
@@ -5685,7 +6149,7 @@ impl RuntimeStore {
     ) {
         session
             .delete("event_subprocess_event_subscriptions", subscription_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_event_subprocess_event_subscriptions_by_process_instance_id(
@@ -5699,7 +6163,7 @@ impl RuntimeStore {
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_event_subprocess_event_subscriptions_by_scope_execution_id(
@@ -5724,13 +6188,18 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<EventSubprocessEventSubscription> {
-        session
-            .find_by(
-                "event_subprocess_event_subscriptions",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "event_subprocess_event_subscriptions",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_event_subprocess_event_subscriptions_by_event_ref(
@@ -5749,24 +6218,35 @@ impl RuntimeStore {
             EventSubscriptionKind::Escalation => "escalation",
             EventSubscriptionKind::EventRegistry => "event-registry",
         };
-        session
-            .find_by_two(
-                "event_subprocess_event_subscriptions",
-                "event_kind",
-                kind_str,
-                "event_ref",
-                event_ref,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by_two(
+            "event_subprocess_event_subscriptions",
+            "event_kind",
+            kind_str,
+            "event_ref",
+            event_ref,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn snapshot_event_subprocess_event_subscriptions(
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, EventSubprocessEventSubscription> {
-        session
-            .find_all::<EventSubprocessEventSubscription>("event_subprocess_event_subscriptions")
-            .unwrap_or_default()
+        {
+            match session.find_all::<EventSubprocessEventSubscription>("event_subprocess_event_subscriptions") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|e| (e.subscription_id.clone(), e))
             .collect()
@@ -5785,7 +6265,7 @@ impl RuntimeStore {
                     Some(node.last_heartbeat.to_string()),
                 )],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_timer_worker_node(&self, node_id: &str, session: &mut DbSession) {
@@ -5797,18 +6277,30 @@ impl RuntimeStore {
         node_id: &str,
         session: &mut DbSession,
     ) -> Option<TimerWorkerNode> {
-        session
-            .find("timer_worker_nodes", node_id)
-            .unwrap_or_default()
+        {
+            match session.find("timer_worker_nodes", node_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn snapshot_timer_worker_nodes(
         &self,
         session: &mut DbSession,
     ) -> HashMap<String, TimerWorkerNode> {
-        session
-            .find_all::<TimerWorkerNode>("timer_worker_nodes")
-            .unwrap_or_default()
+        {
+            match session.find_all::<TimerWorkerNode>("timer_worker_nodes") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .map(|n| (n.node_id.clone(), n))
             .collect()
@@ -5835,7 +6327,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_timer_coordinator_lease(
@@ -5843,7 +6335,15 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<TimerCoordinatorLease> {
-        session.find("timer_coordinator_leases", id).ok().flatten()
+        {
+            match session.find("timer_coordinator_leases", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn acquire_coordinator_lease(
@@ -5856,10 +6356,13 @@ impl RuntimeStore {
     ) -> Option<i64> {
         let new_expiry = now + timeout_ms;
 
-        let current_opt = session
-            .find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id)
-            .ok()
-            .flatten();
+        let current_opt = match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        };
 
         if let Some(current) = current_opt {
             if current.owner_node_id == owner_node_id {
@@ -5886,7 +6389,7 @@ impl RuntimeStore {
                         ],
                         &[("owner_node_id".into(), Some(owner_node_id.to_string()))],
                     )
-                    .unwrap()
+                    .unwrap_or_default()
                     > 0
                 {
                     Some(current.fencing_token)
@@ -5899,10 +6402,13 @@ impl RuntimeStore {
                 let owner_node_opt = if current.owner_node_id.is_empty() {
                     None
                 } else {
-                    session
-                        .find::<TimerWorkerNode>("timer_worker_nodes", &current.owner_node_id)
-                        .ok()
-                        .flatten()
+                    match session.find::<TimerWorkerNode>("timer_worker_nodes", &current.owner_node_id) {
+                        Ok(found) => found,
+                        Err(error) => {
+                            session.note_write_error(error);
+                            None
+                        }
+                    }
                 };
                 let can_takeover = current.expiry_time < now;
                 // Early takeover only when a registered node is demonstrably stale.
@@ -5943,7 +6449,7 @@ impl RuntimeStore {
                                 ),
                             ],
                         )
-                        .unwrap()
+                        .unwrap_or_default()
                         > 0
                     {
                         Some(new_token)
@@ -6000,10 +6506,13 @@ impl RuntimeStore {
         fencing_token: i64,
         session: &mut DbSession,
     ) -> bool {
-        let current_opt = session
-            .find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id)
-            .ok()
-            .flatten();
+        let current_opt = match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        };
 
         let Some(current) = current_opt else {
             return false;
@@ -6040,7 +6549,7 @@ impl RuntimeStore {
                     ("fencing_token".into(), Some(fencing_token.to_string())),
                 ],
             )
-            .unwrap()
+            .unwrap_or_default()
             > 0
     }
 
@@ -6082,9 +6591,15 @@ impl RuntimeStore {
         let now = self.time_source.now().timestamp_millis();
         let heartbeat_timeout_ms = 300_000; // 5 minutes
 
-        let nodes = session
-            .find_all::<TimerWorkerNode>("timer_worker_nodes")
-            .unwrap_or_default();
+        let nodes = {
+            match session.find_all::<TimerWorkerNode>("timer_worker_nodes") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        };
 
         nodes
             .into_iter()
@@ -6108,10 +6623,13 @@ impl RuntimeStore {
     /// Force step down the current leader (admin operation)
     /// This advances the fencing token and releases the lease
     pub fn force_step_down(&self, session: &mut DbSession) -> bool {
-        let lease_opt = session
-            .find::<TimerCoordinatorLease>("timer_coordinator_leases", "timer-coordinator")
-            .ok()
-            .flatten();
+        let lease_opt = match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", "timer-coordinator") {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        };
 
         let Some(current) = lease_opt else {
             return false;
@@ -6151,7 +6669,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap()
+            .unwrap_or_default()
             > 0
     }
 
@@ -6166,9 +6684,15 @@ impl RuntimeStore {
         let now = self.time_source.now().timestamp_millis();
         let heartbeat_timeout_ms = 300_000; // 5 minutes
 
-        let expired_nodes: Vec<TimerWorkerNode> = session
-            .find_all::<TimerWorkerNode>("timer_worker_nodes")
-            .unwrap_or_default()
+        let expired_nodes: Vec<TimerWorkerNode> = {
+            match session.find_all::<TimerWorkerNode>("timer_worker_nodes") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
             .into_iter()
             .filter(|node| node.last_heartbeat < now - heartbeat_timeout_ms)
             .collect();
@@ -6206,7 +6730,7 @@ impl RuntimeStore {
                     ("profile_id".into(), record.profile_id.clone()),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     /// Find timer admin audit records created since the given timestamp (inclusive).
@@ -6215,25 +6739,34 @@ impl RuntimeStore {
         timestamp: i64,
         session: &mut DbSession,
     ) -> Vec<crate::service::audit::TimerAdminAuditRecord> {
-        let ids = session
-            .find_ids_by_filter(
-                "timer_admin_audit_logs",
-                &[("timestamp".into(), FilterOp::GreaterThan(timestamp - 1))],
-                "timestamp",
-                true,
-                None,
-                None,
-            )
-            .unwrap();
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty id
+        // list means a no-row query, not a storage failure.
+        let ids = match session.find_ids_by_filter(
+            "timer_admin_audit_logs",
+            &[("timestamp".into(), FilterOp::GreaterThan(timestamp - 1))],
+            "timestamp",
+            true,
+            None,
+            None,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
         ids.into_iter()
             .filter_map(|id| {
-                session
-                    .find::<crate::service::audit::TimerAdminAuditRecord>(
-                        "timer_admin_audit_logs",
-                        &id,
-                    )
-                    .ok()
-                    .flatten()
+                match session.find::<crate::service::audit::TimerAdminAuditRecord>(
+                    "timer_admin_audit_logs",
+                    &id,
+                ) {
+                    Ok(found) => found,
+                    Err(error) => {
+                        session.note_write_error(error);
+                        None
+                    }
+                }
             })
             .collect()
     }
@@ -6245,27 +6778,36 @@ impl RuntimeStore {
         revocation: RuntimeTokenRevocation,
         session: &mut DbSession,
     ) {
-        session
-            .insert_with_extra(
-                "token_revocations",
-                &revocation.jti,
-                &revocation,
-                &[
-                    ("issuer".into(), Some(revocation.issuer.clone())),
-                    ("reason".into(), Some(revocation.reason.clone())),
-                    ("expires_at".into(), Some(revocation.expires_at.to_string())),
-                    ("created_at".into(), Some(revocation.created_at.to_string())),
-                ],
-            )
-            .unwrap();
+        // Java parity: `DbSqlSession.insert` propagates a SQL failure so the enclosing
+        // transaction rolls back. Discarding the result here made `revoke` report success
+        // for a row that was never written, so the admin control plane answered
+        // `{"success": true}` while the token stayed live. Recording the failure lets the
+        // caller's `flush_and_commit` fail the transaction instead.
+        if let Err(error) = session.insert_with_extra(
+            "token_revocations",
+            &revocation.jti,
+            &revocation,
+            &[
+                ("issuer".into(), Some(revocation.issuer.clone())),
+                ("reason".into(), Some(revocation.reason.clone())),
+                ("expires_at".into(), Some(revocation.expires_at.to_string())),
+                ("created_at".into(), Some(revocation.created_at.to_string())),
+            ],
+        ) {
+            session.note_write_error(error);
+        }
     }
 
     pub fn delete_token_revocation(&self, jti: &str, session: &mut DbSession) -> bool {
-        let existed = session
-            .find::<RuntimeTokenRevocation>("token_revocations", jti)
-            .ok()
-            .flatten()
-            .is_some();
+        // Java parity: DbSqlSession.selectById throws on SQL error; None means a no-row query, not a storage failure.
+        let existed = match session.find::<RuntimeTokenRevocation>("token_revocations", jti) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
+        .is_some();
         if existed {
             let _ = session.delete("token_revocations", jti);
         }
@@ -6277,21 +6819,33 @@ impl RuntimeStore {
         jti: &str,
         session: &mut DbSession,
     ) -> Option<RuntimeTokenRevocation> {
-        session.find("token_revocations", jti).ok().flatten()
+        {
+            match session.find("token_revocations", jti) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn cleanup_expired_token_revocations(&self, session: &mut DbSession) -> usize {
         let now = self.time_source.now().timestamp_millis();
-        let expired: Vec<String> = session
-            .find_ids_by_filter(
-                "token_revocations",
-                &[("expires_at".into(), FilterOp::LessThan(now + 1))],
-                "id",
-                true,
-                None,
-                None,
-            )
-            .unwrap();
+        let expired: Vec<String> = match session.find_ids_by_filter(
+            "token_revocations",
+            &[("expires_at".into(), FilterOp::LessThan(now + 1))],
+            "id",
+            true,
+            None,
+            None,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        };
         let count = expired.len();
         for id in expired {
             let _ = session.delete("token_revocations", &id);
@@ -6301,17 +6855,21 @@ impl RuntimeStore {
 
     pub fn count_active_token_revocations(&self, session: &mut DbSession) -> usize {
         let now = self.time_source.now().timestamp_millis();
-        session
-            .find_ids_by_filter(
-                "token_revocations",
-                &[("expires_at".into(), FilterOp::GreaterThan(now))],
-                "id",
-                true,
-                None,
-                None,
-            )
-            .unwrap()
-            .len()
+        (match session.find_ids_by_filter(
+            "token_revocations",
+            &[("expires_at".into(), FilterOp::GreaterThan(now))],
+            "id",
+            true,
+            None,
+            None,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .len()
     }
 
     pub fn list_active_token_revocations(
@@ -6319,9 +6877,15 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Vec<RuntimeTokenRevocation> {
         let now = self.time_source.now().timestamp_millis();
-        let mut entries = session
-            .find_all::<RuntimeTokenRevocation>("token_revocations")
-            .unwrap_or_default();
+        let mut entries = {
+            match session.find_all::<RuntimeTokenRevocation>("token_revocations") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        };
         entries.retain(|entry| entry.expires_at > now);
         entries.sort_by(|left, right| {
             right
@@ -6339,17 +6903,22 @@ impl RuntimeStore {
         profile: crate::service::issuer_profile::IssuerProfile,
         session: &mut DbSession,
     ) {
-        session
-            .insert_with_extra(
-                "timer_issuer_profiles",
-                &profile.id,
-                &profile,
-                &[
-                    ("issuer".into(), Some(profile.issuer.clone())),
-                    ("version".into(), Some(profile.version.to_string())),
-                ],
-            )
-            .unwrap();
+        // Java parity: DbSqlSession.flushInserts (flowable-engine-common/.../impl/db/
+        // DbSqlSession.java:495, reached from flush() L375) throws on a SQL failure and
+        // CommandContext.close() (interceptor/CommandContext.java:66-115) rethrows it via
+        // rethrowExceptionIfNeeded() (L112-114, L136-144). Record the failure on the
+        // session so the transaction fails instead of reporting a successful write.
+        if let Err(error) = session.insert_with_extra(
+            "timer_issuer_profiles",
+            &profile.id,
+            &profile,
+            &[
+                ("issuer".into(), Some(profile.issuer.clone())),
+                ("version".into(), Some(profile.version.to_string())),
+            ],
+        ) {
+            session.note_write_error(error);
+        }
     }
 
     pub fn update_issuer_profile(
@@ -6378,28 +6947,34 @@ impl RuntimeStore {
     }
 
     pub fn delete_issuer_profile(&self, profile_id: &str, session: &mut DbSession) -> bool {
-        let _ = session.delete("timer_issuer_profiles", profile_id);
+        // Java parity: DbSqlSession.flushDeletes (DbSqlSession.java:636, from flush() L377)
+        // throws on a SQL failure; the error is never dropped on the floor.
+        if let Err(error) = session.delete("timer_issuer_profiles", profile_id) {
+            session.note_write_error(error);
+        }
         true
     }
 
+    /// Java parity: `ModelEntityManagerImpl.findById` (flowable-engine/.../persistence/
+    /// entity/ModelEntityManagerImpl.java:37-40) delegates to `DbSqlSession.selectById`,
+    /// whose MyBatis `selectOne` throws on a SQL error. `None` is reachable ONLY from a
+    /// successful no-row query, so the storage error must propagate.
     pub fn find_issuer_profile(
         &self,
         profile_id: &str,
         session: &mut DbSession,
-    ) -> Option<crate::service::issuer_profile::IssuerProfile> {
-        session
-            .find("timer_issuer_profiles", profile_id)
-            .ok()
-            .flatten()
+    ) -> Result<Option<crate::service::issuer_profile::IssuerProfile>, StorageError> {
+        session.find("timer_issuer_profiles", profile_id)
     }
 
+    /// Java parity: `MybatisModelDataManager`/`MybatisDeploymentDataManager` query paths
+    /// (`getDbSqlSession().selectList(...)`) let a SQL error throw instead of degrading to
+    /// an empty result set — an empty list is only valid for a successful no-row query.
     pub fn list_issuer_profiles(
         &self,
         session: &mut DbSession,
-    ) -> Vec<crate::service::issuer_profile::IssuerProfile> {
-        session
-            .find_all("timer_issuer_profiles")
-            .unwrap_or_default()
+    ) -> Result<Vec<crate::service::issuer_profile::IssuerProfile>, StorageError> {
+        session.find_all("timer_issuer_profiles")
     }
 
     // ── Identity methods ──
@@ -6413,14 +6988,22 @@ impl RuntimeStore {
         user_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::User> {
-        session.find("users", user_id).ok().flatten()
+        {
+            match session.find("users", user_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn delete_user(&self, user_id: &str, session: &mut DbSession) {
         let _ = session.delete_by("user_info", "user_id", user_id);
         session
             .delete_by("user_pictures", "user_id", user_id)
-            .unwrap();
+            .unwrap_or_default();
         let _ = session.delete("users", user_id);
     }
 
@@ -6440,7 +7023,7 @@ impl RuntimeStore {
                     ("info_key".into(), Some(info.key.clone())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_user_info(
@@ -6450,19 +7033,30 @@ impl RuntimeStore {
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::UserInfo> {
         let id = user_info_id(user_id, key);
-        session.find("user_info", &id).ok().flatten()
+        {
+            match session.find("user_info", &id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn list_user_info(
         &self,
         user_id: &str,
         session: &mut DbSession,
-    ) -> Vec<crate::identity::entities::UserInfo> {
+    ) -> Result<Vec<crate::identity::entities::UserInfo>, StorageError> {
         session
-            .find_raw_by("user_info", "user_id", user_id)
-            .unwrap()
+            .find_raw_by("user_info", "user_id", user_id)?
             .into_iter()
-            .filter_map(|r| serde_json::from_str(&r.data).ok())
+            .map(|r| {
+                serde_json::from_str(&r.data).map_err(|e| {
+                    StorageError::Deserialization(format!("user_info for '{user_id}': {e}"))
+                })
+            })
             .collect()
     }
 
@@ -6488,7 +7082,7 @@ impl RuntimeStore {
                 "bytes",
                 &picture.bytes,
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_user_picture(
@@ -6496,14 +7090,23 @@ impl RuntimeStore {
         user_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::UserPicture> {
-        let mime_type = session
-            .find_raw("user_pictures", user_id)
-            .unwrap()
-            .and_then(|r| r.extras.get("mime_type").cloned())
-            .flatten();
-        let bytes = session
-            .find_blob("user_pictures", "id", user_id, "bytes")
-            .unwrap();
+        // Java parity: DbSqlSession.selectOne throws on SQL error; None means a no-row query, not a storage failure.
+        let mime_type = match session.find_raw("user_pictures", user_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
+        .and_then(|r| r.extras.get("mime_type").cloned())
+        .flatten();
+        let bytes = match session.find_blob("user_pictures", "id", user_id, "bytes") {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        };
 
         match (mime_type, bytes) {
             (Some(mime_type), Some(bytes)) => Some(crate::identity::entities::UserPicture {
@@ -6533,7 +7136,15 @@ impl RuntimeStore {
         group_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::Group> {
-        session.find("groups", group_id).ok().flatten()
+        {
+            match session.find("groups", group_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn delete_group(&self, group_id: &str, session: &mut DbSession) {
@@ -6554,13 +7165,13 @@ impl RuntimeStore {
                     ("group_id".into(), Some(group_id)),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_membership(&self, user_id: &str, group_id: &str, session: &mut DbSession) {
         session
             .delete("memberships", &format!("{}:{}", user_id, group_id))
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_groups_by_user(
@@ -6568,13 +7179,27 @@ impl RuntimeStore {
         user_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::Group> {
-        session
-            .find_raw_by("memberships", "user_id", user_id)
-            .unwrap()
-            .into_iter()
-            .filter_map(|m| {
-                let gid = m.extras.get("group_id").cloned().flatten()?;
-                session.find("groups", &gid).ok().flatten()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list
+        // means a no-row query, not a storage failure.
+        (match session.find_raw_by("memberships", "user_id", user_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .filter_map(|m| {
+            let gid = m.extras.get("group_id").cloned().flatten()?;
+                {
+            match session.find("groups", &gid) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
             })
             .collect()
     }
@@ -6584,13 +7209,27 @@ impl RuntimeStore {
         group_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::User> {
-        session
-            .find_raw_by("memberships", "group_id", group_id)
-            .unwrap()
-            .into_iter()
-            .filter_map(|m| {
-                let uid = m.extras.get("user_id").cloned().flatten()?;
-                session.find("users", &uid).ok().flatten()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list
+        // means a no-row query, not a storage failure.
+        (match session.find_raw_by("memberships", "group_id", group_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .filter_map(|m| {
+            let uid = m.extras.get("user_id").cloned().flatten()?;
+                {
+            match session.find("users", &uid) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
             })
             .collect()
     }
@@ -6601,34 +7240,61 @@ impl RuntimeStore {
         group_id: &str,
         session: &mut DbSession,
     ) -> bool {
-        !session
-            .find_raw_by_two("memberships", "user_id", user_id, "group_id", group_id)
-            .unwrap()
-            .is_empty()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list
+        // means a no-row query, not a storage failure.
+        !(match session.find_raw_by_two("memberships", "user_id", user_id, "group_id", group_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .is_empty()
     }
 
     pub fn list_memberships(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::Membership> {
-        session
-            .find_raw_all("memberships")
-            .unwrap()
-            .into_iter()
-            .filter_map(|r| {
-                let user_id = r.extras.get("user_id").cloned().flatten()?;
-                let group_id = r.extras.get("group_id").cloned().flatten()?;
-                Some(crate::identity::entities::Membership { user_id, group_id })
-            })
-            .collect()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        (match session.find_raw_all("memberships") {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .filter_map(|r| {
+            let user_id = r.extras.get("user_id").cloned().flatten()?;
+            let group_id = r.extras.get("group_id").cloned().flatten()?;
+            Some(crate::identity::entities::Membership { user_id, group_id })
+        })
+        .collect()
     }
 
     pub fn list_users(&self, session: &mut DbSession) -> Vec<crate::identity::entities::User> {
-        session.find_all("users").unwrap_or_default()
+        {
+            match session.find_all("users") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn list_groups(&self, session: &mut DbSession) -> Vec<crate::identity::entities::Group> {
-        session.find_all("groups").unwrap_or_default()
+        {
+            match session.find_all("groups") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     // ── Privilege methods ──
@@ -6645,7 +7311,7 @@ impl RuntimeStore {
                 &privilege,
                 &[("name".into(), Some(privilege.name.clone()))],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_privilege(
@@ -6653,21 +7319,37 @@ impl RuntimeStore {
         privilege_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::Privilege> {
-        session.find("privileges", privilege_id).ok().flatten()
+        {
+            match session.find("privileges", privilege_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn delete_privilege(&self, privilege_id: &str, session: &mut DbSession) {
         let _ = session.delete("privileges", privilege_id);
         session
             .delete_by("privilege_mappings", "privilege_id", privilege_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn list_privileges(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::Privilege> {
-        session.find_all("privileges").unwrap_or_default()
+        {
+            match session.find_all("privileges") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn insert_privilege_mapping(
@@ -6686,7 +7368,7 @@ impl RuntimeStore {
                     ("group_id".into(), mapping.group_id.clone()),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_privilege_mapping(&self, mapping_id: &str, session: &mut DbSession) {
@@ -6698,9 +7380,14 @@ impl RuntimeStore {
         privilege_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::PrivilegeMapping> {
-        session
-            .find_by("privilege_mappings", "privilege_id", privilege_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("privilege_mappings", "privilege_id", privilege_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_privilege_mappings_by_user(
@@ -6708,9 +7395,14 @@ impl RuntimeStore {
         user_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::PrivilegeMapping> {
-        session
-            .find_by("privilege_mappings", "user_id", user_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("privilege_mappings", "user_id", user_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_privilege_mappings_by_group(
@@ -6718,9 +7410,14 @@ impl RuntimeStore {
         group_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::identity::entities::PrivilegeMapping> {
-        session
-            .find_by("privilege_mappings", "group_id", group_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("privilege_mappings", "group_id", group_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     // ── Token methods ──
@@ -6733,7 +7430,7 @@ impl RuntimeStore {
                 &token,
                 &[("token_value".into(), Some(token.token_value.clone()))],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_token(
@@ -6741,7 +7438,15 @@ impl RuntimeStore {
         token_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::Token> {
-        session.find("tokens", token_id).unwrap_or_default()
+        {
+            match session.find("tokens", token_id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn find_token_by_value(
@@ -6749,11 +7454,16 @@ impl RuntimeStore {
         token_value: &str,
         session: &mut DbSession,
     ) -> Option<crate::identity::entities::Token> {
-        session
-            .find_by::<crate::identity::entities::Token>("tokens", "token_value", token_value)
-            .unwrap_or_default()
-            .into_iter()
-            .next()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        (match session.find_by::<crate::identity::entities::Token>("tokens", "token_value", token_value) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .next()
     }
 
     pub fn delete_token(&self, token_id: &str, session: &mut DbSession) {
@@ -6761,7 +7471,15 @@ impl RuntimeStore {
     }
 
     pub fn list_tokens(&self, session: &mut DbSession) -> Vec<crate::identity::entities::Token> {
-        session.find_all("tokens").unwrap_or_default()
+        {
+            match session.find_all("tokens") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     // ── History methods ──
@@ -6788,7 +7506,7 @@ impl RuntimeStore {
                     ("end_time_ms".into(), end_time_ms.map(|v| v.to_string())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn update_historic_process_instance(
@@ -6812,61 +7530,66 @@ impl RuntimeStore {
         // `TaskHelper.deleteHistoricTaskInstancesByProcessInstanceId:612-620` →
         // `deleteHistoricTask` → `deleteHistoricIdentityLinksByTaskId`.
         // Collect the ids before the historic task rows are removed.
-        let historic_task_ids: Vec<String> = session
+        let historic_task_ids: Vec<String> = match session
             .find_by::<crate::history::historic_entities::HistoricTaskInstance>(
                 "historic_task_instances",
                 "process_instance_id",
                 process_instance_id,
-            )
-            .unwrap_or_default()
-            .into_iter()
-            .map(|instance| instance.id)
-            .collect();
+            ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
+        .into_iter()
+        .map(|instance| instance.id)
+        .collect();
         session
             .delete("historic_process_instances", process_instance_id)
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by(
                 "historic_activity_instances",
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by(
                 "historic_task_instances",
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by(
                 "historic_variable_instances",
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by(
                 "historic_details",
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by(
                 "historic_comments",
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by(
                 "historic_task_log_entries",
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         // P77: cascade historic identity links (Java
         // DefaultHistoryManager delete path + HistoricIdentityLinkService
         // .deleteHistoricIdentityLinksByProcessInstanceId).
@@ -6876,15 +7599,15 @@ impl RuntimeStore {
                 "process_instance_id",
                 process_instance_id,
             )
-            .unwrap();
+            .unwrap_or_default();
         for task_id in &historic_task_ids {
             session
                 .delete_by("historic_identity_links", "task_id", task_id.as_str())
-                .unwrap();
+                .unwrap_or_default();
         }
         session
             .delete_by("identity_links", "process_instance_id", process_instance_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_historic_process_instance(
@@ -6892,9 +7615,15 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricProcessInstance> {
-        session
-            .find("historic_process_instances", id)
-            .unwrap_or_default()
+        {
+            match session.find("historic_process_instances", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn insert_historic_activity_instance(
@@ -6919,7 +7648,7 @@ impl RuntimeStore {
                     ("delete_reason".into(), instance.delete_reason.clone()),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn update_historic_activity_instance(
@@ -6936,21 +7665,26 @@ impl RuntimeStore {
         activity_id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricActivityInstance> {
-        session
-            .find_by_two(
-                "historic_activity_instances",
-                "execution_id",
-                execution_id,
-                "activity_id",
-                activity_id,
-            )
-            .unwrap_or_default()
-            .into_iter()
-            .find(
-                |inst: &crate::history::historic_entities::HistoricActivityInstance| {
-                    inst.end_time.is_none()
-                },
-            )
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        (match session.find_by_two(
+            "historic_activity_instances",
+            "execution_id",
+            execution_id,
+            "activity_id",
+            activity_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        })
+        .into_iter()
+        .find(
+            |inst: &crate::history::historic_entities::HistoricActivityInstance| {
+                inst.end_time.is_none()
+            },
+        )
     }
 
     pub fn delete_historic_activity_instance(&self, id: &str, session: &mut DbSession) {
@@ -6977,13 +7711,18 @@ impl RuntimeStore {
         process_instance_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricActivityInstance> {
-        session
-            .find_by(
-                "historic_activity_instances",
-                "process_instance_id",
-                process_instance_id,
-            )
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by(
+            "historic_activity_instances",
+            "process_instance_id",
+            process_instance_id,
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn insert_historic_task_instance(
@@ -7040,7 +7779,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn update_historic_task_instance(
@@ -7056,30 +7795,36 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricTaskInstance> {
-        session
-            .find("historic_task_instances", id)
-            .unwrap_or_default()
+        {
+            match session.find("historic_task_instances", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn delete_historic_task_instance_cascade(&self, task_id: &str, session: &mut DbSession) {
         let _ = session.delete("historic_task_instances", task_id);
         session
             .delete_by("historic_comments", "task_id", task_id)
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by("historic_task_events", "task_id", task_id)
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by("historic_task_log_entries", "task_id", task_id)
-            .unwrap();
+            .unwrap_or_default();
         // P77: cascade historic identity links by task
         // (Java HistoricIdentityLinkService.deleteHistoricIdentityLinksByTaskId).
         session
             .delete_by("historic_identity_links", "task_id", task_id)
-            .unwrap();
+            .unwrap_or_default();
         session
             .delete_by("identity_links", "task_id", task_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn insert_historic_variable_instance(
@@ -7100,7 +7845,7 @@ impl RuntimeStore {
                     ("variable_name".into(), Some(instance.name.clone())),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_historic_variable_instance(
@@ -7108,10 +7853,14 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricVariableInstance> {
-        session
-            .find("historic_variable_instances", id)
-            .ok()
-            .flatten()
+        // Java parity: DbSqlSession.selectById throws on SQL error; None means a no-row query, not a storage failure.
+        match session.find("historic_variable_instances", id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                None
+            }
+        }
     }
 
     pub fn delete_historic_variable_instance(&self, id: &str, session: &mut DbSession) {
@@ -7144,7 +7893,7 @@ impl RuntimeStore {
                     ("property_id".into(), detail.property_id.clone()),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_historic_detail(
@@ -7152,16 +7901,30 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricDetail> {
-        session.find("historic_details", id).ok().flatten()
+        {
+            match session.find("historic_details", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     pub fn list_historic_details(
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricDetail> {
-        let mut details = session
-            .find_all::<crate::history::historic_entities::HistoricDetail>("historic_details")
-            .unwrap_or_default();
+        let mut details = {
+            match session.find_all::<crate::history::historic_entities::HistoricDetail>("historic_details") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        };
         details.sort_by(|left, right| left.time.cmp(&right.time).then(left.id.cmp(&right.id)));
         details
     }
@@ -7173,7 +7936,7 @@ impl RuntimeStore {
     ) {
         session
             .insert("historic_audit_logs", &instance.id, &instance)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_historic_audit_log(
@@ -7181,7 +7944,15 @@ impl RuntimeStore {
         id: &str,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::HistoricAuditLog> {
-        session.find("historic_audit_logs", id).ok().flatten()
+        {
+            match session.find("historic_audit_logs", id) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 
     // ── Compensation methods ──
@@ -7200,7 +7971,7 @@ impl RuntimeStore {
                     "subscription_order",
                     &[("id".into(), sub.id.clone())],
                 )
-                .unwrap()
+                .unwrap_or_default()
                 .unwrap_or(0);
 
             sub.subscription_order = if existing_order > 0 {
@@ -7208,7 +7979,7 @@ impl RuntimeStore {
             } else {
                 let max_order = session
                     .max("compensation_subscriptions", "subscription_order", &[])
-                    .unwrap()
+                    .unwrap_or_default()
                     .unwrap_or(0);
                 max_order + 1
             };
@@ -7236,7 +8007,7 @@ impl RuntimeStore {
                     ),
                 ],
             )
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn find_compensation_subscriptions_by_process_instance_id(
@@ -7244,9 +8015,14 @@ impl RuntimeStore {
         pi_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::runtime::compensation::CompensationSubscription> {
-        session
-            .find_by("compensation_subscriptions", "process_instance_id", pi_id)
-            .unwrap_or_default()
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        match session.find_by("compensation_subscriptions", "process_instance_id", pi_id) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                Vec::new()
+            }
+        }
     }
 
     pub fn find_compensation_subscriptions_by_process_instance_id_newest_first(
@@ -7254,13 +8030,19 @@ impl RuntimeStore {
         pi_id: &str,
         session: &mut DbSession,
     ) -> Vec<crate::runtime::compensation::CompensationSubscription> {
-        let mut results = session
-            .find_by::<crate::runtime::compensation::CompensationSubscription>(
+        // Java parity: DbSqlSession.selectList throws on SQL error; an empty list means a no-row query, not a storage failure.
+        let mut results =
+            match session.find_by::<crate::runtime::compensation::CompensationSubscription>(
                 "compensation_subscriptions",
                 "process_instance_id",
                 pi_id,
-            )
-            .unwrap_or_default();
+            ) {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            };
         results.sort_by(|a, b| {
             b.subscription_order
                 .cmp(&a.subscription_order)
@@ -7276,13 +8058,13 @@ impl RuntimeStore {
     ) {
         session
             .delete_by("compensation_subscriptions", "process_instance_id", pi_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn delete_compensation_subscription(&self, subscription_id: &str, session: &mut DbSession) {
         session
             .delete("compensation_subscriptions", subscription_id)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     // ── Cleanup methods ──
@@ -7291,11 +8073,15 @@ impl RuntimeStore {
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::HistoricProcessInstance> {
-        session
-            .find_all::<crate::history::historic_entities::HistoricProcessInstance>(
-                "historic_process_instances",
-            )
-            .unwrap_or_default()
+        {
+            match session.find_all::<crate::history::historic_entities::HistoricProcessInstance>("historic_process_instances") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     /// Task 10 / P133: SQL pushdown for cleanup_batch — returns IDs matching
@@ -7327,16 +8113,27 @@ impl RuntimeStore {
             ("end_time_ms".into(), FilterOp::IsNotNull),
             ("end_time_ms".into(), FilterOp::LessThan(before_millis)),
         ];
-        let ids = session
-            .find_ids_by_filter(
-                "historic_process_instances",
-                &filters,
-                "end_time_ms",
-                true,
-                Some(batch_size),
-                Some(offset),
-            )
-            .unwrap();
+        // A SELECT failure here is NOT the documented "very old schema" `None`
+        // path: record it in the session's sticky slot (and still report `None`
+        // so the caller keeps its legacy fallback) instead of letting
+        // `unwrap_or_default()` claim "no historic instances matched", which would
+        // silently skip history cleanup for this batch.
+        // Java parity: DbSqlSession.selectList propagates the SQL error
+        // (flowable-engine-common/.../impl/db/DbSqlSession.java:282-299).
+        let ids = match session.find_ids_by_filter(
+            "historic_process_instances",
+            &filters,
+            "end_time_ms",
+            true,
+            Some(batch_size),
+            Some(offset),
+        ) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                return None;
+            }
+        };
         Some(ids)
     }
 
@@ -7352,9 +8149,15 @@ impl RuntimeStore {
         &self,
         session: &mut DbSession,
     ) -> Vec<crate::history::historic_entities::CleanupLog> {
-        session
-            .find_all::<crate::history::historic_entities::CleanupLog>("cleanup_logs")
-            .unwrap_or_default()
+        {
+            match session.find_all::<crate::history::historic_entities::CleanupLog>("cleanup_logs") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    Vec::new()
+                }
+            }
+        }
     }
 
     pub fn set_cleanup_strategy_config(
@@ -7364,16 +8167,22 @@ impl RuntimeStore {
     ) {
         session
             .insert("cleanup_strategy_configs", "default", config)
-            .unwrap();
+            .unwrap_or_default();
     }
 
     pub fn get_cleanup_strategy_config(
         &self,
         session: &mut DbSession,
     ) -> Option<crate::history::historic_entities::CleanupStrategyConfig> {
-        session
-            .find("cleanup_strategy_configs", "default")
-            .unwrap_or_default()
+        {
+            match session.find("cleanup_strategy_configs", "default") {
+                Ok(found) => found,
+                Err(error) => {
+                    session.note_write_error(error);
+                    None
+                }
+            }
+        }
     }
 }
 

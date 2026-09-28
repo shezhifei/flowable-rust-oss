@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for Java multi-instance **root materialization** topology.
 //!
 //! Java (`ContinueProcessOperation#createMultiInstanceRootExecution`):
@@ -153,7 +159,7 @@ fn find_mi_roots(executions: &[Execution]) -> Vec<&Execution> {
 /// with `is_multi_instance_root=true`. Instance children hang under it.
 #[test]
 fn parallel_mi_materializes_inactive_dedicated_mi_root() {
-    let engine = ProcessEngine::new("mi-root-parallel-materialize".to_string());
+    let engine = ProcessEngine::new("mi-root-parallel-materialize".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_root_parallel.bpmn20.xml", PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let task_service = engine.get_task_service();
@@ -204,7 +210,7 @@ fn parallel_mi_materializes_inactive_dedicated_mi_root() {
 /// Phase 1 difference: sequential MI uses the same dedicated inactive MI root.
 #[test]
 fn sequential_mi_materializes_inactive_dedicated_mi_root() {
-    let engine = ProcessEngine::new("mi-root-sequential-materialize".to_string());
+    let engine = ProcessEngine::new("mi-root-sequential-materialize".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_root_sequential.bpmn20.xml", SEQUENTIAL_MI_XML);
     let mut variables = HashMap::new();
     variables.insert("approvers".to_string(), json!(["amy", "ben"]));
@@ -234,7 +240,7 @@ fn sequential_mi_materializes_inactive_dedicated_mi_root() {
 /// process-instance scope row.
 #[test]
 fn fork_parallel_mi_materializes_mi_root_flag() {
-    let engine = ProcessEngine::new("mi-root-fork-materialize".to_string());
+    let engine = ProcessEngine::new("mi-root-fork-materialize".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_root_fork.bpmn20.xml", FORK_PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let task_service = engine.get_task_service();
@@ -268,7 +274,7 @@ fn fork_parallel_mi_materializes_mi_root_flag() {
 /// each instance child. This probe documents the current host placement.
 #[test]
 fn parallel_mi_boundary_timer_host_probe() {
-    let engine = ProcessEngine::new("mi-root-boundary-timer-probe".to_string());
+    let engine = ProcessEngine::new("mi-root-boundary-timer-probe".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "mi_root_boundary_timer.bpmn20.xml",
@@ -330,7 +336,7 @@ fn parallel_mi_boundary_timer_host_probe() {
 /// gone (cleanupMiRoot) and the process continues on a non-MI leave execution.
 #[test]
 fn after_parallel_mi_leave_mi_root_is_cleaned_up() {
-    let engine = ProcessEngine::new("mi-root-parallel-cleanup".to_string());
+    let engine = ProcessEngine::new("mi-root-parallel-cleanup".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_root_parallel.bpmn20.xml", PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let task_service = engine.get_task_service();
@@ -370,7 +376,7 @@ fn after_parallel_mi_leave_mi_root_is_cleaned_up() {
 /// Phase 2 difference: sequential leave also cleans the MI root before afterMi.
 #[test]
 fn after_sequential_mi_leave_mi_root_is_cleaned_up() {
-    let engine = ProcessEngine::new("mi-root-sequential-cleanup".to_string());
+    let engine = ProcessEngine::new("mi-root-sequential-cleanup".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_root_sequential.bpmn20.xml", SEQUENTIAL_MI_XML);
     let mut variables = HashMap::new();
     variables.insert("approvers".to_string(), json!(["amy", "ben"]));
@@ -404,7 +410,7 @@ fn after_sequential_mi_leave_mi_root_is_cleaned_up() {
 /// Regression: full life-cycle still ends the process after afterMi completes.
 #[test]
 fn parallel_mi_with_after_task_completes_process() {
-    let engine = ProcessEngine::new("mi-root-parallel-full-lifecycle".to_string());
+    let engine = ProcessEngine::new("mi-root-parallel-full-lifecycle".to_string()).unwrap();
     let definition_id = deploy(&engine, "mi_root_parallel.bpmn20.xml", PARALLEL_MI_XML);
     let process_instance = start(&engine, definition_id, HashMap::new());
     let task_service = engine.get_task_service();

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Java parity contracts for `UelExpressionCondition`.
 //!
 //! Reference: Flowable Java `UelExpressionCondition.java:39-44` rejects null
@@ -54,7 +60,7 @@ fn assert_no_runtime_state(engine: &ProcessEngine) {
 
 #[test]
 fn missing_comparison_operand_fails_and_rolls_back_start_command() {
-    let engine = ProcessEngine::new("p35-missing-condition".to_string());
+    let engine = ProcessEngine::new("p35-missing-condition".to_string()).unwrap();
     let definition_id = deploy_condition_process(&engine, "missingConditionProcess", "${x != 'a'}");
 
     let error = engine
@@ -79,7 +85,7 @@ fn missing_comparison_operand_fails_and_rolls_back_start_command() {
 
 #[test]
 fn non_boolean_sequence_flow_condition_fails_and_rolls_back_start_command() {
-    let engine = ProcessEngine::new("p35-non-boolean-condition".to_string());
+    let engine = ProcessEngine::new("p35-non-boolean-condition".to_string()).unwrap();
     let definition_id =
         deploy_condition_process(&engine, "nonBooleanConditionProcess", "${decision}");
 

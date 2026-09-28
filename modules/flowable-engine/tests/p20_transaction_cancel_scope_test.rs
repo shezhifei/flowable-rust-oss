@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P20-A/B contract tests: a cancel end event compensates and destroys ONLY
 //! its enclosing transaction scope, never the whole process instance.
 //!
@@ -128,7 +134,7 @@ const SIMPLE_SCOPE_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn cancel_end_event_only_compensates_own_transaction_scope() {
-    let engine = ProcessEngine::new("p20-tx-scope-simple".to_string());
+    let engine = ProcessEngine::new("p20-tx-scope-simple".to_string()).unwrap();
     deploy(&engine, "p20_tx_scope_simple", SIMPLE_SCOPE_XML);
     let pi = start_by_key(&engine, "p20TxScopeSimple");
 
@@ -222,7 +228,7 @@ const NESTED_INNER_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn nested_cancel_inner_only_compensates_inner_transaction() {
-    let engine = ProcessEngine::new("p20-nested-inner".to_string());
+    let engine = ProcessEngine::new("p20-nested-inner".to_string()).unwrap();
     deploy(&engine, "p20_nested_inner", NESTED_INNER_XML);
     let pi = start_by_key(&engine, "p20NestedInner");
 
@@ -319,7 +325,7 @@ const NESTED_OUTER_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn nested_cancel_outer_destroys_active_inner_transaction_without_compensation() {
-    let engine = ProcessEngine::new("p20-nested-outer".to_string());
+    let engine = ProcessEngine::new("p20-nested-outer".to_string()).unwrap();
     deploy(&engine, "p20_nested_outer", NESTED_OUTER_XML);
     let pi = start_by_key(&engine, "p20NestedOuter");
 
@@ -404,7 +410,7 @@ const CONCURRENT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn cancel_end_concurrent_destroys_all_executions_and_compensates_completed() {
-    let engine = ProcessEngine::new("p20-concurrent-cancel".to_string());
+    let engine = ProcessEngine::new("p20-concurrent-cancel".to_string()).unwrap();
     deploy(&engine, "p20_concurrent_cancel", CONCURRENT_XML);
     let pi = start_by_key(&engine, "p20ConcurrentCancel");
 
@@ -480,7 +486,7 @@ const TX_SUCCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn tx_success_retains_subscriptions_for_later_compensation_throw() {
-    let engine = ProcessEngine::new("p20-tx-success".to_string());
+    let engine = ProcessEngine::new("p20-tx-success".to_string()).unwrap();
     deploy(&engine, "p20_tx_success", TX_SUCCESS_XML);
     let pi = start_by_key(&engine, "p20TxSuccess");
 

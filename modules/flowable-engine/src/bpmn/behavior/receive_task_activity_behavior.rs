@@ -146,7 +146,7 @@ impl ReceiveTaskActivityBehavior {
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         // Correlation from flowable:eventCorrelationParameter
         // (ReceiveEventTaskActivityBehavior.java:77 / CorrelationUtil.java:30-67).
@@ -286,7 +286,7 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
 
         command_context
             .task_entity_manager
-            .insert(&task, &mut command_context.session);
+            .insert(&task, &mut command_context.session)?;
 
         let bpmn_model = command_context
             .deployment_manager
@@ -372,7 +372,7 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
                             ..Default::default()
                         },
                         &mut command_context.session,
-                    );
+                    )?;
                     continue;
                 }
 
@@ -414,7 +414,7 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
         let configuration = resolve_receive_task_configuration(command_context, execution);
         command_context.runtime_store.insert_event_wait_state(
             &RuntimeEventWaitState {

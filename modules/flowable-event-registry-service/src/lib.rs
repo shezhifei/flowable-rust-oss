@@ -172,7 +172,7 @@ impl FlowableEventRegistryService {
 
     /// High-water mark of the durable change log observed by this service instance.
     pub fn last_change_revision(&self) -> u64 {
-        *self.last_change_revision.lock().unwrap()
+        *self.last_change_revision.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Snapshot of cached latest channel definition for tenant+key, if present.
@@ -183,7 +183,7 @@ impl FlowableEventRegistryService {
     ) -> Option<ChannelDefinition> {
         self.definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .latest_channel(key, tenant_id)
             .cloned()
     }
@@ -196,7 +196,7 @@ impl FlowableEventRegistryService {
     ) -> Option<EventDefinition> {
         self.definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .latest_event(key, tenant_id)
             .cloned()
     }
@@ -213,11 +213,11 @@ impl FlowableEventRegistryService {
         limit: usize,
     ) -> Result<ChangeDetectionResult, flowable_engine::error::FlowableError> {
         let store = self.engine.get_runtime_store();
-        let after = *self.last_change_revision.lock().unwrap();
-        let mut cache = self.definition_cache.lock().unwrap();
+        let after = *self.last_change_revision.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
         let result =
             change_detection::detect_and_reconcile_changes(&store, &mut cache, after, limit)?;
-        *self.last_change_revision.lock().unwrap() = result.last_revision;
+        *self.last_change_revision.lock().unwrap_or_else(|e| e.into_inner()) = result.last_revision;
         Ok(result)
     }
 

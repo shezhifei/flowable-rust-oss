@@ -25,9 +25,9 @@ fn insert_starter_identity_link(
     command_context: &mut CommandContext,
     process_instance_id: &str,
     start_user_id: Option<&str>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(start_user_id) = start_user_id else {
-        return;
+        return Ok(());
     };
 
     let link = IdentityLink {
@@ -43,10 +43,11 @@ fn insert_starter_identity_link(
     // .createProcessInstanceIdentityLink → recordIdentityLinkCreated.
     command_context
         .history_manager
-        .record_identity_link_created(&link, &mut command_context.session);
+        .record_identity_link_created(&link, &mut command_context.session)?;
     command_context
         .runtime_store
         .insert_identity_link(link, &mut command_context.session);
+    Ok(())
 }
 
 fn resolve_start_event_id_optional(
@@ -129,9 +130,9 @@ fn record_initiator_variable_history(
     process_instance_id: &str,
     execution_id: &str,
     initiator: Option<(String, serde_json::Value)>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some((name, value)) = initiator else {
-        return;
+        return Ok(());
     };
     // Skip if builder.variables already recorded the same name (unlikely but safe).
     let var_id = uuid::Uuid::new_v4().to_string();
@@ -144,7 +145,8 @@ fn record_initiator_variable_history(
         Some(execution_id),
         None,
         &mut command_context.session,
-    );
+    )?;
+    Ok(())
 }
 
 fn resolve_process_definition(
@@ -153,7 +155,7 @@ fn resolve_process_definition(
 ) -> Result<Option<ProcessDefinition>, crate::error::FlowableError> {
     let process_definitions = command_context
         .deployment_manager
-        .get_process_definitions(&mut command_context.session);
+        .get_process_definitions(&mut command_context.session)?;
 
     if let Some(process_definition_id) = builder.process_definition_id.as_deref() {
         return Ok(process_definitions.get(process_definition_id).cloned());
@@ -332,7 +334,7 @@ impl Command<ProcessInstance> for StartProcessInstanceCmd {
 
         command_context
             .execution_entity_manager
-            .insert(&root_execution, &mut command_context.session);
+            .insert(&root_execution, &mut command_context.session)?;
 
         register_process_event_subprocesses(&root_execution, command_context)?;
 
@@ -348,7 +350,7 @@ impl Command<ProcessInstance> for StartProcessInstanceCmd {
             command_context,
             &process_instance.id,
             process_instance.start_user_id.as_deref(),
-        );
+        )?;
 
         // Java parity: ProcessInstanceHelper.java:227-275 dispatches
         // ENTITY_INITIALIZED + PROCESS_CREATED once the PI row is inserted
@@ -393,7 +395,7 @@ impl Command<ProcessInstance> for StartProcessInstanceCmd {
                 Some(&root_execution.id),
                 None,
                 &mut command_context.session,
-            );
+            )?;
         }
         // History for initiator variable (not in builder.variables).
         // Skip duplicate if start_user also passed the same name as a variable.
@@ -404,7 +406,7 @@ impl Command<ProcessInstance> for StartProcessInstanceCmd {
                     &process_instance.id,
                     &root_execution.id,
                     initiator_var,
-                );
+                )?;
             }
         }
 
@@ -566,7 +568,7 @@ impl Command<ProcessInstance> for StartProcessInstanceAsyncCmd {
 
         command_context
             .execution_entity_manager
-            .insert(&root_execution, &mut command_context.session);
+            .insert(&root_execution, &mut command_context.session)?;
 
         register_process_event_subprocesses(&root_execution, command_context)?;
 
@@ -620,7 +622,7 @@ impl Command<ProcessInstance> for StartProcessInstanceAsyncCmd {
                 ..Default::default()
             },
             &mut command_context.session,
-        );
+        )?;
 
         command_context
             .runtime_store
@@ -630,7 +632,7 @@ impl Command<ProcessInstance> for StartProcessInstanceAsyncCmd {
             command_context,
             &process_instance.id,
             process_instance.start_user_id.as_deref(),
-        );
+        )?;
 
         command_context
             .history_manager
@@ -661,7 +663,7 @@ impl Command<ProcessInstance> for StartProcessInstanceAsyncCmd {
                 Some(&root_execution.id),
                 None,
                 &mut command_context.session,
-            );
+            )?;
         }
         if let Some((ref name, _)) = initiator_var {
             if !builder.variables.contains_key(name) {
@@ -670,7 +672,7 @@ impl Command<ProcessInstance> for StartProcessInstanceAsyncCmd {
                     &process_instance.id,
                     &root_execution.id,
                     initiator_var,
-                );
+                )?;
             }
         }
 

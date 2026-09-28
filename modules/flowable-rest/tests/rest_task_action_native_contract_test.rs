@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::Utc;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::history::historic_entities::HistoricTaskInstance;
@@ -61,7 +67,7 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine_id = ENGINE_COUNTER.fetch_add(1, Ordering::Relaxed);
     let engine = Arc::new(ProcessEngine::new(format!(
         "rest-task-action-native-contract-{engine_id}"
-    )));
+    )).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -71,7 +77,7 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -823,7 +829,7 @@ async fn task_action_complete_with_form_definition_persists_instance_and_outcome
     );
 
     // Outcome variable written to process
-    let form_service = flowable_form_service::FlowableFormService::new(Arc::clone(&engine));
+    let form_service = flowable_form_service::FlowableFormService::new(Arc::clone(&engine)).unwrap();
     let stored = form_service
         .create_form_instance_query()
         .task_id(task_id.clone())
@@ -953,7 +959,7 @@ async fn task_action_complete_with_form_unsupported_field_is_bad_request_and_rol
     let remaining_tasks = tasks_for_process(&client, &base_url, process_instance_id).await;
     assert_eq!(remaining_tasks["total"], 1);
 
-    let form_service = flowable_form_service::FlowableFormService::new(Arc::clone(&engine));
+    let form_service = flowable_form_service::FlowableFormService::new(Arc::clone(&engine)).unwrap();
     assert!(
         form_service
             .create_form_instance_query()

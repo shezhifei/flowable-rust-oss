@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::identity::entities::IdentityLink;
@@ -6,7 +12,7 @@ use std::sync::Arc;
 fn setup() -> Arc<ProcessEngine> {
     Arc::new(ProcessEngine::new(
         "process-instance-identity-link-parity".to_string(),
-    ))
+    ).unwrap())
 }
 
 #[test]
@@ -22,7 +28,7 @@ fn process_instance_identity_links_can_be_added_and_queried() {
         task_id: None,
         process_instance_id: Some("proc-inst-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "il-2".to_string(),
         link_type: "candidate".to_string(),
@@ -31,7 +37,7 @@ fn process_instance_identity_links_can_be_added_and_queried() {
         task_id: None,
         process_instance_id: Some("proc-inst-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "il-3".to_string(),
         link_type: "participant".to_string(),
@@ -40,7 +46,7 @@ fn process_instance_identity_links_can_be_added_and_queried() {
         task_id: None,
         process_instance_id: Some("proc-inst-2".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let proc1_links = svc
         .create_identity_link_query()
@@ -71,7 +77,7 @@ fn process_instance_identity_links_support_user_and_group_filtering() {
         task_id: None,
         process_instance_id: Some("proc-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "il-2".to_string(),
         link_type: "candidate".to_string(),
@@ -80,7 +86,7 @@ fn process_instance_identity_links_support_user_and_group_filtering() {
         task_id: None,
         process_instance_id: Some("proc-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let user_links = svc
         .create_identity_link_query()
@@ -113,7 +119,7 @@ fn process_instance_identity_link_delete_removes_specific_link() {
         task_id: None,
         process_instance_id: Some("proc-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "il-delete".to_string(),
         link_type: "candidate".to_string(),
@@ -122,7 +128,7 @@ fn process_instance_identity_link_delete_removes_specific_link() {
         task_id: None,
         process_instance_id: Some("proc-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     assert_eq!(
         svc.create_identity_link_query()
@@ -133,7 +139,7 @@ fn process_instance_identity_link_delete_removes_specific_link() {
         2
     );
 
-    svc.remove_identity_link("il-delete");
+    svc.remove_identity_link("il-delete").unwrap();
 
     let remaining = svc
         .create_identity_link_query()
@@ -163,7 +169,7 @@ fn process_instance_identity_link_add_and_remove_write_comment_events() {
             process_definition_id: None,
         },
         Some("admin".to_string()),
-    );
+    ).unwrap();
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
@@ -176,7 +182,7 @@ fn process_instance_identity_link_add_and_remove_write_comment_events() {
     assert!(comments[0].message.contains("participant"));
     let _ = session.rollback();
 
-    svc.remove_identity_link_with_author("il-event-1", Some("admin".to_string()));
+    svc.remove_identity_link_with_author("il-event-1", Some("admin".to_string())).unwrap();
 
     let mut session = store.create_session().unwrap();
     let comments =

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P1 tenant contract tests for task/process attachments.
 //!
 //! Covers the tenant-inheritance fix:
@@ -19,7 +25,7 @@ use flowable_engine::task::Task;
 use std::sync::Arc;
 
 fn engine(name: &str) -> Arc<ProcessEngine> {
-    Arc::new(ProcessEngine::new(name.to_string()))
+    Arc::new(ProcessEngine::new(name.to_string()).unwrap())
 }
 
 /// Deploy a single-user-task process (optionally tenant-scoped) and start one

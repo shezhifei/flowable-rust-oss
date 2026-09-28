@@ -286,7 +286,7 @@ impl CmmnJobHandler for AsyncLeaveActivePlanItemHandler {
                         case_instance_id,
                         CmmnChangePlanItemStateRequest {
                             terminate_plan_item_definition_ids: vec![
-                                plan_item_def.unwrap().to_string(),
+                                plan_item_def.unwrap_or_default().to_string(),
                             ],
                             ..Default::default()
                         },

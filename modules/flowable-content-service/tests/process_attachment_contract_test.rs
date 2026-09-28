@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Engine-side Java parity contract for process-instance attachments (P65).
 //!
 //! Java truth:
@@ -21,13 +27,13 @@ use flowable_engine::service::config::{HistoryLevel, ProcessEngineConfiguration}
 use std::sync::Arc;
 
 fn engine(name: &str) -> Arc<ProcessEngine> {
-    Arc::new(ProcessEngine::new(name.to_string()))
+    Arc::new(ProcessEngine::new(name.to_string()).unwrap())
 }
 
 fn engine_with_history(name: &str, level: HistoryLevel) -> Arc<ProcessEngine> {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = level;
-    Arc::new(ProcessEngine::new_with_config(name.to_string(), config))
+    Arc::new(ProcessEngine::new_with_config(name.to_string(), config).unwrap())
 }
 
 fn deploy_and_start(engine: &ProcessEngine, process_key: &str) -> (String, String) {

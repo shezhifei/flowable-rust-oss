@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P134 2b: inbound send-event trigger must not create a second delivery row.
 //!
 //! Pre-fix: pipeline inserts Received→Processed, and send-event trigger
@@ -17,7 +23,7 @@ use std::sync::Arc;
 
 #[test]
 fn inbound_send_event_keeps_single_delivery_record() {
-    let engine = Arc::new(ProcessEngine::new("p134-single-delivery".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p134-single-delivery".to_string()).unwrap());
     let service = FlowableEventRegistryService::with_bpmn_consumer(Arc::clone(&engine));
 
     service
@@ -187,7 +193,7 @@ fn inbound_send_event_keeps_single_delivery_record() {
     // Trigger consumed the wait and mapped out params.
     let waits = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(pi.id.clone());
+        .get_event_wait_states_by_process_instance_id(pi.id.clone()).unwrap();
     assert!(waits.is_empty());
     let accepted = engine
         .get_runtime_service()

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P1 tenant-isolation contract tests for channel resolution: raw inbound
 //! channel addressing and legacy retry deliveries must never resolve a
 //! channel that belongs to a foreign tenant. Allowed resolution order when
@@ -88,7 +94,7 @@ fn inbound_fixture_with_fallback(
             key: "tenantScopedOrder".to_string(),
         }),
     );
-    let engine = Arc::new(ProcessEngine::new(name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(name.to_string()).unwrap());
     let service = FlowableEventRegistryService::with_configuration(Arc::clone(&engine), config);
     (engine, service, consumer)
 }

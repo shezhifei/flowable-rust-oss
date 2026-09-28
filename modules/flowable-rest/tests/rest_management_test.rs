@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::TestTimeSource;
@@ -46,7 +52,7 @@ fn build_engine(test_name: &str) -> (Arc<ProcessEngine>, Arc<TestTimeSource>) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     (engine, time_source)
 }
@@ -339,7 +345,7 @@ async fn management_table_data_matches_sort_and_default_paging_contract() {
             email: None,
             password: None,
             tenant_id: None,
-        });
+        }).unwrap();
     }
 
     let (base_url, client) = spawn_server(Arc::clone(&engine)).await;
@@ -1043,6 +1049,7 @@ async fn management_history_job_post_matches_execute_only_contract() {
     let unchanged_history = engine
         .get_management_service()
         .find_history_job_by_id("history-post-contract")
+        .unwrap()
         .unwrap();
     assert_eq!(unchanged_history.retries, Some(7));
     assert_eq!(
@@ -1053,12 +1060,14 @@ async fn management_history_job_post_matches_execute_only_contract() {
         engine
             .get_management_service()
             .find_executable_job_by_id("history-post-contract")
+            .unwrap()
             .is_none()
     );
     assert!(
         engine
             .get_management_service()
             .find_deadletter_job_by_id("history-post-contract")
+            .unwrap()
             .is_none()
     );
 }
@@ -1118,6 +1127,7 @@ async fn management_job_mutations_delete_and_reject_unsupported_actions() {
         engine
             .get_management_service()
             .find_executable_job_by_id("exec-delete-job")
+            .unwrap()
             .is_some()
     );
 
@@ -1287,6 +1297,7 @@ async fn management_job_post_actions_execute_move_retry_and_reschedule_real_stat
         engine
             .get_management_service()
             .find_deadletter_job_by_id("exec-move-deadletter")
+            .unwrap()
             .is_some()
     );
 
@@ -1326,6 +1337,7 @@ async fn management_job_post_actions_execute_move_retry_and_reschedule_real_stat
     let moved_state = engine
         .get_management_service()
         .find_executable_job_by_id("deadletter-move-exec")
+        .unwrap()
         .unwrap();
     assert_eq!(moved_state.retries, Some(4));
     assert!(moved_state.lock_owner.is_none());
@@ -1345,6 +1357,7 @@ async fn management_job_post_actions_execute_move_retry_and_reschedule_real_stat
         engine
             .get_management_service()
             .find_history_job_by_id("history-execute")
+            .unwrap()
             .is_none()
     );
 
@@ -1479,6 +1492,7 @@ async fn management_job_post_actions_accept_aliases_and_persist_fields() {
     let deadletter_state = engine
         .get_management_service()
         .find_deadletter_job_by_id("exec-move-deadletter-fields")
+        .unwrap()
         .unwrap();
     assert_eq!(
         deadletter_state.error_message.as_deref(),
@@ -1502,6 +1516,7 @@ async fn management_job_post_actions_accept_aliases_and_persist_fields() {
     let retried_exec = engine
         .get_management_service()
         .find_executable_job_by_id("exec-retry-alias")
+        .unwrap()
         .unwrap();
     assert_eq!(retried_exec.retries, Some(5));
 
@@ -1522,6 +1537,7 @@ async fn management_job_post_actions_accept_aliases_and_persist_fields() {
     let moved_deadletter_state = engine
         .get_management_service()
         .find_executable_job_by_id("deadletter-retry-alias")
+        .unwrap()
         .unwrap();
     assert_eq!(moved_deadletter_state.retries, Some(6));
     assert!(moved_deadletter_state.lock_owner.is_none());
@@ -1529,6 +1545,7 @@ async fn management_job_post_actions_accept_aliases_and_persist_fields() {
         engine
             .get_management_service()
             .find_deadletter_job_by_id("deadletter-retry-alias")
+            .unwrap()
             .is_none()
     );
 
@@ -1565,6 +1582,7 @@ async fn management_job_post_actions_accept_aliases_and_persist_fields() {
     let moved_suspended_state = engine
         .get_management_service()
         .find_executable_job_by_id("suspended-move-exec")
+        .unwrap()
         .unwrap();
     // Java moveSuspendedJobToExecutableJob preserves the retry count unchanged.
     assert_eq!(moved_suspended_state.retries, Some(0));
@@ -1573,6 +1591,7 @@ async fn management_job_post_actions_accept_aliases_and_persist_fields() {
         engine
             .get_management_service()
             .find_suspended_job_by_id("suspended-move-exec")
+            .unwrap()
             .is_none()
     );
 
@@ -1696,6 +1715,7 @@ async fn management_jobs_accept_exact_history_move_due_date_and_query_sort_filte
     let moved_history_state = engine
         .get_management_service()
         .find_history_job_by_id("deadletter-move-history-exact")
+        .unwrap()
         .unwrap();
     assert_eq!(moved_history_state.retries, Some(3));
     assert!(moved_history_state.lock_owner.is_none());
@@ -1913,6 +1933,7 @@ async fn management_executable_job_execute_triggers_timer_wait_job() {
         engine
             .get_management_service()
             .find_job_by_id(&job_id)
+            .unwrap()
             .is_none()
     );
 }
@@ -1933,7 +1954,7 @@ async fn management_batches_expose_real_batch_documents_and_parts() {
         end_time: None,
         tenant_id: Some("tenant-a".to_string()),
         batch_document_json: Some(r#"{"migration":"planned"}"#.to_string()),
-    });
+    }).unwrap();
     batch_service.create_batch(BatchEntity {
         id: "batch-without-tenant".to_string(),
         batch_type: "asyncHistory".to_string(),
@@ -1946,7 +1967,7 @@ async fn management_batches_expose_real_batch_documents_and_parts() {
         end_time: Some(1_775_000_003_000),
         tenant_id: None,
         batch_document_json: None,
-    });
+    }).unwrap();
     batch_service.create_batch_part(BatchPartEntity {
         id: "batch-part-1".to_string(),
         batch_id: "batch-1".to_string(),
@@ -1961,7 +1982,7 @@ async fn management_batches_expose_real_batch_documents_and_parts() {
         status: "waiting".to_string(),
         tenant_id: Some("tenant-a".to_string()),
         batch_part_document_json: Some(r#"{"part":"ready"}"#.to_string()),
-    });
+    }).unwrap();
 
     let (base_url, client) = spawn_server(Arc::clone(&engine)).await;
 

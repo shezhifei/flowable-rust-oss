@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_cmmn_engine::{
     CaseDefinitionSortField, CmmnCase, CmmnCasePlanModel, CmmnDecisionResolver, CmmnDecisionTask,
     CmmnDeploymentRequest, CmmnEngine, CmmnFormResolver, CmmnHumanTask, CmmnModel, CmmnPlanItem,
@@ -1663,7 +1669,7 @@ impl MockDecisionResolver {
     }
 
     fn calls(&self) -> Vec<(String, Option<String>, Option<String>)> {
-        self.calls.lock().unwrap().clone()
+        self.calls.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -1674,7 +1680,7 @@ impl CmmnDecisionResolver for MockDecisionResolver {
         tenant_id: Option<&str>,
         parent_deployment_id: Option<&str>,
     ) -> Result<Option<ReferencedDecision>, flowable_cmmn_engine::CmmnError> {
-        self.calls.lock().unwrap().push((
+        self.calls.lock().unwrap_or_else(|e| e.into_inner()).push((
             key.to_string(),
             tenant_id.map(str::to_string),
             parent_deployment_id.map(str::to_string),
@@ -1704,7 +1710,7 @@ impl MockFormResolver {
     }
 
     fn calls(&self) -> Vec<(String, Option<String>, Option<String>)> {
-        self.calls.lock().unwrap().clone()
+        self.calls.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -1715,7 +1721,7 @@ impl CmmnFormResolver for MockFormResolver {
         tenant_id: Option<&str>,
         parent_deployment_id: Option<&str>,
     ) -> Result<Option<ReferencedFormDefinition>, flowable_cmmn_engine::CmmnError> {
-        self.calls.lock().unwrap().push((
+        self.calls.lock().unwrap_or_else(|e| e.into_inner()).push((
             key.to_string(),
             tenant_id.map(str::to_string),
             parent_deployment_id.map(str::to_string),

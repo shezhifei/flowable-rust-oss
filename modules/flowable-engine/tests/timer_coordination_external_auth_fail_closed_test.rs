@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_engine::persistence::db_store::DbStore;
@@ -83,9 +89,9 @@ fn test_external_auth_rejects_local_static_tokens() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -193,9 +199,11 @@ fn test_external_auth_rejects_local_static_tokens() {
     );
     let collision_runtime_service = collision_engine.get_runtime_service();
     let collision_service =
-        TimerCoordinationService::new(collision_runtime_service.clone(), collision_config);
+        TimerCoordinationService::new(collision_runtime_service.clone(), collision_config).expect("identity runtime must build");
     let collision_stop_signal = Arc::new(AtomicBool::new(false));
-    let collision_handle = collision_service.start(Arc::clone(&collision_stop_signal));
+    let collision_handle = collision_service
+        .start(Arc::clone(&collision_stop_signal))
+        .expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 

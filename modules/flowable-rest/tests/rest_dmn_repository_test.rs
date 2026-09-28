@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -34,7 +40,7 @@ impl MockDmnApi {
         repository
             .decision_tables
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(DecisionTableRecord {
                 id: "decision-1".to_string(),
                 key: "loanEligibility".to_string(),
@@ -50,7 +56,7 @@ impl MockDmnApi {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(DmnDeploymentRecord {
                 id: "deployment-1".to_string(),
                 name: "Loan decisions".to_string(),
@@ -60,7 +66,7 @@ impl MockDmnApi {
                 resource_names: vec!["loan-eligibility.dmn".to_string()],
                 tenant_id: None,
             });
-        repository.resources.lock().unwrap().push((
+        repository.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
             "deployment-1".to_string(),
             "loan-eligibility.dmn".to_string(),
             b"<definitions />".to_vec(),
@@ -73,7 +79,7 @@ impl MockDmnApi {
         repository
             .decision_tables
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(DecisionTableRecord {
                 id: "decision-2".to_string(),
                 key: "loanEligibility".to_string(),
@@ -89,7 +95,7 @@ impl MockDmnApi {
         repository
             .decision_tables
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(DecisionTableRecord {
                 id: "decision-3".to_string(),
                 key: "pricingDecision".to_string(),
@@ -105,7 +111,7 @@ impl MockDmnApi {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(DmnDeploymentRecord {
                 id: "deployment-2".to_string(),
                 name: "Loan decisions v2".to_string(),
@@ -118,7 +124,7 @@ impl MockDmnApi {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(DmnDeploymentRecord {
                 id: "deployment-3".to_string(),
                 name: "Pricing decisions".to_string(),
@@ -138,7 +144,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         command: DmnDeploymentCommand,
     ) -> Result<DmnDeploymentRecord, ApiError> {
         let deployment_id = {
-            let deployments = self.deployments.lock().unwrap();
+            let deployments = self.deployments.lock().unwrap_or_else(|e| e.into_inner());
             format!("deployment-{}", deployments.len() + 1)
         };
 
@@ -157,7 +163,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         };
 
         for resource in &command.resources {
-            self.resources.lock().unwrap().push((
+            self.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
                 deployment_id.clone(),
                 resource.resource_name.clone(),
                 resource.resource.clone().into_bytes(),
@@ -166,12 +172,12 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
 
         if let Some(resource) = command.resources.first() {
             let decision_id = {
-                let decision_tables = self.decision_tables.lock().unwrap();
+                let decision_tables = self.decision_tables.lock().unwrap_or_else(|e| e.into_inner());
                 format!("decision-{}", decision_tables.len() + 1)
             };
             self.decision_tables
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push(DecisionTableRecord {
                     id: decision_id,
                     key: resource.resource_name.trim_end_matches(".dmn").to_string(),
@@ -186,7 +192,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
                 });
         }
 
-        self.deployments.lock().unwrap().push(deployment.clone());
+        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
         Ok(deployment)
     }
 
@@ -197,7 +203,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         let mut filtered: Vec<DmnDeploymentRecord> =
             self.deployments
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|deployment| {
                     query
@@ -271,7 +277,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
     fn get_deployment(&self, deployment_id: &str) -> Result<DmnDeploymentRecord, ApiError> {
         self.deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|deployment| deployment.id == deployment_id)
             .cloned()
@@ -284,15 +290,15 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         self.get_deployment(deployment_id)?;
         self.deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|deployment| deployment.id != deployment_id);
         self.decision_tables
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|decision| decision.deployment_id != deployment_id);
         self.resources
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|(candidate, _, _)| candidate != deployment_id);
         Ok(())
     }
@@ -304,7 +310,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
     ) -> Result<DmnResourceDataRecord, ApiError> {
         self.resources
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|(candidate_deployment_id, candidate_resource_name, _)| {
                 candidate_deployment_id == deployment_id && candidate_resource_name == resource_name
@@ -327,7 +333,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
         let mut filtered: Vec<DecisionTableRecord> =
             self.decision_tables
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|decision| {
                     query.id.as_ref().is_none_or(|value| decision.id == *value)
@@ -400,7 +406,7 @@ impl dmn::DmnRepositoryApi for MockDmnApi {
     fn get_decision_table(&self, decision_table_id: &str) -> Result<DecisionTableRecord, ApiError> {
         self.decision_tables
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|decision| decision.id == decision_table_id)
             .cloned()
@@ -549,7 +555,7 @@ async fn spawn_server(api: Arc<MockDmnApi>) -> (String, reqwest::Client) {
 }
 
 async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -559,7 +565,7 @@ async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

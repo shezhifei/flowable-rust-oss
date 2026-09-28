@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 #![allow(dead_code)]
 
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -8,19 +14,19 @@ use serde_json::json;
 use std::sync::Arc;
 
 pub fn service(name: &str) -> FlowableFormService {
-    FlowableFormService::new(Arc::new(ProcessEngine::new(name.to_string())))
+    FlowableFormService::new(Arc::new(ProcessEngine::new(name.to_string()).unwrap())).unwrap()
 }
 
 pub fn persistent_service(name: &str, path: &str) -> FlowableFormService {
     FlowableFormService::new(Arc::new(ProcessEngine::new_with_db_path(
         name.to_string(),
         path,
-    )))
+    ).unwrap())).unwrap()
 }
 
 pub fn runtime_fixture(name: &str) -> (Arc<ProcessEngine>, FlowableFormService) {
-    let engine = Arc::new(ProcessEngine::new(name.to_string()));
-    let service = FlowableFormService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new(name.to_string()).unwrap());
+    let service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
     (engine, service)
 }
 

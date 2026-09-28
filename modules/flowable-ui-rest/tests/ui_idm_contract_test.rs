@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for `/idm-app/rest/**`, asserting response shapes field for
 //! field against the Java representations.
 //!
@@ -17,7 +23,7 @@ use tokio::net::TcpListener;
 const REST: &str = "/idm-app/rest";
 
 async fn spawn(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     save_user(&engine, "admin", Some("Ad"), Some("Min"), Some("admin@example.com"));
 
     let config = UiAuthConfig {
@@ -50,7 +56,7 @@ fn save_user(
         email: email.map(str::to_string),
         password: Some("test".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
 }
 
 fn save_group(engine: &Arc<ProcessEngine>, id: &str, name: &str) {
@@ -58,14 +64,14 @@ fn save_group(engine: &Arc<ProcessEngine>, id: &str, name: &str) {
         id: id.to_string(),
         name: name.to_string(),
         group_type: Some("assignment".to_string()),
-    });
+    }).unwrap();
 }
 
 fn save_privilege(engine: &Arc<ProcessEngine>, id: &str, name: &str) {
     engine.get_identity_service().save_privilege(Privilege {
         id: id.to_string(),
         name: name.to_string(),
-    });
+    }).unwrap();
 }
 
 // ── Account ──
@@ -76,11 +82,11 @@ async fn account_carries_every_java_field_including_nulls() {
     save_group(&engine, "sales", "Sales");
     engine
         .get_identity_service()
-        .create_membership("admin".to_string(), "sales".to_string());
+        .create_membership("admin".to_string(), "sales".to_string()).unwrap();
     save_privilege(&engine, "priv-idm", "access-idm");
     engine
         .get_identity_service()
-        .add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string());
+        .add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string()).unwrap();
 
     let body: Value = client
         .get(format!("{base_url}{REST}/account"))
@@ -325,12 +331,12 @@ async fn create_user_returns_the_entity_without_the_password() {
     );
 
     // The stored password is hashed, and verifies against the plaintext.
-    let stored = engine.get_identity_service().find_user_by_id("dave").unwrap();
+    let stored = engine.get_identity_service().find_user_by_id("dave").unwrap().unwrap();
     assert_ne!(stored.password.as_deref(), Some("secret"));
     assert!(
         engine
             .get_identity_service()
-            .check_password("dave", "secret")
+            .check_password("dave", "secret").unwrap()
     );
 }
 
@@ -376,14 +382,14 @@ async fn update_user_overwrites_fields_including_with_null() {
         .unwrap();
     assert_eq!(response.status(), 200);
 
-    let stored = engine.get_identity_service().find_user_by_id("bob").unwrap();
+    let stored = engine.get_identity_service().find_user_by_id("bob").unwrap().unwrap();
     assert_eq!(stored.first_name.as_deref(), Some("Robert"));
     // Java calls setLastName(null) unconditionally, so an omitted field clears.
     assert_eq!(stored.last_name, None);
     assert_eq!(stored.email.as_deref(), Some("r@x.com"));
     // The password survives the update and still verifies — the loaded hash must
     // not be re-hashed on save.
-    assert!(engine.get_identity_service().check_password("bob", "test"));
+    assert!(engine.get_identity_service().check_password("bob", "test").unwrap());
 }
 
 #[tokio::test]
@@ -415,9 +421,9 @@ async fn bulk_password_update_skips_unknown_ids() {
 
     assert_eq!(response.status(), 200);
     let identity = engine.get_identity_service();
-    assert!(identity.check_password("bob", "newpw"));
-    assert!(!identity.check_password("bob", "test"));
-    assert!(identity.find_user_by_id("ghost").is_none());
+    assert!(identity.check_password("bob", "newpw").unwrap());
+    assert!(!identity.check_password("bob", "test").unwrap());
+    assert!(identity.find_user_by_id("ghost").unwrap().is_none());
 }
 
 #[tokio::test]
@@ -427,12 +433,12 @@ async fn delete_user_cascades_memberships_and_direct_privileges_only() {
 
     save_user(&engine, "bob", Some("Bob"), None, None);
     save_group(&engine, "sales", "Sales");
-    identity.create_membership("bob".to_string(), "sales".to_string());
+    identity.create_membership("bob".to_string(), "sales".to_string()).unwrap();
 
     save_privilege(&engine, "priv-direct", "direct");
-    identity.add_user_privilege_mapping("priv-direct".to_string(), "bob".to_string());
+    identity.add_user_privilege_mapping("priv-direct".to_string(), "bob".to_string()).unwrap();
     save_privilege(&engine, "priv-group", "viaGroup");
-    identity.add_group_privilege_mapping("priv-group".to_string(), "sales".to_string());
+    identity.add_group_privilege_mapping("priv-group".to_string(), "sales".to_string()).unwrap();
 
     let response = client
         .delete(format!("{base_url}{REST}/admin/users/bob"))
@@ -441,15 +447,15 @@ async fn delete_user_cascades_memberships_and_direct_privileges_only() {
         .unwrap();
     assert_eq!(response.status(), 200);
 
-    assert!(identity.find_user_by_id("bob").is_none());
-    assert!(!identity.membership_exists("bob", "sales"));
+    assert!(identity.find_user_by_id("bob").unwrap().is_none());
+    assert!(!identity.membership_exists("bob", "sales").unwrap());
     assert!(
-        identity.get_privilege_mapping_ids("priv-direct").0.is_empty(),
+        identity.get_privilege_mapping_ids("priv-direct").unwrap().0.is_empty(),
         "the user's own grant must be revoked"
     );
     // The group's grant belongs to the group and must survive.
     assert_eq!(
-        identity.get_privilege_mapping_ids("priv-group").1,
+        identity.get_privilege_mapping_ids("priv-group").unwrap().1,
         vec!["sales".to_string()],
         "deleting a member must not revoke the group's privilege"
     );
@@ -584,7 +590,7 @@ async fn group_users_defaults_page_and_page_size() {
     for index in 0..3 {
         let id = format!("user{index}");
         save_user(&engine, &id, Some("User"), Some(&index.to_string()), None);
-        identity.create_membership(id, "sales".to_string());
+        identity.create_membership(id, "sales".to_string()).unwrap();
     }
 
     // Both parameters omitted. Java would throw NullPointerException computing
@@ -610,7 +616,7 @@ async fn group_users_paging_and_filter() {
     for name in ["Anna", "Brian", "Clara"] {
         let id = name.to_lowercase();
         save_user(&engine, &id, Some(name), Some("Stone"), None);
-        identity.create_membership(id, "sales".to_string());
+        identity.create_membership(id, "sales".to_string()).unwrap();
     }
 
     let body: Value = client
@@ -650,7 +656,7 @@ async fn group_membership_add_and_delete_require_both_sides() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    assert!(engine.get_identity_service().membership_exists("bob", "sales"));
+    assert!(engine.get_identity_service().membership_exists("bob", "sales").unwrap());
 
     for path in [
         "/admin/groups/ghost/members/bob",
@@ -670,7 +676,7 @@ async fn group_membership_add_and_delete_require_both_sides() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    assert!(!engine.get_identity_service().membership_exists("bob", "sales"));
+    assert!(!engine.get_identity_service().membership_exists("bob", "sales").unwrap());
 }
 
 // ── Privileges ──
@@ -681,7 +687,7 @@ async fn privilege_list_leaves_users_and_groups_null() {
     save_privilege(&engine, "priv-idm", "access-idm");
     engine
         .get_identity_service()
-        .add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string());
+        .add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string()).unwrap();
 
     let body: Value = client
         .get(format!("{base_url}{REST}/admin/privileges"))
@@ -706,8 +712,8 @@ async fn single_privilege_populates_users_and_groups() {
     let identity = engine.get_identity_service();
     save_privilege(&engine, "priv-idm", "access-idm");
     save_group(&engine, "sales", "Sales");
-    identity.add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string());
-    identity.add_group_privilege_mapping("priv-idm".to_string(), "sales".to_string());
+    identity.add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string()).unwrap();
+    identity.add_group_privilege_mapping("priv-idm".to_string(), "sales".to_string()).unwrap();
 
     let body: Value = client
         .get(format!("{base_url}{REST}/admin/privileges/priv-idm"))
@@ -781,7 +787,7 @@ async fn granting_a_privilege_is_idempotent_and_validates_the_subject() {
     }
     let (users, _) = engine
         .get_identity_service()
-        .get_privilege_mapping_ids("priv-idm");
+        .get_privilege_mapping_ids("priv-idm").unwrap();
     assert_eq!(users, vec!["admin".to_string()]);
 
     for _ in 0..2 {
@@ -795,7 +801,7 @@ async fn granting_a_privilege_is_idempotent_and_validates_the_subject() {
     }
     let (_, groups) = engine
         .get_identity_service()
-        .get_privilege_mapping_ids("priv-idm");
+        .get_privilege_mapping_ids("priv-idm").unwrap();
     assert_eq!(groups, vec!["sales".to_string()]);
 
     // An unknown subject is the caller's fault: 400, where Java lets an
@@ -828,9 +834,9 @@ async fn revoking_a_privilege_removes_only_the_named_mapping() {
     save_privilege(&engine, "priv-idm", "access-idm");
     save_user(&engine, "bob", Some("Bob"), None, None);
     save_group(&engine, "sales", "Sales");
-    identity.add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string());
-    identity.add_user_privilege_mapping("priv-idm".to_string(), "bob".to_string());
-    identity.add_group_privilege_mapping("priv-idm".to_string(), "sales".to_string());
+    identity.add_user_privilege_mapping("priv-idm".to_string(), "admin".to_string()).unwrap();
+    identity.add_user_privilege_mapping("priv-idm".to_string(), "bob".to_string()).unwrap();
+    identity.add_group_privilege_mapping("priv-idm".to_string(), "sales".to_string()).unwrap();
 
     let response = client
         .delete(format!("{base_url}{REST}/admin/privileges/priv-idm/users/bob"))
@@ -839,7 +845,7 @@ async fn revoking_a_privilege_removes_only_the_named_mapping() {
         .unwrap();
     assert_eq!(response.status(), 200);
 
-    let (users, groups) = identity.get_privilege_mapping_ids("priv-idm");
+    let (users, groups) = identity.get_privilege_mapping_ids("priv-idm").unwrap();
     assert_eq!(users, vec!["admin".to_string()]);
     assert_eq!(groups, vec!["sales".to_string()]);
 
@@ -849,7 +855,7 @@ async fn revoking_a_privilege_removes_only_the_named_mapping() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    assert!(identity.get_privilege_mapping_ids("priv-idm").1.is_empty());
+    assert!(identity.get_privilege_mapping_ids("priv-idm").unwrap().1.is_empty());
 }
 
 // ── Profile ──
@@ -860,7 +866,7 @@ async fn profile_matches_the_account_body() {
     save_group(&engine, "sales", "Sales");
     engine
         .get_identity_service()
-        .create_membership("admin".to_string(), "sales".to_string());
+        .create_membership("admin".to_string(), "sales".to_string()).unwrap();
 
     let profile: Value = client
         .get(format!("{base_url}{REST}/admin/profile"))
@@ -918,7 +924,7 @@ async fn update_profile_rejects_an_empty_email_and_ignores_the_body_id() {
     // tenantId is not updatable here.
     assert!(body["tenantId"].is_null());
 
-    let bob = engine.get_identity_service().find_user_by_id("bob").unwrap();
+    let bob = engine.get_identity_service().find_user_by_id("bob").unwrap().unwrap();
     assert_eq!(bob.first_name.as_deref(), Some("Bob"), "bob must be untouched");
 }
 
@@ -935,7 +941,7 @@ async fn change_password_is_404_on_a_wrong_current_password() {
     // Java throws NotFoundException here, so it is a 404 and not a 401 or 403.
     assert_eq!(response.status(), 404);
     assert!(
-        engine.get_identity_service().check_password("admin", "test"),
+        engine.get_identity_service().check_password("admin", "test").unwrap(),
         "a failed attempt must not change the password"
     );
 
@@ -948,8 +954,8 @@ async fn change_password_is_404_on_a_wrong_current_password() {
     assert_eq!(response.status(), 200);
 
     let identity = engine.get_identity_service();
-    assert!(identity.check_password("admin", "next"));
-    assert!(!identity.check_password("admin", "test"));
+    assert!(identity.check_password("admin", "next").unwrap());
+    assert!(!identity.check_password("admin", "test").unwrap());
 }
 
 #[tokio::test]

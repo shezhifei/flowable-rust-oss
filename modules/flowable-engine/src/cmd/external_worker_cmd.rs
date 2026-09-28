@@ -130,7 +130,7 @@ fn leave_external_worker_service_task(
     execution.is_ended = false;
     command_context
         .execution_entity_manager
-        .update(&execution, &mut command_context.session);
+        .update(&execution, &mut command_context.session)?;
     Ok(())
 }
 
@@ -174,7 +174,7 @@ impl Command<Vec<ExternalWorkerJob>> for FetchAndLockExternalWorkerJobsCmd {
             self.request.lock_duration_ms,
             topic,
             session,
-        );
+        )?;
 
         let mut jobs = Vec::with_capacity(locked.len());
         for timer_job in locked {
@@ -366,7 +366,7 @@ fn apply_external_worker_complete_variables(
         }
         command_context
             .execution_entity_manager
-            .update(&root_execution, &mut command_context.session);
+            .update(&root_execution, &mut command_context.session)?;
     }
     Ok(())
 }
@@ -445,7 +445,7 @@ impl Command<()> for CompleteExternalWorkerJobWithBpmnErrorCmd {
                 }
                 command_context
                     .execution_entity_manager
-                    .update(&root_execution, &mut command_context.session);
+                    .update(&root_execution, &mut command_context.session)?;
             }
         }
 

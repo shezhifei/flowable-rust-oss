@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Runtime tests for BPMN executionListener execution via the local registry.
 
 use flowable_engine::bpmn::listener::{
@@ -63,7 +69,7 @@ fn engine_with_execution_listeners() -> ProcessEngine {
 
     let mut config = ProcessEngineConfiguration::default();
     config.execution_listener_registry = Some(registry);
-    ProcessEngine::new_with_config("execution-listener-test".to_string(), config)
+    ProcessEngine::new_with_config("execution-listener-test".to_string(), config).unwrap()
 }
 
 #[test]
@@ -130,7 +136,7 @@ fn execution_listeners_fire_on_user_task_start_and_end() {
 #[test]
 fn unregistered_execution_listener_fails_with_clear_error() {
     // Engine has no registry entries.
-    let process_engine = ProcessEngine::new("execution-listener-missing".to_string());
+    let process_engine = ProcessEngine::new("execution-listener-missing".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

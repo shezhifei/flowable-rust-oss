@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for in-flight EL evaluation walking the parent VariableScope
 //! chain (P4-7).
 //!
@@ -119,7 +125,7 @@ fn complete_task_by_key(engine: &ProcessEngine, process_instance_id: &str, key: 
 /// the token is silently deleted.
 #[test]
 fn branch_exclusive_gateway_resolves_process_variable_written_after_fork() {
-    let engine = ProcessEngine::new("p4-7a-post-fork-write".to_string());
+    let engine = ProcessEngine::new("p4-7a-post-fork-write".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         FORK_EXCLUSIVE_GATEWAY_XML,
@@ -165,7 +171,7 @@ fn branch_exclusive_gateway_resolves_process_variable_written_after_fork() {
 /// the parent chain.
 #[test]
 fn branch_exclusive_gateway_resolves_start_variable_after_fork() {
-    let engine = ProcessEngine::new("p4-7a-start-var".to_string());
+    let engine = ProcessEngine::new("p4-7a-start-var".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         FORK_EXCLUSIVE_GATEWAY_XML,
@@ -195,7 +201,7 @@ fn branch_exclusive_gateway_resolves_start_variable_after_fork() {
 /// both user tasks. Must stay green before and after the evaluation fix.
 #[test]
 fn plain_parallel_fork_without_branch_el_still_reaches_both_tasks() {
-    let engine = ProcessEngine::new("p4-7a-plain-parallel".to_string());
+    let engine = ProcessEngine::new("p4-7a-plain-parallel".to_string()).unwrap();
     let process_instance_id =
         deploy_and_start(&engine, PLAIN_PARALLEL_XML, "plain_parallel_guard", vec![]);
 
@@ -236,7 +242,7 @@ const INCLUSIVE_SPLIT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 /// bookkeeping variable.
 #[test]
 fn concurrent_children_start_without_variable_snapshot() {
-    let engine = ProcessEngine::new("p4-7b-no-snapshot".to_string());
+    let engine = ProcessEngine::new("p4-7b-no-snapshot".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         PLAIN_PARALLEL_XML,
@@ -286,7 +292,7 @@ fn concurrent_children_start_without_variable_snapshot() {
 /// join still completes via reachability analysis.
 #[test]
 fn inclusive_split_does_not_write_legacy_token_count_variable() {
-    let engine = ProcessEngine::new("p4-7b-inclusive-count".to_string());
+    let engine = ProcessEngine::new("p4-7b-inclusive-count".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         INCLUSIVE_SPLIT_XML,
@@ -342,7 +348,7 @@ fn inclusive_split_does_not_write_legacy_token_count_variable() {
 /// counter).
 #[test]
 fn inclusive_join_still_waits_for_expected_token_count_after_snapshot_cleanup() {
-    let engine = ProcessEngine::new("p4-7b-inclusive-join".to_string());
+    let engine = ProcessEngine::new("p4-7b-inclusive-join".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         INCLUSIVE_SPLIT_XML,

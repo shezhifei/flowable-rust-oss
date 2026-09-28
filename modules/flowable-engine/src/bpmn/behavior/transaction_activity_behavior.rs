@@ -113,7 +113,7 @@ impl ActivityBehavior for TransactionActivityBehavior {
         execution.is_scope = true;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         let process_instance_id = execution
             .process_instance_id
@@ -207,7 +207,7 @@ impl ActivityBehavior for TransactionActivityBehavior {
                             ..Default::default()
                         },
                         &mut command_context.session,
-                    );
+                    )?;
                     continue;
                 }
 
@@ -275,7 +275,7 @@ impl ActivityBehavior for TransactionActivityBehavior {
 
         command_context
             .execution_entity_manager
-            .insert(&child_execution, &mut command_context.session);
+            .insert(&child_execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(child_execution);

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P130 e2e: send-event triggerable wait → inbound consumer → out parameters.
 //!
 //! Java: `BpmnEventRegistryEventConsumer` → `runtimeService.trigger` →
@@ -18,7 +24,7 @@ use std::sync::Arc;
 
 #[test]
 fn bpmn_consumer_routes_send_event_task_and_maps_out_parameters() {
-    let engine = Arc::new(ProcessEngine::new("p130-send-event-e2e".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p130-send-event-e2e".to_string()).unwrap());
     let service = FlowableEventRegistryService::with_bpmn_consumer(Arc::clone(&engine));
 
     // Outbound event/channel for send-event execute path.
@@ -154,7 +160,7 @@ fn bpmn_consumer_routes_send_event_task_and_maps_out_parameters() {
 
     let wait = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait.len(), 1, "send-event triggerable must register a wait state");
     assert_eq!(wait[0].wait_kind, flowable_engine::engine::task_service::EventWaitKind::SendEventTask);
     assert_eq!(wait[0].event_ref.as_deref(), Some("orderAccepted"));
@@ -187,7 +193,7 @@ fn bpmn_consumer_routes_send_event_task_and_maps_out_parameters() {
 
     let wait_after = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert!(
         wait_after.is_empty(),
         "inbound consumer must consume the send-event wait state"
@@ -249,7 +255,7 @@ fn bpmn_consumer_routes_send_event_task_and_maps_out_parameters() {
 /// Missing payload field → process variable null (EventInstanceBpmnUtil.java:127).
 #[test]
 fn bpmn_consumer_send_event_missing_out_payload_field_writes_null() {
-    let engine = Arc::new(ProcessEngine::new("p130-send-event-null".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p130-send-event-null".to_string()).unwrap());
     let service = FlowableEventRegistryService::with_bpmn_consumer(Arc::clone(&engine));
 
     service

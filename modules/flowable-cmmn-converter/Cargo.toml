@@ -9,4 +9,7 @@ license.workspace = true
 flowable-cmmn-model = { path = "../flowable-cmmn-model" }
 roxmltree = "0.20"
 quick-xml = "0.39.2"
-
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

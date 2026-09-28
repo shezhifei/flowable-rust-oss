@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_rest::run_server;
 use serde_json::{Value, json};
@@ -6,7 +12,7 @@ use tokio::net::TcpListener;
 
 #[tokio::test]
 async fn runtime_process_instance_inject_creates_dynamic_user_task() {
-    let engine = Arc::new(ProcessEngine::new("rest-bpmn-inject".to_string()));
+    let engine = Arc::new(ProcessEngine::new("rest-bpmn-inject".to_string()).unwrap());
 
     engine
         .get_identity_service()
@@ -17,7 +23,7 @@ async fn runtime_process_instance_inject_creates_dynamic_user_task() {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -315,7 +321,7 @@ async fn runtime_process_instance_inject_creates_dynamic_user_task() {
 async fn runtime_process_instance_inject_start_before_moves_current_wait_state() {
     let engine = Arc::new(ProcessEngine::new(
         "rest-bpmn-inject-start-before".to_string(),
-    ));
+    ).unwrap());
 
     engine
         .get_identity_service()
@@ -326,7 +332,7 @@ async fn runtime_process_instance_inject_start_before_moves_current_wait_state()
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -456,7 +462,7 @@ async fn runtime_process_instance_inject_start_before_moves_current_wait_state()
 async fn runtime_process_instance_inject_start_after_moves_to_single_successor_user_task() {
     let engine = Arc::new(ProcessEngine::new(
         "rest-bpmn-inject-start-after".to_string(),
-    ));
+    ).unwrap());
 
     engine
         .get_identity_service()
@@ -467,7 +473,7 @@ async fn runtime_process_instance_inject_start_after_moves_to_single_successor_u
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -558,7 +564,7 @@ async fn runtime_process_instance_inject_start_after_moves_to_single_successor_u
 async fn runtime_process_instance_inject_start_after_rejects_multiple_successors() {
     let engine = Arc::new(ProcessEngine::new(
         "rest-bpmn-inject-start-after-branch".to_string(),
-    ));
+    ).unwrap());
 
     engine
         .get_identity_service()
@@ -569,7 +575,7 @@ async fn runtime_process_instance_inject_start_after_rejects_multiple_successors
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

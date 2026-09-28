@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P48: exclusive async jobs serialize per process instance through the
 //! exclusive PI scope lock — Java `ExecuteAsyncRunnable` parity.
 //!
@@ -28,7 +34,7 @@ use std::sync::Arc;
 fn create_engine(name: &str) -> (ProcessEngine, Arc<TestTimeSource>) {
     let now = Utc.with_ymd_and_hms(2026, 7, 28, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(now));
-    let engine = ProcessEngine::with_time_source(name.to_string(), time_source.clone());
+    let engine = ProcessEngine::with_time_source(name.to_string(), time_source.clone()).unwrap();
     (engine, time_source)
 }
 
@@ -75,6 +81,7 @@ fn pending_async_job(engine: &ProcessEngine, pi_id: &str) -> RuntimeTimerJobStat
     engine
         .get_management_service()
         .list_executable_jobs()
+        .unwrap()
         .into_iter()
         .find(|job| job.process_instance_id == pi_id)
         .expect("an executable async continuation job must exist")

@@ -8,3 +8,7 @@ license.workspace = true
 [dependencies]
 flowable-app-model = { version = "0.1.0", path = "../flowable-app-model" }
 serde_json = "1.0.149"
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

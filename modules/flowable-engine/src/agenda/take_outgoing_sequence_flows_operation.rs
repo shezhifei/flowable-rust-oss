@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::agenda::{AgendaOperation, FlowableEngineAgenda};
 use crate::el::condition::Condition;
 use crate::el::expression::SimpleExpression;
@@ -337,7 +345,7 @@ fn schedule_sequence_flow(
         );
         command_context
             .execution_entity_manager
-            .update(&new_execution, &mut command_context.session);
+            .update(&new_execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(new_execution);
@@ -380,7 +388,7 @@ fn spawn_child_execution(
 
         command_context
             .execution_entity_manager
-            .insert(&child, &mut command_context.session);
+            .insert(&child, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(child);
@@ -422,7 +430,7 @@ fn schedule_inclusive_gateway_child(
 
         command_context
             .execution_entity_manager
-            .insert(&child, &mut command_context.session);
+            .insert(&child, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(child);
@@ -527,7 +535,7 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                 // Persist any process variables written by end listeners.
                 command_context
                     .execution_entity_manager
-                    .update(&execution, &mut command_context.session);
+                    .update(&execution, &mut command_context.session)?;
             }
         }
 
@@ -540,7 +548,7 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                 activity_id,
                 None,
                 &mut command_context.session,
-            );
+            )?;
             // P53 layer 2: dispatch `ACTIVITY_COMPLETED` once the execution
             // has left the current flow node (Java
             // `TakeOutgoingSequenceFlowsOperation.java:159-196`). Use the
@@ -1002,7 +1010,7 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                         preserved.activity_id = None;
                         command_context
                             .execution_entity_manager
-                            .update(&preserved, &mut command_context.session);
+                            .update(&preserved, &mut command_context.session)?;
                     } else {
                         command_context
                             .execution_entity_manager
@@ -1042,7 +1050,7 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                     scope_exec.is_active = false;
                     command_context
                         .execution_entity_manager
-                        .update(&scope_exec, &mut command_context.session);
+                        .update(&scope_exec, &mut command_context.session)?;
                 }
 
                 for (flow, target_is_end_event) in selected_flows {
@@ -1142,7 +1150,7 @@ impl AgendaOperation for TakeOutgoingSequenceFlowsOperation {
                                 boundary_exec.activity_id = Some(b_id);
                                 command_context
                                     .execution_entity_manager
-                                    .update(&boundary_exec, &mut command_context.session);
+                                    .update(&boundary_exec, &mut command_context.session)?;
                                 command_context
                                     .agenda
                                     .plan_continue_process_operation(boundary_exec.clone());

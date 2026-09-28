@@ -388,7 +388,7 @@ fn validate_delegate_expression_service_task(
     // Same LocalServiceTaskDelegateRegistry as `delegateExpression`.
     let implementation_type = match service_task.implementation_type.as_deref() {
         Some("delegateExpression") | Some("class") => {
-            service_task.implementation_type.as_deref().unwrap()
+            service_task.implementation_type.as_deref().unwrap_or_default()
         }
         Some(implementation_type) => {
             return Err(FlowableError::DeploymentValidationError(format!(

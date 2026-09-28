@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::{TestTimeSource, TimeSource};
@@ -54,8 +60,8 @@ fn test_timer_cluster_membership_and_leadership() {
     let timeout_ms = 300_000;
 
     // Both attempt to acquire timers
-    let _ = worker1.acquire_due_timers(timeout_ms);
-    let _ = worker2.acquire_due_timers(timeout_ms);
+    worker1.acquire_due_timers(timeout_ms).expect("timer acquisition must read storage");
+    worker2.acquire_due_timers(timeout_ms).expect("timer acquisition must read storage");
 
     let runtime_store = engine1.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();

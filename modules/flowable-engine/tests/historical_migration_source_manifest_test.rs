@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -133,7 +139,7 @@ fn imports_postgres_copy_dump_via_source_manifest() {
         let engine = ProcessEngine::new_with_db_path(
             "historical_migration_source_import".to_string(),
             target_db.to_str().unwrap(),
-        );
+        ).unwrap();
         let result = engine
             .import_historical_migration_from_source_manifest(&manifest_path)
             .unwrap();

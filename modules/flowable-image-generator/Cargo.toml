@@ -12,3 +12,7 @@ resvg = { version = "0.47.0", default-features = false, features = ["system-font
 
 [dev-dependencies]
 flowable-bpmn-converter = { path = "../flowable-bpmn-converter" }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

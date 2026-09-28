@@ -104,6 +104,9 @@ fn row_to_raw_row(row: DbRow) -> Option<RawRow> {
 pub struct DbSession {
     inner: InnerDbSession,
     closed: bool,
+    /// Sticky write failure (Java parity): a failed DML aborts the transaction
+    /// at commit instead of silently dropping the write.
+    write_error: Option<StorageError>,
 }
 
 impl DbSession {
@@ -111,6 +114,56 @@ impl DbSession {
         Self {
             inner,
             closed: false,
+            write_error: None,
+        }
+    }
+
+    /// Record a fallible write so `flush_and_commit` fails the transaction
+    /// (aligns with Java, where a SQL error throws and rolls back).
+    pub fn note_write_error(&mut self, error: StorageError) {
+        if self.write_error.is_none() {
+            self.write_error = Some(error);
+        }
+    }
+
+    /// Take and clear a previously recorded sticky write error.
+    pub fn take_write_error(&mut self) -> Option<StorageError> {
+        self.write_error.take()
+    }
+
+    /// Whether a storage failure was recorded by a read and not yet consumed.
+    ///
+    /// Lets a caller that runs several reads against one long-lived session (the
+    /// in-memory post-filters in the REST query layer, for example) detect that
+    /// one of them failed and answer 500, instead of letting the empty
+    /// `None`/`Vec::new()` the store substitutes stand in for "no rows".
+    pub fn has_pending_error(&self) -> bool {
+        self.write_error.is_some()
+    }
+
+    /// Ends a read-only session, surfacing any storage failure the read hit.
+    ///
+    /// The store's read helpers record a failed read in the sticky write-error
+    /// slot and hand back `None`/`Vec::new()` (e.g. `RuntimeStore::find_user`,
+    /// `find_privilege`, `list_privileges`). `rollback` clears that slot, so
+    /// `let _ = session.rollback();` silently turns a storage failure into "no
+    /// rows" — a missing row, an empty list, or a fabricated 404.
+    ///
+    /// Read the slot *before* rolling back. A read-only session never flushes,
+    /// so `flush_and_commit` cannot be the surfacing point for these reads.
+    ///
+    /// Java parity: reads go straight to MyBatis and the `PersistenceException`
+    /// escapes — `DbSqlSession.selectOne`/`selectList`
+    /// (flowable-engine-common/src/main/java/org/flowable/common/engine/impl/db/DbSqlSession.java:282-299)
+    /// has no error-swallowing catch — so `null`/empty is reachable only from a
+    /// successful zero-row query.
+    pub fn rollback_read(&mut self) -> Result<(), StorageError> {
+        match self.write_error.take() {
+            Some(error) => {
+                let _ = self.rollback();
+                Err(error)
+            }
+            None => self.rollback(),
         }
     }
 
@@ -137,10 +190,24 @@ impl DbSession {
         id: &str,
         value: &T,
     ) -> Result<(), StorageError> {
-        self.insert_with_extra(table, id, value, &[])
+        let result = self.insert_with_extra(table, id, value, &[]);
+        self.record_write_result(&result);
+        result
     }
 
     pub fn insert_with_extra<T: serde::Serialize>(
+        &mut self,
+        table: &str,
+        id: &str,
+        value: &T,
+        extras: &[(String, Option<String>)],
+    ) -> Result<(), StorageError> {
+        let result = self.insert_with_extra_inner(table, id, value, extras);
+        self.record_write_result(&result);
+        result
+    }
+
+    fn insert_with_extra_inner<T: serde::Serialize>(
         &mut self,
         table: &str,
         id: &str,
@@ -162,6 +229,14 @@ impl DbSession {
         self.insert_with_typed_extra(table, id, value, &typed_extras)
     }
 
+    /// Java parity: sticky-record a failed write so commit fails even if the
+    /// caller ignores the Result (`unwrap_or_default` paths).
+    fn record_write_result<T>(&mut self, result: &Result<T, StorageError>) {
+        if let Err(error) = result {
+            self.note_write_error(error.clone());
+        }
+    }
+
     /// Upserts a JSON entity together with explicitly typed projection columns.
     ///
     /// Unlike [`Self::insert_with_extra`], this method never infers SQL types
@@ -169,6 +244,18 @@ impl DbSession {
     /// for projections that mix user-controlled text and numeric columns or
     /// need to clear an existing projected value on update.
     pub fn insert_with_typed_extra<T: serde::Serialize>(
+        &mut self,
+        table: &str,
+        id: &str,
+        value: &T,
+        extras: &[(String, DbValue)],
+    ) -> Result<(), StorageError> {
+        let result = self.insert_with_typed_extra_inner(table, id, value, extras);
+        self.record_write_result(&result);
+        result
+    }
+
+    fn insert_with_typed_extra_inner<T: serde::Serialize>(
         &mut self,
         table: &str,
         id: &str,
@@ -457,6 +544,12 @@ impl DbSession {
     }
 
     pub fn delete(&mut self, table: &str, id: &str) -> Result<(), StorageError> {
+        let result = self.delete_inner(table, id);
+        self.record_write_result(&result);
+        result
+    }
+
+    fn delete_inner(&mut self, table: &str, id: &str) -> Result<(), StorageError> {
         self.ensure_open()?;
         let table = map_table_name(table);
         let dialect = self.inner.dialect();
@@ -473,6 +566,12 @@ impl DbSession {
     }
 
     pub fn delete_by(&mut self, table: &str, col: &str, val: &str) -> Result<(), StorageError> {
+        let result = self.delete_by_inner(table, col, val);
+        self.record_write_result(&result);
+        result
+    }
+
+    fn delete_by_inner(&mut self, table: &str, col: &str, val: &str) -> Result<(), StorageError> {
         self.ensure_open()?;
         let table = map_table_name(table);
         let col = map_col(col);
@@ -1048,12 +1147,21 @@ impl DbSession {
 
     pub fn flush(&mut self) -> Result<(), StorageError> {
         self.ensure_open()?;
+        if let Some(error) = self.write_error.take() {
+            return Err(error);
+        }
         self.inner.flush()?;
         Ok(())
     }
 
     pub fn flush_and_commit(&mut self) -> Result<(), StorageError> {
         self.ensure_open()?;
+        if let Some(error) = self.write_error.take() {
+            // Abort the transaction the way Java does when a SQL statement fails.
+            let _ = self.inner.rollback();
+            self.closed = true;
+            return Err(error);
+        }
         self.inner.commit()?;
         self.closed = true;
         Ok(())
@@ -1063,6 +1171,7 @@ impl DbSession {
         if self.closed {
             return Err(StorageError::ClosedTransaction);
         }
+        self.write_error = None;
         self.inner.rollback()?;
         self.closed = true;
         Ok(())

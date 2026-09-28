@@ -31,7 +31,7 @@ impl Command<ProcessInstance> for UpdateProcessInstanceFieldsCmd {
         let store = command_context.runtime_store_handle();
 
         let mut process_instance = store
-            .find_process_instance(&self.process_instance_id, &mut command_context.session)
+            .find_process_instance(&self.process_instance_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Process instance '{}' was not found",

@@ -65,7 +65,7 @@ impl Command<()> for RenewTimerLeaseCmd {
                 let mut updated = job.clone();
                 updated.lock_time = Some(now);
                 updated.lock_expiration_time = Some(new_expiration);
-                let json = serde_json::to_string(&updated).unwrap();
+                let json = serde_json::to_string(&updated).unwrap_or_default();
                 session.cas_update(
                     "timer_job_states",
                     &job.timer_job_id,
@@ -85,7 +85,7 @@ impl Command<()> for RenewTimerLeaseCmd {
             TimerWork::ProcessStart(sub) => {
                 let mut updated = sub.clone();
                 updated.lock_time = Some(now);
-                let json = serde_json::to_string(&updated).unwrap();
+                let json = serde_json::to_string(&updated).unwrap_or_default();
                 session.cas_update(
                     "process_timer_start_subscriptions",
                     &sub.id,
@@ -97,7 +97,7 @@ impl Command<()> for RenewTimerLeaseCmd {
             TimerWork::EventSubprocess(sub) => {
                 let mut updated = sub.clone();
                 updated.lock_time = Some(now);
-                let json = serde_json::to_string(&updated).unwrap();
+                let json = serde_json::to_string(&updated).unwrap_or_default();
                 session.cas_update(
                     "event_subprocess_timer_subscriptions",
                     &sub.subscription_id,
@@ -107,7 +107,7 @@ impl Command<()> for RenewTimerLeaseCmd {
                 )
             }
         }
-        .unwrap();
+        .unwrap_or_default();
 
         if affected > 0 {
             self.metrics

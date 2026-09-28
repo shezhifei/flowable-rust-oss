@@ -169,7 +169,7 @@ fn record_variable(
     process_instance_id: &str,
     name: &str,
     value: serde_json::Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let id = format!("{}:{}", execution_id, name);
     if command_context
         .runtime_store
@@ -180,7 +180,7 @@ fn record_variable(
             &id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         command_context.history_manager.record_variable_created(
             &id,
@@ -191,8 +191,9 @@ fn record_variable(
             Some(execution_id),
             None,
             &mut command_context.session,
-        );
+        )?;
     }
+    Ok(())
 }
 
 /// Shared logic for `MutateExecutionVariablesCmd`. Validates the whole batch
@@ -272,7 +273,7 @@ pub(crate) fn mutate_execution_variables(
     }
     command_context
         .execution_entity_manager
-        .update(&target, &mut command_context.session);
+        .update(&target, &mut command_context.session)?;
     let target_id = target.id.clone();
     // The runtime `variables` projection is dual-written from both maps by the
     // entity-manager update above (`RuntimeStore::insert_execution` projects
@@ -284,7 +285,7 @@ pub(crate) fn mutate_execution_variables(
             &process_instance_id,
             &mutation.name,
             mutation.value.clone(),
-        );
+        )?;
     }
 
     Ok(match scope {
@@ -369,7 +370,7 @@ pub(crate) fn mutate_execution_variables_async(
             &target,
             &variables,
             scope == ExecutionVariableScope::Local,
-        );
+        )?;
     }
     Ok(())
 }
@@ -461,7 +462,7 @@ pub(crate) fn remove_execution_variables(
     }
     command_context
         .execution_entity_manager
-        .update(&target, &mut command_context.session);
+        .update(&target, &mut command_context.session)?;
     let store = command_context.runtime_store.clone();
     for name in &removed {
         store.delete_variable_by_execution_id_and_name(
@@ -472,7 +473,7 @@ pub(crate) fn remove_execution_variables(
         command_context.history_manager.record_variable_removed(
             &format!("{}:{}", target.id, name),
             &mut command_context.session,
-        );
+        )?;
     }
     Ok(())
 }

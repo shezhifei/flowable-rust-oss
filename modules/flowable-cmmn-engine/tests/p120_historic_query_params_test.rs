@@ -659,11 +659,11 @@ fn historic_task_query_supports_candidate_and_involved_filters() {
     // A user with no direct link matches through the resolver-expanded groups,
     // mirroring Java's `getGroupsForCandidateUser`.
     let resolver = Arc::new(|user: &str| {
-        if user == "piggy" {
+        Ok(if user == "piggy" {
             vec!["support".to_string()]
         } else {
             Vec::new()
-        }
+        })
     });
     assert_eq!(
         history

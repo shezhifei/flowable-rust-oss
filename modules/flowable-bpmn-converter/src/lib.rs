@@ -239,7 +239,7 @@ impl BpmnXMLConverter {
     }
 
     fn ensure_id(&self, id: &mut Option<String>) {
-        if id.is_none() || id.as_ref().unwrap().is_empty() {
+        if id.as_deref().unwrap_or_default().is_empty() {
             *id = Some(Uuid::new_v4().to_string());
         }
     }
@@ -1678,7 +1678,7 @@ impl BpmnXMLConverter {
                         .id,
                 );
                 user_task.extended = user_task.extension_id.is_some()
-                    && !user_task.extension_id.as_ref().unwrap().is_empty();
+                    && !user_task.extension_id.as_deref().unwrap_or_default().is_empty();
                 if !is_empty {
                     self.parse_user_task_children(reader, &mut user_task, e, n, model);
                 }
@@ -1713,7 +1713,7 @@ impl BpmnXMLConverter {
                     let Ok(attr) = attr else {
                         continue;
                     };
-                    let key = reader.decoder().decode(attr.key.as_ref()).unwrap();
+                    let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
                     let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
                     let value = attr
                         .decode_and_unescape_value(reader.decoder())
@@ -1825,7 +1825,7 @@ impl BpmnXMLConverter {
                     }
                 }
                 service_task.extended = service_task.extension_id.is_some()
-                    && !service_task.extension_id.as_ref().unwrap().is_empty();
+                    && !service_task.extension_id.as_deref().unwrap_or_default().is_empty();
                 self.ensure_id(
                     &mut service_task
                         .task
@@ -2214,7 +2214,7 @@ impl BpmnXMLConverter {
                     let Ok(attr) = attr else {
                         continue;
                     };
-                    let key = reader.decoder().decode(attr.key.as_ref()).unwrap();
+                    let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
                     let local_key = self.get_local_name_bytes(attr.key.as_ref(), reader);
                     let value = attr
                         .decode_and_unescape_value(reader.decoder())
@@ -2976,7 +2976,7 @@ impl BpmnXMLConverter {
             let Ok(attr) = attr else {
                 continue;
             };
-            let key = reader.decoder().decode(attr.key.as_ref()).unwrap();
+            let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
             let value = attr
                 .decode_and_unescape_value(reader.decoder())
                 .unwrap_or_default();
@@ -3001,7 +3001,7 @@ impl BpmnXMLConverter {
             let Ok(attr) = attr else {
                 continue;
             };
-            let a_key = reader.decoder().decode(attr.key.as_ref()).unwrap();
+            let a_key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
             let a_value = attr
                 .decode_and_unescape_value(reader.decoder())
                 .unwrap_or_default();
@@ -3024,7 +3024,7 @@ impl BpmnXMLConverter {
         let name_str = reader
             .decoder()
             .decode(e.name().as_ref())
-            .unwrap()
+            .unwrap_or_default()
             .into_owned();
         if let Some(pos) = name_str.find(':') {
             ext.namespace_prefix = Some(name_str[..pos].to_string());
@@ -3103,7 +3103,7 @@ impl BpmnXMLConverter {
                     let raw = reader
                         .decoder()
                         .decode(text.as_ref())
-                        .unwrap()
+                        .unwrap_or_default()
                         .into_owned()
                         .replace("\r\n", "\n");
                     let trimmed = raw.trim();
@@ -3119,7 +3119,7 @@ impl BpmnXMLConverter {
                     let raw = reader
                         .decoder()
                         .decode(text.as_ref())
-                        .unwrap()
+                        .unwrap_or_default()
                         .into_owned()
                         .replace("\r\n", "\n");
                     let trimmed = raw.trim();
@@ -3656,7 +3656,12 @@ impl BpmnXMLConverter {
                         if !is_empty {
                             let mut var_buf = Vec::new();
                             loop {
-                                let v_event = reader.read_event_into(&mut var_buf).unwrap();
+                                // Java parity: malformed XML throws (validation error),
+                                // never aborts; break as EOF instead of panicking.
+                                let v_event = match reader.read_event_into(&mut var_buf) {
+                                    Ok(ev) => ev,
+                                    Err(_) => break,
+                                };
                                 match v_event {
                                     XmlEvent::Start(ref ve) | XmlEvent::Empty(ref ve) => {
                                         let v_name = self
@@ -3674,7 +3679,7 @@ impl BpmnXMLConverter {
                                                 );
                                                 let value = attr
                                                     .decode_and_unescape_value(reader.decoder())
-                                                    .unwrap();
+                                                    .unwrap_or_default();
                                                 match key.as_str() {
                                                     "source" => {
                                                         var_def.source = Some(value.into_owned())
@@ -3713,10 +3718,10 @@ impl BpmnXMLConverter {
                                 var_buf.clear();
                             }
                         }
-                        if milc.aggregations.is_none() {
-                            milc.aggregations = Some(VariableAggregationDefinitions::default());
-                        }
-                        milc.aggregations.as_mut().unwrap().aggregations.push(agg);
+                        milc.aggregations
+                            .get_or_insert_default()
+                            .aggregations
+                            .push(agg);
                     }
                 }
                 XmlEvent::End(ref inner_e) => {
@@ -4446,7 +4451,10 @@ impl BpmnXMLConverter {
         let namespaces = self.collect_namespaces_from_start(namespaces, wrapper, reader);
         let mut buf = Vec::new();
         loop {
-            let xml_event = reader.read_event_into(&mut buf).unwrap();
+            let xml_event = match reader.read_event_into(&mut buf) {
+                Ok(ev) => ev,
+                Err(_) => break,
+            };
             match xml_event {
                 XmlEvent::Start(ref e) | XmlEvent::Empty(ref e) => {
                     let is_empty = matches!(xml_event, XmlEvent::Empty(_));
@@ -5272,7 +5280,7 @@ impl BpmnXMLConverter {
         reader: &mut Reader<&[u8]>,
         name: quick_xml::name::QName,
     ) -> String {
-        let text = reader.read_text(name).unwrap().into_owned();
+        let text = reader.read_text(name).unwrap_or_default().into_owned();
         text.replace("<![CDATA[", "")
             .replace("]]>", "")
             .replace("\r\n", "\n")
@@ -5303,7 +5311,7 @@ impl BpmnXMLConverter {
         name: quick_xml::name::QName,
     ) -> String {
         reader.config_mut().trim_text(false);
-        let text = reader.read_text(name).unwrap().into_owned();
+        let text = reader.read_text(name).unwrap_or_default().into_owned();
         reader.config_mut().trim_text(true);
         text.replace("<![CDATA[", "")
             .replace("]]>", "")
@@ -5389,7 +5397,10 @@ impl BpmnXMLConverter {
         let mut is_in_label = false;
         let mut label_graphic_info = GraphicInfo::default();
         loop {
-            let event = reader.read_event_into(&mut inner_buf).unwrap();
+            let event = match reader.read_event_into(&mut inner_buf) {
+                Ok(ev) => ev,
+                Err(_) => break,
+            };
             match event {
                 XmlEvent::Start(ref inner_e) | XmlEvent::Empty(ref inner_e) => {
                     let inner_name =

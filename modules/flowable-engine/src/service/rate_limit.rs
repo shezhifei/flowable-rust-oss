@@ -49,7 +49,7 @@ impl RateLimiter {
 
     /// Check if the given key is currently allowed to attempt authentication.
     pub fn check(&self, key: &str) -> Result<(), Duration> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
 
         let entry = state
@@ -87,7 +87,7 @@ impl RateLimiter {
 
     /// Record a failed authentication attempt for the given key.
     pub fn record_failure(&self, key: &str) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
 
         let entry = state
@@ -108,7 +108,7 @@ impl RateLimiter {
 
     /// Reset counters for a key (e.g., after a successful admin review or auth).
     pub fn reset(&self, key: &str) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         state.counters.remove(key);
     }
 }

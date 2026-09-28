@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 // P103: CMMN POST variable conditions —
 // case `variables`, plan-item `caseInstanceVariables`/`variables`,
 // task `taskVariables`.
@@ -28,7 +34,7 @@ const CASE_CMMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 async fn spawn_server() -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new("rest-cmmn-var-query".to_string()));
+    let engine = Arc::new(ProcessEngine::new("rest-cmmn-var-query".to_string()).unwrap());
     engine.get_identity_service().save_user(User {
         id: "admin".to_string(),
         first_name: None,
@@ -36,7 +42,7 @@ async fn spawn_server() -> (String, reqwest::Client) {
         email: None,
         password: Some("test".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(async move {

@@ -113,7 +113,7 @@ where
     });
 
     if let Some(executor_mutex) = executor {
-        let guard = executor_mutex.lock().unwrap();
+        let guard = executor_mutex.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(pool) = guard.as_ref() {
             if let Some(sender) = pool.try_clone_sender() {
                 match sender.try_send(task) {
@@ -215,7 +215,7 @@ pub fn execute_async_local_delegate_service_task(
 
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
 
     let continuation = WaitForFutureContinuation {
         result_variable_name: service_task.result_variable_name.clone(),
@@ -288,7 +288,7 @@ pub fn execute_async_delegate_on_process_instance(
     execution.set_process_variable(result_variable.to_string(), value.clone());
     command_context
         .execution_entity_manager
-        .update(&execution, &mut command_context.session);
+        .update(&execution, &mut command_context.session)?;
 
     Ok(value)
 }

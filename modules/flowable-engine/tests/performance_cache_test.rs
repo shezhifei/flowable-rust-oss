@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::bpmn_model_cache::BpmnModelCache;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::SystemTimeSource;
@@ -54,7 +60,7 @@ fn bpmn_model_cache_invalidate_removes_deployment_entries() {
 
 #[test]
 fn deployment_manager_caches_bpmn_model_across_queries() {
-    let engine = ProcessEngine::new("perf-cache-deploy".to_string());
+    let engine = ProcessEngine::new("perf-cache-deploy".to_string()).unwrap();
     let repo = engine.get_repository_service();
     let builder = repo
         .create_deployment()
@@ -79,7 +85,7 @@ fn deployment_manager_caches_bpmn_model_across_queries() {
 
 #[test]
 fn deployment_resource_bytes_are_cached_across_reads() {
-    let engine = ProcessEngine::new("perf-cache-resource".to_string());
+    let engine = ProcessEngine::new("perf-cache-resource".to_string()).unwrap();
     let repo = engine.get_repository_service();
     let builder = repo
         .create_deployment()
@@ -92,10 +98,12 @@ fn deployment_resource_bytes_are_cached_across_reads() {
     let mut session = dm.create_session().expect("session");
     let first = dm
         .get_deployment_resource_bytes(&deployment.id, "process.bpmn20.xml", &mut session)
-        .expect("first bytes");
+        .expect("first bytes read")
+        .expect("first bytes present");
     let second = dm
         .get_deployment_resource_bytes(&deployment.id, "process.bpmn20.xml", &mut session)
-        .expect("cached bytes");
+        .expect("cached bytes read")
+        .expect("cached bytes present");
     session.rollback().ok();
     assert_eq!(first, second);
     assert_eq!(first, SIMPLE_BPMN.as_bytes());

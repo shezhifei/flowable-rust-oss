@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_engine::persistence::db_store::DbStore;
@@ -79,9 +85,9 @@ fn test_trusted_profile_exact_match() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -180,9 +186,9 @@ fn test_same_issuer_second_profile_can_match_after_first_rejects() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -265,9 +271,9 @@ fn test_deprecated_profile_rejected() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -366,9 +372,9 @@ fn test_multi_profile_first_active_wins() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -460,9 +466,9 @@ fn test_role_mapping_in_trusted_profile() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -550,9 +556,9 @@ fn test_required_tenant_enforcement() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -641,9 +647,9 @@ fn test_required_tenant_missing_rejected() {
     );
     let runtime_service = engine.get_runtime_service();
 
-    let service = TimerCoordinationService::new(runtime_service.clone(), config);
+    let service = TimerCoordinationService::new(runtime_service.clone(), config).expect("identity runtime must build");
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let handle = service.start(Arc::clone(&stop_signal));
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 

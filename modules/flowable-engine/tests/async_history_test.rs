@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::{TestTimeSource, TimeSource};
@@ -28,7 +34,7 @@ fn deploy_simple_process(engine: &ProcessEngine) -> String {
 
 #[test]
 fn sync_mode_writes_history_immediately() {
-    let engine = ProcessEngine::new("sync_test".to_string());
+    let engine = ProcessEngine::new("sync_test".to_string()).unwrap();
     let pd_id = deploy_simple_process(&engine);
 
     let pi = engine
@@ -489,7 +495,7 @@ fn async_history_replays_task_metadata_claim_and_reclaim_in_command_order() {
 
 #[test]
 fn historic_task_text_projections_preserve_numeric_strings_and_clear_nulls() {
-    let engine = ProcessEngine::new("p34-historic-task-typed-projections".to_string());
+    let engine = ProcessEngine::new("p34-historic-task-typed-projections".to_string()).unwrap();
     let process_definition_id = deploy_simple_process(&engine);
     let process_instance = engine
         .get_runtime_service()
@@ -923,7 +929,7 @@ fn async_and_history_acquisition_are_isolated() {
 
     let runtime_service = engine.get_runtime_service();
     let async_jobs = runtime_service.acquire_async_jobs(300_000, 10);
-    let history_jobs = runtime_service.acquire_history_jobs(300_000, 10);
+    let history_jobs = runtime_service.acquire_history_jobs(300_000, 10).unwrap();
 
     assert!(
         async_jobs

@@ -2605,7 +2605,17 @@ impl CmmnCaseInstanceQuery {
 /// groups of the user are ACT_ID_GROUP rows with a membership in ACT_ID_MEMBERSHIP.
 /// The CMMN engine has no identity store, so callers (the REST layer or tests)
 /// supply the resolver; when absent, candidateUser matches direct user links only.
-pub type CmmnUserGroupResolver = std::sync::Arc<dyn Fn(&str) -> Vec<String> + Send + Sync>;
+///
+/// The resolver is fallible on purpose. Java runs the group query inside
+/// `TaskQueryImpl.getGroupsForCandidateUser`
+/// (flowable-engine/.../impl/TaskQueryImpl.java:2021-2032) with no try/catch, so a
+/// store failure becomes a `PersistenceException` (DbSqlSession selectList,
+/// flowable-engine-common/.../impl/db/DbSqlSession.java:282-299) instead of an
+/// empty group set. Returning `Vec<String>` made "identity store unreachable"
+/// indistinguishable from "the user is in no groups", which silently under-matched
+/// candidate queries.
+pub type CmmnUserGroupResolver =
+    std::sync::Arc<dyn Fn(&str) -> Result<Vec<String>, CmmnError> + Send + Sync>;
 
 pub struct CmmnHumanTaskQuery {
     store: CmmnStore,
@@ -3180,12 +3190,16 @@ impl CmmnHumanTaskQuery {
             if let Some(candidate_user) = &self.candidate_user {
                 // Java TaskQueryImpl.getGroupsForCandidateUser
                 // (TaskQueryImpl.java:2021-2032): direct user link OR a candidate
-                // link on any of the user's groups.
-                let user_group_ids: std::collections::HashSet<String> = self
+                // link on any of the user's groups. The lookup is fallible there
+                // too (no try/catch around the group query), so a resolver
+                // failure propagates instead of degrading to "no groups".
+                let user_group_ids: std::collections::HashSet<String> = match self
                     .user_group_resolver
                     .as_ref()
-                    .map(|resolver| resolver(candidate_user).into_iter().collect())
-                    .unwrap_or_default();
+                {
+                    Some(resolver) => resolver(candidate_user)?.into_iter().collect(),
+                    None => std::collections::HashSet::new(),
+                };
                 items.retain(|task| {
                     links_by_task.get(task.id.as_str()).is_some_and(|links| {
                         links.iter().any(|link| {
@@ -3230,12 +3244,15 @@ impl CmmnHumanTaskQuery {
             if let Some(candidate_or_assigned) = &self.candidate_or_assigned {
                 // Java taskCandidateOrAssigned (Task.xml:1090-1131): assignee ==
                 // the user, or (unassigned unless ignoreAssigneeValue) a candidate
-                // link for the user or any of the user's groups.
-                let user_group_ids: std::collections::HashSet<String> = self
+                // link for the user or any of the user's groups. Fallible for the
+                // same reason as the candidateUser block above.
+                let user_group_ids: std::collections::HashSet<String> = match self
                     .user_group_resolver
                     .as_ref()
-                    .map(|resolver| resolver(candidate_or_assigned).into_iter().collect())
-                    .unwrap_or_default();
+                {
+                    Some(resolver) => resolver(candidate_or_assigned)?.into_iter().collect(),
+                    None => std::collections::HashSet::new(),
+                };
                 items.retain(|task| {
                     if task.assignee.as_deref() == Some(candidate_or_assigned.as_str()) {
                         return true;

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P18-A contract tests: signal intermediate throw is an ENGINE-WIDE broadcast.
 //!
 //! Java evidence: `IntermediateThrowSignalEventActivityBehavior#execute`
@@ -127,7 +133,7 @@ fn task_keys(engine: &ProcessEngine, process_instance_id: &str) -> Vec<String> {
 /// same signal, not just the throwing one.
 #[test]
 fn signal_throw_broadcasts_to_all_waiting_process_instances() {
-    let engine = ProcessEngine::new("p18-signal-broadcast".to_string());
+    let engine = ProcessEngine::new("p18-signal-broadcast".to_string()).unwrap();
     deploy(&engine, "signal_catcher_p18", CATCHER_XML);
     deploy(&engine, "signal_thrower_p18", THROWER_XML);
 
@@ -155,7 +161,7 @@ fn signal_throw_broadcasts_to_all_waiting_process_instances() {
 /// process instance only (Java `Signal.SCOPE_PROCESS_INSTANCE`).
 #[test]
 fn signal_throw_with_process_instance_scope_only_wakes_own_instance() {
-    let engine = ProcessEngine::new("p18-signal-pi-scope".to_string());
+    let engine = ProcessEngine::new("p18-signal-pi-scope".to_string()).unwrap();
     deploy(&engine, "signal_scoped_fork_p18", SCOPED_FORK_XML);
 
     // Another instance of the same definition waits on the same signal.
@@ -184,7 +190,7 @@ fn signal_throw_with_process_instance_scope_only_wakes_own_instance() {
 /// instance waiting on the same signal stays asleep.
 #[test]
 fn signal_throw_with_process_instance_scope_leaves_other_instances_waiting() {
-    let engine = ProcessEngine::new("p18-signal-pi-scope-guard".to_string());
+    let engine = ProcessEngine::new("p18-signal-pi-scope-guard".to_string()).unwrap();
     deploy(&engine, "signal_scoped_fork_p18", SCOPED_FORK_XML);
     deploy(&engine, "signal_catcher_p18", CATCHER_XML);
 
@@ -206,7 +212,7 @@ fn signal_throw_with_process_instance_scope_leaves_other_instances_waiting() {
 /// event subscriptions, so a throw spawns new process instances.
 #[test]
 fn signal_throw_triggers_matching_signal_start_event() {
-    let engine = ProcessEngine::new("p18-signal-start-trigger".to_string());
+    let engine = ProcessEngine::new("p18-signal-start-trigger".to_string()).unwrap();
     deploy(&engine, "signal_start_p18", SIGNAL_START_XML);
     deploy(&engine, "signal_thrower_p18", THROWER_XML);
 

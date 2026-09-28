@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P33: escalation propagation across call activities.
 //!
 //! Java references:
@@ -100,7 +106,7 @@ impl EngineEventListener for EscalationCompletionRecorder {
         if let EngineEvent::Entity { data, .. } = event {
             self.process_instance_ids
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push(data.entity_id.clone());
         }
         Ok(())
@@ -119,7 +125,7 @@ fn engine_with_completion_recorder(name: &str) -> (ProcessEngine, Arc<Mutex<Vec<
     let mut config = ProcessEngineConfiguration::default();
     config.engine_event_dispatcher = dispatcher;
     (
-        ProcessEngine::new_with_config(name.to_string(), config),
+        ProcessEngine::new_with_config(name.to_string(), config).unwrap(),
         process_instance_ids,
     )
 }
@@ -214,7 +220,7 @@ fn p33_escalation_end_crosses_call_activity_and_completes_child_with_event() {
         0,
         "completed escalation child must not retain runtime executions"
     );
-    assert_eq!(completed_ids.lock().unwrap().as_slice(), &[child.0.clone()]);
+    assert_eq!(completed_ids.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &[child.0.clone()]);
 }
 
 #[test]
@@ -243,7 +249,7 @@ fn p33_intermediate_throw_uses_parent_call_activity_catcher() {
         task_keys(&engine, &child.0).is_empty(),
         "stale child throw token must not take its outgoing flow"
     );
-    assert_eq!(completed_ids.lock().unwrap().as_slice(), &[child.0.clone()]);
+    assert_eq!(completed_ids.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &[child.0.clone()]);
 }
 
 #[test]
@@ -275,7 +281,7 @@ fn p33_escalation_walks_two_call_activity_levels_and_cleans_crossed_instances() 
         .collect();
     assert_eq!(crossed_ids.len(), 2, "leaf + middle must be crossed");
 
-    let mut recorded = completed_ids.lock().unwrap().clone();
+    let mut recorded = completed_ids.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let mut expected = crossed_ids;
     recorded.sort();
     expected.sort();

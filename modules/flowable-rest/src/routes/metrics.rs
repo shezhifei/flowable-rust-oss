@@ -5,16 +5,23 @@ use flowable_engine::persistence::db_session::DbParams;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-pub async fn metrics(Extension(engine): Extension<Arc<ProcessEngine>>) -> impl IntoResponse {
-    let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().unwrap();
+use crate::error::ApiError;
 
+pub async fn metrics(
+    Extension(engine): Extension<Arc<ProcessEngine>>,
+) -> Result<impl IntoResponse, ApiError> {
+    let runtime_store = engine.get_runtime_store();
+    // Java parity: these counts are MyBatis queries; a storage failure throws rather than
+    // publishing a broken store as "0 instances / 0 tasks" on a successful scrape.
+    let mut session = runtime_store
+        .create_session()
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
     let process_instances: i64 = session
         .raw_query_one(
             "SELECT COUNT(*) AS RES_ FROM process_instances",
             DbParams::new(),
         )
-        .unwrap()
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?
         .and_then(|r| r.get_integer("RES_"))
         .unwrap_or(0);
 
@@ -23,9 +30,10 @@ pub async fn metrics(Extension(engine): Extension<Arc<ProcessEngine>>) -> impl I
             "SELECT COUNT(*) AS RES_ FROM historic_task_instances",
             DbParams::new(),
         )
-        .unwrap()
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?
         .and_then(|r| r.get_integer("RES_"))
         .unwrap_or(0);
+    let _ = session.rollback();
 
     let timer = engine.get_runtime_service().timer_metrics();
     let job_metrics = format_job_lifecycle_metrics(timer.as_ref());
@@ -41,7 +49,7 @@ pub async fn metrics(Extension(engine): Extension<Arc<ProcessEngine>>) -> impl I
         process_instances, tasks, job_metrics
     );
 
-    (StatusCode::OK, output)
+    Ok((StatusCode::OK, output))
 }
 
 /// Prometheus export of async/timer acquire + coordinator counters.

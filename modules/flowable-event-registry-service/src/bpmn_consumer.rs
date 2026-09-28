@@ -133,7 +133,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
             let store = self.engine.get_runtime_store();
             let mut session = store.create_session().map_err(FlowableError::from)?;
             let pi_tenant = store
-                .find_process_instance(&wait_state.process_instance_id, &mut session)
+                .find_process_instance(&wait_state.process_instance_id, &mut session)?
                 .and_then(|pi| pi.tenant_id);
             drop(session);
             if !subscription_matches_event_tenant(
@@ -149,8 +149,14 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                 RuntimeEventWaitKind::ReceiveTask => {
                     // correlate_message_cmd.rs:221-242 — complete path when a Task exists.
                     if let Some(task_id) = wait_state.task_id.clone() {
-                        if task_service.complete_task_by_id(task_id).is_ok() {
-                            continue;
+                        // Java parity: `ReceiveTaskActivityBehavior` completes the task when
+                        // one exists; only a genuinely absent task falls through to the
+                        // trigger path. A storage failure must not be mistaken for "no task"
+                        // and silently re-routed to triggering the execution.
+                        match task_service.complete_task_by_id(task_id) {
+                            Ok(()) => continue,
+                            Err(FlowableError::NotFound(_)) => {}
+                            Err(error) => return Err(error),
                         }
                     }
                     // Event-registry receive has no Task (ReceiveEventTaskActivityBehavior).
@@ -158,7 +164,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                         EventSubscriptionKind::EventRegistry,
                         event_key.to_string(),
                         wait_state.execution_id.clone(),
-                    );
+                    )?;
                 }
                 // P130: send-event triggerable wait → TriggerCmd/TriggerExecutionOperation
                 // (Java BpmnEventRegistryEventConsumer.java:103,116 → runtimeService.trigger
@@ -166,12 +172,12 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                 // P134: pass pipeline delivery id so trigger updates that row
                 // instead of inserting a second event-instance delivery.
                 RuntimeEventWaitKind::SendEventTask => {
-                    let _ = runtime.trigger_send_event_service_task_with_delivery(
+                    runtime.trigger_send_event_service_task_with_delivery(
                         wait_state.execution_id.clone(),
                         event_key.to_string(),
                         delivery.payload.clone(),
                         delivery.id.clone(),
-                    );
+                    )?;
                 }
                 _ => {
                     // Intermediate catch (EventRegistryIntermediateCatchEvent) and any
@@ -180,7 +186,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                         EventSubscriptionKind::EventRegistry,
                         event_key.to_string(),
                         wait_state.execution_id.clone(),
-                    );
+                    )?;
                 }
             }
         }
@@ -191,7 +197,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                 EventSubscriptionKind::EventRegistry,
                 event_key.to_string(),
                 pi_id.clone(),
-            );
+            )?;
         }
 
         // 3) Event subprocesses
@@ -201,7 +207,12 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
                 event_key.to_string(),
                 pi_id.clone(),
             );
-            let _ = executor.execute(&esp_cmd);
+            // Java parity: `BpmnEventRegistryEventConsumer.handleEventSubscription`
+            // (flowable-engine/.../impl/eventregistry/BpmnEventRegistryEventConsumer.java:103-116)
+            // calls `runtimeService.trigger(...)` with no surrounding try/catch, so a trigger
+            // failure propagates out of `eventReceived` and fails the delivery instead of
+            // being dropped.
+            executor.execute(&esp_cmd)?;
         }
 
         // 4) Process-level start subscriptions
@@ -219,7 +230,7 @@ impl InboundEventConsumer for BpmnEventRegistryConsumer {
             tenant_id,
             policy,
             &correlation_keys,
-        );
+        )?;
 
         Ok(())
     }
@@ -235,9 +246,9 @@ fn trigger_process_start(
     tenant_id: Option<&str>,
     policy: &TenantFallbackPolicy,
     correlation_keys: &[String],
-) {
+) -> Result<(), FlowableError> {
     let mut subs: Vec<ProcessEventStartSubscription> = engine
-        .get_event_start_subscriptions()
+        .get_event_start_subscriptions()?
         .into_iter()
         .filter(|sub| {
             sub.event_kind == EventSubscriptionKind::EventRegistry && sub.event_ref == event_key
@@ -293,4 +304,5 @@ fn trigger_process_start(
         }
         let _ = executor.execute(&cmd);
     }
+    Ok(())
 }

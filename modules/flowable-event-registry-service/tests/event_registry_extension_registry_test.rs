@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 mod test_support;
 
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -40,7 +46,7 @@ impl OutboundChannelAdapter for TaggedOutboundAdapter {
         _event: EventPayload,
         _channel_config: &Value,
     ) -> Result<(), FlowableError> {
-        self.sink.lock().unwrap().push(self.tag.clone());
+        self.sink.lock().unwrap_or_else(|e| e.into_inner()).push(self.tag.clone());
         Ok(())
     }
 }
@@ -108,7 +114,7 @@ fn channel_with_processors(
 fn default_configuration_accepts_in_memory_and_rest_adapters() {
     let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
         "event-registry-default-adapters".to_string(),
-    )));
+    ).unwrap()));
 
     service
         .deploy(EventRegistryDeploymentRequest {
@@ -129,7 +135,7 @@ fn default_configuration_accepts_in_memory_and_rest_adapters() {
 fn deployment_rejects_unknown_adapter_with_channel_key_and_allowed_names() {
     let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
         "event-registry-unknown-adapter".to_string(),
-    )));
+    ).unwrap()));
 
     let error = service
         .deploy(EventRegistryDeploymentRequest {
@@ -165,7 +171,7 @@ fn deployment_rejects_unknown_adapter_with_channel_key_and_allowed_names() {
 fn deployment_rejects_unknown_processor_names_with_allowed_names() {
     let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
         "event-registry-unknown-processor".to_string(),
-    )));
+    ).unwrap()));
 
     let error = service
         .deploy(EventRegistryDeploymentRequest {
@@ -228,11 +234,11 @@ fn two_services_can_register_different_implementations_under_same_name_without_l
     config_b.register_outbound_transformer("json", Arc::new(IdentityOutboundTransformer));
 
     let service_a = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("event-registry-registry-a".to_string())),
+        Arc::new(ProcessEngine::new("event-registry-registry-a".to_string()).unwrap()),
         config_a,
     );
     let service_b = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("event-registry-registry-b".to_string())),
+        Arc::new(ProcessEngine::new("event-registry-registry-b".to_string()).unwrap()),
         config_b,
     );
 
@@ -277,10 +283,10 @@ fn two_services_can_register_different_implementations_under_same_name_without_l
         })
         .unwrap();
 
-    assert_eq!(sink_a.lock().unwrap().as_slice(), &["service-a".to_string()]);
-    assert_eq!(sink_b.lock().unwrap().as_slice(), &["service-b".to_string()]);
-    assert!(sink_a.lock().unwrap().iter().all(|tag| tag != "service-b"));
-    assert!(sink_b.lock().unwrap().iter().all(|tag| tag != "service-a"));
+    assert_eq!(sink_a.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &["service-a".to_string()]);
+    assert_eq!(sink_b.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &["service-b".to_string()]);
+    assert!(sink_a.lock().unwrap_or_else(|e| e.into_inner()).iter().all(|tag| tag != "service-b"));
+    assert!(sink_b.lock().unwrap_or_else(|e| e.into_inner()).iter().all(|tag| tag != "service-a"));
 }
 
 #[test]
@@ -292,7 +298,7 @@ fn configuration_registry_lookups_are_local_to_service_instance() {
     config.register_outbound_adapter("in-memory", Arc::clone(&counter) as Arc<dyn OutboundChannelAdapter>);
 
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("event-registry-local-registry".to_string())),
+        Arc::new(ProcessEngine::new("event-registry-local-registry".to_string()).unwrap()),
         config,
     );
 
@@ -300,7 +306,7 @@ fn configuration_registry_lookups_are_local_to_service_instance() {
     let mut inbound_only = EventRegistryConfiguration::builder();
     inbound_only = inbound_only.inbound_adapter("custom-in", Arc::new(MarkerInboundAdapter));
     let inbound_service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("event-registry-inbound-only".to_string())),
+        Arc::new(ProcessEngine::new("event-registry-inbound-only".to_string()).unwrap()),
         inbound_only.build(),
     );
 

@@ -141,7 +141,7 @@ impl Command<RuntimeTimerJobState> for RescheduleTimerJobCmd {
 
         command_context
             .runtime_store
-            .insert_timer_job_state(&job, &mut command_context.session);
+            .insert_timer_job_state(&job, &mut command_context.session)?;
 
         // P125: Java TimerUtil.rescheduleTimerJob (277-282) — JOB_RESCHEDULED
         // first, then TIMER_SCHEDULED for the (re)inserted job.

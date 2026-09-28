@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_persistence::executor::ExecuteResult;
 use flowable_persistence::{
     DatabaseConfig, DatabaseKind, DbParams, DbRow, DbSession, DbSessionFactory, Entity, EntityType,
@@ -137,7 +143,7 @@ impl RecordingExecutor {
 
 impl SqlExecutor for RecordingExecutor {
     fn execute(&mut self, statement: RenderedStatement) -> Result<ExecuteResult, PersistenceError> {
-        self.executed.lock().unwrap().push(statement.sql);
+        self.executed.lock().unwrap_or_else(|e| e.into_inner()).push(statement.sql);
         Ok(ExecuteResult {
             rows_affected: self.rows_affected.pop_front().unwrap_or(1),
         })
@@ -362,7 +368,7 @@ fn test_flush_ordering_is_inserts_updates_deletes() -> Result<(), PersistenceErr
 
     session.flush()?;
 
-    let executed = executed.lock().unwrap();
+    let executed = executed.lock().unwrap_or_else(|e| e.into_inner());
     assert!(executed[0].starts_with("INSERT INTO ACT_GE_PROPERTY"));
     assert!(executed[1].starts_with("UPDATE ACT_GE_PROPERTY"));
     assert!(executed[2].starts_with("DELETE FROM ACT_GE_PROPERTY"));
@@ -402,7 +408,7 @@ fn test_bulk_operations_are_flushed() -> Result<(), PersistenceError> {
 
     session.flush()?;
 
-    let executed = executed.lock().unwrap();
+    let executed = executed.lock().unwrap_or_else(|e| e.into_inner());
     assert_eq!(executed.len(), 3);
     assert_eq!(
         executed

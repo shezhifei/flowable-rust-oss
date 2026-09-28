@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P80 — serviceTask `flowable:type="dmn"` full chain.
 //!
 //! Java reference: `DmnActivityBehavior.java:58-195` (execute), `:197-267` (writeback),
@@ -932,7 +938,7 @@ fn service_task_dmn_skip_expression_leaves_without_executing() {
 
 #[test]
 fn service_task_dmn_xml_deploy_and_execute() {
-    let process_engine = ProcessEngine::new("p80-dmn-xml".to_string());
+    let process_engine = ProcessEngine::new("p80-dmn-xml".to_string()).unwrap();
     let dmn = process_engine
         .get_config()
         .dmn_engine

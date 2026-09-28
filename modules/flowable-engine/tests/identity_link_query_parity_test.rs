@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::identity::entities::IdentityLink;
 use std::sync::Arc;
 
 fn setup() -> Arc<ProcessEngine> {
-    Arc::new(ProcessEngine::new("identity-link-query-parity".to_string()))
+    Arc::new(ProcessEngine::new("identity-link-query-parity".to_string()).unwrap())
 }
 
 #[test]
@@ -20,7 +26,7 @@ fn identity_link_query_filters_by_task_id() {
         task_id: Some("task-1".to_string()),
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "link-2".to_string(),
         link_type: "assignee".to_string(),
@@ -29,7 +35,7 @@ fn identity_link_query_filters_by_task_id() {
         task_id: Some("task-2".to_string()),
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let links = svc
         .create_identity_link_query()
@@ -53,7 +59,7 @@ fn identity_link_query_filters_by_process_instance_id() {
         task_id: None,
         process_instance_id: Some("proc-1".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "link-2".to_string(),
         link_type: "candidate".to_string(),
@@ -62,7 +68,7 @@ fn identity_link_query_filters_by_process_instance_id() {
         task_id: None,
         process_instance_id: Some("proc-2".to_string()),
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let links = svc
         .create_identity_link_query()
@@ -86,7 +92,7 @@ fn identity_link_query_filters_by_process_definition_id() {
         task_id: None,
         process_instance_id: None,
         process_definition_id: Some("procdef-1".to_string()),
-    });
+    }).unwrap();
 
     let links = svc
         .create_identity_link_query()
@@ -109,7 +115,7 @@ fn identity_link_query_filters_by_user_id_and_group_id() {
         task_id: None,
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "link-group".to_string(),
         link_type: "candidate".to_string(),
@@ -118,7 +124,7 @@ fn identity_link_query_filters_by_user_id_and_group_id() {
         task_id: None,
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let user_links = svc
         .create_identity_link_query()
@@ -150,7 +156,7 @@ fn identity_link_query_filters_by_link_type() {
         task_id: None,
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
     svc.add_identity_link(IdentityLink {
         id: "link-2".to_string(),
         link_type: "assignee".to_string(),
@@ -159,7 +165,7 @@ fn identity_link_query_filters_by_link_type() {
         task_id: None,
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let candidates = svc
         .create_identity_link_query()
@@ -184,7 +190,7 @@ fn identity_link_query_returns_all_when_no_filters() {
             task_id: None,
             process_instance_id: None,
             process_definition_id: None,
-        });
+        }).unwrap();
     }
 
     let all = svc.create_identity_link_query().list().unwrap();
@@ -204,11 +210,11 @@ fn identity_link_remove_deletes_link() {
         task_id: None,
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
 
     assert_eq!(svc.create_identity_link_query().list().unwrap().len(), 1);
 
-    svc.remove_identity_link("link-to-delete");
+    svc.remove_identity_link("link-to-delete").unwrap();
 
     assert_eq!(svc.create_identity_link_query().list().unwrap().len(), 0);
 }

@@ -16,7 +16,7 @@ pub struct SnapshotDeployment {
     pub resources: HashMap<String, Vec<u8>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RecoverySnapshot {
     pub deployments: Vec<SnapshotDeployment>,
     pub process_definitions: Vec<ProcessDefinition>,

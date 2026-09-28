@@ -167,7 +167,7 @@ impl ActivityBehavior for IntermediateCatchEventActivityBehavior {
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         let process_instance_id = execution
             .process_instance_id
@@ -245,7 +245,7 @@ impl ActivityBehavior for IntermediateCatchEventActivityBehavior {
             };
             command_context
                 .runtime_store
-                .insert_timer_job_state(&timer_job, &mut command_context.session);
+                .insert_timer_job_state(&timer_job, &mut command_context.session)?;
             // P119: TIMER_SCHEDULED — Java TimerJobSchedulerImpl.java:69-73.
             crate::engine::event_dispatcher::dispatch_timer_scheduled(command_context, &timer_job);
             handled = true;

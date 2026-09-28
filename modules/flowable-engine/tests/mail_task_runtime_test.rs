@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::persistence::runtime_store::MailOutboxStatus;
 use serde_json::json;
 
 #[test]
 fn mail_task_executes_owned_runtime_and_stores_send_record() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -100,7 +106,7 @@ fn mail_task_executes_owned_runtime_and_stores_send_record() {
 /// P51 S2 — Java BaseMailActivityDelegate: cc/bcc/charset + field EL evaluation.
 #[test]
 fn mail_task_evaluates_el_fields_and_captures_cc_bcc_charset() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -174,7 +180,7 @@ fn mail_task_evaluates_el_fields_and_captures_cc_bcc_charset() {
 /// P51 S2 — ignoreException swallows mail errors and may set exceptionVariableName.
 #[test]
 fn mail_task_ignore_exception_swallows_missing_recipient_error() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -267,7 +273,7 @@ fn mail_task_ignore_exception_swallows_missing_recipient_error() {
 /// no headers column). Assert process continues + outbox body/subject.
 #[test]
 fn mail_task_headers_passthrough_to_result() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -335,7 +341,7 @@ X-Correlation-Id: corr-42]]></flowable:headers>
 /// (Java BaseMailActivityDelegate.createMessage:100-102, getExpression:236-239).
 #[test]
 fn mail_task_text_var_reads_body_from_variable() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -404,7 +410,7 @@ fn mail_task_text_var_reads_body_from_variable() {
 /// P124 — textVar missing variable fails (Java getExpression → createExpression(null) NPE path).
 #[test]
 fn mail_task_text_var_missing_variable_fails() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -455,7 +461,7 @@ fn mail_task_text_var_missing_variable_fails() {
 /// P124 — htmlVar: HTML body from process variable (Java createMessage:103-105).
 #[test]
 fn mail_task_html_var_reads_body_from_variable() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -529,7 +535,7 @@ fn mail_task_html_var_reads_body_from_variable() {
 /// P124 — htmlVar missing variable fails.
 #[test]
 fn mail_task_html_var_missing_variable_fails() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -583,7 +589,7 @@ fn mail_task_html_var_missing_variable_fails() {
 /// Assert send succeeds (outbox row + process continues).
 #[test]
 fn mail_task_attachments_passthrough_to_result() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -655,7 +661,7 @@ fn mail_task_attachments_passthrough_to_result() {
 /// P124 — field-extension form (flowable:field) for headers/textVar is accepted at deploy + runtime.
 #[test]
 fn mail_task_field_extension_form_headers_and_text_var() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

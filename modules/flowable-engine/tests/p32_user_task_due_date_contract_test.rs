@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Java parity for user-task due-date evaluation.
 //!
 //! Reference implementation:
@@ -17,7 +23,7 @@ const NOW_MILLIS: i64 = 1_767_268_800_000; // 2026-01-01T12:00:00Z
 
 fn engine_with_fixed_clock(name: &str) -> ProcessEngine {
     let now = Utc.timestamp_millis_opt(NOW_MILLIS).single().unwrap();
-    ProcessEngine::with_time_source(name.to_string(), Arc::new(TestTimeSource::new(now)))
+    ProcessEngine::with_time_source(name.to_string(), Arc::new(TestTimeSource::new(now))).unwrap()
 }
 
 fn user_task_xml(process_key: &str, due_date: &str) -> String {

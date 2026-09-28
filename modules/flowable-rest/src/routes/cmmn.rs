@@ -4350,7 +4350,11 @@ pub async fn create_task_variables(
         updates.push(variable_update_from_task_request(request, name)?);
     }
 
-    let scope = shared_scope.expect("non-empty requests checked above");
+    let scope = shared_scope.ok_or_else(|| {
+        ApiError::InternalServerError(
+            "Variable scope was not resolved for non-empty task variable requests".to_string(),
+        )
+    })?;
     let records = if scope == VariableScope::Local {
         // Java: TaskVariableCollectionResource.java:188-190 —
         // taskService.setVariablesLocal for LOCAL scope.

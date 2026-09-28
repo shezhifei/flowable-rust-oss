@@ -11,9 +11,9 @@ pub struct FormManagementService {
 }
 
 impl FormManagementService {
-    pub fn new(engine: Arc<ProcessEngine>) -> Self {
-        repository::ensure_schema(&engine.get_runtime_store());
-        Self { engine }
+    pub fn new(engine: Arc<ProcessEngine>) -> Result<Self, FlowableError> {
+        repository::ensure_schema(&engine.get_runtime_store())?;
+        Ok(Self { engine })
     }
 
     /// Delete all form definitions (and their instances) for a given deployment.
@@ -80,9 +80,8 @@ impl FormManagementService {
         let store = self.engine.get_runtime_store();
 
         // Verify the definition exists
-        let mut definition = repository::find_form_definition(&store, id).ok_or_else(|| {
-            FlowableError::NotFound(format!("Form definition '{}' was not found", id))
-        })?;
+        let mut definition = repository::find_form_definition(&store, id)?
+            .ok_or_else(|| FlowableError::NotFound(format!("Form definition '{}' was not found", id)))?;
 
         // Update in database
         repository::update_form_definition_activation(&store, id, active)?;

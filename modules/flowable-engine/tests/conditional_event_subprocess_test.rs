@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P11: Conditional event subprocess repeat semantics — Java parity probes.
 //!
 //! Java reference: `ConditionalEventSubprocessTest` /
@@ -79,7 +85,7 @@ fn deploy_and_start(engine: &ProcessEngine, xml: &str, resource: &str) -> String
 /// condition becomes true, leaving the main flow untouched.
 #[test]
 fn non_interrupting_conditional_event_subprocess_fires() {
-    let engine = ProcessEngine::new("p11-ni-es-fire".to_string());
+    let engine = ProcessEngine::new("p11-ni-es-fire".to_string()).unwrap();
     let pi_id = deploy_and_start(
         &engine,
         NON_INTERRUPTING_CONDITIONAL_ES_XML,
@@ -119,7 +125,7 @@ fn non_interrupting_conditional_event_subprocess_fires() {
 /// another subprocess instance.
 #[test]
 fn non_interrupting_conditional_event_subprocess_is_repeatable() {
-    let engine = ProcessEngine::new("p11-ni-es-repeat".to_string());
+    let engine = ProcessEngine::new("p11-ni-es-repeat".to_string()).unwrap();
     let pi_id = deploy_and_start(
         &engine,
         NON_INTERRUPTING_CONDITIONAL_ES_XML,
@@ -176,7 +182,7 @@ fn non_interrupting_conditional_event_subprocess_is_repeatable() {
 /// the main flow's activities.
 #[test]
 fn interrupting_conditional_event_subprocess_fires_and_cancels_main_flow() {
-    let engine = ProcessEngine::new("p11-i-es-fire".to_string());
+    let engine = ProcessEngine::new("p11-i-es-fire".to_string()).unwrap();
     let pi_id = deploy_and_start(
         &engine,
         INTERRUPTING_CONDITIONAL_ES_XML,

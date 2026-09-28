@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -30,7 +36,7 @@ impl MockAppRepository {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(AppDeploymentRecord {
                 id: "deployment-1".to_string(),
                 name: "Employee apps".to_string(),
@@ -42,7 +48,7 @@ impl MockAppRepository {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(AppDeploymentRecord {
                 id: "deployment-2".to_string(),
                 name: "Public apps".to_string(),
@@ -54,7 +60,7 @@ impl MockAppRepository {
         repository
             .app_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(AppDefinitionRecord {
                 id: "app-1".to_string(),
                 key: "employee-portal".to_string(),
@@ -69,7 +75,7 @@ impl MockAppRepository {
         repository
             .app_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(AppDefinitionRecord {
                 id: "app-2".to_string(),
                 key: "public-portal".to_string(),
@@ -91,7 +97,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
         command: AppDeploymentCommand,
     ) -> Result<AppDeploymentRecord, ApiError> {
         let deployment_id = {
-            let deployments = self.deployments.lock().unwrap();
+            let deployments = self.deployments.lock().unwrap_or_else(|e| e.into_inner());
             format!("deployment-{}", deployments.len() + 1)
         };
         let deployment = AppDeploymentRecord {
@@ -109,7 +115,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
 
         if let Some(resource) = command.resources.first() {
             let app_definition_id = {
-                let definitions = self.app_definitions.lock().unwrap();
+                let definitions = self.app_definitions.lock().unwrap_or_else(|e| e.into_inner());
                 format!("app-{}", definitions.len() + 1)
             };
             let resource_json: Value = serde_json::from_slice(&resource.resource)
@@ -123,7 +129,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
 
             self.app_definitions
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push(AppDefinitionRecord {
                     id: app_definition_id,
                     key: key.to_string(),
@@ -139,7 +145,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
                 });
         }
 
-        self.deployments.lock().unwrap().push(deployment.clone());
+        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
         Ok(deployment)
     }
 
@@ -150,7 +156,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
         let filtered = self
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|deployment| {
                 query
@@ -186,7 +192,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
     fn get_app_deployment(&self, deployment_id: &str) -> Result<AppDeploymentRecord, ApiError> {
         self.deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|deployment| deployment.id == deployment_id)
             .cloned()
@@ -196,7 +202,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
     }
 
     fn delete_app_deployment(&self, deployment_id: &str) -> Result<(), ApiError> {
-        let mut deployments = self.deployments.lock().unwrap();
+        let mut deployments = self.deployments.lock().unwrap_or_else(|e| e.into_inner());
         let original_len = deployments.len();
         deployments.retain(|deployment| deployment.id != deployment_id);
         if deployments.len() == original_len {
@@ -208,7 +214,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
 
         self.app_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|definition| definition.deployment_id != deployment_id);
         Ok(())
     }
@@ -253,7 +259,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
         let filtered = self
             .app_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|definition| {
                 query
@@ -357,7 +363,7 @@ impl apps::AppRepositoryApi for MockAppRepository {
     fn get_app_definition(&self, app_definition_id: &str) -> Result<AppDefinitionRecord, ApiError> {
         self.app_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|definition| definition.id == app_definition_id)
             .cloned()
@@ -636,7 +642,7 @@ async fn app_repository_routes_accept_definition_filters() {
     repository
         .deployments
         .lock()
-        .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
         .push(AppDeploymentRecord {
             id: "deployment-3".to_string(),
             name: "Employee apps v2".to_string(),
@@ -648,7 +654,7 @@ async fn app_repository_routes_accept_definition_filters() {
     repository
         .app_definitions
         .lock()
-        .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
         .push(AppDefinitionRecord {
             id: "app-3".to_string(),
             key: "employee-portal".to_string(),

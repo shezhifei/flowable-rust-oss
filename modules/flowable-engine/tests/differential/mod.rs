@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Shared differential-test harness for Java vs Rust black-box contracts.
 //!
 //! New domain fixtures only need:
@@ -453,11 +459,13 @@ pub fn normalize_rust_job_counts(engine: &ProcessEngine, process_instance_id: &s
     let management = engine.get_management_service();
     let executable = management
         .list_executable_jobs()
+        .expect("list Rust executable jobs")
         .into_iter()
         .filter(|job| job.process_instance_id == process_instance_id)
         .count();
     let deadletter = management
         .list_deadletter_jobs()
+        .expect("list Rust deadletter jobs")
         .into_iter()
         .filter(|job| job.process_instance_id == process_instance_id)
         .count();
@@ -555,7 +563,7 @@ pub fn run_rust_operations_case(
                     email: None,
                     password: None,
                     tenant_id: None,
-                });
+                }).unwrap();
             }
             "createGroup" => {
                 let group_id = operation
@@ -570,7 +578,7 @@ pub fn run_rust_operations_case(
                     id: group_id.to_string(),
                     name,
                     group_type: None,
-                });
+                }).unwrap();
             }
             "createMembership" => {
                 let user_id = operation
@@ -583,7 +591,7 @@ pub fn run_rust_operations_case(
                     .expect("createMembership requires groupId");
                 engine
                     .get_identity_service()
-                    .create_membership(user_id.to_string(), group_id.to_string());
+                    .create_membership(user_id.to_string(), group_id.to_string()).unwrap();
             }
             "queryTasks" => {
                 task_query_result =
@@ -750,7 +758,7 @@ pub fn run_rust_operations_case(
                 // activityId is accepted for documentation; Rust triggers the
                 // waiting intermediate catch for the process instance.
                 let _activity_id = operation.activity_id.as_deref();
-                engine.trigger_intermediate_catch_event_by_process_instance_id(pi.to_string());
+                engine.trigger_intermediate_catch_event_by_process_instance_id(pi.to_string()).unwrap();
             }
             "signalEvent" => {
                 let signal_name = operation
@@ -763,7 +771,7 @@ pub fn run_rust_operations_case(
                 engine.trigger_boundary_event_by_signal_ref(
                     signal_name.to_string(),
                     pi.to_string(),
-                );
+                ).unwrap();
             }
             "messageEvent" => {
                 let message_name = operation
@@ -776,7 +784,7 @@ pub fn run_rust_operations_case(
                 engine.trigger_boundary_event_by_message_ref(
                     message_name.to_string(),
                     pi.to_string(),
-                );
+                ).unwrap();
             }
             "triggerBoundary" => {
                 let activity_id = operation
@@ -786,7 +794,7 @@ pub fn run_rust_operations_case(
                 let pi = process_instance_id
                     .as_deref()
                     .expect("triggerBoundary requires a started process");
-                engine.trigger_boundary_event(activity_id.to_string(), pi.to_string());
+                engine.trigger_boundary_event(activity_id.to_string(), pi.to_string()).unwrap();
             }
             "claimTask" => {
                 let pi = process_instance_id
@@ -863,6 +871,7 @@ pub fn run_rust_operations_case(
                 let jobs: Vec<_> = engine
                     .get_management_service()
                     .list_executable_jobs()
+                    .expect("list Rust executable jobs for executeJobs operation")
                     .into_iter()
                     .filter(|job| job.process_instance_id == pi)
                     .map(|job| job.timer_job_id)
@@ -1096,6 +1105,7 @@ fn build_operations_snapshot(
                     Some(pi) => engine
                         .get_management_service()
                         .list_executable_jobs()
+                        .expect("list Rust executable jobs for jobHandlerTypes")
                         .into_iter()
                         .filter(|job| job.process_instance_id == pi)
                         .filter_map(|job| job.handler_type)

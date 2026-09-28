@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::identity::entities::{Token, User};
@@ -6,7 +12,7 @@ use std::sync::Arc;
 
 #[test]
 fn token_query_filters_by_user_and_token_value_and_supports_delete() {
-    let engine = Arc::new(ProcessEngine::new("idm-token-query".to_string()));
+    let engine = Arc::new(ProcessEngine::new("idm-token-query".to_string()).unwrap());
     let identity_facade = FlowableIdentityService::new(Arc::clone(&engine));
 
     identity_facade.save_user(User {
@@ -16,7 +22,7 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
         email: Some("kermit@muppets.test".to_string()),
         password: Some("thegreen".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
     identity_facade.save_user(User {
         id: "gonzo".to_string(),
         first_name: Some("Gonzo".to_string()),
@@ -24,7 +30,7 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
         email: Some("gonzo@muppets.test".to_string()),
         password: Some("whatever".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
 
     identity_facade.save_token(Token {
         id: "token-1".to_string(),
@@ -33,7 +39,7 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
         token_date: None,
         ip_address: None,
         user_agent: None,
-    });
+    }).unwrap();
     identity_facade.save_token(Token {
         id: "token-2".to_string(),
         token_value: "beta-token".to_string(),
@@ -41,7 +47,7 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
         token_date: None,
         ip_address: None,
         user_agent: None,
-    });
+    }).unwrap();
 
     let kermit_tokens = identity_facade
         .create_token_query()
@@ -61,8 +67,8 @@ fn token_query_filters_by_user_and_token_value_and_supports_delete() {
     assert_eq!(token_by_value.id, "token-2");
     assert_eq!(token_by_value.user_id.as_deref(), Some("gonzo"));
 
-    identity_facade.delete_token("token-1");
-    assert!(identity_facade.find_token_by_id("token-1").is_none());
+    identity_facade.delete_token("token-1").unwrap();
+    assert!(identity_facade.find_token_by_id("token-1").unwrap().is_none());
 
     let remaining = identity_facade.create_token_query().list().unwrap();
     assert_eq!(remaining.len(), 1);

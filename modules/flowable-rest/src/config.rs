@@ -246,14 +246,17 @@ impl RestConfig {
             );
         }
 
-        engine.get_identity_service().save_user(User {
-            id: self.security.admin_seed.user_id.clone(),
-            first_name: self.security.admin_seed.first_name.clone(),
-            last_name: self.security.admin_seed.last_name.clone(),
-            email: self.security.admin_seed.email.clone(),
-            password: Some(self.security.admin_seed.password.clone()),
-            tenant_id: None,
-        });
+        engine
+            .get_identity_service()
+            .save_user(User {
+                id: self.security.admin_seed.user_id.clone(),
+                first_name: self.security.admin_seed.first_name.clone(),
+                last_name: self.security.admin_seed.last_name.clone(),
+                email: self.security.admin_seed.email.clone(),
+                password: Some(self.security.admin_seed.password.clone()),
+                tenant_id: None,
+            })
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 }

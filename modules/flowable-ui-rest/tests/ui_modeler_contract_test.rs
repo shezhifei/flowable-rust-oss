@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use std::{fs, sync::Arc};
 
 use axum::{
@@ -52,7 +58,7 @@ async fn spawn_with_config(
     test_name: &str,
     config: UiAuthConfig,
 ) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
     let app = flowable_ui_rest::ui_router_with_config(Arc::new(config))
@@ -355,7 +361,7 @@ fn save_user(engine: &Arc<ProcessEngine>, id: &str, first: Option<&str>, last: O
         email: None,
         password: Some("test".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
 }
 
 #[tokio::test]
@@ -504,12 +510,12 @@ async fn editor_users_and_groups_list_idm_entries_with_optional_filter() {
         id: "sales".to_string(),
         name: "Sales".to_string(),
         group_type: Some("assignment".to_string()),
-    });
+    }).unwrap();
     engine.get_identity_service().save_group(Group {
         id: "engineering".to_string(),
         name: "Engineering".to_string(),
         group_type: Some("assignment".to_string()),
-    });
+    }).unwrap();
 
     let users: Value = client
         .get(format!("{base_url}/modeler-app/rest/editor-users"))

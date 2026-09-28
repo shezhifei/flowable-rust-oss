@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 fn deploy_exclusive_gateway_process(
@@ -66,7 +72,7 @@ fn start_and_get_activity(
 
 #[test]
 fn exclusive_gateway_takes_only_the_first_matching_branch() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let process_definition_id = deploy_exclusive_gateway_process(&repository_service);
 
@@ -77,7 +83,7 @@ fn exclusive_gateway_takes_only_the_first_matching_branch() {
 
 #[test]
 fn exclusive_gateway_falls_back_to_default_flow_when_no_condition_matches() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let process_definition_id = deploy_exclusive_gateway_process(&repository_service);
 
@@ -92,7 +98,7 @@ fn exclusive_gateway_falls_back_to_default_flow_when_no_condition_matches() {
 /// surfaces the error instead of silently deleting the execution.
 #[test]
 fn exclusive_gateway_throws_when_no_outgoing_flow_matches_and_no_default() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
 
     // Exclusive gateway with two conditional flows and no default. None of

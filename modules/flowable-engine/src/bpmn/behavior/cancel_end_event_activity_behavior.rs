@@ -115,13 +115,13 @@ impl ActivityBehavior for CancelEndEventActivityBehavior {
 
         let has_compensation = match (&execution.process_instance_id, &scope) {
             (Some(pi_id), Some(scope)) => {
-                Self::compensate_transaction_scope(execution, command_context, pi_id.clone(), scope)
+                Self::compensate_transaction_scope(execution, command_context, pi_id.clone(), scope)?
             }
             (Some(pi_id), None) => {
                 // Fallback (no model / no enclosing transaction resolvable,
                 // e.g. behaviors driven outside a deployed definition):
                 // legacy process-wide compensation.
-                Self::compensate_process_wide(execution, command_context, pi_id.clone())
+                Self::compensate_process_wide(execution, command_context, pi_id.clone())?
             }
             (None, _) => false,
         };
@@ -131,7 +131,7 @@ impl ActivityBehavior for CancelEndEventActivityBehavior {
         // children hang under it (Java `deleteChildExecutions(subProcess-
         // Execution, notToDeleteExecutions, TRANSACTION_CANCELED)`).
         if let Some(scope) = &scope {
-            destroy_transaction_scope(command_context, &scope.tx_execution.id, &execution.id);
+            destroy_transaction_scope(command_context, &scope.tx_execution.id, &execution.id)?;
         }
 
         execution.is_ended = true;
@@ -143,9 +143,9 @@ impl ActivityBehavior for CancelEndEventActivityBehavior {
         if !has_compensation {
             match &scope {
                 Some(scope) => {
-                    Self::trigger_resolved_cancel_boundary(execution, command_context, scope)
+                    Self::trigger_resolved_cancel_boundary(execution, command_context, scope)?
                 }
-                None => self.trigger_cancel_boundary(execution, command_context),
+                None => self.trigger_cancel_boundary(execution, command_context)?,
             }
         }
 
@@ -225,7 +225,7 @@ impl CancelEndEventActivityBehavior {
         command_context: &mut CommandContext,
         pi_id: String,
         scope: &CancelScope,
-    ) -> bool {
+    ) -> Result<bool, crate::error::FlowableError> {
         let subscriptions = command_context
             .runtime_store
             .find_compensation_subscriptions_by_process_instance_id_newest_first(
@@ -269,7 +269,7 @@ impl CancelEndEventActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&comp_execution, &mut command_context.session);
+                .insert(&comp_execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(comp_execution);
@@ -279,7 +279,7 @@ impl CancelEndEventActivityBehavior {
             has_compensation = true;
         }
 
-        has_compensation
+        Ok(has_compensation)
     }
 
     /// Legacy behavior for executions without a resolvable transaction scope:
@@ -288,7 +288,7 @@ impl CancelEndEventActivityBehavior {
         execution: &Execution,
         command_context: &mut CommandContext,
         pi_id: String,
-    ) -> bool {
+    ) -> Result<bool, crate::error::FlowableError> {
         let subs = command_context
             .runtime_store
             .find_compensation_subscriptions_by_process_instance_id_newest_first(
@@ -308,7 +308,7 @@ impl CancelEndEventActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&comp_execution, &mut command_context.session);
+                .insert(&comp_execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(comp_execution);
@@ -319,7 +319,7 @@ impl CancelEndEventActivityBehavior {
                 &pi_id,
                 &mut command_context.session,
             );
-        has
+        Ok(has)
     }
 
     /// Trigger the resolved cancel boundary of the transaction (no
@@ -328,9 +328,9 @@ impl CancelEndEventActivityBehavior {
         execution: &Execution,
         command_context: &mut CommandContext,
         scope: &CancelScope,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let Some(b_id) = scope.cancel_boundary_id.clone() else {
-            return;
+            return Ok(());
         };
 
         // Cancel path does not go through `execute_boundary_trigger`, so
@@ -351,21 +351,22 @@ impl CancelEndEventActivityBehavior {
         boundary_exec.activity_id = Some(b_id);
         command_context
             .execution_entity_manager
-            .update(&boundary_exec, &mut command_context.session);
+            .update(&boundary_exec, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(boundary_exec.clone());
         command_context
             .agenda
             .plan_take_outgoing_sequence_flows_operation(boundary_exec);
-    }
+        Ok(())
+}
 
     /// Legacy path: find the transaction's cancel boundary event via the
     /// direct parent execution and trigger it.
-    fn trigger_cancel_boundary(&self, execution: &Execution, command_context: &mut CommandContext) {
+    fn trigger_cancel_boundary(&self, execution: &Execution, command_context: &mut CommandContext) -> Result<(), crate::error::FlowableError> {
         let process_def_id = match execution.process_definition_id.as_ref() {
             Some(id) => id,
-            None => return,
+            None => return Ok(()),
         };
 
         // Walk up to find the transaction execution
@@ -376,19 +377,18 @@ impl CancelEndEventActivityBehavior {
         // The cancel end event's parent should be the transaction's child execution
         let parent_id = match &execution.parent_id {
             Some(id) => id,
-            None => return,
+            None => return Ok(()),
         };
 
         // Find the transaction execution (could be parent or grandparent)
-        let tx_exec = all_executions.get(parent_id);
-        if tx_exec.is_none() {
-            return;
-        }
-        let tx_exec = tx_exec.unwrap();
+        // Java parity: missing scope throws BPMN error, never panics.
+        let Some(tx_exec) = all_executions.get(parent_id) else {
+            return Ok(());
+        };
 
         let tx_activity_id = match tx_exec.activity_id.as_deref() {
             Some(id) => id,
-            None => return,
+            None => return Ok(()),
         };
 
         let model = match command_context
@@ -396,11 +396,11 @@ impl CancelEndEventActivityBehavior {
             .get_bpmn_model(process_def_id)
         {
             Some(m) => m,
-            None => return,
+            None => return Ok(()),
         };
         let main_process = match model.main_process.as_ref() {
             Some(p) => p,
-            None => return,
+            None => return Ok(()),
         };
 
         // Find the cancel boundary event attached to this transaction
@@ -426,7 +426,7 @@ impl CancelEndEventActivityBehavior {
             boundary_exec.activity_id = Some(b_id);
             command_context
                 .execution_entity_manager
-                .update(&boundary_exec, &mut command_context.session);
+                .update(&boundary_exec, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(boundary_exec.clone());
@@ -434,7 +434,8 @@ impl CancelEndEventActivityBehavior {
                 .agenda
                 .plan_take_outgoing_sequence_flows_operation(boundary_exec);
         }
-    }
+        Ok(())
+}
 }
 
 /// Delete every execution inside the transaction scope except the cancel end
@@ -443,7 +444,7 @@ fn destroy_transaction_scope(
     command_context: &mut CommandContext,
     tx_execution_id: &str,
     keep_execution_id: &str,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let all_executions = command_context
         .runtime_store
         .snapshot_executions(&mut command_context.session);
@@ -470,7 +471,8 @@ fn destroy_transaction_scope(
         tx_execution_id,
         keep_execution_id,
         &keep_chain,
-    );
+    )?;
+    Ok(())
 }
 
 fn delete_children_except(
@@ -478,7 +480,7 @@ fn delete_children_except(
     parent_id: &str,
     keep_execution_id: &str,
     keep_chain: &HashSet<String>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let child_ids: Vec<String> = command_context
         .execution_entity_manager
         .find_child_executions_by_parent_execution_id(parent_id, &mut command_context.session)
@@ -492,7 +494,7 @@ fn delete_children_except(
             continue;
         }
         if keep_chain.contains(&child_id) {
-            delete_children_except(command_context, &child_id, keep_execution_id, keep_chain);
+            delete_children_except(command_context, &child_id, keep_execution_id, keep_chain)?;
         } else {
             // Java `CancelEndEventActivityBehavior#deleteChildExecutions`
             // passes `DeleteReason.TRANSACTION_CANCELED` into
@@ -501,7 +503,8 @@ fn delete_children_except(
                 command_context,
                 &child_id,
                 Some(crate::history::delete_reason::TRANSACTION_CANCELED),
-            );
+            )?;
         }
     }
+    Ok(())
 }

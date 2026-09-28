@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -676,8 +684,8 @@ impl FormFieldHandler for UploadFieldHandler {
                 content_repository::ContentClaimError::TenantMismatch { item_tenant } => {
                     FlowableError::BadRequest(format!(
                         "Content item '{id}' belongs to tenant '{}', cannot associate with tenant '{}'",
-                        item_tenant.unwrap_or_default(),
-                        ctx.tenant_id.unwrap_or_default()
+                        item_tenant.as_deref().unwrap_or("<none>"),
+                        ctx.tenant_id.as_deref().unwrap_or("<none>")
                     ))
                 }
                 content_repository::ContentClaimError::AlreadyAssociated => {

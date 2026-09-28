@@ -133,11 +133,14 @@ fn case_display(
     let cmmn = cmmn_engine(engine)?;
     let case_definition_id = match cmmn.runtime_service().get_case_instance(case_instance_id) {
         Ok(instance) => instance.case_definition_id,
-        Err(_) => cmmn
+        // Java parity: only a genuine "not found" falls through to the historic read; a
+        // storage failure must surface (500), not be masked as a completed/historic case.
+        Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => cmmn
             .history_service()
             .get_historic_case_instance(case_instance_id)
-            .map_err(|e| TaskError::from_engine(e))?
+            .map_err(TaskError::from_engine)?
             .case_definition_id,
+        Err(error) => return Err(TaskError::from_engine(error)),
     };
     let definition = cmmn
         .repository_service()
@@ -149,7 +152,7 @@ fn case_display(
         .case_instance_id(case_instance_id.to_string())
         .include_ended()
         .list()
-        .unwrap_or_default();
+        .map_err(TaskError::from_engine)?;
     let mut completed = Vec::new();
     let mut current = Vec::new();
     let mut available = Vec::new();
@@ -182,7 +185,7 @@ fn runtime_display(
         .get_repository_service()
         .get_bpmn_model(process_definition_id)
         .map_err(TaskError::from_engine)?;
-    let (completed, current) = activity_sets(engine, process_instance_id);
+    let (completed, current) = activity_sets(engine, process_instance_id)?;
     Ok(Json(builder::build_process_instance_display(
         model.as_ref(),
         &completed,
@@ -199,7 +202,7 @@ fn history_display(
         .get_repository_service()
         .get_bpmn_model(process_definition_id)
         .map_err(TaskError::from_engine)?;
-    let (completed, _) = activity_sets(engine, process_instance_id);
+    let (completed, _) = activity_sets(engine, process_instance_id)?;
     Ok(Json(builder::build_history_display(
         model.as_ref(),
         &completed,
@@ -221,13 +224,19 @@ fn historic_process_instance(
 
 /// Java: historic activity instances split on end time — ended ones are
 /// completed, still-open ones are current.
-fn activity_sets(engine: &ProcessEngine, process_instance_id: &str) -> (Vec<String>, Vec<String>) {
+///
+/// Java parity: a failed historic-activity query throws; rendering the diagram with no
+/// highlighted activity would publish a broken store as a valid display.
+fn activity_sets(
+    engine: &ProcessEngine,
+    process_instance_id: &str,
+) -> Result<(Vec<String>, Vec<String>), TaskError> {
     let activities = engine
         .get_history_service()
         .create_historic_activity_instance_query()
         .process_instance_id(process_instance_id.to_string())
         .list()
-        .unwrap_or_default();
+        .map_err(TaskError::from_engine)?;
     let mut completed = Vec::new();
     let mut current = Vec::new();
     for activity in activities {
@@ -237,5 +246,5 @@ fn activity_sets(engine: &ProcessEngine, process_instance_id: &str) -> (Vec<Stri
             current.push(activity.activity_id);
         }
     }
-    (completed, current)
+    Ok((completed, current))
 }

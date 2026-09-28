@@ -79,7 +79,7 @@ impl FormDefinitionQuery {
         validate_unsupported_filters("form definition", &self.unsupported_filters)?;
 
         let store = self.engine.get_runtime_store();
-        let mut definitions = repository::list_form_definitions(&store);
+        let mut definitions = repository::list_form_definitions(&store)?;
         definitions.retain(|item| matches_optional(&self.id, &item.id));
         definitions.retain(|item| matches_optional(&self.key, &item.key));
         definitions.retain(|item| matches_optional(&self.name, &item.name));
@@ -392,7 +392,7 @@ impl FormInstanceQuery {
                 submitted_date_after: self.submitted_date_after,
                 submitted_by: self.submitted_by.as_deref(),
             },
-        );
+        )?;
 
         if let Some(ids) = self.ids.as_ref() {
             instances.retain(|item| ids.contains_key(&item.id));

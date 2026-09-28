@@ -104,7 +104,7 @@ pub fn evaluate_variable_listener_event_subprocesses(
 ) -> Result<(), FlowableError> {
     let process_instance = {
         let (store, session) = command_context.store_and_session();
-        store.find_process_instance(process_instance_id, session)
+        store.find_process_instance(process_instance_id, session)?
     };
     let Some(process_instance) = process_instance else {
         return Ok(());
@@ -216,7 +216,7 @@ pub fn evaluate_variable_listener_event_subprocesses(
                     command_context,
                     &child_id,
                     Some(&delete_reason),
-                );
+                )?;
             }
             // Flat-tree host may reuse the PI row: end its open activity with
             // the same reason, then strip runtime state (do not delete the PI).
@@ -224,7 +224,7 @@ pub fn evaluate_variable_listener_event_subprocesses(
                 command_context,
                 process_instance_id,
                 Some(&delete_reason),
-            );
+            )?;
             crate::bpmn::behavior::multi_instance_support::delete_execution_related_runtime_data(
                 command_context,
                 process_instance_id,
@@ -245,7 +245,7 @@ pub fn evaluate_variable_listener_event_subprocesses(
         };
         command_context
             .execution_entity_manager
-            .insert(&es_scope_execution, &mut command_context.session);
+            .insert(&es_scope_execution, &mut command_context.session)?;
 
         let start_execution = Execution {
             id: Uuid::new_v4().to_string(),
@@ -260,7 +260,7 @@ pub fn evaluate_variable_listener_event_subprocesses(
         };
         command_context
             .execution_entity_manager
-            .insert(&start_execution, &mut command_context.session);
+            .insert(&start_execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(start_execution);

@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::agenda::FlowableEngineAgenda;
 use crate::agenda::continue_process_operation::{
     ASYNC_AFTER_JOB_STATE, ASYNC_AFTER_JOB_TYPE_MARKER, ASYNC_AFTER_RESUME_FLAG,
@@ -284,7 +292,7 @@ fn select_scheduled_timer_candidates(
     max_jobs: usize,
     eligibility: JobLockEligibility,
     session: &mut crate::persistence::db_session::DbSession,
-) -> (Vec<String>, Vec<String>, Vec<String>) {
+) -> Result<(Vec<String>, Vec<String>, Vec<String>), crate::error::FlowableError> {
     let mut candidates = Vec::new();
 
     candidates.extend(
@@ -295,7 +303,7 @@ fn select_scheduled_timer_candidates(
                 tenant_filter,
                 category_filter,
                 session,
-            )
+            )?
             .into_iter()
             .filter(|job| {
                 !matches!(eligibility, JobLockEligibility::UnlockedOnly) || job.lock_owner.is_none()
@@ -315,7 +323,7 @@ fn select_scheduled_timer_candidates(
                 lock_timeout_ms,
                 category_filter,
                 session,
-            )
+            )?
             .into_iter()
             .filter(|subscription| {
                 !matches!(eligibility, JobLockEligibility::UnlockedOnly)
@@ -375,7 +383,11 @@ fn select_scheduled_timer_candidates(
         }
     }
 
-    (runtime_timer_ids, process_start_ids, event_subprocess_ids)
+    Ok((
+        runtime_timer_ids,
+        process_start_ids,
+        event_subprocess_ids,
+    ))
 }
 
 impl Command<Vec<TimerWork>> for AcquireTimerWorkCmd {
@@ -418,8 +430,8 @@ impl Command<Vec<TimerWork>> for AcquireTimerWorkCmd {
             Some(self.enabled_job_categories.as_slice())
         };
         let selected_candidate_ids = if self.scheduled_timers_only {
-            self.max_jobs.map(|max_jobs| {
-                select_scheduled_timer_candidates(
+            match self.max_jobs {
+                Some(max_jobs) => Some(select_scheduled_timer_candidates(
                     &store,
                     &dm,
                     now,
@@ -431,8 +443,9 @@ impl Command<Vec<TimerWork>> for AcquireTimerWorkCmd {
                     // serialized acquisition paths.
                     JobLockEligibility::UnlockedOnly,
                     session,
-                )
-            })
+                )?),
+                None => None,
+            }
         } else {
             None
         };
@@ -494,7 +507,7 @@ impl Command<Vec<TimerWork>> for AcquireTimerWorkCmd {
                         process_start_ids,
                         category_filter,
                         session,
-                    ),
+                    )?,
                 AcquisitionWritePolicy::SerializedByGlobalLock => dm
                     .acquire_selected_process_timer_start_subscriptions_global(
                         self.owner_id.as_ref(),
@@ -511,7 +524,7 @@ impl Command<Vec<TimerWork>> for AcquireTimerWorkCmd {
                 lock_timeout_ms,
                 category_filter,
                 session,
-            ),
+            )?,
         };
         for sub in timer_start_subscriptions {
             works.push(TimerWork::ProcessStart(sub));
@@ -955,7 +968,7 @@ impl Command<usize> for ResetExpiredTimerJobLocksCmd {
         let session = command_context.session();
 
         let now = store.time_source().now().timestamp_millis();
-        Ok(store.reset_expired_timer_job_locks(now, self.page_size, session))
+        Ok(store.reset_expired_timer_job_locks(now, self.page_size, session)?)
     }
 }
 
@@ -1320,7 +1333,7 @@ impl Command<Option<String>> for ExecuteTimerWorkCmd {
             }
             TimerWork::ProcessStart(sub) => {
                 let Some(current_sub) = dm
-                    .get_timer_start_subscriptions(&mut command_context.session)
+                    .get_timer_start_subscriptions(&mut command_context.session)?
                     .into_iter()
                     .find(|s| s.id == sub.id)
                 else {
@@ -1354,7 +1367,7 @@ impl Command<Option<String>> for ExecuteTimerWorkCmd {
                 // Java TimerStartEventJobHandler: silently skip when the process
                 // definition is suspended; cycle subscriptions still reschedule.
                 let definition_suspended = dm
-                    .get_process_definitions(&mut command_context.session)
+                    .get_process_definitions(&mut command_context.session)?
                     .get(&sub.process_definition_id)
                     .map(|d| d.is_suspended)
                     .unwrap_or(false);
@@ -1456,9 +1469,9 @@ impl Command<Option<String>> for ExecuteTimerWorkCmd {
                 }
 
                 if sub.interrupting {
-                    activate_interrupting_event_subprocess(command_context, sub, &store);
+                    activate_interrupting_event_subprocess(command_context, sub, &store)?;
                 } else {
-                    activate_non_interrupting_event_subprocess(command_context, sub, &store);
+                    activate_non_interrupting_event_subprocess(command_context, sub, &store)?;
                 }
 
                 // Non-interrupting + timeCycle: keep and reschedule
@@ -1608,7 +1621,7 @@ fn activate_interrupting_event_subprocess(
     command_context: &mut CommandContext,
     sub: &crate::persistence::runtime_store::EventSubprocessTimerSubscription,
     store: &crate::persistence::runtime_store::RuntimeStore,
-) {
+) -> Result<(), crate::error::FlowableError> {
     store.delete_event_wait_states_by_process_instance_id(
         &sub.process_instance_id,
         &mut command_context.session,
@@ -1635,31 +1648,33 @@ fn activate_interrupting_event_subprocess(
         &mut command_context.session,
     );
 
-    inject_event_subprocess_execution(command_context, sub, store);
+    inject_event_subprocess_execution(command_context, sub, store)?;
+    Ok(())
 }
 
 fn activate_non_interrupting_event_subprocess(
     command_context: &mut CommandContext,
     sub: &crate::persistence::runtime_store::EventSubprocessTimerSubscription,
     store: &crate::persistence::runtime_store::RuntimeStore,
-) {
-    inject_event_subprocess_execution(command_context, sub, store);
+) -> Result<(), crate::error::FlowableError> {
+    inject_event_subprocess_execution(command_context, sub, store)?;
+    Ok(())
 }
 
 fn inject_event_subprocess_execution(
     command_context: &mut CommandContext,
     sub: &crate::persistence::runtime_store::EventSubprocessTimerSubscription,
     store: &crate::persistence::runtime_store::RuntimeStore,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let process_instance =
-        match store.find_process_instance(&sub.process_instance_id, &mut command_context.session) {
+        match store.find_process_instance(&sub.process_instance_id, &mut command_context.session)? {
             Some(pi) => pi,
             None => {
                 tracing::error!(
                     "Process instance {} not found for event subprocess timer activation",
                     sub.process_instance_id
                 );
-                return;
+                return Ok(());
             }
         };
 
@@ -1698,11 +1713,12 @@ fn inject_event_subprocess_execution(
     };
 
     (*command_context.execution_entity_manager)
-        .insert(&start_event_execution, &mut command_context.session);
+        .insert(&start_event_execution, &mut command_context.session)?;
 
     command_context
         .agenda
         .plan_continue_process_operation(start_event_execution);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1814,8 +1830,9 @@ mod acquisition_limit_tests {
             .acquire_coordinator_lease(300_000)
             .unwrap()
             .expect("acquire timer coordinator lease");
-        let works =
-            runtime_service.acquire_scheduled_timer_work_for_tenants(fencing_token, &[], &[], 1);
+        let works = runtime_service
+            .acquire_scheduled_timer_work_for_tenants(fencing_token, &[], &[], 1)
+            .unwrap();
 
         assert_eq!(works.len(), 1);
         assert!(matches!(
@@ -1825,8 +1842,9 @@ mod acquisition_limit_tests {
 
         let mut verification_session = store.create_session().unwrap();
         let runtime_jobs = store.snapshot_timer_job_states(&mut verification_session);
-        let process_starts =
-            deployment_manager.get_timer_start_subscriptions(&mut verification_session);
+        let process_starts = deployment_manager
+            .get_timer_start_subscriptions(&mut verification_session)
+            .expect("timer start subscription read must succeed");
         let event_subprocesses =
             store.snapshot_event_subprocess_timer_subscriptions(&mut verification_session);
         let locked_count = runtime_jobs
@@ -1886,8 +1904,9 @@ mod acquisition_limit_tests {
         ));
 
         let mut verification_session = store.create_session().unwrap();
-        let process_starts =
-            deployment_manager.get_timer_start_subscriptions(&mut verification_session);
+        let process_starts = deployment_manager
+            .get_timer_start_subscriptions(&mut verification_session)
+            .expect("timer start subscription read must succeed");
         let event_subprocesses =
             store.snapshot_event_subprocess_timer_subscriptions(&mut verification_session);
         verification_session.rollback().unwrap();
@@ -2028,7 +2047,7 @@ mod acquisition_limit_tests {
             .acquire_coordinator_lease(300_000)
             .unwrap()
             .expect("lease");
-        let works = runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &[]);
+        let works = runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &[]).unwrap();
         assert_eq!(
             works.len(),
             4,
@@ -2062,7 +2081,7 @@ mod acquisition_limit_tests {
             .expect("lease");
 
         let orders = vec!["orders".to_string()];
-        let matching = runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &orders);
+        let matching = runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &orders).unwrap();
         assert_eq!(matching.len(), 2);
         for work in &matching {
             match work {
@@ -2079,7 +2098,9 @@ mod acquisition_limit_tests {
         }
 
         let mut verification = store.create_session().unwrap();
-        let process_starts = deployment_manager.get_timer_start_subscriptions(&mut verification);
+        let process_starts = deployment_manager
+            .get_timer_start_subscriptions(&mut verification)
+            .expect("timer start subscription read must succeed");
         let null_start = process_starts
             .iter()
             .find(|s| s.id == "start-null")
@@ -2126,7 +2147,7 @@ mod acquisition_limit_tests {
 
         let multi = vec!["orders".to_string(), "billing".to_string()];
         let multi_works =
-            runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &multi);
+            runtime_service.acquire_timer_work_for_tenants(fencing_token, &[], &multi).unwrap();
         assert_eq!(
             multi_works.len(),
             3,
@@ -2326,7 +2347,7 @@ mod acquisition_limit_tests {
             "acquisition must not record expired recovery"
         );
 
-        let timer_acquired = engine.get_runtime_service().acquire_timer_work(0);
+        let timer_acquired = engine.get_runtime_service().acquire_timer_work(0).unwrap();
         assert!(
             !timer_acquired
                 .iter()
@@ -2334,7 +2355,7 @@ mod acquisition_limit_tests {
             "expired timer job must remain unavailable until reset"
         );
 
-        let history_acquired = engine.get_runtime_service().acquire_history_jobs(1_000, 10);
+        let history_acquired = engine.get_runtime_service().acquire_history_jobs(1_000, 10).unwrap();
         assert!(
             history_acquired.is_empty(),
             "expired history job must remain unavailable until reset"
@@ -2371,7 +2392,7 @@ mod acquisition_limit_tests {
                 .iter()
                 .any(|job| job.timer_job_id == "async-expired")
         );
-        let history_after = engine.get_runtime_service().acquire_history_jobs(5_000, 10);
+        let history_after = engine.get_runtime_service().acquire_history_jobs(5_000, 10).unwrap();
         assert!(
             history_after
                 .iter()
@@ -2483,7 +2504,7 @@ mod reset_expired_job_batch_tests {
             time_cycle: None,
             end_date: None,
             calendar_name: None,
-            due_time: Some(lock_time.unwrap_or_default()),
+            due_time: Some(lock_time.unwrap()),
             lock_owner: lock_owner.map(str::to_string),
             lock_time,
             lock_expiration_time,

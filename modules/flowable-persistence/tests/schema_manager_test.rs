@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Schema management tests for Phase 3.
 //!
 //! Covers create, drop, update, validate, idempotency, out-of-order detection,
@@ -70,11 +76,11 @@ impl SchemaManager for CoordinatedSchemaManager {
         self.max_active.fetch_max(active, Ordering::SeqCst);
 
         let (entered_lock, entered_condvar) = &*self.entered;
-        *entered_lock.lock().unwrap() = true;
+        *entered_lock.lock().unwrap_or_else(|e| e.into_inner()) = true;
         entered_condvar.notify_all();
 
         let (release_lock, release_condvar) = &*self.release;
-        let mut released = release_lock.lock().unwrap();
+        let mut released = release_lock.lock().unwrap_or_else(|e| e.into_inner());
         while !*released {
             released = release_condvar.wait(released).unwrap();
         }
@@ -440,7 +446,7 @@ fn db_session_factory_serializes_schema_initialization_per_physical_database() {
 
     barrier.wait();
     let (entered_lock, entered_condvar) = &*entered;
-    let entered_guard = entered_lock.lock().unwrap();
+    let entered_guard = entered_lock.lock().unwrap_or_else(|e| e.into_inner());
     let (entered_guard, wait_result) = entered_condvar
         .wait_timeout_while(entered_guard, Duration::from_secs(2), |entered| !*entered)
         .unwrap();
@@ -450,11 +456,11 @@ fn db_session_factory_serializes_schema_initialization_per_physical_database() {
     assert_eq!(attempts.load(Ordering::SeqCst), 1);
 
     let (release_lock, release_condvar) = &*release;
-    *release_lock.lock().unwrap() = true;
+    *release_lock.lock().unwrap_or_else(|e| e.into_inner()) = true;
     release_condvar.notify_all();
 
-    first.join().unwrap().unwrap();
-    second.join().unwrap().unwrap();
+    first.join().unwrap();
+    second.join().unwrap();
     assert_eq!(max_active.load(Ordering::SeqCst), 1);
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
 }

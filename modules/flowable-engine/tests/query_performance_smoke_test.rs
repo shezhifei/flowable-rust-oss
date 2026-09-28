@@ -1,8 +1,14 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 #[test]
 fn test_query_performance_smoke() {
-    let engine = ProcessEngine::new("test".to_string());
+    let engine = ProcessEngine::new("test".to_string()).unwrap();
     let store = engine.get_runtime_store();
 
     let mut session = store.create_session().unwrap();

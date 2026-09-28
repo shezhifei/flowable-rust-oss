@@ -14,3 +14,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 sha2 = "0.10"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

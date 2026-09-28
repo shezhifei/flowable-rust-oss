@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P2-9 contract tests: event registry change revisions come from a single-row
 //! allocator (monotonic + unique, enforced by a unique index) and change-log
 //! polling is pushed down to SQL with a bounded, resumable cursor.
@@ -18,11 +24,11 @@ fn shared_engines(label: &str) -> (Arc<ProcessEngine>, Arc<ProcessEngine>, PathB
     let engine_a = Arc::new(ProcessEngine::new_with_db_path(
         format!("{label}-a"),
         path.to_str().unwrap(),
-    ));
+    ).unwrap());
     let engine_b = Arc::new(ProcessEngine::new_with_db_path(
         format!("{label}-b"),
         path.to_str().unwrap(),
-    ));
+    ).unwrap());
     (engine_a, engine_b, path)
 }
 

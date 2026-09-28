@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 /// P104: lexical EL operator dialect — sequence-flow conditions written with
@@ -67,7 +73,7 @@ fn start_and_get_activity(
 
 #[test]
 fn lexical_condition_expression_routes_exclusive_gateway() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let process_definition_id = deploy_dialect_gateway_process(&repository_service);
 
@@ -121,7 +127,7 @@ fn lexical_condition_expression_routes_exclusive_gateway() {
 /// exclusive gateway. Exercises the `[expr]` AST/instruction path end-to-end.
 #[test]
 fn lexical_bracket_index_condition_routes_exclusive_gateway() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
 
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>

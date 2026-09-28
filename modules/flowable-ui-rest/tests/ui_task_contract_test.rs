@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Task UI contract tests (stream B).
 
 use axum::{
@@ -20,7 +26,7 @@ async fn body_json(res: axum::response::Response) -> Value {
 }
 
 fn test_engine() -> Arc<ProcessEngine> {
-    let engine = Arc::new(ProcessEngine::new("ui-task-test".into()));
+    let engine = Arc::new(ProcessEngine::new("ui-task-test".into()).unwrap());
     engine.get_identity_service().save_user(User {
         id: "admin".into(),
         first_name: Some("Test".into()),
@@ -28,7 +34,7 @@ fn test_engine() -> Arc<ProcessEngine> {
         email: Some("admin@example.com".into()),
         password: Some("test".into()),
         tenant_id: None,
-    });
+    }).unwrap();
     engine
 }
 
@@ -339,7 +345,7 @@ async fn session_user_drives_task_queries_and_claims() {
         email: None,
         password: Some("test".into()),
         tenant_id: None,
-    });
+    }).unwrap();
 
     let make_task = |name: &str, assignee: &str| {
         let mut task = flowable_engine::task::Task::new(

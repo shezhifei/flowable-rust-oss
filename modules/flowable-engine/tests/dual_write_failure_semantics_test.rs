@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P73a contract: dual-write failures hard-fail instead of being swallowed.
 //!
 //! Transition state (ADR-0001 Phase 5): JSON tables remain the read path while
@@ -8,16 +14,16 @@
 //! - Worse, when the backend tolerates the failure, the primary JSON write can
 //!   succeed while ACT_* silently diverges.
 //!
-//! Decision: hard-fail (propagate / panic with context), matching Java where
-//! normalized tables are primary storage.
+//! Decision: sticky-record the dual-write error on the session so the commit
+//! fails with a typed error (Java command/transaction failure), never panic and
+//! never silently commit divergent state.
 
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::runtime::execution::Execution;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
 #[test]
-fn dual_write_execution_insert_failure_panics_with_context() {
-    let engine = ProcessEngine::new_with_memory_backend("dual-write-fail-mem".to_string());
+fn dual_write_execution_insert_failure_fails_commit() {
+    let engine = ProcessEngine::new_with_memory_backend("dual-write-fail-mem".to_string()).unwrap();
     let store = engine.get_runtime_store();
 
     // Drop normalized table so dual-write insert cannot succeed.
@@ -39,25 +45,20 @@ fn dual_write_execution_insert_failure_panics_with_context() {
         ..Default::default()
     };
 
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        store.insert_execution(&execution, &mut session);
-    }));
-
-    let payload = result.expect_err("dual-write insert must hard-fail, not succeed");
-    let msg = payload
-        .downcast_ref::<String>()
-        .map(|s| s.as_str())
-        .or_else(|| payload.downcast_ref::<&str>().copied())
-        .unwrap_or("");
+    store.insert_execution(&execution, &mut session);
+    let err = session
+        .flush_and_commit()
+        .expect_err("dual-write insert must fail the transaction, not succeed");
+    let msg = err.to_string();
     assert!(
         msg.contains("dual-write") && msg.contains("ACT_RU_EXECUTION"),
-        "panic message must identify dual-write failure (queue or flush), got: {msg:?}"
+        "error must identify dual-write failure (queue or flush), got: {msg:?}"
     );
 }
 
 #[test]
 fn dual_write_execution_succeeds_when_act_table_present() {
-    let engine = ProcessEngine::new_with_memory_backend("dual-write-ok-mem".to_string());
+    let engine = ProcessEngine::new_with_memory_backend("dual-write-ok-mem".to_string()).unwrap();
     let store = engine.get_runtime_store();
     let mut session = store.create_session().expect("session");
 

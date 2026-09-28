@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for Java **SubProcess sequential multi-instance** topology.
 //!
 //! Java (`SequentialMultiInstanceBehavior#continueSequentialMultiInstance`,
@@ -128,7 +134,7 @@ fn find_mi_roots(executions: &[Execution]) -> Vec<&Execution> {
 /// the MI root (Java `continueSequentialMultiInstance` SubProcess branch).
 #[test]
 fn subprocess_sequential_mi_creates_new_scope_child_each_round() {
-    let engine = ProcessEngine::new("sub-seq-mi-new-scope-each-round".to_string());
+    let engine = ProcessEngine::new("sub-seq-mi-new-scope-each-round".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "sub_seq_mi.bpmn20.xml",
@@ -285,7 +291,7 @@ fn subprocess_sequential_mi_creates_new_scope_child_each_round() {
 /// (Java DestroyScope + createChild).
 #[test]
 fn subprocess_sequential_mi_destroys_prior_scope_before_next_round() {
-    let engine = ProcessEngine::new("sub-seq-mi-destroy-prior-scope".to_string());
+    let engine = ProcessEngine::new("sub-seq-mi-destroy-prior-scope".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "sub_seq_mi.bpmn20.xml",
@@ -346,7 +352,7 @@ fn subprocess_sequential_mi_destroys_prior_scope_before_next_round() {
 /// the same child id across rounds (P6-A contract must not regress).
 #[test]
 fn regression_usertask_sequential_mi_still_reuses_child_id() {
-    let engine = ProcessEngine::new("sub-seq-mi-usertask-reuse-guard".to_string());
+    let engine = ProcessEngine::new("sub-seq-mi-usertask-reuse-guard".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "user_task_seq_mi.bpmn20.xml",

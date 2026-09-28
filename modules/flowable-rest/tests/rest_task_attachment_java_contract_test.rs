@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Java-parity REST contract tests for task attachments (P2-ATTACHMENT).
 //!
 //! Case map:
@@ -17,7 +23,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 
 async fn start_test_server(test_name: &str) -> (reqwest::Client, String, Arc<ProcessEngine>) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -27,7 +33,7 @@ async fn start_test_server(test_name: &str) -> (reqwest::Client, String, Arc<Pro
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

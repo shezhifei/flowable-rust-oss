@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! M76: `implementation_type=class` resolves via the same local delegate registry
 //! as `delegateExpression` (registry key, not JVM classloading).
 
@@ -68,7 +74,7 @@ fn engine_with_class_delegate() -> ProcessEngine {
 
     let mut config = ProcessEngineConfiguration::default();
     config.service_task_delegate_registry = Some(registry);
-    ProcessEngine::new_with_config("delegate-class-registry-test".to_string(), config)
+    ProcessEngine::new_with_config("delegate-class-registry-test".to_string(), config).unwrap()
 }
 
 #[test]
@@ -131,7 +137,7 @@ fn class_implementation_resolves_via_local_delegate_registry() {
 #[test]
 fn unregistered_class_delegate_fails_with_clear_error() {
     // Engine has no registry entries for the class name.
-    let process_engine = ProcessEngine::new("delegate-class-missing".to_string());
+    let process_engine = ProcessEngine::new("delegate-class-missing".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

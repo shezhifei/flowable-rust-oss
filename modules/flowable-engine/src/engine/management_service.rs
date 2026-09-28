@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::agenda::continue_process_operation::{
     ASYNC_CONTINUATION_JOB_STATE, ASYNC_CONTINUATION_JOB_TYPE_MARKER,
 };
@@ -70,18 +78,14 @@ impl Command<Vec<RuntimeTimerJobState>> for TimerJobQueryCmd {
         let mut jobs = Vec::new();
 
         // 1. Query timer_job_states
-        let timer_jobs: Vec<RuntimeTimerJobState> = command_context
-            .session()
-            .find_all("timer_job_states")
-            .unwrap();
+        let timer_jobs: Vec<RuntimeTimerJobState> = command_context.session().find_all("timer_job_states")?;
         jobs.extend(timer_jobs);
 
         // 2. Query process_timer_start_subscriptions and map them to RuntimeTimerJobState
         let subs: Vec<crate::persistence::runtime_store::ProcessTimerStartSubscription> =
             command_context
                 .session()
-                .find_all("process_timer_start_subscriptions")
-                .unwrap();
+                .find_all("process_timer_start_subscriptions")?;
         for sub in subs {
             jobs.push(RuntimeTimerJobState {
                 timer_job_id: sub.id.clone(),
@@ -210,22 +214,22 @@ impl ManagementService {
             .family(RuntimeJobFamily::History)
     }
 
-    pub fn find_job_by_id(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        let found = self
-            .command_executor
-            .runtime_store()
-            .find_timer_job_state(job_id, &mut session);
+    pub fn find_job_by_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
+        let store = self.command_executor.runtime_store();
+        let mut session = store.create_session()?;
+        let found = store.find_timer_job_state(job_id, &mut session);
         let _ = session.rollback();
-        found
+        Ok(found)
     }
 
-    pub fn find_timer_job_by_id(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
-        self.find_job_by_id(job_id).filter(is_timer_job)
+    pub fn find_timer_job_by_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
+        self.find_job_by_id(job_id).map(|j| j.filter(is_timer_job))
     }
 
     /// Java `ExecuteJobCmd`: execute any executable-family job via its handler.
@@ -236,7 +240,7 @@ impl ManagementService {
     /// state is recorded in a second command (FailedJobListener semantics),
     /// and the original typed error is returned to the caller.
     pub fn execute_job(&self, job_id: &str) -> Result<(), FlowableError> {
-        let job = self.find_executable_job_by_id(job_id).ok_or_else(|| {
+        let job = self.find_executable_job_by_id(job_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!("Executable job '{job_id}' not found"))
         })?;
         self.execute_runtime_job(job)
@@ -245,7 +249,7 @@ impl ManagementService {
     /// Execute a timer-family job by id (REST `/management/timer-jobs/{id}` execute).
     pub fn execute_timer_job(&self, job_id: &str) -> Result<(), FlowableError> {
         let job = self
-            .find_timer_job_by_id(job_id)
+            .find_timer_job_by_id(job_id)?
             .ok_or_else(|| FlowableError::NotFound(format!("Timer job '{job_id}' not found")))?;
         self.execute_runtime_job(job)
     }
@@ -287,92 +291,93 @@ impl ManagementService {
         }
     }
 
-    pub fn list_executable_jobs(&self) -> Vec<RuntimeTimerJobState> {
-        self.persisted_timer_jobs()
+    pub fn list_executable_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
+        Ok(self
+            .persisted_timer_jobs()?
             .into_iter()
             .filter(is_executable_job)
-            .collect()
+            .collect())
     }
 
-    pub fn find_executable_job_by_id(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
-        self.find_job_by_id(job_id).filter(is_executable_job)
+    pub fn find_executable_job_by_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
+        self.find_job_by_id(job_id).map(|j| j.filter(is_executable_job))
     }
 
-    pub fn list_deadletter_jobs(&self) -> Vec<RuntimeTimerJobState> {
-        self.persisted_timer_jobs()
+    pub fn list_deadletter_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
+        Ok(self
+            .persisted_timer_jobs()?
             .into_iter()
             .filter(is_deadletter_job)
-            .collect()
+            .collect())
     }
 
-    pub fn find_deadletter_job_by_id(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
-        self.find_job_by_id(job_id).filter(is_deadletter_job)
+    pub fn find_deadletter_job_by_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
+        self.find_job_by_id(job_id).map(|j| j.filter(is_deadletter_job))
     }
 
-    pub fn list_suspended_jobs(&self) -> Vec<RuntimeTimerJobState> {
-        self.persisted_timer_jobs()
+    pub fn list_suspended_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
+        Ok(self
+            .persisted_timer_jobs()?
             .into_iter()
             .filter(is_suspended_job)
-            .collect()
+            .collect())
     }
 
-    pub fn find_suspended_job_by_id(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
-        self.find_job_by_id(job_id).filter(is_suspended_job)
+    pub fn find_suspended_job_by_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
+        self.find_job_by_id(job_id).map(|j| j.filter(is_suspended_job))
     }
 
-    pub fn list_history_jobs(&self) -> Vec<RuntimeTimerJobState> {
-        self.persisted_timer_jobs()
+    pub fn list_history_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
+        Ok(self
+            .persisted_timer_jobs()?
             .into_iter()
             .filter(is_history_job)
-            .collect()
+            .collect())
     }
 
-    pub fn find_history_job_by_id(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
-        self.find_job_by_id(job_id).filter(is_history_job)
+    pub fn find_history_job_by_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
+        self.find_job_by_id(job_id).map(|j| j.filter(is_history_job))
     }
 
-    pub fn job_process_definition_id(&self, job: &RuntimeTimerJobState) -> Option<String> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
+    pub fn job_process_definition_id(&self, job: &RuntimeTimerJobState) -> Result<Option<String>, FlowableError> {
+        let mut session = self.command_executor.runtime_store().create_session()?;
         let store = self.command_executor.runtime_store();
-        store
-            .find_execution(&job.execution_id, &mut session)
-            .and_then(|execution| execution.process_definition_id)
-            .or_else(|| {
-                store
-                    .find_process_instance(&job.process_instance_id, &mut session)
-                    .map(|process_instance| process_instance.process_definition_id)
-            })
+        match store.find_execution(&job.execution_id, &mut session).and_then(|execution| execution.process_definition_id) {
+            Some(value) => Ok(Some(value)),
+            None => Ok(store.find_process_instance(&job.process_instance_id, &mut session)?
+                .map(|instance| instance.process_definition_id)),
+        }
     }
 
-    pub fn job_tenant_id(&self, job: &RuntimeTimerJobState) -> Option<String> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
+    pub fn job_tenant_id(&self, job: &RuntimeTimerJobState) -> Result<Option<String>, FlowableError> {
+        let mut session = self.command_executor.runtime_store().create_session()?;
         let store = self.command_executor.runtime_store();
-        store
-            .find_execution(&job.execution_id, &mut session)
-            .and_then(|execution| execution.tenant_id)
-            .or_else(|| {
-                store
-                    .find_process_instance(&job.process_instance_id, &mut session)
-                    .and_then(|process_instance| process_instance.tenant_id)
-            })
+        match store.find_execution(&job.execution_id, &mut session).and_then(|execution| execution.tenant_id) {
+            Some(value) => Ok(Some(value)),
+            None => Ok(store.find_process_instance(&job.process_instance_id, &mut session)?
+                .and_then(|instance| instance.tenant_id)),
+        }
     }
 
-    pub fn job_element_name(&self, job: &RuntimeTimerJobState) -> Option<String> {
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
+    pub fn job_element_name(
+        &self,
+        job: &RuntimeTimerJobState,
+    ) -> Result<Option<String>, FlowableError> {
+        let mut session = self.command_executor.runtime_store().create_session()?;
         let store = self.command_executor.runtime_store();
-        store
+        Ok(store
             .find_execution(&job.execution_id, &mut session)
             .and_then(|execution| {
                 if execution.activity_id.as_deref() == Some(job.activity_id.as_str()) {
@@ -380,7 +385,7 @@ impl ManagementService {
                 } else {
                     None
                 }
-            })
+            }))
     }
 
     pub fn delete_job(&self, job_id: &str) -> Result<(), FlowableError> {
@@ -429,22 +434,19 @@ impl ManagementService {
     }
 
     pub fn execute_history_job(&self, job_id: &str) -> Result<(), FlowableError> {
-        self.find_history_job_by_id(job_id).ok_or_else(|| {
+        self.find_history_job_by_id(job_id)?.ok_or_else(|| {
             FlowableError::NotFound(format!("History job '{}' not found", job_id))
         })?;
         if let Some(handler) = &self.history_job_handler {
             let cmd = ExecuteHistoryJobCmd::new(job_id.to_string(), Arc::clone(handler));
             self.command_executor.execute(&cmd)
         } else {
-            let mut session = self
-                .command_executor
-                .runtime_store()
-                .create_session()
-                .unwrap();
+            // Java parity: command failures surface as FlowableException.
+            let mut session = self.command_executor.runtime_store().create_session()?;
             self.command_executor
                 .runtime_store()
                 .delete_timer_job_state(job_id, &mut session);
-            session.flush_and_commit().unwrap();
+            session.flush_and_commit()?;
             Ok(())
         }
     }
@@ -465,19 +467,15 @@ impl ManagementService {
             ));
         }
         let mut job = self
-            .find_job_by_id(job_id)
+            .find_job_by_id(job_id)?
             .filter(is_runtime_job_for_retry_update)
             .ok_or_else(|| FlowableError::NotFound(format!("Job '{}' not found", job_id)))?;
         job.retries = Some(retries);
-        let mut session = self
-            .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
+        let mut session = self.command_executor.runtime_store().create_session()?;
         self.command_executor
             .runtime_store()
-            .insert_timer_job_state(&job, &mut session);
-        session.flush_and_commit().unwrap();
+            .insert_timer_job_state(&job, &mut session)?;
+        session.flush_and_commit()?;
         Ok(job)
     }
 
@@ -636,17 +634,14 @@ impl ManagementService {
             ))
     }
 
-    fn persisted_timer_jobs(&self) -> Vec<RuntimeTimerJobState> {
-        let mut session = self
+    fn persisted_timer_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
+        let mut session = self.command_executor.runtime_store().create_session()?;
+        Ok(self
             .command_executor
-            .runtime_store()
-            .create_session()
-            .unwrap();
-        self.command_executor
             .runtime_store()
             .snapshot_timer_job_states(&mut session)
             .into_values()
-            .collect()
+            .collect())
     }
 
     fn delete_matching_job(
@@ -713,7 +708,7 @@ impl Command<RuntimeTimerJobState> for MoveTimerToExecutableJobCmd {
         job.lock_owner = None;
         job.lock_time = None;
         job.lock_expiration_time = None;
-        store.insert_timer_job_state_with_type(&job, Some(&job_type), &mut command_context.session);
+        store.insert_timer_job_state_with_type(&job, Some(&job_type), &mut command_context.session)?;
         Ok(job)
     }
 }
@@ -762,7 +757,7 @@ impl Command<RuntimeTimerJobState> for MoveJobToDeadletterJobCmd {
         job.lock_owner = None;
         job.lock_time = None;
         job.lock_expiration_time = None;
-        store.insert_timer_job_state(&job, &mut command_context.session);
+        store.insert_timer_job_state(&job, &mut command_context.session)?;
 
         PersistJobExtraFieldsCmd::new(
             job.clone(),
@@ -807,7 +802,7 @@ impl Command<RuntimeTimerJobState> for MoveDeadletterJobCmd {
             })?;
         let origin = resolve_deadletter_origin(&store, &mut command_context.session, &job);
         let job = move_deadletter_job(job, self.retries, self.destination, origin)?;
-        store.insert_timer_job_state(&job, &mut command_context.session);
+        store.insert_timer_job_state(&job, &mut command_context.session)?;
         Ok(job)
     }
 }
@@ -849,7 +844,7 @@ impl Command<()> for BulkMoveDeadletterJobsCmd {
             .collect::<Result<Vec<_>, _>>()?;
 
         for job in &moved_jobs {
-            store.insert_timer_job_state(job, &mut command_context.session);
+            store.insert_timer_job_state(job, &mut command_context.session)?;
         }
         Ok(())
     }
@@ -964,7 +959,7 @@ fn ensure_suspended_job_parent_is_active(
         )));
     }
     if store
-        .find_process_instance(&job.process_instance_id, session)
+        .find_process_instance(&job.process_instance_id, session)?
         .is_some_and(|process_instance| process_instance.is_suspended)
     {
         return Err(FlowableError::ExecutionError(format!(
@@ -1128,28 +1123,33 @@ mod tests {
             management_service
                 .find_timer_job_by_id("timer-job")
                 .unwrap()
+                .unwrap()
                 .timer_job_id,
             "timer-job"
         );
         assert!(
             management_service
                 .find_timer_job_by_id("history-job")
+                .unwrap()
                 .is_none()
         );
-        assert_eq!(management_service.list_deadletter_jobs().len(), 1);
+        assert_eq!(management_service.list_deadletter_jobs().unwrap().len(), 1);
         assert!(
             management_service
                 .find_timer_job_by_id("zero-retry-timer-job")
+                .unwrap()
                 .is_some()
         );
         assert!(
             management_service
                 .find_deadletter_job_by_id("zero-retry-timer-job")
+                .unwrap()
                 .is_none()
         );
         assert_eq!(
             management_service
                 .find_history_job_by_id("history-job")
+                .unwrap()
                 .unwrap()
                 .timer_job_id,
             "history-job"
@@ -1158,12 +1158,14 @@ mod tests {
             management_service
                 .find_suspended_job_by_id("suspended-job")
                 .unwrap()
+                .unwrap()
                 .timer_job_id,
             "suspended-job"
         );
         assert!(
             management_service
                 .find_suspended_job_by_id("timer-job")
+                .unwrap()
                 .is_none()
         );
     }
@@ -1274,7 +1276,12 @@ mod tests {
             assert!(activated.lock_owner.is_none());
             assert!(activated.lock_time.is_none());
             assert!(activated.lock_expiration_time.is_none());
-            assert!(management_service.find_suspended_job_by_id(id).is_none());
+            assert!(
+                management_service
+                    .find_suspended_job_by_id(id)
+                    .unwrap()
+                    .is_none()
+            );
         }
 
         let mut session = store.create_session().unwrap();
@@ -1317,7 +1324,8 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_suspended_job_by_id("blocked-suspended-job")
-            .expect("failed activation must leave the suspended job intact");
+            .expect("failed activation must leave the suspended job intact")
+            .unwrap();
         assert_eq!(persisted.retries, Some(0));
         assert_eq!(persisted.lock_owner.as_deref(), Some("existing-owner"));
     }
@@ -1343,7 +1351,8 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_suspended_job_by_id("missing-parent-job")
-            .expect("parent validation failure must leave the job suspended");
+            .expect("parent validation failure must leave the job suspended")
+            .unwrap();
         assert_eq!(persisted.retries, Some(-2));
     }
 
@@ -1392,7 +1401,8 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_suspended_job_by_id("rollback-job")
-            .expect("rollback must restore suspended table membership");
+            .expect("rollback must restore suspended table membership")
+            .unwrap();
         assert_eq!(persisted.retries, original.retries);
         assert_eq!(persisted.lock_owner, original.lock_owner);
         assert_eq!(persisted.lock_time, original.lock_time);
@@ -1441,7 +1451,8 @@ mod tests {
         assert!(matches!(error, FlowableError::ExecutionError(_)));
         let persisted = management_service
             .find_suspended_job_by_id("extension-invalid")
-            .expect("invalid extension request must not move the job");
+            .expect("invalid extension request must not move the job")
+            .unwrap();
         assert_eq!(persisted.retries, Some(0));
 
         let missing_error = management_service
@@ -1499,21 +1510,25 @@ mod tests {
         assert!(
             management_service
                 .find_timer_job_by_id("source-timer")
+                .unwrap()
                 .is_some()
         );
         assert!(
             management_service
                 .find_executable_job_by_id("source-executable")
+                .unwrap()
                 .is_some()
         );
         assert!(
             management_service
                 .find_deadletter_job_by_id("source-deadletter")
+                .unwrap()
                 .is_some()
         );
         assert!(
             management_service
                 .find_history_job_by_id("source-history")
+                .unwrap()
                 .is_some()
         );
     }
@@ -1533,7 +1548,7 @@ mod tests {
             .get_config()
             .activation_coordinator
             .set_submit_handle(Arc::new(move |job: RuntimeTimerJobState| {
-                sink.lock().unwrap().push(job);
+                sink.lock().unwrap_or_else(|e| e.into_inner()).push(job);
                 outcome.clone()
             }));
         recorded
@@ -1579,14 +1594,15 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_executable_job_by_id("active-message")
-            .expect("pre-locked executable job must be persisted");
+            .expect("pre-locked executable job must be persisted")
+            .unwrap();
         assert_eq!(persisted.lock_owner.as_deref(), Some(owner.as_str()));
         assert_eq!(persisted.lock_time, Some(now_ms));
         assert_eq!(persisted.lock_expiration_time, Some(now_ms + lock_ms));
         assert_eq!(persisted.retries, Some(4));
 
         // The committed hint fired exactly once, carrying the pre-locked row.
-        let hints = recorded.lock().unwrap();
+        let hints = recorded.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(hints.len(), 1, "exactly one committed hint per activation");
         assert_eq!(hints[0].timer_job_id, "active-message");
         assert_eq!(hints[0].lock_owner.as_deref(), Some(owner.as_str()));
@@ -1625,12 +1641,13 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_executable_job_by_id("inactive-message")
-            .expect("activated job must be persisted and unlocked");
+            .expect("activated job must be persisted and unlocked")
+            .unwrap();
         assert!(persisted.lock_owner.is_none());
         assert!(persisted.lock_expiration_time.is_none());
 
         assert!(
-            recorded.lock().unwrap().is_empty(),
+            recorded.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
             "an inactive executor must never be hinted"
         );
     }
@@ -1675,13 +1692,14 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_executable_job_by_id("bulk-message")
-            .expect("category-mismatched job must still be pre-locked");
+            .expect("category-mismatched job must still be pre-locked")
+            .unwrap();
         assert_eq!(persisted.lock_owner.as_deref(), Some(owner.as_str()));
         assert!(persisted.lock_expiration_time.is_some());
 
         // ...but the hint is left to another node (category not enabled here).
         assert!(
-            recorded.lock().unwrap().is_empty(),
+            recorded.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
             "a category-mismatched job must be pre-locked but not hinted"
         );
     }
@@ -1733,10 +1751,11 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_suspended_job_by_id("rollback-hint-job")
-            .expect("rollback must restore suspended membership");
+            .expect("rollback must restore suspended membership")
+            .unwrap();
         assert_eq!(persisted.job_state.as_deref(), Some("suspended"));
         assert!(
-            recorded.lock().unwrap().is_empty(),
+            recorded.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
             "a rolled-back activation must never enqueue a committed hint"
         );
     }
@@ -1777,7 +1796,8 @@ mod tests {
         let persisted = engine
             .get_management_service()
             .find_executable_job_by_id("fatal-hint-job")
-            .expect("the database transaction was already committed");
+            .expect("the database transaction was already committed")
+            .unwrap();
         assert_eq!(
             persisted.lock_owner.as_deref(),
             Some(coordinator.lock_owner().as_str())

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Timer worker node lifecycle tests
 //!
 //! Tests that exercise graceful deregistration, lifecycle visibility,
@@ -55,7 +61,7 @@ fn test_worker_deregister_removes_node_from_registry() {
 
     // Heartbeat registers the node
     worker.heartbeat();
-    let nodes = engine.list_timer_nodes();
+    let nodes = engine.list_timer_nodes().unwrap();
     assert_eq!(nodes.len(), 1, "Worker should appear after heartbeat");
     let _node_id = nodes[0].node_id.clone();
 
@@ -66,14 +72,14 @@ fn test_worker_deregister_removes_node_from_registry() {
     // Deregister only removes the node, not the lease
     worker.deregister();
 
-    let nodes_after = engine.list_timer_nodes();
+    let nodes_after = engine.list_timer_nodes().unwrap();
     assert!(
         nodes_after.is_empty(),
         "Node should be gone after deregister"
     );
 
     // Coordinator lease should still be active
-    let status = engine.get_timer_coordinator_status();
+    let status = engine.get_timer_coordinator_status().unwrap();
     assert_eq!(status.status, CoordinatorLeadershipStatus::Active);
     assert!(!status.leader_node_id.is_empty());
 
@@ -102,13 +108,13 @@ fn test_graceful_shutdown_releases_and_deregisters() {
 
     // Heartbeat + acquire lease
     worker.heartbeat();
-    let _works = worker.acquire_due_timers(300_000);
+    let _works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
     // No timers to acquire, but this registers the node and acquires the lease
 
-    let nodes = engine.list_timer_nodes();
+    let nodes = engine.list_timer_nodes().unwrap();
     assert_eq!(nodes.len(), 1, "Worker should be registered after acquire");
 
-    let _status = engine.get_timer_coordinator_status();
+    let _status = engine.get_timer_coordinator_status().unwrap();
     // Status might be Active or NoLeader depending on whether acquire succeeded
     // The key point is the node is registered
 
@@ -116,14 +122,14 @@ fn test_graceful_shutdown_releases_and_deregisters() {
     worker.graceful_shutdown();
 
     // Node should be gone
-    let nodes_after = engine.list_timer_nodes();
+    let nodes_after = engine.list_timer_nodes().unwrap();
     assert!(
         nodes_after.is_empty(),
         "Node should be deregistered after graceful_shutdown"
     );
 
     // Leadership should be released
-    let status_after = engine.get_timer_coordinator_status();
+    let status_after = engine.get_timer_coordinator_status().unwrap();
     assert_eq!(status_after.leader_node_id, "", "Leader should be released");
 
     remove_sqlite_files(&db_path);
@@ -153,13 +159,13 @@ fn test_multi_node_independent_lifecycle() {
     worker2.heartbeat();
 
     // Both should be visible from either engine
-    let nodes = engine1.list_timer_nodes();
+    let nodes = engine1.list_timer_nodes().unwrap();
     assert_eq!(nodes.len(), 2, "Both nodes should be registered");
 
     // Deregister node 1 only
     worker1.deregister();
 
-    let nodes_after = engine1.list_timer_nodes();
+    let nodes_after = engine1.list_timer_nodes().unwrap();
     assert_eq!(nodes_after.len(), 1, "Only node 2 should remain");
     assert!(
         nodes_after[0].node_id.starts_with("node-2:"),
@@ -168,7 +174,7 @@ fn test_multi_node_independent_lifecycle() {
 
     // Deregister node 2
     worker2.deregister();
-    let nodes_final = engine1.list_timer_nodes();
+    let nodes_final = engine1.list_timer_nodes().unwrap();
     assert!(nodes_final.is_empty(), "No nodes should remain");
 
     remove_sqlite_files(&db_path);
@@ -235,7 +241,7 @@ fn test_step_down_blocks_stale_token_execution() {
 
     // Worker acquires timer with current token
     let worker = TimerWorker::new(engine.get_runtime_service(), "test");
-    let works = worker.acquire_due_timers(300_000);
+    let works = worker.acquire_due_timers(300_000).expect("timer acquisition must read storage");
     assert_eq!(works.len(), 1, "Should acquire due timer");
 
     let old_token = worker.get_fencing_token();
@@ -312,7 +318,7 @@ fn test_standalone_loop_deregisters_on_shutdown() {
 
     // Wait for the worker to register its node
     let found_node = (0..100).find_map(|_| {
-        let nodes = engine.list_timer_nodes();
+        let nodes = engine.list_timer_nodes().unwrap();
         if !nodes.is_empty() {
             Some(nodes[0].node_id.clone())
         } else {
@@ -332,14 +338,14 @@ fn test_standalone_loop_deregisters_on_shutdown() {
         .expect("Worker loop should stop cleanly");
 
     // After shutdown, node should be deregistered
-    let nodes_after = engine.list_timer_nodes();
+    let nodes_after = engine.list_timer_nodes().unwrap();
     assert!(
         nodes_after.is_empty(),
         "Node should be deregistered after standalone worker shutdown"
     );
 
     // Coordinator lease should show no leader
-    let status = engine.get_timer_coordinator_status();
+    let status = engine.get_timer_coordinator_status().unwrap();
     assert_eq!(
         status.leader_node_id, "",
         "Leadership should be released after shutdown"
@@ -378,7 +384,7 @@ fn test_expired_node_visibility_and_selective_cleanup() {
     worker1.heartbeat();
     worker2.heartbeat();
 
-    let nodes = engine1.list_timer_nodes();
+    let nodes = engine1.list_timer_nodes().unwrap();
     assert_eq!(nodes.len(), 2);
     assert!(nodes.iter().all(|n| n.status == NodeStatus::Active));
 
@@ -388,7 +394,7 @@ fn test_expired_node_visibility_and_selective_cleanup() {
     // Only worker1 heartbeats again
     worker1.heartbeat();
 
-    let nodes = engine1.list_timer_nodes();
+    let nodes = engine1.list_timer_nodes().unwrap();
     assert_eq!(nodes.len(), 2, "Both nodes should still be visible");
 
     // Check statuses
@@ -407,7 +413,7 @@ fn test_expired_node_visibility_and_selective_cleanup() {
     let cleaned = engine1.cleanup_expired_timer_nodes();
     assert_eq!(cleaned, 1, "Should clean exactly 1 expired node");
 
-    let nodes_final = engine1.list_timer_nodes();
+    let nodes_final = engine1.list_timer_nodes().unwrap();
     assert_eq!(nodes_final.len(), 1, "Only active node should remain");
     assert!(nodes_final[0].node_id.starts_with("active-node:"));
 

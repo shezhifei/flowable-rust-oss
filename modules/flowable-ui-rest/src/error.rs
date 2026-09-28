@@ -80,6 +80,20 @@ impl UiError {
     }
 }
 
+impl From<flowable_engine::error::FlowableError> for UiError {
+    fn from(error: flowable_engine::error::FlowableError) -> Self {
+        use flowable_engine::error::FlowableError as E;
+        match error {
+            E::BadRequest(message) => UiError::BadRequest(message),
+            E::Forbidden(message) => UiError::Forbidden(message),
+            E::Conflict(message) => UiError::conflict(message, BAD_REQUEST_MESSAGE_KEY),
+            E::NotFound(message) => UiError::NotFound(Some(message)),
+            E::DeploymentValidationError(message) => UiError::BadRequest(message),
+            other => UiError::Internal(other.to_string()),
+        }
+    }
+}
+
 impl IntoResponse for UiError {
     fn into_response(self) -> Response {
         let (status, message, message_key) = match self {

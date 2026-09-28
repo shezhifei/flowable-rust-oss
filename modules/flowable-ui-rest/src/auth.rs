@@ -212,11 +212,17 @@ impl SecurityScope {
 /// of those granted directly to the user and those granted to any group the
 /// user belongs to, keyed by privilege **name**. Returns `None` when the user no
 /// longer exists, which is how a token outliving its user is rejected.
-pub fn load_scope(engine: &Arc<ProcessEngine>, user_id: &str) -> Option<SecurityScope> {
+pub fn load_scope(
+    engine: &Arc<ProcessEngine>,
+    user_id: &str,
+) -> Result<Option<SecurityScope>, flowable_engine::error::FlowableError> {
     let identity = engine.get_identity_service();
-    let user = identity.find_user_by_id(user_id)?;
+    let user = match identity.find_user_by_id(user_id)? {
+        Some(user) => user,
+        None => return Ok(None),
+    };
 
-    let groups = identity.get_groups_by_user(&user.id);
+    let groups = identity.get_groups_by_user(&user.id)?;
 
     // `get_privileges_for_user` already unions the grants reachable through the
     // user's groups, so the group memberships do not have to be walked again
@@ -224,7 +230,7 @@ pub fn load_scope(engine: &Arc<ProcessEngine>, user_id: &str) -> Option<Security
     // name are one permission as far as an authorisation check is concerned,
     // which is what Java's `Set<String>` of names encodes.
     let mut privileges: Vec<String> = identity
-        .get_privileges_for_user(&user.id)
+        .get_privileges_for_user(&user.id)?
         .into_iter()
         .map(|privilege| privilege.name)
         .collect();
@@ -233,17 +239,27 @@ pub fn load_scope(engine: &Arc<ProcessEngine>, user_id: &str) -> Option<Security
     privileges.sort();
     privileges.dedup();
 
-    Some(SecurityScope {
+    Ok(Some(SecurityScope {
         login: user.id.clone(),
         user_id: user.id,
         privileges,
         group_ids: groups.into_iter().map(|group| group.id).collect(),
         tenant_id: user.tenant_id.unwrap_or_default(),
-    })
+    }))
 }
 
 /// Resolves the session carried by a request's remember-me cookie, without
-/// rolling or clearing it. Returns `None` when no valid session is present.
+/// rolling or clearing it.
+///
+/// Returns:
+/// - `Ok(None)` — no cookie, a malformed cookie, or a cookie that genuinely does
+///   not resolve to a live user. Callers may fall back to another credential
+///   (e.g. the engine REST surface's HTTP Basic).
+/// - `Ok(Some(scope))` — a live session.
+/// - `Err(_)` — a storage failure while looking the session up. This must not be
+///   collapsed into `Ok(None)`: Java propagates it (see below), and reporting a
+///   store outage as "no session" makes the caller answer 401 (or fall through
+///   to Basic auth) instead of 500.
 ///
 /// Shared with the engine REST surface (`flowable-rest`), which accepts the UI
 /// cookie as an alternative to HTTP Basic: in this stack the static bundles and
@@ -252,14 +268,36 @@ pub fn load_scope(engine: &Arc<ProcessEngine>, user_id: &str) -> Option<Security
 /// whose series resolves but whose value does not match is treated as theft by
 /// `resolve_token`, which deletes the row — the same side effect the UI
 /// middleware has.
+///
+/// Java parity: `CustomPersistentRememberMeServices.processAutoLoginCookie`
+/// only converts a *recognised* failure into an authentication failure — an
+/// unresolvable series raises `RememberMeAuthenticationException`
+/// (flowable-engine-6.8.0/.../ui/common/security/CustomPersistentRememberMeServices.java:164-167)
+/// while a data-access failure is rethrown as its own exception
+/// (`...:119-122`, "Autologin failed due to data access problem"). Spring
+/// Security's `RememberMeAuthenticationFilter` only absorbs
+/// `AuthenticationException`, so a store failure escapes as HTTP 500 instead of
+/// being answered as an unauthenticated request.
 pub fn scope_from_cookie_headers(
     engine: &Arc<ProcessEngine>,
     config: &UiAuthConfig,
     headers: &HeaderMap,
-) -> Option<SecurityScope> {
-    let cookie_raw = cookie_from_headers(headers, COOKIE_NAME)?;
-    let token = resolve_token(engine, config, &cookie_raw).ok()?;
-    load_scope(engine, token.user_id.as_deref()?)
+) -> Result<Option<SecurityScope>, flowable_engine::error::FlowableError> {
+    let Some(cookie_raw) = cookie_from_headers(headers, COOKIE_NAME) else {
+        return Ok(None);
+    };
+    let token = match resolve_token(engine, config, &cookie_raw) {
+        Ok(token) => token,
+        // A rejected cookie is not a storage failure: no session, let the caller
+        // try its next credential.
+        Err(_) => return Ok(None),
+    };
+    let Some(user_id) = token.user_id.as_deref() else {
+        return Ok(None);
+    };
+    // `?` — a storage failure must reach the caller as a server error, not as
+    // "this cookie carries no session".
+    load_scope(engine, user_id)
 }
 
 // ── Cookie codec ──
@@ -363,7 +401,7 @@ fn create_token(
     user_id: &str,
     ip_address: Option<String>,
     user_agent: Option<String>,
-) -> Token {
+) -> Result<Token, flowable_engine::error::FlowableError> {
     let token = Token {
         id: random_base64(SERIES_LENGTH),
         token_value: random_base64(TOKEN_LENGTH),
@@ -372,8 +410,8 @@ fn create_token(
         ip_address,
         user_agent,
     };
-    engine.get_identity_service().save_token(token.clone());
-    token
+    engine.get_identity_service().save_token(token.clone())?;
+    Ok(token)
 }
 
 /// Why a presented cookie did not yield a session.
@@ -403,14 +441,21 @@ fn resolve_token(
         decode_cookie_value(cookie_raw).ok_or(TokenRejection::Invalid)?;
 
     let identity = engine.get_identity_service();
-    let token = identity
-        .find_token_by_id(&series)
-        .ok_or(TokenRejection::Invalid)?;
+    let token = match identity.find_token_by_id(&series) {
+        Ok(Some(token)) => token,
+        Ok(None) => return Err(TokenRejection::Invalid),
+        Err(error) => {
+            tracing::error!("token lookup failed: {error}");
+            return Err(TokenRejection::Invalid);
+        }
+    };
 
     if token.token_value != presented_value {
         // Java deletes the row and raises CookieTheftException, invalidating
         // every session on that series.
-        identity.delete_token(&token.id);
+        if let Err(error) = identity.delete_token(&token.id) {
+            tracing::error!("token delete failed: {error}");
+        }
         tracing::warn!(
             series = %series,
             "Remember-me series/token mismatch; deleting token (possible cookie theft)"
@@ -452,10 +497,12 @@ fn roll_token(
     user_id: &str,
     ip_address: Option<String>,
     user_agent: Option<String>,
-) -> Token {
-    let replacement = create_token(engine, user_id, ip_address, user_agent);
-    engine.get_identity_service().delete_token(&previous.id);
-    replacement
+) -> Option<Token> {
+    let replacement = create_token(engine, user_id, ip_address, user_agent).ok()?;
+    if let Err(error) = engine.get_identity_service().delete_token(&previous.id) {
+        tracing::error!("token delete during roll failed: {error}");
+    }
+    Some(replacement)
 }
 
 // ── URL → privilege table ──
@@ -570,26 +617,38 @@ pub async fn auth_middleware(
             Ok(token) => {
                 let user_id = token.user_id.clone().unwrap_or_default();
                 match load_scope(&engine, &user_id) {
-                    Some(resolved) => {
+                    Ok(Some(resolved)) => {
                         if needs_roll(&token, &config) {
                             let ip_address = client_ip(&request);
                             let user_agent = header_string(request.headers(), header::USER_AGENT);
-                            let replacement =
-                                roll_token(&engine, &token, &user_id, ip_address, user_agent);
-                            refreshed_cookie = Some(build_set_cookie(
-                                &config,
-                                &replacement.id,
-                                &replacement.token_value,
-                                secure,
-                            ));
+                            if let Some(replacement) =
+                                roll_token(&engine, &token, &user_id, ip_address, user_agent)
+                            {
+                                refreshed_cookie = Some(build_set_cookie(
+                                    &config,
+                                    &replacement.id,
+                                    &replacement.token_value,
+                                    secure,
+                                ));
+                            }
                         }
                         scope = Some(resolved);
                     }
-                    None => {
+                    Ok(None) => {
                         // Token outlived its user; drop the row so the stale
                         // cookie stops resolving.
-                        engine.get_identity_service().delete_token(&token.id);
+                        if let Err(error) = engine.get_identity_service().delete_token(&token.id) {
+                            tracing::error!("failed to delete stale token: {error}");
+                        }
                         refreshed_cookie = Some(build_clear_cookie(&config, secure));
+                    }
+                    Err(error) => {
+                        tracing::error!("identity scope lookup failed: {error}");
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "Internal Server Error",
+                        )
+                            .into_response();
                     }
                 }
             }
@@ -776,19 +835,40 @@ async fn login(
         return authentication_failed();
     }
 
-    if !engine
+    match engine
         .get_identity_service()
         .check_password(&form.username, &form.password)
     {
-        return authentication_failed();
+        Ok(true) => {}
+        Ok(false) => return authentication_failed(),
+        Err(error) => {
+            // Java parity: a DAO/storage failure during authentication is a server error
+            // (`InternalAuthenticationServiceException` -> 500), not "Authentication failed".
+            tracing::error!("password check failed: {error}");
+            return UiError::Internal(format!("Credential verification failed: {error}"))
+                .into_response();
+        }
     }
     // A user with no resolvable scope (deleted between check and load) must not
     // get a session.
-    if load_scope(&engine, &form.username).is_none() {
-        return authentication_failed();
+    match load_scope(&engine, &form.username) {
+        Ok(None) => return authentication_failed(),
+        Ok(Some(_)) => {}
+        Err(error) => {
+            tracing::error!("scope load failed: {error}");
+            return UiError::Internal(format!("Scope load failed: {error}")).into_response();
+        }
     }
 
-    let token = create_token(&engine, &form.username, ip_address, user_agent);
+    let token = match create_token(&engine, &form.username, ip_address, user_agent) {
+        Ok(token) => token,
+        Err(error) => {
+            // The session row could not be written; reporting 401 would blame the
+            // credentials for a storage failure.
+            tracing::error!("token create failed: {error}");
+            return UiError::Internal(format!("Session creation failed: {error}")).into_response();
+        }
+    };
     let cookie = build_set_cookie(&config, &token.id, &token.token_value, secure);
     match HeaderValue::from_str(&cookie) {
         Ok(value) => {
@@ -824,7 +904,9 @@ async fn logout(
     {
         // Java deletes whatever the series resolves to, without requiring the
         // token value to match.
-        engine.get_identity_service().delete_token(&series);
+        if let Err(error) = engine.get_identity_service().delete_token(&series) {
+            tracing::error!("logout token delete failed: {error}");
+        }
     }
 
     // 302, not 303: Java's `logoutSuccessUrl("/")` goes through

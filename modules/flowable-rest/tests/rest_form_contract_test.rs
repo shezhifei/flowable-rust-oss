@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -29,7 +35,7 @@ impl MockFormRepository {
         repository
             .definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(FormDefinitionRecord {
                 id: "form-1".to_string(),
                 key: "expenseApproval".to_string(),
@@ -43,7 +49,7 @@ impl MockFormRepository {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(FormDeploymentRecord {
                 id: "deployment-1".to_string(),
                 name: "Expense forms".to_string(),
@@ -60,7 +66,7 @@ impl forms::FormRepositoryApi for MockFormRepository {
         command: FormDeploymentCommand,
     ) -> Result<FormDeploymentRecord, ApiError> {
         let deployment_id = {
-            let deployments = self.deployments.lock().unwrap();
+            let deployments = self.deployments.lock().unwrap_or_else(|e| e.into_inner());
             format!("deployment-{}", deployments.len() + 1)
         };
         let deployment = FormDeploymentRecord {
@@ -76,10 +82,10 @@ impl forms::FormRepositoryApi for MockFormRepository {
 
         if let Some(resource) = command.resources.first() {
             let form_id = {
-                let definitions = self.definitions.lock().unwrap();
+                let definitions = self.definitions.lock().unwrap_or_else(|e| e.into_inner());
                 format!("form-{}", definitions.len() + 1)
             };
-            self.definitions.lock().unwrap().push(FormDefinitionRecord {
+            self.definitions.lock().unwrap_or_else(|e| e.into_inner()).push(FormDefinitionRecord {
                 id: form_id,
                 key: resource.resource_name.trim_end_matches(".form").to_string(),
                 name: resource.resource_name.trim_end_matches(".form").to_string(),
@@ -91,7 +97,7 @@ impl forms::FormRepositoryApi for MockFormRepository {
             });
         }
 
-        self.deployments.lock().unwrap().push(deployment.clone());
+        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
         Ok(deployment)
     }
 
@@ -102,7 +108,7 @@ impl forms::FormRepositoryApi for MockFormRepository {
         let filtered: Vec<FormDefinitionRecord> = self
             .definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|definition| {
                 query
@@ -134,7 +140,7 @@ impl forms::FormRepositoryApi for MockFormRepository {
     ) -> Result<FormDefinitionRecord, ApiError> {
         self.definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|definition| definition.id == form_definition_id)
             .cloned()

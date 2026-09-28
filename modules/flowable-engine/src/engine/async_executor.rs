@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::engine::async_job_acquisition::{AsyncJobAcquisition, AsyncJobAcquisitionConfig};
 use crate::engine::async_task_executor::{AsyncTaskExecutor, AsyncTaskExecutorConfig};
 use crate::engine::history_job_dispatcher::HistoryJobDispatcher;
@@ -357,7 +365,7 @@ impl AsyncExecutor {
             return false;
         }
         let task = spawn_timer_work(runtime_service, work, fencing_token);
-        let guard = self.task_executor.lock().unwrap();
+        let guard = self.task_executor.lock().unwrap_or_else(|e| e.into_inner());
         guard
             .as_ref()
             .map(|pool| pool.execute(task).is_ok())
@@ -411,7 +419,7 @@ impl AsyncExecutor {
         }
         let work = TimerWork::RuntimeJob(job);
         let task = spawn_direct_hint_work(runtime_service, work);
-        let guard = self.task_executor.lock().unwrap();
+        let guard = self.task_executor.lock().unwrap_or_else(|e| e.into_inner());
         guard
             .as_ref()
             .map(|pool| pool.execute(task).is_ok())
@@ -421,7 +429,7 @@ impl AsyncExecutor {
     pub fn remaining_capacity(&self) -> usize {
         self.task_executor
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .as_ref()
             .map(|pool| pool.remaining_capacity())
             .unwrap_or(0)
@@ -453,10 +461,9 @@ impl AsyncExecutor {
 
     /// Effective owner used by this executor for runtime and acquisition locks.
     pub fn lock_owner(&self) -> &str {
-        self.config
-            .lock_owner
-            .as_deref()
-            .expect("AsyncExecutor always resolves a lock owner during construction")
+        // Constructors always resolve `Some`; the fallback only guards direct
+        // struct-literal construction with `lock_owner: None`.
+        self.config.lock_owner.as_deref().unwrap_or("async-executor:unknown")
     }
 
     /// Tenant filter applied during job acquisition. Empty means all tenants.
@@ -657,13 +664,13 @@ mod tests {
             TimerWork::RuntimeJob(job),
             1,
         ));
-        assert_eq!(executor.temporary_jobs.lock().unwrap().len(), 1);
+        assert_eq!(executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner()).len(), 1);
 
         assert_eq!(
             executor.try_start(runtime_service).unwrap(),
             AsyncExecutorStartOutcome::Started
         );
-        assert!(executor.temporary_jobs.lock().unwrap().is_empty());
+        assert!(executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner()).is_empty());
         executor.shutdown();
     }
 
@@ -688,7 +695,7 @@ mod tests {
 
         assert!(executor.submit_direct_hint_job(runtime_service, unlocked));
         assert!(
-            executor.temporary_jobs.lock().unwrap().is_empty(),
+            executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner()).is_empty(),
             "an unlocked durable job must be acquired by the startup poller, not submitted twice"
         );
     }
@@ -713,7 +720,7 @@ mod tests {
         };
 
         assert!(executor.submit_direct_hint_job(runtime_service, prelocked));
-        let queued = executor.temporary_jobs.lock().unwrap();
+        let queued = executor.temporary_jobs.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(queued.len(), 1);
         assert!(queued.front().unwrap().direct_hint);
     }

@@ -25,8 +25,12 @@ const CONTENT_ITEM_COLUMNS: &[&str] = &[
     "expires_at",
 ];
 
-pub fn ensure_schema(store: &RuntimeStore) {
-    let mut session = store.db_store().create_session().unwrap();
+pub fn ensure_schema(
+    store: &RuntimeStore,
+) -> Result<(), flowable_engine::persistence::StorageError> {
+    // Java parity: ContentEngine schema creation throws FlowableException on
+    // failure (mapped to 500), never aborts the process.
+    let mut session = store.db_store().create_session()?;
 
     let id = session.dialect().varchar_type(255);
     let short = session.dialect().varchar_type(255);
@@ -35,80 +39,82 @@ pub fn ensure_schema(store: &RuntimeStore) {
     let big = session.dialect().bigint_type();
 
     // execute_raw_sql 只能处理单条语句，逐条执行 DDL
-    session
-        .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {CONTENT_ITEMS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, name {short} NOT NULL, mime_type {short}, task_id {short}, process_instance_id {short}, scope_type {short}, scope_id {short}, field {short}, tenant_id {short}, created_by {short}, created_at {big} NOT NULL, updated_at {big} NOT NULL, expires_at {big})"
-        ))
-        .unwrap();
-    session
-        .execute_raw_sql(&format!(
-            "CREATE TABLE IF NOT EXISTS {CONTENT_ITEM_DATA_TABLE} (content_item_id {id} PRIMARY KEY, payload {blob} NOT NULL)"
-        ))
-        .unwrap();
+    session.execute_raw_sql(&format!(
+        "CREATE TABLE IF NOT EXISTS {CONTENT_ITEMS_TABLE} (id {id} PRIMARY KEY, data {text} NOT NULL, name {short} NOT NULL, mime_type {short}, task_id {short}, process_instance_id {short}, scope_type {short}, scope_id {short}, field {short}, tenant_id {short}, created_by {short}, created_at {big} NOT NULL, updated_at {big} NOT NULL, expires_at {big})"
+    ))?;
+    session.execute_raw_sql(&format!(
+        "CREATE TABLE IF NOT EXISTS {CONTENT_ITEM_DATA_TABLE} (content_item_id {id} PRIMARY KEY, payload {blob} NOT NULL)"
+    ))?;
 
-    create_index(&mut session, "idx_content_items_name", CONTENT_ITEMS_TABLE, "name");
+    create_index(&mut session, "idx_content_items_name", CONTENT_ITEMS_TABLE, "name")?;
     create_index(
         &mut session,
         "idx_content_items_mime_type",
         CONTENT_ITEMS_TABLE,
         "mime_type",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_task_id",
         CONTENT_ITEMS_TABLE,
         "task_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_process_instance_id",
         CONTENT_ITEMS_TABLE,
         "process_instance_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_scope",
         CONTENT_ITEMS_TABLE,
         "scope_type, scope_id",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_created_by",
         CONTENT_ITEMS_TABLE,
         "created_by",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_created_at",
         CONTENT_ITEMS_TABLE,
         "created_at",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_expires_at",
         CONTENT_ITEMS_TABLE,
         "expires_at",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_field",
         CONTENT_ITEMS_TABLE,
         "field",
-    );
+    )?;
     create_index(
         &mut session,
         "idx_content_items_tenant_id",
         CONTENT_ITEMS_TABLE,
         "tenant_id",
-    );
+    )?;
 
-    migrate_content_item_columns(&mut session);
+    migrate_content_item_columns(&mut session)?;
 
-    session.flush_and_commit().unwrap();
+    session.flush_and_commit()?;
+    Ok(())
 }
 
 /// MySQL 8.0 没有 CREATE INDEX IF NOT EXISTS，重复索引按成功处理（对齐 engine db_store.rs）。
-fn create_index(session: &mut DbSession, name: &str, table: &str, columns: &str) {
+fn create_index(
+    session: &mut DbSession,
+    name: &str,
+    table: &str,
+    columns: &str,
+) -> Result<(), flowable_engine::persistence::StorageError> {
     let sql = session.dialect().create_index_if_not_exists(name, table, columns);
     if let Err(error) = session.execute_raw_sql(&sql) {
         let message = error.to_string();
@@ -116,29 +122,31 @@ fn create_index(session: &mut DbSession, name: &str, table: &str, columns: &str)
             || message.contains("Duplicate key name")
             || message.contains("already exists")
         {
-            return;
+            return Ok(());
         }
-        panic!("index DDL failed: {error} | SQL: {sql}");
+        // Java parity: DDL failure throws, never panics the JVM.
+        return Err(error);
     }
+    Ok(())
 }
 
-fn migrate_content_item_columns(session: &mut DbSession) {
+fn migrate_content_item_columns(
+    session: &mut DbSession,
+) -> Result<(), flowable_engine::persistence::StorageError> {
     let column_names: std::collections::BTreeSet<String> = session
-        .table_columns(CONTENT_ITEMS_TABLE)
-        .unwrap()
+        .table_columns(CONTENT_ITEMS_TABLE)?
         .into_iter()
         .map(|column| column.name)
         .collect();
 
     for (column, ddl_type) in [("field", "TEXT"), ("tenant_id", "TEXT")] {
         if !column_names.contains(column) {
-            session
-                .execute_raw_sql(&format!(
-                    "ALTER TABLE {CONTENT_ITEMS_TABLE} ADD COLUMN {column} {ddl_type}"
-                ))
-                .unwrap();
+            session.execute_raw_sql(&format!(
+                "ALTER TABLE {CONTENT_ITEMS_TABLE} ADD COLUMN {column} {ddl_type}"
+            ))?;
         }
     }
+    Ok(())
 }
 
 pub fn insert_content_item(
@@ -146,12 +154,12 @@ pub fn insert_content_item(
     item: ContentItem,
     payload: Option<&[u8]>,
 ) -> Result<(), flowable_engine::persistence::StorageError> {
-    ensure_schema(store);
+    ensure_schema(store)?;
     let mut session = store.db_store().create_session()?;
 
     let mut params = DbParams::new();
     params.push(item.id.clone());
-    params.push(serde_json::to_string(&item).unwrap());
+    params.push(serde_json::to_string(&item)?);
     params.push(item.name.clone());
     params.push(item.mime_type.clone());
     params.push(item.task_id.clone());
@@ -195,70 +203,80 @@ pub fn insert_content_item(
     Ok(())
 }
 
-pub(crate) fn find_content_item(store: &RuntimeStore, id: &str) -> Option<ContentItem> {
-    ensure_schema(store);
-    store
-        .db_store()
-        .find_by_id(CONTENT_ITEMS_TABLE, id)
-        .unwrap()
+pub(crate) fn find_content_item(
+    store: &RuntimeStore,
+    id: &str,
+) -> Result<Option<ContentItem>, flowable_engine::persistence::StorageError> {
+    ensure_schema(store)?;
+    store.db_store().find_by_id(CONTENT_ITEMS_TABLE, id)
 }
 
 pub(crate) fn find_content_items_by_filter(
     store: &RuntimeStore,
     predicate: &str,
     params: DbParams,
-) -> Vec<ContentItem> {
-    ensure_schema(store);
-    let mut session = store.db_store().create_session().unwrap();
+) -> Result<Vec<ContentItem>, flowable_engine::persistence::StorageError> {
+    ensure_schema(store)?;
+    let mut session = store.db_store().create_session()?;
     let sql = format!("SELECT data FROM {CONTENT_ITEMS_TABLE} WHERE {predicate}");
-    let rows = session.raw_query(&sql, params).unwrap();
-    rows.iter()
-        .filter_map(|row| row.get_text("data"))
-        .filter_map(|json| serde_json::from_str::<ContentItem>(json.as_str()).ok())
-        .collect()
+    let rows = session.raw_query(&sql, params)?;
+    let mut items = Vec::with_capacity(rows.len());
+    for row in &rows {
+        if let Some(json) = row.get_text("data") {
+            items.push(
+                serde_json::from_str::<ContentItem>(json.as_str())
+                    .map_err(|e| flowable_engine::persistence::StorageError::Deserialization(e.to_string()))?,
+            );
+        }
+    }
+    Ok(items)
 }
 
-pub(crate) fn list_content_items(store: &RuntimeStore) -> Vec<ContentItem> {
-    ensure_schema(store);
-    store.db_store().find_all(CONTENT_ITEMS_TABLE).unwrap()
+pub(crate) fn list_content_items(
+    store: &RuntimeStore,
+) -> Result<Vec<ContentItem>, flowable_engine::persistence::StorageError> {
+    ensure_schema(store)?;
+    store.db_store().find_all(CONTENT_ITEMS_TABLE)
 }
 
-pub(crate) fn delete_content_item(store: &RuntimeStore, id: &str) -> bool {
-    ensure_schema(store);
-    let mut session = store.db_store().create_session().unwrap();
+pub(crate) fn delete_content_item(
+    store: &RuntimeStore,
+    id: &str,
+) -> Result<bool, flowable_engine::persistence::StorageError> {
+    ensure_schema(store)?;
+    let mut session = store.db_store().create_session()?;
 
     let mut del_blob_params = DbParams::new();
     del_blob_params.push(id);
-    session
-        .execute_raw(
-            &format!("DELETE FROM {CONTENT_ITEM_DATA_TABLE} WHERE content_item_id = ?"),
-            del_blob_params,
-        )
-        .unwrap();
+    session.execute_raw(
+        &format!("DELETE FROM {CONTENT_ITEM_DATA_TABLE} WHERE content_item_id = ?"),
+        del_blob_params,
+    )?;
 
     let mut del_item_params = DbParams::new();
     del_item_params.push(id);
-    let deleted = session
-        .execute_raw(
-            &format!("DELETE FROM {CONTENT_ITEMS_TABLE} WHERE id = ?"),
-            del_item_params,
-        )
-        .unwrap()
-        > 0;
-    session.flush_and_commit().unwrap();
-    deleted
+    let deleted_count = session.execute_raw(
+        &format!("DELETE FROM {CONTENT_ITEMS_TABLE} WHERE id = ?"),
+        del_item_params,
+    )?;
+    let deleted = deleted_count > 0;
+    session.flush_and_commit()?;
+    Ok(deleted)
 }
 
 pub(crate) fn delete_content_items_by_process_instance_id(
     store: &RuntimeStore,
     process_instance_id: &str,
-) -> usize {
+) -> Result<usize, flowable_engine::persistence::StorageError> {
     let mut params = DbParams::new();
     params.push(process_instance_id);
     delete_content_items_by_filter(store, "process_instance_id = ?", params)
 }
 
-pub(crate) fn delete_content_items_by_task_id(store: &RuntimeStore, task_id: &str) -> usize {
+pub(crate) fn delete_content_items_by_task_id(
+    store: &RuntimeStore,
+    task_id: &str,
+) -> Result<usize, flowable_engine::persistence::StorageError> {
     let mut params = DbParams::new();
     params.push(task_id);
     delete_content_items_by_filter(store, "task_id = ?", params)
@@ -268,7 +286,7 @@ pub(crate) fn delete_content_items_by_scope_id_and_scope_type(
     store: &RuntimeStore,
     scope_id: &str,
     scope_type: &str,
-) -> usize {
+) -> Result<usize, flowable_engine::persistence::StorageError> {
     let mut params = DbParams::new();
     params.push(scope_id);
     params.push(scope_type);
@@ -279,42 +297,38 @@ fn delete_content_items_by_filter(
     store: &RuntimeStore,
     predicate: &str,
     params: DbParams,
-) -> usize {
-    ensure_schema(store);
-    let mut session = store.db_store().create_session().unwrap();
+) -> Result<usize, flowable_engine::persistence::StorageError> {
+    ensure_schema(store)?;
+    let mut session = store.db_store().create_session()?;
 
     let sql = format!("SELECT id FROM {CONTENT_ITEMS_TABLE} WHERE {predicate}");
-    let rows = session.raw_query(&sql, params).unwrap();
+    let rows = session.raw_query(&sql, params)?;
     let content_item_ids: Vec<String> = rows.iter().filter_map(|row| row.get_text("id")).collect();
 
     let deleted = content_item_ids.len();
     for content_item_id in &content_item_ids {
         let mut del_blob_params = DbParams::new();
         del_blob_params.push(content_item_id.as_str());
-        session
-            .execute_raw(
-                &format!("DELETE FROM {CONTENT_ITEM_DATA_TABLE} WHERE content_item_id = ?"),
-                del_blob_params,
-            )
-            .unwrap();
+        session.execute_raw(
+            &format!("DELETE FROM {CONTENT_ITEM_DATA_TABLE} WHERE content_item_id = ?"),
+            del_blob_params,
+        )?;
 
         let mut del_item_params = DbParams::new();
         del_item_params.push(content_item_id.as_str());
-        session
-            .execute_raw(
-                &format!("DELETE FROM {CONTENT_ITEMS_TABLE} WHERE id = ?"),
-                del_item_params,
-            )
-            .unwrap();
+        session.execute_raw(
+            &format!("DELETE FROM {CONTENT_ITEMS_TABLE} WHERE id = ?"),
+            del_item_params,
+        )?;
     }
-    session.flush_and_commit().unwrap();
-    deleted
+    session.flush_and_commit()?;
+    Ok(deleted)
 }
 
 pub(crate) fn find_expired_content_items(
     store: &RuntimeStore,
     now_millis: i64,
-) -> Vec<ContentItem> {
+) -> Result<Vec<ContentItem>, flowable_engine::persistence::StorageError> {
     let mut params = DbParams::new();
     params.push(now_millis);
     find_content_items_by_filter(store, "expires_at IS NOT NULL AND expires_at <= ?", params)
@@ -332,12 +346,18 @@ pub fn ensure_schema_in_session(
     session.execute_raw_sql(&format!(
         "CREATE TABLE IF NOT EXISTS {CONTENT_ITEM_DATA_TABLE} (content_item_id TEXT PRIMARY KEY, payload BLOB NOT NULL)"
     ))?;
-    let _ = session.execute_raw_sql(&format!(
-        "ALTER TABLE {CONTENT_ITEMS_TABLE} ADD COLUMN field TEXT"
-    ));
-    let _ = session.execute_raw_sql(&format!(
-        "ALTER TABLE {CONTENT_ITEMS_TABLE} ADD COLUMN tenant_id TEXT"
-    ));
+    let column_names: std::collections::BTreeSet<String> = session
+        .table_columns(CONTENT_ITEMS_TABLE)?
+        .into_iter()
+        .map(|column| column.name)
+        .collect();
+    for (column, ddl_type) in [("field", "TEXT"), ("tenant_id", "TEXT")] {
+        if !column_names.contains(column) {
+            session.execute_raw_sql(&format!(
+                "ALTER TABLE {CONTENT_ITEMS_TABLE} ADD COLUMN {column} {ddl_type}"
+            ))?;
+        }
+    }
     Ok(())
 }
 
@@ -352,7 +372,7 @@ pub fn insert_content_item_in_session(
 
     let mut params = DbParams::new();
     params.push(item.id.clone());
-    params.push(serde_json::to_string(item).unwrap());
+    params.push(serde_json::to_string(item)?);
     params.push(item.name.clone());
     params.push(item.mime_type.clone());
     params.push(item.task_id.clone());
@@ -419,8 +439,9 @@ pub fn associate_content_item_in_session(
     item.tenant_id = tenant_id.map(str::to_string);
 
     // Rewrite full JSON + physical association columns without touching payload.
+    // Java parity: ContentService serialization failure throws, never panics.
     let mut params = DbParams::new();
-    params.push(serde_json::to_string(&item).unwrap());
+    params.push(serde_json::to_string(&item)?);
     params.push(item.task_id.clone().unwrap_or_default());
     params.push(item.process_instance_id.clone().unwrap_or_default());
     params.push(item.scope_type.clone().unwrap_or_default());
@@ -532,7 +553,10 @@ pub fn claim_content_item_for_field_in_session(
     // tenant_id deliberately untouched: claiming a field never moves tenants.
 
     let mut params = DbParams::new();
-    params.push(serde_json::to_string(&item).unwrap());
+    params.push(
+        serde_json::to_string(&item)
+            .map_err(|e| ContentClaimError::Storage(flowable_engine::persistence::StorageError::Serialization(e.to_string())))?,
+    );
     params.push(item.task_id.clone().unwrap_or_default());
     params.push(item.process_instance_id.clone().unwrap_or_default());
     params.push(item.scope_type.clone().unwrap_or_default());
@@ -591,10 +615,16 @@ pub fn find_content_item_in_session(
         &format!("SELECT data FROM {CONTENT_ITEMS_TABLE} WHERE id = ?"),
         params,
     )?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| row.get_text("data"))
-        .find_map(|json| serde_json::from_str::<ContentItem>(&json).ok()))
+    for row in rows {
+        if let Some(json) = row.get_text("data") {
+            return Ok(Some(
+                serde_json::from_str::<ContentItem>(&json).map_err(|e| {
+                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
+                })?,
+            ));
+        }
+    }
+    Ok(None)
 }
 
 /// List content items for a task using the caller's session.
@@ -609,11 +639,17 @@ pub fn find_content_items_by_task_id_in_session(
         &format!("SELECT data FROM {CONTENT_ITEMS_TABLE} WHERE task_id = ?"),
         params,
     )?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| row.get_text("data"))
-        .filter_map(|json| serde_json::from_str::<ContentItem>(&json).ok())
-        .collect())
+    let mut items = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(json) = row.get_text("data") {
+            items.push(
+                serde_json::from_str::<ContentItem>(&json).map_err(|e| {
+                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
+                })?,
+            );
+        }
+    }
+    Ok(items)
 }
 
 /// List content items for a process instance using the caller's session.
@@ -629,11 +665,17 @@ pub fn find_content_items_by_process_instance_id_in_session(
         &format!("SELECT data FROM {CONTENT_ITEMS_TABLE} WHERE process_instance_id = ?"),
         params,
     )?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| row.get_text("data"))
-        .filter_map(|json| serde_json::from_str::<ContentItem>(&json).ok())
-        .collect())
+    let mut items = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(json) = row.get_text("data") {
+            items.push(
+                serde_json::from_str::<ContentItem>(&json).map_err(|e| {
+                    flowable_engine::persistence::StorageError::Deserialization(e.to_string())
+                })?,
+            );
+        }
+    }
+    Ok(items)
 }
 
 /// Load binary payload stored in the session-backed blob table (task-attachment path).

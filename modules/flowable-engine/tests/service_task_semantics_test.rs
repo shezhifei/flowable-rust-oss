@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_bpmn_converter::BpmnXMLConverter;
 use flowable_bpmn_model::model::{BpmnModel, FlowElementEnum, Process};
 use flowable_engine::engine::outbound_event_dispatch::{
@@ -918,7 +924,7 @@ fn run_owned_http_service_task_with_skip_variable(
 
 #[test]
 fn service_task_passes_through_to_end_event() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
 
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
@@ -1165,7 +1171,7 @@ impl OutboundEventDispatchHook for RecordingOutboundDispatch {
         &self,
         request: &OutboundEventDispatchRequest,
     ) -> Result<(), FlowableError> {
-        self.requests.lock().unwrap().push(request.clone());
+        self.requests.lock().unwrap_or_else(|e| e.into_inner()).push(request.clone());
         Ok(())
     }
 }
@@ -1193,7 +1199,7 @@ fn send_event_task_outbound_dispatch_success_sets_dispatch_token_and_published()
     ))
     .expect("send-event with successful outbound hook should publish");
 
-    let requests = recorder.requests.lock().unwrap();
+    let requests = recorder.requests.lock().unwrap_or_else(|e| e.into_inner());
     assert_eq!(requests.len(), 1, "outbound hook must be invoked once");
     assert_eq!(requests[0].channel_key, "ordersOutbound");
     assert_eq!(requests[0].event_type, "order.published");
@@ -1511,7 +1517,7 @@ fn http_service_task_maps_in_out_parameters_and_keeps_transient_result_unpersist
     let runtime_store = command_context.runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let persisted_variables = runtime_store
-        .find_variables_by_execution_id("http-service-task-io-execution", &mut session);
+        .find_variables_by_execution_id("http-service-task-io-execution", &mut session).unwrap();
     assert!(
         !persisted_variables.contains_key("httpResult"),
         "transient result must not be written to the runtime variable store"
@@ -1548,7 +1554,7 @@ fn http_service_task_local_result_is_available_to_out_parameters_without_process
     let runtime_store = command_context.runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let persisted_variables = runtime_store
-        .find_variables_by_execution_id("http-service-task-local-result-execution", &mut session);
+        .find_variables_by_execution_id("http-service-task-local-result-execution", &mut session).unwrap();
     // Java stores local variables in the runtime variable table. The row-level
     // projection dual-writes `local_variables` as well as `variables`, so a
     // useLocalScopeForResultVariable result is queryable as a variable instance
@@ -2201,12 +2207,14 @@ fn failed_timer_job_with_no_retries_is_visible_as_deadletter() {
     assert!(
         management_service
             .find_timer_job_by_id(&timer_job.timer_job_id)
+            .unwrap()
             .is_none(),
         "exhausted failed job should no longer be an executable timer job"
     );
 
     let deadletter = management_service
         .find_deadletter_job_by_id(&timer_job.timer_job_id)
+        .unwrap()
         .expect("exhausted failed job should be available as deadletter");
 
     assert_eq!(deadletter.retries, Some(0));
@@ -2222,6 +2230,7 @@ fn failed_timer_job_with_no_retries_is_visible_as_deadletter() {
     assert!(
         management_service
             .list_deadletter_jobs()
+            .unwrap()
             .iter()
             .any(|job| job.timer_job_id == timer_job.timer_job_id)
     );

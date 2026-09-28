@@ -67,13 +67,22 @@ pub(crate) async fn message_event_received(
         let process_instance_id_owned = process_instance_id.clone();
         let business_key_owned = business_key.clone();
         tokio::spawn(async move {
-            let _ = correlate_message(
+            // The 202 is already committed, so the storage failure cannot be turned into a
+            // response — but it must not be silent either.
+            if let Err(error) = correlate_message(
                 &engine_clone,
                 &message_name_owned,
                 process_instance_id_owned.as_deref(),
                 business_key_owned.as_deref(),
                 &variables,
-            );
+            )
+            {
+                tracing::error!(
+                    error = ?error,
+                    message_name = %message_name_owned,
+                    "async message correlation failed"
+                );
+            }
         });
         return Ok(StatusCode::ACCEPTED);
     }
@@ -124,7 +133,7 @@ fn correlate_message(
     let mut matched_any = false;
 
     let (mut execution_ids, receive_task_ids, boundary_process_ids, event_subprocess_ids) = {
-        let mut session = runtime_store.create_session().unwrap();
+        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         let event_wait_states = runtime_store.snapshot_event_wait_states(&mut session);
         let execution_ids: Vec<String> = event_wait_states
             .values()
@@ -144,6 +153,7 @@ fn correlate_message(
             .filter(|wait_state| {
                 filter_by_process_instance(
                     &runtime_store,
+                    &mut session,
                     &wait_state.process_instance_id,
                     process_instance_id,
                     business_key,
@@ -160,6 +170,7 @@ fn correlate_message(
             .filter(|wait_state| {
                 filter_by_process_instance(
                     &runtime_store,
+                    &mut session,
                     &wait_state.process_instance_id,
                     process_instance_id,
                     business_key,
@@ -177,6 +188,7 @@ fn correlate_message(
             .filter(|state| {
                 filter_by_process_instance(
                     &runtime_store,
+                    &mut session,
                     &state.process_instance_id,
                     process_instance_id,
                     business_key,
@@ -194,6 +206,7 @@ fn correlate_message(
             .filter(|subscription| {
                 filter_by_process_instance(
                     &runtime_store,
+                    &mut session,
                     &subscription.process_instance_id,
                     process_instance_id,
                     business_key,
@@ -223,7 +236,7 @@ fn correlate_message(
         runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
             message_name.to_string(),
             execution_id.clone(),
-        );
+        )?;
         matched_any = true;
     }
 
@@ -233,7 +246,9 @@ fn correlate_message(
                 .get_variable_service()
                 .set_variable(pid.clone(), name.clone(), value.clone())?;
         }
-        let _ = task_service.wake_up_message_by_message_ref(pid.clone(), message_name.to_string());
+        // Java parity: waking a receive task persists through the session, whose flush
+        // throws on a SQL failure; the message must not be reported as delivered.
+        task_service.wake_up_message_by_message_ref(pid.clone(), message_name.to_string())?;
         matched_any = true;
     }
 
@@ -244,7 +259,7 @@ fn correlate_message(
                 .set_variable(pid.clone(), name.clone(), value.clone())?;
         }
         runtime_service
-            .trigger_boundary_event_by_message_ref(message_name.to_string(), pid.clone());
+            .trigger_boundary_event_by_message_ref(message_name.to_string(), pid.clone())?;
         matched_any = true;
     }
 
@@ -254,13 +269,13 @@ fn correlate_message(
                 .get_variable_service()
                 .set_variable(pid.clone(), name.clone(), value.clone())?;
         }
-        runtime_service.trigger_event_subprocess_by_message(message_name.to_string(), pid.clone());
+        runtime_service.trigger_event_subprocess_by_message(message_name.to_string(), pid.clone())?;
         matched_any = true;
     }
 
     // 5. Process start subscriptions
     let start_subscriptions: Vec<_> = engine
-        .get_event_start_subscriptions()
+        .get_event_start_subscriptions()?
         .into_iter()
         .filter(|subscription| {
             subscription.event_kind == EventSubscriptionKind::Message
@@ -286,6 +301,7 @@ fn correlate_message(
 
 fn filter_by_process_instance(
     store: &flowable_engine::persistence::runtime_store::RuntimeStore,
+    session: &mut flowable_engine::persistence::DbSession,
     actual_process_instance_id: &str,
     filter_process_instance_id: Option<&str>,
     filter_business_key: Option<&str>,
@@ -296,9 +312,16 @@ fn filter_by_process_instance(
         return false;
     }
     if let Some(target_bk) = filter_business_key {
-        let mut session = store.create_session().unwrap();
-        if let Some(instance) =
-            store.find_process_instance(actual_process_instance_id, &mut session)
+        // Storage failure is not a filter miss: record sticky error so the
+        // caller reports 500 instead of an empty list (Java SQL error escapes).
+        let instance = match store.find_process_instance(actual_process_instance_id, session) {
+            Ok(found) => found,
+            Err(error) => {
+                session.note_write_error(error);
+                return false;
+            }
+        };
+        if let Some(instance) = instance
             && instance.business_key.as_deref() != Some(target_bk)
         {
             return false;

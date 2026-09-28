@@ -1,3 +1,4 @@
+use crate::error::FlowableError;
 use crate::persistence::runtime_store::RuntimeStore;
 use crate::service::issuer_profile::{IssuerProfile, JwksRefreshPolicy, RolloutState};
 use crate::service::jwks::JwksCache;
@@ -80,26 +81,29 @@ impl IssuerHealthCollector {
         }
     }
 
-    pub fn collect_all(&self) -> Vec<IssuerHealthSnapshot> {
-        let mut session = self.runtime_store.create_session().unwrap();
-        let profiles = self.runtime_store.list_issuer_profiles(&mut session);
+    pub fn collect_all(&self) -> Result<Vec<IssuerHealthSnapshot>, FlowableError> {
+        let mut session = self.runtime_store.create_session()?;
+        let profiles = self.runtime_store.list_issuer_profiles(&mut session)?;
         let snapshots = profiles
             .iter()
             .map(|p| self.collect_for_profile(p))
             .collect();
-        session.rollback().unwrap();
-        snapshots
+        let _ = session.rollback();
+        Ok(snapshots)
     }
 
-    pub fn collect_for_issuer(&self, issuer: &str) -> Option<IssuerHealthSnapshot> {
-        let mut session = self.runtime_store.create_session().unwrap();
+    pub fn collect_for_issuer(
+        &self,
+        issuer: &str,
+    ) -> Result<Option<IssuerHealthSnapshot>, FlowableError> {
+        let mut session = self.runtime_store.create_session()?;
         let profile = self
             .runtime_store
-            .list_issuer_profiles(&mut session)
+            .list_issuer_profiles(&mut session)?
             .into_iter()
             .find(|p| p.issuer == issuer && p.is_active());
-        session.rollback().unwrap();
-        profile.map(|p| self.collect_for_profile(&p))
+        let _ = session.rollback();
+        Ok(profile.map(|p| self.collect_for_profile(&p)))
     }
 
     fn collect_for_profile(&self, profile: &IssuerProfile) -> IssuerHealthSnapshot {
@@ -130,10 +134,18 @@ impl IssuerHealthCollector {
         }
     }
 
-    pub fn revocation_snapshot(&self) -> RevocationRegistrySnapshot {
-        RevocationRegistrySnapshot {
-            active_count: self.revocation_registry.active_count(),
-        }
+    /// Snapshot of the revocation registry.
+    ///
+    /// Returns the storage failure rather than a `0` count: a registry that could not be
+    /// read is not the same as a registry holding no revocations, and `GET
+    /// /revocation/stats` used to report `active_count: 0` for the whole duration of an
+    /// outage.
+    pub fn revocation_snapshot(
+        &self,
+    ) -> Result<RevocationRegistrySnapshot, crate::error::FlowableError> {
+        Ok(RevocationRegistrySnapshot {
+            active_count: self.revocation_registry.active_count()?,
+        })
     }
 
     pub fn revocation_status(&self, jti: &str) -> RevocationStatusDto {

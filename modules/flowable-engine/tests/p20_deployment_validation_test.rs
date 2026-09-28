@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P20-C contract tests: deployment-time validation for cancel / compensate
 //! event constraints, aligned with the Java process validators.
 //!
@@ -20,7 +26,7 @@ fn deploy_xml(
     xml: &str,
     config: ProcessEngineConfiguration,
 ) -> Result<(), flowable_engine::error::FlowableError> {
-    let process_engine = ProcessEngine::new_with_config("default".to_string(), config);
+    let process_engine = ProcessEngine::new_with_config("default".to_string(), config).unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let builder = repository_service

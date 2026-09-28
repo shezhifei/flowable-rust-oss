@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -27,7 +33,7 @@ struct MockContentService {
 impl MockContentService {
     fn with_seed() -> Self {
         let service = Self::default();
-        service.items.lock().unwrap().insert(
+        service.items.lock().unwrap_or_else(|e| e.into_inner()).insert(
             "content-1".to_string(),
             ContentItemRecord {
                 id: "content-1".to_string(),
@@ -56,7 +62,7 @@ impl content::ContentServiceApi for MockContentService {
         _authenticated_user_id: Option<&str>,
     ) -> Result<ContentItemRecord, ApiError> {
         let id = {
-            let items = self.items.lock().unwrap();
+            let items = self.items.lock().unwrap_or_else(|e| e.into_inner());
             format!("content-{}", items.len() + 1)
         };
         let record = ContentItemRecord {
@@ -74,7 +80,7 @@ impl content::ContentServiceApi for MockContentService {
             modified: 1_713_674_500_000,
             content_size: command.content.as_deref().map(str::len).unwrap_or_default(),
         };
-        self.items.lock().unwrap().insert(id, record.clone());
+        self.items.lock().unwrap_or_else(|e| e.into_inner()).insert(id, record.clone());
         Ok(record)
     }
 
@@ -83,7 +89,7 @@ impl content::ContentServiceApi for MockContentService {
         query: ContentItemQuery,
     ) -> Result<flowable_rest::common::PagedResponse<ContentItemRecord>, ApiError> {
         let mut items: Vec<ContentItemRecord> =
-            self.items.lock().unwrap().values().cloned().collect();
+            self.items.lock().unwrap_or_else(|e| e.into_inner()).values().cloned().collect();
         items.sort_by(|left, right| left.id.cmp(&right.id));
         let filtered: Vec<ContentItemRecord> = items
             .into_iter()
@@ -117,7 +123,7 @@ impl content::ContentServiceApi for MockContentService {
     fn get_content_item(&self, content_item_id: &str) -> Result<ContentItemRecord, ApiError> {
         self.items
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(content_item_id)
             .cloned()
             .ok_or_else(|| {
@@ -128,7 +134,7 @@ impl content::ContentServiceApi for MockContentService {
     fn delete_content_item(&self, content_item_id: &str) -> Result<(), ApiError> {
         self.items
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .remove(content_item_id)
             .map(|_| ())
             .ok_or_else(|| {

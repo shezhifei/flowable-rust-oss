@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Bounded live historical-migration inspect tests.
 //!
 //! SQLite live inspect always runs. Postgres cases skip gracefully when the
@@ -222,7 +228,7 @@ fn live_sqlx_import_via_manifest_imports_owned_tables() {
     let engine = ProcessEngine::new_with_db_path(
         "historical_migration_live_import".to_string(),
         target_db.to_str().unwrap(),
-    );
+    ).unwrap();
     let result = engine
         .import_historical_migration_from_source_manifest(&manifest_path)
         .expect("live-sqlx import should import through the live extraction pipeline");

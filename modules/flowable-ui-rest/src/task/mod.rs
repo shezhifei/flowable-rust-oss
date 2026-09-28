@@ -442,11 +442,12 @@ pub struct TaskRepresentation {
     pub is_member_of_candidate_users: bool,
 }
 
-fn task_to_rep(engine: &ProcessEngine, task: &Task) -> TaskRepresentation {
+fn task_to_rep(engine: &ProcessEngine, task: &Task) -> Result<TaskRepresentation, TaskError> {
     let assignee = task
         .assignee
         .as_ref()
-        .map(|id| resolve_user(engine, id));
+        .map(|id| resolve_user(engine, id))
+        .transpose()?;
     let (pd_id, pd_name, pd_key) = if task.process_instance_id.is_empty() {
         (None, None, None)
     } else {
@@ -454,7 +455,7 @@ fn task_to_rep(engine: &ProcessEngine, task: &Task) -> TaskRepresentation {
         (None, None, None)
     };
     let _ = pd_id;
-    TaskRepresentation {
+    Ok(TaskRepresentation {
         id: task.id.clone(),
         name: task.name.clone(),
         description: task.description.clone(),
@@ -478,20 +479,23 @@ fn task_to_rep(engine: &ProcessEngine, task: &Task) -> TaskRepresentation {
         initiator_can_complete_task: false,
         is_member_of_candidate_group: false,
         is_member_of_candidate_users: false,
-    }
+    })
 }
 
-fn resolve_user(engine: &ProcessEngine, id: &str) -> UserRepresentation {
+fn resolve_user(engine: &ProcessEngine, id: &str) -> Result<UserRepresentation, TaskError> {
+    // Java parity: a storage failure resolving the user (UserQueryImpl.list() ->
+    // AbstractQuery.list(), AbstractQuery.java:119-129) throws and surfaces as 500;
+    // only a genuinely absent user yields the id-only fallback representation.
     let users = engine
         .get_identity_service()
         .create_user_query()
         .list()
-        .unwrap_or_default();
-    users
+        .map_err(TaskError::from_engine)?;
+    Ok(users
         .iter()
         .find(|u| u.id == id)
         .map(UserRepresentation::from)
-        .unwrap_or_else(|| UserRepresentation::from_id(id))
+        .unwrap_or_else(|| UserRepresentation::from_id(id)))
 }
 
 // ---------------------------------------------------------------------------
@@ -515,7 +519,7 @@ async fn account(
 ) -> Result<Json<Value>, TaskError> {
     let identity = engine.get_identity_service();
     let user = identity
-        .find_user_by_id(auth.user_id())
+        .find_user_by_id(auth.user_id())?
         .ok_or_else(|| TaskError::not_found("Account not found".to_string()))?;
     let full_name = format!(
         "{} {}",
@@ -523,12 +527,12 @@ async fn account(
         user.last_name.clone().unwrap_or_default()
     );
     let groups: Vec<Value> = identity
-        .get_groups_by_user(&user.id)
+        .get_groups_by_user(&user.id)?
         .into_iter()
         .map(|group| json!({ "id": group.id, "name": group.name, "type": group.group_type }))
         .collect();
     let mut privileges: Vec<String> = identity
-        .get_privileges_for_user(&user.id)
+        .get_privileges_for_user(&user.id)?
         .into_iter()
         .map(|privilege| privilege.name)
         .collect();
@@ -584,7 +588,7 @@ async fn create_task(
         .get_task_service()
         .create_task(task)
         .map_err(TaskError::from_engine)?;
-    Ok(Json(task_to_rep(&engine, &created)))
+    Ok(Json(task_to_rep(&engine, &created)?))
 }
 
 async fn get_task(
@@ -592,7 +596,7 @@ async fn get_task(
     Path(task_id): Path<String>,
 ) -> Result<impl IntoResponse, TaskError> {
     let task = find_task(&engine, &task_id)?;
-    Ok(Json(task_to_rep(&engine, &task)))
+    Ok(Json(task_to_rep(&engine, &task)?))
 }
 
 #[derive(Debug, Deserialize)]
@@ -635,7 +639,7 @@ async fn update_task(
         .get_task_service()
         .update_task_by_id(task_id, update)
         .map_err(TaskError::from_engine)?;
-    Ok(Json(task_to_rep(&engine, &task)))
+    Ok(Json(task_to_rep(&engine, &task)?))
 }
 
 async fn list_subtasks(
@@ -649,7 +653,7 @@ async fn list_subtasks(
     let data: Vec<_> = tasks
         .iter()
         .map(|t| task_to_rep(&engine, t))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
 
@@ -752,7 +756,7 @@ fn list_tasks_internal(
     let mut data: Vec<_> = page_tasks
         .iter()
         .map(|t| task_to_rep(&engine, t))
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     if body.include_process_instance == Some(true) {
         // Placeholder names; full PI name lookup can be filled later.
@@ -805,7 +809,7 @@ async fn action_assign(
         .get_task_service()
         .update_task_by_id(task_id, update)
         .map_err(TaskError::from_engine)?;
-    Ok(Json(task_to_rep(&engine, &task)))
+    Ok(Json(task_to_rep(&engine, &task)?))
 }
 
 async fn action_claim(
@@ -950,13 +954,19 @@ async fn list_task_comments(
         .get_task_comments(&task_id, &mut session);
     let data: Vec<_> = comments
         .into_iter()
-        .map(|c| CommentRepresentation {
-            id: Some(c.id.clone()),
-            message: Some(c.message.clone()),
-            created: Some(c.time.to_rfc3339()),
-            created_by: c.author.as_ref().map(|u| resolve_user(&engine, u)),
+        .map(|c| {
+            Ok(CommentRepresentation {
+                id: Some(c.id.clone()),
+                message: Some(c.message.clone()),
+                created: Some(c.time.to_rfc3339()),
+                created_by: c
+                    .author
+                    .as_ref()
+                    .map(|u| resolve_user(&engine, u))
+                    .transpose()?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, TaskError>>()?;
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
 
@@ -985,7 +995,7 @@ async fn add_task_comment(
         id: Some(comment.id),
         message: Some(comment.message),
         created: Some(comment.time.to_rfc3339()),
-        created_by: Some(resolve_user(&engine, &user_id)),
+        created_by: Some(resolve_user(&engine, &user_id)?),
     }))
 }
 
@@ -1002,13 +1012,19 @@ async fn list_pi_comments(
         .get_process_instance_comments(&process_instance_id, &mut session);
     let data: Vec<_> = comments
         .into_iter()
-        .map(|c| CommentRepresentation {
-            id: Some(c.id.clone()),
-            message: Some(c.message.clone()),
-            created: Some(c.time.to_rfc3339()),
-            created_by: c.author.as_ref().map(|u| resolve_user(&engine, u)),
+        .map(|c| {
+            Ok(CommentRepresentation {
+                id: Some(c.id.clone()),
+                message: Some(c.message.clone()),
+                created: Some(c.time.to_rfc3339()),
+                created_by: c
+                    .author
+                    .as_ref()
+                    .map(|u| resolve_user(&engine, u))
+                    .transpose()?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, TaskError>>()?;
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
 
@@ -1031,7 +1047,7 @@ async fn add_pi_comment(
         id: Some(comment.id),
         message: Some(comment.message),
         created: Some(comment.time.to_rfc3339()),
-        created_by: Some(resolve_user(&engine, &user_id)),
+        created_by: Some(resolve_user(&engine, &user_id)?),
     }))
 }
 
@@ -1109,7 +1125,7 @@ async fn start_process_instance(
         process_definition_id: Some(pi.process_definition_id.clone()),
         ended: pi.is_ended,
         started: pi.start_time.map(|t| t.to_rfc3339()),
-        started_by: Some(resolve_user(&engine, &user_id)),
+        started_by: Some(resolve_user(&engine, &user_id)?),
     }))
 }
 
@@ -1131,7 +1147,8 @@ async fn get_process_instance(
         started_by: pi
             .start_user_id
             .as_ref()
-            .map(|u| resolve_user(&engine, u)),
+            .map(|u| resolve_user(&engine, u))
+            .transpose()?,
     }))
 }
 
@@ -1179,19 +1196,22 @@ async fn query_process_instances(
         .into_iter()
         .skip(start)
         .take(size)
-        .map(|pi| ProcessInstanceRepresentation {
-            id: pi.id.clone(),
-            name: pi.name.clone(),
-            business_key: pi.business_key.clone(),
-            process_definition_id: Some(pi.process_definition_id.clone()),
-            ended: pi.is_ended,
-            started: pi.start_time.map(|t| t.to_rfc3339()),
-            started_by: pi
-                .start_user_id
-                .as_ref()
-                .map(|u| resolve_user(&engine, u)),
+        .map(|pi| {
+            Ok(ProcessInstanceRepresentation {
+                id: pi.id.clone(),
+                name: pi.name.clone(),
+                business_key: pi.business_key.clone(),
+                process_definition_id: Some(pi.process_definition_id.clone()),
+                ended: pi.is_ended,
+                started: pi.start_time.map(|t| t.to_rfc3339()),
+                started_by: pi
+                    .start_user_id
+                    .as_ref()
+                    .map(|u| resolve_user(&engine, u))
+                    .transpose()?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, TaskError>>()?;
     Ok(Json(ResultListDataRepresentation::from_page(
         data,
         start as i32,
@@ -1276,7 +1296,7 @@ async fn list_case_definitions(
         .repository_service()
         .create_case_definition_query()
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let data: Vec<_> = defs
         .into_iter()
         .map(|d| {
@@ -1342,11 +1362,14 @@ fn resolve_case_definition_id(
 ) -> Result<String, TaskError> {
     match cmmn.runtime_service().get_case_instance(case_instance_id) {
         Ok(instance) => Ok(instance.case_definition_id),
-        Err(_) => Ok(cmmn
+        // Java parity: only a genuine "not found" falls through to the historic read; a
+        // storage failure must surface (500), not be masked as a completed/historic case.
+        Err(flowable_cmmn_engine::CmmnError::NotFound { .. }) => Ok(cmmn
             .history_service()
             .get_historic_case_instance(case_instance_id)
-            .map_err(|e| TaskError::from_engine(e))?
+            .map_err(TaskError::from_engine)?
             .case_definition_id),
+        Err(error) => Err(TaskError::from_engine(error)),
     }
 }
 
@@ -1375,7 +1398,7 @@ fn plan_items_by_type_and_states(
     }
     let items = query
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let wanted: Vec<String> = states.iter().map(|s| s.to_ascii_uppercase()).collect();
     Ok(items
         .into_iter()
@@ -1560,7 +1583,7 @@ async fn trigger_user_event_listener(
         .case_instance_id(case_instance_id.clone())
         .id(user_event_listener_id.clone())
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?
+        .map_err(TaskError::from_engine)?
         .into_iter()
         .next()
         .ok_or_else(|| {
@@ -1574,7 +1597,7 @@ async fn trigger_user_event_listener(
         .create_event_subscription_query()
         .case_instance_id(&case_instance_id)
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let subscription = subscriptions
         .into_iter()
         .find(|s| {
@@ -1606,7 +1629,7 @@ async fn case_instance_enabled_plan_item_instances(
         .case_instance_id(case_instance_id.clone())
         .state("ENABLED")
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?
+        .map_err(TaskError::from_engine)?
         .into_iter()
         .map(|p| {
             json!({
@@ -1634,7 +1657,7 @@ async fn case_instance_enabled_plan_item_instances(
         .case_instance_id(case_instance_id)
         .state(flowable_cmmn_engine::CmmnHumanTaskState::Enabled)
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     for task in enabled_tasks {
         data.push(json!({
             "id": task.id,
@@ -1667,7 +1690,7 @@ async fn start_enabled_plan_item_instance(
         .id(plan_item_instance_id.clone())
         .state("ENABLED")
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?
+        .map_err(TaskError::from_engine)?
         .into_iter()
         .next();
     let id = if let Some(item) = from_mirror {
@@ -1678,7 +1701,7 @@ async fn start_enabled_plan_item_instance(
             .case_instance_id(case_instance_id)
             .state(flowable_cmmn_engine::CmmnHumanTaskState::Enabled)
             .list()
-            .map_err(|e| TaskError::bad_request(e.to_string()))?
+            .map_err(TaskError::from_engine)?
             .into_iter()
             .find(|t| t.id == plan_item_instance_id)
             .map(|t| t.id)
@@ -1718,11 +1741,11 @@ async fn start_case_instance(
     let instance = if let Some(id) = body.case_definition_id.filter(|s| !s.is_empty()) {
         cmmn.runtime_service()
             .start_case_instance_by_id(&id, request)
-            .map_err(|e| TaskError::bad_request(e.to_string()))?
+            .map_err(TaskError::from_engine)?
     } else if let Some(key) = body.case_definition_key.filter(|s| !s.is_empty()) {
         cmmn.runtime_service()
             .start_case_instance_by_key(&key, request)
-            .map_err(|e| TaskError::bad_request(e.to_string()))?
+            .map_err(TaskError::from_engine)?
     } else {
         return Err(TaskError::bad_request(
             "caseDefinitionId or caseDefinitionKey is required",
@@ -1747,7 +1770,7 @@ async fn get_case_instance(
         .runtime_service()
         .create_case_instance_query()
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let instance = list
         .into_iter()
         .find(|c| c.id == case_instance_id)
@@ -1769,7 +1792,7 @@ async fn delete_case_instance(
     let cmmn = cmmn_engine(&engine)?;
     cmmn.runtime_service()
         .terminate_case_instance(&case_instance_id)
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     Ok(StatusCode::OK)
 }
 
@@ -1788,7 +1811,7 @@ async fn query_case_instances(
         .runtime_service()
         .create_case_instance_query()
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     if let Some(key) = body
         .get("caseDefinitionKey")
         .and_then(|v| v.as_str())
@@ -1835,7 +1858,7 @@ async fn list_task_content(
         .create_content_item_query()
         .task_id(task_id)
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let data: Vec<_> = items.into_iter().map(content_item_json).collect();
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
@@ -1849,7 +1872,7 @@ async fn list_pi_content(
         .create_content_item_query()
         .process_instance_id(process_instance_id)
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let data: Vec<_> = items.into_iter().map(content_item_json).collect();
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
@@ -1864,7 +1887,7 @@ async fn list_case_content(
         .scope_id(case_instance_id)
         .scope_type("cmmn")
         .list()
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     let data: Vec<_> = items.into_iter().map(content_item_json).collect();
     Ok(Json(ResultListDataRepresentation::from_page(data, 0, None)))
 }
@@ -1903,7 +1926,7 @@ async fn add_task_content(
             created_by: Some(effective_user_id(auth.as_ref())),
             expires_in_seconds: None,
         })
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     Ok(Json(content_item_json(item)))
 }
 
@@ -1933,7 +1956,7 @@ async fn add_pi_content(
             created_by: Some(effective_user_id(auth.as_ref())),
             expires_in_seconds: None,
         })
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     Ok(Json(content_item_json(item)))
 }
 
@@ -1949,7 +1972,9 @@ async fn get_content(
             if s.to_lowercase().contains("not found") {
                 TaskError::not_found(format!("Content {content_id}"))
             } else {
-                TaskError::bad_request(s)
+                // Java parity: a storage failure in the content-item read is a 500, not a
+                // client 400 (AbstractDataManager.findById -> DbSqlSession.selectById throws).
+                TaskError::internal(s)
             }
         })?;
     Ok(Json(content_item_json(item)))
@@ -1961,7 +1986,7 @@ async fn delete_content(
 ) -> Result<impl IntoResponse, TaskError> {
     let svc = content_service(engine);
     svc.delete_content_item(&content_id)
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     Ok(StatusCode::OK)
 }
 
@@ -2043,7 +2068,7 @@ fn create_raw_content_item(
             created_by: Some(effective_user_id(auth)),
             expires_in_seconds: None,
         })
-        .map_err(|e| TaskError::bad_request(e.to_string()))
+        .map_err(TaskError::from_engine)
 }
 
 fn guess_mime_from_name(name: &str) -> Option<String> {
@@ -2231,7 +2256,7 @@ async fn add_temporary_content(
             created_by: Some(effective_user_id(auth.as_ref())),
             expires_in_seconds: None,
         })
-        .map_err(|e| TaskError::bad_request(e.to_string()))?;
+        .map_err(TaskError::from_engine)?;
     Ok(Json(content_item_json(item)))
 }
 
@@ -2246,7 +2271,7 @@ async fn get_raw_content(
         if s.to_lowercase().contains("not found") {
             TaskError::not_found(format!("Content {content_id}"))
         } else {
-            TaskError::bad_request(s)
+            TaskError::internal(s)
         }
     })?;
     let data = svc.get_content_item_data(&content_id).map_err(|e| {
@@ -2254,7 +2279,7 @@ async fn get_raw_content(
         if s.to_lowercase().contains("not found") {
             TaskError::not_found(format!("Content data for {content_id}"))
         } else {
-            TaskError::bad_request(s)
+            TaskError::internal(s)
         }
     })?;
     let mut headers = HeaderMap::new();
@@ -2317,7 +2342,7 @@ fn require_debugger() -> Result<(), TaskError> {
 async fn list_breakpoints() -> Result<impl IntoResponse, TaskError> {
     require_debugger()?;
     // In-memory breakpoints live in a process-local static.
-    Ok(Json(DEBUG_BREAKPOINTS.lock().unwrap().clone()))
+    Ok(Json(DEBUG_BREAKPOINTS.lock().unwrap_or_else(|e| e.into_inner()).clone()))
 }
 
 /// Java `DebuggerResource.continueExecution` — remove breakpoints for the
@@ -2327,7 +2352,7 @@ async fn debugger_continue_execution(
     Path(execution_id): Path<String>,
 ) -> Result<impl IntoResponse, TaskError> {
     require_debugger()?;
-    let mut breakpoints = DEBUG_BREAKPOINTS.lock().unwrap();
+    let mut breakpoints = DEBUG_BREAKPOINTS.lock().unwrap_or_else(|e| e.into_inner());
     breakpoints.retain(|bp| {
         bp.get("executionId")
             .and_then(|v| v.as_str())
@@ -2376,7 +2401,7 @@ async fn add_breakpoint(Json(body): Json<Value>) -> Result<impl IntoResponse, Ta
             "property flowable.experimental.debugger.enabled is not enabled",
         ));
     }
-    DEBUG_BREAKPOINTS.lock().unwrap().push(body);
+    DEBUG_BREAKPOINTS.lock().unwrap_or_else(|e| e.into_inner()).push(body);
     Ok(StatusCode::OK)
 }
 
@@ -2386,7 +2411,7 @@ async fn remove_breakpoint(Json(body): Json<Value>) -> Result<impl IntoResponse,
             "property flowable.experimental.debugger.enabled is not enabled",
         ));
     }
-    let mut guard = DEBUG_BREAKPOINTS.lock().unwrap();
+    let mut guard = DEBUG_BREAKPOINTS.lock().unwrap_or_else(|e| e.into_inner());
     guard.retain(|b| b != &body);
     Ok(StatusCode::OK)
 }
@@ -2416,7 +2441,7 @@ async fn debugger_executions(
         .get_runtime_store()
         .db_store()
         .find_all::<Value>("executions")
-        .unwrap_or_default();
+        .map_err(|error| TaskError::internal(error.to_string()))?;
     let data: Vec<_> = rows
         .into_iter()
         .filter(|r| {
@@ -2621,12 +2646,32 @@ impl TaskError {
             message: msg.into(),
         }
     }
+    /// Map an engine/service error whose concrete type is not known here.
+    ///
+    /// Java parity: an engine/DAO failure surfaces as a server error, never as a client
+    /// error — `FlowableException`/`PersistenceException` reach the REST layer as 500.
+    /// Only an explicitly recognised "not found" message stays a 404; everything else is
+    /// treated as a server-side failure instead of being reported as 400 Bad Request.
+    /// Callers that hold a `FlowableError` should prefer `TaskError::from`, which
+    /// classifies by variant.
     fn from_engine(err: impl std::fmt::Display) -> Self {
         let s = err.to_string();
-        if s.to_lowercase().contains("not found") || s.to_lowercase().contains("does not exist") {
+        let lowered = s.to_lowercase();
+        if lowered.contains("not found") || lowered.contains("does not exist") {
             Self::not_found(s)
         } else {
-            Self::bad_request(s)
+            Self::internal(s)
+        }
+    }
+}
+
+impl From<flowable_engine::error::FlowableError> for TaskError {
+    fn from(error: flowable_engine::error::FlowableError) -> Self {
+        use flowable_engine::error::FlowableError as E;
+        match error {
+            E::NotFound(message) => Self::not_found(message),
+            E::BadRequest(message) | E::DeploymentValidationError(message) => Self::bad_request(message),
+            other => Self::internal(other.to_string()),
         }
     }
 }

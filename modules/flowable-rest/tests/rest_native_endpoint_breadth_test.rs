@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::identity::entities::{BatchEntity, BatchPartEntity};
 use flowable_engine::persistence::runtime_store::RuntimeTimerJobState;
@@ -54,7 +60,7 @@ const DECISION_DMN: &str = r#"
 async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(
         "rest-native-endpoint-breadth".to_string(),
-    ));
+    ).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -64,7 +70,7 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -192,7 +198,7 @@ async fn management_batch_get_endpoint_returns_single_batch_payload() {
         end_time: None,
         tenant_id: Some("tenant-breadth".to_string()),
         batch_document_json: Some(r#"{"migration":"breadth"}"#.to_string()),
-    });
+    }).unwrap();
     batch_service.create_batch_part(BatchPartEntity {
         id: "batch-breadth-part-1".to_string(),
         batch_id: "batch-breadth-1".to_string(),
@@ -207,7 +213,7 @@ async fn management_batch_get_endpoint_returns_single_batch_payload() {
         status: "waiting".to_string(),
         tenant_id: Some("tenant-breadth".to_string()),
         batch_part_document_json: Some(r#"{"part":"breadth"}"#.to_string()),
-    });
+    }).unwrap();
 
     let response = client
         .get(format!("{base_url}/management/batches/batch-breadth-1"))
@@ -256,7 +262,7 @@ async fn management_batch_get_endpoint_reflects_completed_status_and_complete_ti
         end_time: Some(1_775_000_010_000),
         tenant_id: None,
         batch_document_json: None,
-    });
+    }).unwrap();
 
     let response = client
         .get(format!(

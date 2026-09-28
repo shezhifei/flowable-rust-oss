@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::persistence::db_store::DbStore;
 use flowable_engine::service::config::{AuthPolicy, AuthProviderKind, ServicePolicyConfig};
@@ -109,8 +115,8 @@ fn test_timer_coordination_jwks_profile_mutation() {
     );
 
     let stop_signal = Arc::new(AtomicBool::new(false));
-    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config);
-    let handle = service.start(Arc::clone(&stop_signal));
+    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config).expect("identity runtime must build");
+    let handle = service.start(Arc::clone(&stop_signal)).expect("timer coordination listener must bind");
     std::thread::sleep(Duration::from_millis(50));
 
     let admin_token = create_token("https://admin.example.com", "test-kid");

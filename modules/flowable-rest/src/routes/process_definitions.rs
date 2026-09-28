@@ -293,10 +293,18 @@ async fn list_process_definitions(
         definitions.retain(|definition| definition.deployment_id.as_deref() == Some(deployment_id));
     }
     if let Some(parent_deployment_id) = query.parent_deployment_id.as_deref() {
-        definitions.retain(|definition| {
-            process_definition_parent_deployment_id(&repository_service, definition).as_deref()
+        // Java parity: `ProcessDefinitionQueryImpl.parentDeploymentId` is resolved by the
+        // MyBatis query (`DbSqlSession.selectList`), whose SQL failure throws instead of
+        // degrading to "this definition has no parent deployment".
+        let mut matched_definition_ids = std::collections::HashSet::new();
+        for definition in &definitions {
+            if process_definition_parent_deployment_id(&repository_service, definition)?.as_deref()
                 == Some(parent_deployment_id)
-        });
+            {
+                matched_definition_ids.insert(definition.id.clone());
+            }
+        }
+        definitions.retain(|definition| matched_definition_ids.contains(&definition.id));
     }
     if let Some(startable_by_user) = query.startable_by_user.as_deref() {
         let startable_definition_ids =
@@ -414,12 +422,15 @@ async fn list_process_definitions(
 fn process_definition_parent_deployment_id(
     repository_service: &flowable_engine::engine::repository_service::RepositoryService,
     definition: &ProcessDefinition,
-) -> Option<String> {
-    let deployment_id = definition.deployment_id.as_deref()?;
-    repository_service
-        .get_deployment(deployment_id)
-        .ok()
-        .and_then(|deployment| deployment.parent_deployment_id)
+) -> Result<Option<String>, ApiError> {
+    let Some(deployment_id) = definition.deployment_id.as_deref() else {
+        return Ok(None);
+    };
+    // Java parity: `DeploymentEntityManagerImpl.findById` ->
+    // `MybatisDeploymentDataManager.findById` -> `DbSqlSession.selectById`, whose MyBatis
+    // `selectOne` throws on a SQL error; only a genuinely absent deployment is "no parent".
+    let deployment = repository_service.get_deployment(deployment_id)?;
+    Ok(deployment.parent_deployment_id)
 }
 
 /// Delegates to the shared O(pattern × value) matcher with the 512-char cap
@@ -439,7 +450,7 @@ fn startable_process_definition_ids(
 ) -> Result<HashSet<String>, ApiError> {
     let group_ids = engine
         .get_identity_service()
-        .get_groups_by_user(user_id)
+        .get_groups_by_user(user_id)?
         .into_iter()
         .map(|group| group.id)
         .collect::<HashSet<_>>();
@@ -563,7 +574,7 @@ async fn get_start_form(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(process_definition_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service = FlowableFormService::new(engine);
+    let service = FlowableFormService::new(engine)?;
     let form_data = service.get_start_form_data(&process_definition_id)?;
     let definition = service.get_form_definition(&form_data.form_definition_id)?;
     Ok(Json(definition.form_payload))
@@ -579,7 +590,7 @@ async fn list_form_definitions_for_process_definition(
         .get_repository_service()
         .get_bpmn_model(&process_definition_id)?;
     let form_keys = collect_form_keys(&model);
-    let service = FlowableFormService::new(engine);
+    let service = FlowableFormService::new(engine)?;
     let mut definitions = Vec::new();
 
     for form_key in form_keys {
@@ -742,7 +753,7 @@ async fn batch_migrate_process_definition_instances(
         batch_document_json: Some(body.clone()),
     };
     let batch_service = engine.get_batch_service();
-    batch_service.create_batch(batch.clone());
+    batch_service.create_batch(batch.clone())?;
     for process_instance_id in migrated_ids {
         batch_service.create_batch_part(BatchPartEntity {
             id: uuid::Uuid::new_v4().to_string(),
@@ -758,7 +769,7 @@ async fn batch_migrate_process_definition_instances(
             status: "completed".to_string(),
             tenant_id: None,
             batch_part_document_json: Some(body.clone()),
-        });
+        })?;
     }
 
     Ok(Json(crate::routes::batches::BatchResponse::from(batch)))
@@ -786,7 +797,7 @@ fn migrate_instances_for_process_definition(
         .get_process_definition(&target_definition_id)?;
 
     let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().unwrap();
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut matching_instances = runtime_store
         .snapshot_process_instances(&mut session)
         .into_values()
@@ -866,7 +877,7 @@ async fn create_process_definition_identity_link(
     };
     engine
         .get_identity_link_service()
-        .add_identity_link(link.clone());
+        .add_identity_link(link.clone())?;
 
     Ok((
         StatusCode::CREATED,
@@ -912,7 +923,7 @@ async fn delete_process_definition_identity_link(
 
     let identity_link_service = engine.get_identity_link_service();
     for link in matching_links {
-        identity_link_service.remove_identity_link(&link.id);
+        identity_link_service.remove_identity_link(&link.id)?;
     }
 
     Ok(StatusCode::NO_CONTENT)

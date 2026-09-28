@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P2 storage fault-injection for the Event Registry change log: revision
 //! allocator failures (UPDATE and seed INSERT) and change-record INSERT
 //! failures must surface as `Err` from the public deploy/delete APIs instead
@@ -14,7 +20,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 fn fixture(name: &str) -> (Arc<ProcessEngine>, FlowableEventRegistryService) {
-    let engine = Arc::new(ProcessEngine::new(name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(name.to_string()).unwrap());
     let service = FlowableEventRegistryService::new(Arc::clone(&engine));
     (engine, service)
 }

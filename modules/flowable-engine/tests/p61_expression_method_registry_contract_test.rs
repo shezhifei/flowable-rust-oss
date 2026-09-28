@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::el::expression::{Expression, SimpleExpression};
 use flowable_engine::el::method_registry::ExpressionMethodRegistry;
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -37,7 +43,7 @@ fn registered_bean_method_is_isolated_to_its_engine_command_context() {
         expression_method_registry: registry,
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("p61".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p61".to_string(), config).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
   <process id="p61BeanGateway">

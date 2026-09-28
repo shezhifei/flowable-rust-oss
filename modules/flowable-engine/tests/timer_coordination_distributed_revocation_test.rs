@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_engine::persistence::db_store::DbStore;
@@ -104,10 +110,11 @@ fn test_distributed_revocation_coherence() {
         vec![profile.clone()],
         jwks_cache1.clone(),
         revocation_registry1.clone(),
-    );
+    )
+    .expect("identity runtime must build");
 
     let stop_signal1 = Arc::new(AtomicBool::new(false));
-    let handle1 = service1.start(Arc::clone(&stop_signal1));
+    let handle1 = service1.start(Arc::clone(&stop_signal1)).expect("timer coordination listener must bind");
 
     // Setup Node 2
     let port2 = get_free_port();
@@ -147,10 +154,11 @@ fn test_distributed_revocation_coherence() {
         vec![profile.clone()],
         jwks_cache2.clone(),
         revocation_registry2.clone(),
-    );
+    )
+    .expect("identity runtime must build");
 
     let stop_signal2 = Arc::new(AtomicBool::new(false));
-    let handle2 = service2.start(Arc::clone(&stop_signal2));
+    let handle2 = service2.start(Arc::clone(&stop_signal2)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(200));
 
@@ -179,11 +187,13 @@ fn test_distributed_revocation_coherence() {
     assert!(status_res.is_ok(), "Initial auth on Node 2 should succeed");
 
     // Admin Revoke using Node 1 Registry
-    revocation_registry1.admin_revoke(
-        "jti-dist-1",
-        "https://distributed-test.example.com",
-        "dist-test",
-    );
+    revocation_registry1
+        .admin_revoke(
+            "jti-dist-1",
+            "https://distributed-test.example.com",
+            "dist-test",
+        )
+        .expect("in-memory admin revoke must succeed");
 
     // Wait a brief moment for db commit to settle
     std::thread::sleep(Duration::from_millis(50));
@@ -197,7 +207,12 @@ fn test_distributed_revocation_coherence() {
     );
 
     // Admin Unrevoke on Node 1
-    revocation_registry1.admin_unrevoke("jti-dist-1");
+    assert!(
+        revocation_registry1
+            .admin_unrevoke("jti-dist-1")
+            .expect("in-memory admin un-revoke must succeed"),
+        "the entry revoked above must still be there to remove"
+    );
     std::thread::sleep(Duration::from_millis(50));
 
     // Authenticate on Node 2 should succeed again!

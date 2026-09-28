@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P71 contract: historic activity `deleteReason` for event-based gateway cancel.
 //!
 //! Java parity: after one branch of an event-based gateway fires, remaining
@@ -38,7 +44,7 @@ const EVENT_GATEWAY_MESSAGE_TIMER_XML: &str = r#"<?xml version="1.0" encoding="U
 </definitions>"#;
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -48,7 +54,7 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -114,7 +120,7 @@ async fn event_gateway_cancel_exposes_delete_reason_on_historic_activity_rest() 
 
     let wait_states = engine
         .get_task_service()
-        .get_event_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_event_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     let msg_wait = wait_states
         .iter()
         .find(|ws| ws.event_ref.as_deref() == Some("msg1"))
@@ -124,7 +130,7 @@ async fn event_gateway_cancel_exposes_delete_reason_on_historic_activity_rest() 
         EventSubscriptionKind::Message,
         "msg1".to_string(),
         msg_wait.execution_id.clone(),
-    );
+    ).unwrap();
 
     let post = client
         .get(format!(

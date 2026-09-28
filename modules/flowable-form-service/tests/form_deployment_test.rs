@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 mod test_support;
 
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -172,9 +178,9 @@ fn deployment_persists_layout_outcomes_and_outcome_variable_name() {
     let reloaded_engine = Arc::new(ProcessEngine::new_with_db_path(
         "form-deployment-layout-reloaded".to_string(),
         &db_path,
-    ));
-    let _reloaded_form_service = FlowableFormService::new(Arc::clone(&reloaded_engine));
-    let management = FormManagementService::new(Arc::clone(&reloaded_engine));
+    ).unwrap());
+    let _reloaded_form_service = FlowableFormService::new(Arc::clone(&reloaded_engine)).unwrap();
+    let management = FormManagementService::new(Arc::clone(&reloaded_engine)).unwrap();
     let versions = management.list_versions("employeeOnboarding").unwrap();
     assert_eq!(versions.len(), 1);
     assert_eq!(

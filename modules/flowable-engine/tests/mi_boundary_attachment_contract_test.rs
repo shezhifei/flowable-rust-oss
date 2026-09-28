@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for Java boundary-event attachment on multi-instance
 //! activities (P8-A).
 //!
@@ -112,7 +118,7 @@ fn engine_with_time(name: &str) -> (ProcessEngine, Arc<TestTimeSource>) {
         Utc.with_ymd_and_hms(2026, 7, 26, 8, 0, 0).unwrap(),
     ));
     (
-        ProcessEngine::with_time_source(name.to_string(), time_source.clone()),
+        ProcessEngine::with_time_source(name.to_string(), time_source.clone()).unwrap(),
         time_source,
     )
 }
@@ -372,7 +378,7 @@ fn mi_leave_cleans_root_boundary_timer() {
 /// same as the timer variant (both go through `executeInterruptingBehavior`).
 #[test]
 fn interrupting_mi_message_boundary_cancels_whole_multi_instance() {
-    let engine = ProcessEngine::new("mi-boundary-message-cancel".to_string());
+    let engine = ProcessEngine::new("mi-boundary-message-cancel".to_string()).unwrap();
     let definition_id = deploy(
         &engine,
         "mi_boundary_interrupting_message.bpmn20.xml",
@@ -386,7 +392,7 @@ fn interrupting_mi_message_boundary_cancels_whole_multi_instance() {
         .trigger_boundary_event_by_message_ref(
             "cancelMsg".to_string(),
             process_instance.id.clone(),
-        );
+        ).unwrap();
 
     assert_eq!(
         task_keys(&engine, &process_instance.id),

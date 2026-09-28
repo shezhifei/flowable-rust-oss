@@ -800,10 +800,16 @@ async fn clone_model(
     repository
         .update_repository_model_source(&created.id, source.content_type, source.bytes)
         .map_err(repository_error)?;
-    if let Ok(extra) = repository.get_repository_model_source_extra(&model_id) {
-        repository
-            .update_repository_model_source_extra(&created.id, extra.content_type, extra.bytes)
-            .map_err(repository_error)?;
+    // A genuinely absent source-extra is optional (skip it); a storage failure inside the
+    // same query is not, and must not silently produce a clone that lost the blob.
+    match repository.get_repository_model_source_extra(&model_id) {
+        Ok(extra) => {
+            repository
+                .update_repository_model_source_extra(&created.id, extra.content_type, extra.bytes)
+                .map_err(repository_error)?;
+        }
+        Err(flowable_engine::error::FlowableError::NotFound(_)) => {}
+        Err(error) => return Err(repository_error(error)),
     }
     Ok(Json(model_representation(
         &created,

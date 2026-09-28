@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Admin UI contract tests (stream B).
 //!
 //! Endpoint inventory checklist (high-frequency):
@@ -319,7 +325,7 @@ async fn process_definition_model_json_with_engine() {
     use flowable_engine::engine::process_engine::ProcessEngine;
     use tower::ServiceExt;
 
-    let engine = Arc::new(ProcessEngine::new("ui-admin-display".into()));
+    let engine = Arc::new(ProcessEngine::new("ui-admin-display".into()).unwrap());
     // Empty DI → empty object (no definition deployed)
     // Route requires a real definition id; expect bad request / empty
     let state = AdminState::new();
@@ -351,7 +357,7 @@ async fn account_returns_the_session_user() {
     use flowable_ui_rest::auth::{AuthMode, UiAuthConfig};
     use flowable_ui_rest::ui_router_with_config;
 
-    let engine = Arc::new(ProcessEngine::new("ui-admin-account".into()));
+    let engine = Arc::new(ProcessEngine::new("ui-admin-account".into()).unwrap());
     engine.get_identity_service().save_user(User {
         id: "admin".into(),
         first_name: Some("Test".into()),
@@ -359,7 +365,7 @@ async fn account_returns_the_session_user() {
         email: Some("admin@example.com".into()),
         password: Some("test".into()),
         tenant_id: None,
-    });
+    }).unwrap();
     let config = Arc::new(UiAuthConfig {
         mode: AuthMode::Disabled,
         dev_user_id: "admin".to_string(),
@@ -403,7 +409,7 @@ async fn spawn_gap_mock_engine() -> (SocketAddr, tokio::task::JoinHandle<()>, Ga
     use std::collections::HashMap;
 
     async fn record(state: &GapMockState, method: &str, path: &str, body: &[u8]) {
-        state.calls.lock().unwrap().push((
+        state.calls.lock().unwrap_or_else(|e| e.into_inner()).push((
             method.to_string(),
             path.to_string(),
             String::from_utf8_lossy(body).to_string(),
@@ -617,7 +623,7 @@ async fn move_job_posts_action_body_to_job_type_collection() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
-    let calls = state.calls.lock().unwrap();
+    let calls = state.calls.lock().unwrap_or_else(|e| e.into_inner());
     assert!(
         calls.iter().any(|(_, _, body)| body.contains("\"action\":\"move\"")),
         "recorded calls: {calls:?}"
@@ -667,7 +673,7 @@ async fn cmmn_job_endpoints_family() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
 
-    let calls = state.calls.lock().unwrap();
+    let calls = state.calls.lock().unwrap_or_else(|e| e.into_inner());
     let bodies: Vec<&str> = calls.iter().map(|(_, _, b)| b.as_str()).collect();
     assert!(
         bodies.iter().any(|b| b.contains("\"action\":\"execute\"")),
@@ -830,7 +836,7 @@ async fn low_priority_proxy_endpoints() {
 async fn cmmn_display_model_json_routes() {
     use flowable_engine::engine::process_engine::ProcessEngine;
 
-    let engine = Arc::new(ProcessEngine::new("ui-admin-cmmn-display".into()));
+    let engine = Arc::new(ProcessEngine::new("ui-admin-cmmn-display".into()).unwrap());
     let app = router_with_state(AdminState::new()).layer(axum::Extension(engine));
 
     for uri in [

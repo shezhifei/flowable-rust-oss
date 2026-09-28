@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Bounded async future delegate + WaitForFuture agenda path.
 
 use flowable_engine::bpmn::behavior::async_delegate_activity_behavior::{
@@ -111,7 +117,7 @@ fn engine_with_async_delegate(
         });
         config.future_task_executor = Some(Arc::new(Mutex::new(Some(pool))));
     }
-    ProcessEngine::new_with_config(name.to_string(), config)
+    ProcessEngine::new_with_config(name.to_string(), config).unwrap()
 }
 
 #[test]
@@ -327,7 +333,7 @@ fn unregistered_async_delegate_fails_clearly_via_runtime_api() {
     let mut config = ProcessEngineConfiguration::default();
     config.async_service_task_delegate_registry =
         Some(AsyncLocalServiceTaskDelegateRegistry::new());
-    let engine = ProcessEngine::new_with_config("async-delegate-missing".to_string(), config);
+    let engine = ProcessEngine::new_with_config("async-delegate-missing".to_string(), config).unwrap();
 
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();

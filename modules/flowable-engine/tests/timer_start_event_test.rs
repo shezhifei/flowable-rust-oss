@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::Utc;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
@@ -103,7 +109,7 @@ fn timer_start_subscription_category_is_populated_from_start_event() {
 </definitions>"#;
 
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("timer-start-category".to_string(), test_time);
+    let engine = ProcessEngine::with_time_source("timer-start-category".to_string(), test_time).unwrap();
     engine
         .get_repository_service()
         .deploy(
@@ -118,7 +124,9 @@ fn timer_start_subscription_category_is_populated_from_start_event() {
         )
         .unwrap();
 
-    let subs = engine.get_timer_start_subscriptions();
+    let subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(subs.len(), 1);
     assert_eq!(subs[0].start_event_id, "timerStartEvent");
     assert_eq!(subs[0].category.as_deref(), Some("start-orders"));
@@ -139,7 +147,7 @@ fn timer_start_subscription_category_is_populated_from_start_event() {
 #[test]
 fn test_process_timer_start_event_creates_new_instance() {
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -195,7 +203,7 @@ fn test_process_timer_start_event_creates_new_instance() {
 #[test]
 fn test_non_due_process_timer_start_does_nothing() {
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -228,7 +236,7 @@ fn test_timer_start_with_cycle_creates_instances() {
     // Java: StartTimerEventRepeatWithoutEndTest — infinite R/PT.. keeps
     // rescheduling after each fire (TimerJobSchedulerImpl).
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -277,7 +285,9 @@ fn test_timer_start_with_cycle_creates_instances() {
         "Infinite R cycle should create one instance per fire"
     );
     // Subscription remains due (not permanently released).
-    let subs = engine.get_timer_start_subscriptions();
+    let subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(subs.len(), 1);
     assert!(
         subs[0].due_time.is_some(),
@@ -306,7 +316,7 @@ fn test_timer_start_with_r4_cycle_limit() {
 </definitions>"#;
 
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("r2-limit".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("r2-limit".to_string(), test_time.clone()).unwrap();
     engine
         .get_repository_service()
         .deploy(
@@ -346,7 +356,9 @@ fn test_timer_start_with_r4_cycle_limit() {
         runtime_store.snapshot_process_instances(&mut session).len(),
         2
     );
-    let subs = engine.get_timer_start_subscriptions();
+    let subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert!(
         subs.iter().all(|s| s.due_time.is_none()),
         "exhausted cycle must clear due_time"
@@ -356,7 +368,7 @@ fn test_timer_start_with_r4_cycle_limit() {
 #[test]
 fn test_multiple_start_events_coexistence() {
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -406,7 +418,7 @@ fn test_multiple_start_events_coexistence() {
 #[test]
 fn test_timer_start_event_subscription_model() {
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -418,7 +430,9 @@ fn test_timer_start_event_subscription_model() {
         );
     engine.get_repository_service().deploy(builder).unwrap();
 
-    let timer_subs = engine.get_timer_start_subscriptions();
+    let timer_subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
 
     assert_eq!(
         timer_subs.len(),
@@ -442,7 +456,7 @@ fn test_timer_start_event_subscription_model() {
 #[test]
 fn test_multiple_timer_start_events_are_acquired_independently() {
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -454,7 +468,9 @@ fn test_multiple_timer_start_events_are_acquired_independently() {
         );
     engine.get_repository_service().deploy(builder).unwrap();
 
-    let timer_subs = engine.get_timer_start_subscriptions();
+    let timer_subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(
         timer_subs.len(),
         2,
@@ -490,7 +506,7 @@ fn test_multiple_timer_start_events_are_acquired_independently() {
 #[test]
 fn test_timer_start_event_deletion_on_undeploy() {
     let test_time = Arc::new(TestTimeSource::new(Utc::now()));
-    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone());
+    let engine = ProcessEngine::with_time_source("test".to_string(), test_time.clone()).unwrap();
 
     let builder = engine
         .get_repository_service()
@@ -502,7 +518,9 @@ fn test_timer_start_event_deletion_on_undeploy() {
         );
     let deployment = engine.get_repository_service().deploy(builder).unwrap();
 
-    let initial_subs = engine.get_timer_start_subscriptions();
+    let initial_subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(initial_subs.len(), 1);
 
     engine
@@ -510,7 +528,9 @@ fn test_timer_start_event_deletion_on_undeploy() {
         .delete_deployment(&deployment.id)
         .unwrap();
 
-    let remaining_subs = engine.get_timer_start_subscriptions();
+    let remaining_subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(
         remaining_subs.len(),
         0,

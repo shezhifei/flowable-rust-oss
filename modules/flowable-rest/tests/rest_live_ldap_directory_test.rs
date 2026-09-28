@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_platform_bootstrap::FlowablePlatform;
 use flowable_rest::run_platform_server;
 use serde_json::Value;
@@ -116,7 +122,7 @@ async fn ldap_live_provider_exposes_runtime_directory_reads_without_bootstrap_im
         platform
             .process_engine()
             .get_identity_service()
-            .find_user_by_id("live-alice")
+            .find_user_by_id("live-alice").unwrap()
             .is_none(),
         "ldap-live should remain outside bootstrap mirror import"
     );
@@ -350,14 +356,14 @@ async fn ldap_live_provider_persists_mutations_through_identity_routes() {
     assert!(
         engine
             .get_identity_service()
-            .find_user_by_id("live-bob")
+            .find_user_by_id("live-bob").unwrap()
             .is_none(),
         "live ldap mutation must not create an owned-store user"
     );
     assert!(
         engine
             .get_identity_service()
-            .find_group_by_id("live-auditors")
+            .find_group_by_id("live-auditors").unwrap()
             .is_none(),
         "live ldap mutation must not create an owned-store group"
     );
@@ -435,13 +441,13 @@ async fn ldap_live_reconcile_reports_and_repairs_shadowed_owned_identity_state()
         email: Some("shadow@example.test".to_string()),
         password: None,
         tenant_id: None,
-    });
+    }).unwrap();
     identity_service.save_group(flowable_engine::identity::entities::Group {
         id: "live-admins".to_string(),
         name: "Shadow Admins".to_string(),
         group_type: Some("security-role".to_string()),
-    });
-    identity_service.create_membership("live-alice".to_string(), "live-admins".to_string());
+    }).unwrap();
+    identity_service.create_membership("live-alice".to_string(), "live-admins".to_string()).unwrap();
 
     let base_url = spawn_platform_server(platform).await;
     let client = reqwest::Client::new();
@@ -478,14 +484,14 @@ async fn ldap_live_reconcile_reports_and_repairs_shadowed_owned_identity_state()
     assert!(
         engine
             .get_identity_service()
-            .find_user_by_id("live-alice")
+            .find_user_by_id("live-alice").unwrap()
             .is_none(),
         "reconcile should remove the shadowed owned-store user"
     );
     assert!(
         engine
             .get_identity_service()
-            .find_group_by_id("live-admins")
+            .find_group_by_id("live-admins").unwrap()
             .is_none(),
         "reconcile should remove the shadowed owned-store group"
     );
@@ -527,13 +533,13 @@ async fn ldap_live_reconcile_can_promote_owned_only_identity_state_into_live_dir
         email: Some("owned-bob@example.test".to_string()),
         password: None,
         tenant_id: None,
-    });
+    }).unwrap();
     identity_service.save_group(flowable_engine::identity::entities::Group {
         id: "owned-auditors".to_string(),
         name: "Owned Auditors".to_string(),
         group_type: Some("security-role".to_string()),
-    });
-    identity_service.create_membership("owned-bob".to_string(), "owned-auditors".to_string());
+    }).unwrap();
+    identity_service.create_membership("owned-bob".to_string(), "owned-auditors".to_string()).unwrap();
 
     let base_url = spawn_platform_server(platform).await;
     let client = reqwest::Client::new();
@@ -615,14 +621,14 @@ async fn ldap_live_reconcile_can_promote_owned_only_identity_state_into_live_dir
     assert!(
         engine
             .get_identity_service()
-            .find_user_by_id("owned-bob")
+            .find_user_by_id("owned-bob").unwrap()
             .is_none(),
         "owned-to-live reconcile should remove the owned-store user after promotion"
     );
     assert!(
         engine
             .get_identity_service()
-            .find_group_by_id("owned-auditors")
+            .find_group_by_id("owned-auditors").unwrap()
             .is_none(),
         "owned-to-live reconcile should remove the owned-store group after promotion"
     );

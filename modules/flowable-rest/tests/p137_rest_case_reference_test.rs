@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P137 — REST GET/POST plumbing for CMMN case reference metadata.
 
 use flowable_cmmn_engine::{CmmnCaseInstanceStartRequest, CmmnEngine};
@@ -25,7 +31,7 @@ struct Fixture {
 }
 
 async fn setup() -> Fixture {
-    let process_engine = Arc::new(ProcessEngine::new("rest-p137-case-reference".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("rest-p137-case-reference".to_string()).unwrap());
     process_engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -35,7 +41,7 @@ async fn setup() -> Fixture {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
     let cmmn_engine = process_engine
         .get_config()
         .cmmn_engine

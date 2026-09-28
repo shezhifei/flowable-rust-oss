@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P22 contract tests: deployment collection GET, standalone task POST,
 //! bulk task PUT, execution PUT actions, task event DELETE and the widened
 //! task query parameter surface. Observable semantics follow the Java
@@ -66,7 +72,7 @@ const SIGNAL_CATCH_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -76,7 +82,7 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -700,10 +706,10 @@ async fn task_query_candidate_or_assigned() {
             id: "hr".to_string(),
             name: "HR".to_string(),
             group_type: None,
-        });
+        }).unwrap();
     engine
         .get_identity_service()
-        .create_membership("fozzie".to_string(), "hr".to_string());
+        .create_membership("fozzie".to_string(), "hr".to_string()).unwrap();
     let body = get_tasks(&client, &base_url, "candidateOrAssigned=fozzie").await;
     assert_eq!(body["total"], 1);
     assert_eq!(body["data"][0]["name"], "beta check");

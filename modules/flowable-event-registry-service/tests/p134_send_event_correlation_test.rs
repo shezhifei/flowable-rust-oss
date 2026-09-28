@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P134 2a: send-event triggerable `triggerEventCorrelationParameter` configuration.
 //!
 //! Java: `SendEventTaskActivityBehavior.java:140`
@@ -168,7 +174,7 @@ fn expected_customer_key(customer_id: &str) -> String {
 /// BaseEventRegistryEventConsumer.findEventSubscriptions:163-174.
 #[test]
 fn send_event_trigger_correlation_key_match_and_miss() {
-    let engine = Arc::new(ProcessEngine::new("p134-send-corr".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p134-send-corr".to_string()).unwrap());
     let service = FlowableEventRegistryService::with_bpmn_consumer(Arc::clone(&engine));
     deploy_outbound_order_published(&service);
     deploy_inbound_order_accepted(&service, "ordersInboundCorr");
@@ -294,7 +300,7 @@ fn send_event_trigger_correlation_key_match_and_miss() {
 /// (broadcast on eventType), same as pre-P134.
 #[test]
 fn send_event_without_trigger_correlation_still_broadcasts() {
-    let engine = Arc::new(ProcessEngine::new("p134-send-no-corr".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p134-send-no-corr".to_string()).unwrap());
     let service = FlowableEventRegistryService::with_bpmn_consumer(Arc::clone(&engine));
     deploy_outbound_order_published(&service);
     deploy_inbound_order_accepted(&service, "ordersInboundNoCorr");

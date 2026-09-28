@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! M73 — Async production enablement matrix.
 //!
 //! Proves AsyncExecutor + AsyncHistory can be enabled safely without changing
@@ -832,7 +838,7 @@ fn lock_expiry_reclaims_job_after_expiration() {
     // Before expiry: reset must not reclaim.
     let reset_before = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(100);
+        .reset_expired_timer_job_locks(100).unwrap();
     assert_eq!(
         reset_before, 0,
         "lock must not be reclaimed before expiration"
@@ -853,7 +859,7 @@ fn lock_expiry_reclaims_job_after_expiration() {
 
     let reset_after = engine
         .get_runtime_service()
-        .reset_expired_timer_job_locks(100);
+        .reset_expired_timer_job_locks(100).unwrap();
     assert_eq!(
         reset_after, 1,
         "expired lock must be reclaimed by reset_expired_timer_job_locks"

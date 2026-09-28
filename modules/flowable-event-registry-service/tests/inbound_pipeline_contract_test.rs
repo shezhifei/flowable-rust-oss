@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 mod test_support;
 
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -19,11 +25,11 @@ struct StageLog {
 
 impl StageLog {
     fn push(&self, stage: &str) {
-        self.stages.lock().unwrap().push(stage.to_string());
+        self.stages.lock().unwrap_or_else(|e| e.into_inner()).push(stage.to_string());
     }
 
     fn snapshot(&self) -> Vec<String> {
-        self.stages.lock().unwrap().clone()
+        self.stages.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -124,7 +130,7 @@ impl InboundEventConsumer for LoggingConsumer {
         _definition: &EventDefinition,
     ) -> Result<(), FlowableError> {
         self.log.push("consumer");
-        self.seen.lock().unwrap().push(delivery.id.clone());
+        self.seen.lock().unwrap_or_else(|e| e.into_inner()).push(delivery.id.clone());
         if self.fail {
             return Err(FlowableError::ExecutionError("consumer failed".to_string()));
         }
@@ -247,7 +253,7 @@ fn inbound_pipeline_runs_stages_in_adr6_order() {
     let log = Arc::new(StageLog::default());
     let config = config_with_log(Arc::clone(&log), true, false, false, "orderReceived", None);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-order".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-order".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(
@@ -294,7 +300,7 @@ fn inbound_pipeline_filter_rejection_short_circuits_without_delivery() {
     let log = Arc::new(StageLog::default());
     let config = config_with_log(Arc::clone(&log), false, false, false, "orderReceived", None);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-filter".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-filter".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(
@@ -347,7 +353,7 @@ fn inbound_pipeline_missing_key_short_circuits_before_consumer() {
         }),
     );
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-missing-key".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-missing-key".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(
@@ -384,7 +390,7 @@ fn inbound_pipeline_transform_failure_does_not_persist_received() {
     let log = Arc::new(StageLog::default());
     let config = config_with_log(Arc::clone(&log), true, true, false, "orderReceived", None);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-transform-fail".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-transform-fail".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(
@@ -424,7 +430,7 @@ fn inbound_pipeline_payload_validation_failure_marks_no_processed_delivery() {
     let log = Arc::new(StageLog::default());
     let config = config_with_log(Arc::clone(&log), true, false, false, "orderReceived", None);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-payload".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-payload".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(
@@ -453,7 +459,7 @@ fn inbound_pipeline_consumer_failure_persists_failed_after_received() {
     let log = Arc::new(StageLog::default());
     let config = config_with_log(Arc::clone(&log), true, false, true, "orderReceived", None);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-consumer-fail".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-consumer-fail".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(
@@ -505,7 +511,7 @@ fn inbound_pipeline_tenant_detection_precedes_definition_resolution() {
     );
     // key detector returns shared key; tenant detector returns tenant-a
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-tenant".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-tenant".to_string()).unwrap()),
         config,
     );
 
@@ -608,7 +614,7 @@ fn legacy_event_type_receive_routes_through_channel_pipeline() {
     let log = Arc::new(StageLog::default());
     let config = config_with_log(Arc::clone(&log), true, false, false, "orderReceived", None);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("inbound-pipeline-compat".to_string())),
+        Arc::new(ProcessEngine::new("inbound-pipeline-compat".to_string()).unwrap()),
         config,
     );
     deploy_inbound_channel(

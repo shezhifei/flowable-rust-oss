@@ -881,7 +881,7 @@ impl FlowablePlatform {
                 email: None,
                 password: Some(config.bootstrap.admin_password.clone()),
                 tenant_id: None,
-            });
+            })?;
         }
 
         import_directory_bundle(
@@ -1202,12 +1202,15 @@ impl CmmnProcessTaskRunner for PlatformProcessTaskRunner {
             .map_err(|error| CmmnError::execution(error.to_string()))?;
         let completed = {
             let store = process_engine.get_runtime_store();
-            let mut session = store.create_session().unwrap();
+            let Ok(mut session) = store.create_session() else {
+                return Err(CmmnError::execution("Storage unavailable".to_string()));
+            };
             let completed = store
                 .find_process_instance(&process_instance.id, &mut session)
+                .map_err(|error| CmmnError::execution(error.to_string()))?
                 .map(|stored| stored.is_ended)
                 .unwrap_or(process_instance.is_ended);
-            session.rollback().unwrap();
+            let _ = session.rollback();
             completed
         };
 
@@ -2576,7 +2579,9 @@ fn import_directory_bundle(
 
     let identity_service = process_engine.get_identity_service();
     let store = process_engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store
+        .create_session()
+        .map_err(|e| PlatformBootstrapError::new(e.to_string()))?;
     let imported_user_count = bundle.users.len();
     let imported_group_count = bundle.groups.len();
     let imported_membership_count = bundle.memberships.len();
@@ -2594,7 +2599,9 @@ fn import_directory_bundle(
             &mut session,
         );
     }
-    session.flush_and_commit().unwrap();
+    session
+        .flush_and_commit()
+        .map_err(|e| PlatformBootstrapError::from(flowable_engine::error::FlowableError::from(e)))?;
 
     directory_support_contract.imported_user_count = imported_user_count;
     directory_support_contract.imported_group_count = imported_group_count;

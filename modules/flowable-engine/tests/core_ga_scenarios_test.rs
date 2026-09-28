@@ -1,8 +1,14 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 #[test]
 fn test_core_ga_linear_process() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="linearProcess" isExecutable="true">
@@ -74,7 +80,7 @@ fn test_core_ga_linear_process() {
 
 #[test]
 fn test_core_ga_branching_process() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="branchingProcess" isExecutable="true">
@@ -154,7 +160,7 @@ fn test_core_ga_user_task_boundary_event() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine = ProcessEngine::with_time_source("default".to_string(), time_source.clone());
+    let engine = ProcessEngine::with_time_source("default".to_string(), time_source.clone()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="boundaryProcess" isExecutable="true">
@@ -233,7 +239,7 @@ fn test_core_ga_user_task_boundary_event() {
 
 #[test]
 fn test_core_ga_receive_task_wakeup() {
-    let engine = ProcessEngine::new("default".to_string());
+    let engine = ProcessEngine::new("default".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <message id="msg" name="myMessage" />
@@ -291,7 +297,7 @@ fn test_core_ga_timer_start_intermediate_boundary() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine = ProcessEngine::with_time_source("default".to_string(), time_source.clone());
+    let engine = ProcessEngine::with_time_source("default".to_string(), time_source.clone()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="timerProcess" isExecutable="true">

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P86a — assignee/owner historic identity-link accumulation.
 //!
 //! Java parity (`HistoricTaskServiceImpl.recordTaskInfoChange:142-152` +
@@ -98,7 +104,7 @@ fn owner_rows(links: &[HistoricIdentityLink]) -> Vec<&HistoricIdentityLink> {
 fn initial_assignee_writes_one_historic_identity_link_no_runtime_row() {
     // BPMN flowable:assignee on create → one accumulating historic assignee row.
     // Runtime identity_links stays empty (P42 assignee path).
-    let engine = ProcessEngine::new("p86a-initial-assignee".to_string());
+    let engine = ProcessEngine::new("p86a-initial-assignee".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p86aInitAssignee", Some("kermit"), None);
 
     let historic = historic_for_task(&engine, &task_id);
@@ -126,7 +132,7 @@ fn initial_assignee_writes_one_historic_identity_link_no_runtime_row() {
 
 #[test]
 fn initial_owner_writes_one_historic_identity_link() {
-    let engine = ProcessEngine::new("p86a-initial-owner".to_string());
+    let engine = ProcessEngine::new("p86a-initial-owner".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p86aInitOwner", None, Some("fozzie"));
 
     let historic = historic_for_task(&engine, &task_id);
@@ -143,7 +149,7 @@ fn initial_owner_writes_one_historic_identity_link() {
 #[test]
 fn set_assignee_twice_accumulates_two_historic_rows() {
     // Start unassigned, then two successive assignee changes → two rows.
-    let engine = ProcessEngine::new("p86a-assignee-accumulate".to_string());
+    let engine = ProcessEngine::new("p86a-assignee-accumulate".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p86aAssigneeAcc", None, None);
 
     assert!(assignee_rows(&historic_for_task(&engine, &task_id)).is_empty());
@@ -186,7 +192,7 @@ fn set_assignee_twice_accumulates_two_historic_rows() {
 
 #[test]
 fn set_owner_twice_accumulates_two_historic_rows() {
-    let engine = ProcessEngine::new("p86a-owner-accumulate".to_string());
+    let engine = ProcessEngine::new("p86a-owner-accumulate".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p86aOwnerAcc", None, None);
 
     engine
@@ -223,7 +229,7 @@ fn set_owner_twice_accumulates_two_historic_rows() {
 
 #[test]
 fn claim_appends_assignee_historic_identity_link() {
-    let engine = ProcessEngine::new("p86a-claim".to_string());
+    let engine = ProcessEngine::new("p86a-claim".to_string()).unwrap();
     let (_pi_id, task_id) = deploy_and_start(&engine, "p86aClaim", None, None);
 
     engine
@@ -241,7 +247,7 @@ fn claim_appends_assignee_historic_identity_link() {
 fn historic_query_and_cascade_delete_cover_assignee_owner_rows() {
     // Initial assignee + owner, then reassign; PI cascade must wipe task-scoped rows
     // even though they carry no process_instance_id (P86a cascade fix).
-    let engine = ProcessEngine::new("p86a-cascade".to_string());
+    let engine = ProcessEngine::new("p86a-cascade".to_string()).unwrap();
     let (pi_id, task_id) =
         deploy_and_start(&engine, "p86aCascade", Some("kermit"), Some("fozzie"));
 
@@ -290,7 +296,7 @@ fn historic_query_and_cascade_delete_cover_assignee_owner_rows() {
 
 #[test]
 fn cascade_delete_historic_task_removes_assignee_owner_rows() {
-    let engine = ProcessEngine::new("p86a-cascade-task".to_string());
+    let engine = ProcessEngine::new("p86a-cascade-task".to_string()).unwrap();
     let (_pi_id, task_id) =
         deploy_and_start(&engine, "p86aCascadeTask", Some("kermit"), Some("fozzie"));
 
@@ -319,7 +325,7 @@ fn cascade_delete_historic_task_removes_assignee_owner_rows() {
 fn standalone_initial_assignee_does_not_write_historic_identity_link() {
     use flowable_engine::task::Task;
 
-    let engine = ProcessEngine::new("p90b-standalone-initial-assignee".to_string());
+    let engine = ProcessEngine::new("p90b-standalone-initial-assignee".to_string()).unwrap();
     let mut task = Task::new(
         String::new(),
         String::new(),

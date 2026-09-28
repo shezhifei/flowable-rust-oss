@@ -95,7 +95,9 @@ pub fn editor_protocol_schema_json() -> Result<String, serde_json::Error> {
 fn normalize_ref_siblings(value: &mut Value) {
     if let Value::Object(object) = value {
         if object.contains_key("$ref") && object.len() > 1 {
-            let reference = object.remove("$ref").expect("checked above");
+            // Guarded by `contains_key` above; `Null` fallback is unreachable
+            // but keeps this panic-free.
+            let reference = object.remove("$ref").unwrap_or(Value::Null);
             let siblings = Value::Object(std::mem::take(object));
             object.insert(
                 "allOf".to_string(),

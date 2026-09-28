@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::persistence::db_store::DbStore;
 use flowable_engine::service::config::{AuthPolicy, AuthProviderKind, ServicePolicyConfig};
@@ -72,8 +78,8 @@ fn test_distributed_identity_sync_via_polling() {
 
     let stop_signal1 = Arc::new(AtomicBool::new(false));
     let service1 =
-        TimerCoordinationService::new(Arc::clone(&engine1.get_runtime_service()), config1);
-    let _handle1 = service1.start(Arc::clone(&stop_signal1));
+        TimerCoordinationService::new(Arc::clone(&engine1.get_runtime_service()), config1).expect("identity runtime must build");
+    let _handle1 = service1.start(Arc::clone(&stop_signal1)).expect("timer coordination listener must bind");
 
     // --- Node 2 Setup ---
     let engine2 = ProcessEngine::build(
@@ -97,8 +103,8 @@ fn test_distributed_identity_sync_via_polling() {
 
     let stop_signal2 = Arc::new(AtomicBool::new(false));
     let service2 =
-        TimerCoordinationService::new(Arc::clone(&engine2.get_runtime_service()), config2);
-    let _handle2 = service2.start(Arc::clone(&stop_signal2));
+        TimerCoordinationService::new(Arc::clone(&engine2.get_runtime_service()), config2).expect("identity runtime must build");
+    let _handle2 = service2.start(Arc::clone(&stop_signal2)).expect("timer coordination listener must bind");
 
     std::thread::sleep(Duration::from_millis(100));
 

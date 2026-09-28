@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for execution trigger suspension guard.
 //!
 //! Java parity: `NeedsActiveExecutionCmd` is the base class guard for
@@ -51,7 +57,7 @@ fn deploy_message_catch(engine: &ProcessEngine, id_suffix: &str) -> (String, Str
         .unwrap();
 
     // Find the execution waiting at the catch event
-    let wait_states = runtime.get_event_wait_states_by_process_instance_id(instance.id.clone());
+    let wait_states = runtime.get_event_wait_states_by_process_instance_id(instance.id.clone()).unwrap();
     let execution_id = wait_states[0].execution_id.clone();
 
     (instance.id, execution_id, message_ref)
@@ -94,7 +100,7 @@ fn deploy_signal_catch(engine: &ProcessEngine, id_suffix: &str) -> (String, Stri
         )
         .unwrap();
 
-    let wait_states = runtime.get_event_wait_states_by_process_instance_id(instance.id.clone());
+    let wait_states = runtime.get_event_wait_states_by_process_instance_id(instance.id.clone()).unwrap();
     let execution_id = wait_states[0].execution_id.clone();
 
     (instance.id, execution_id, signal_ref)
@@ -151,7 +157,7 @@ fn deploy_timer_catch(engine: &ProcessEngine, id_suffix: &str) -> (String, Strin
 
 #[test]
 fn message_trigger_on_suspended_execution_rejected() {
-    let engine = ProcessEngine::new("msg-trigger-suspended".to_string());
+    let engine = ProcessEngine::new("msg-trigger-suspended".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let (pi_id, execution_id, message_ref) = deploy_message_catch(&engine, "1");
@@ -182,7 +188,7 @@ fn message_trigger_on_suspended_execution_rejected() {
 
 #[test]
 fn targeted_signal_trigger_on_suspended_execution_rejected() {
-    let engine = ProcessEngine::new("sig-trigger-suspended".to_string());
+    let engine = ProcessEngine::new("sig-trigger-suspended".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let (pi_id, execution_id, signal_ref) = deploy_signal_catch(&engine, "1");
@@ -213,7 +219,7 @@ fn targeted_signal_trigger_on_suspended_execution_rejected() {
 
 #[test]
 fn timer_trigger_on_suspended_execution_rejected() {
-    let engine = ProcessEngine::new("timer-trigger-suspended".to_string());
+    let engine = ProcessEngine::new("timer-trigger-suspended".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let (pi_id, execution_id) = deploy_timer_catch(&engine, "1");
@@ -239,7 +245,7 @@ fn timer_trigger_on_suspended_execution_rejected() {
 
 #[test]
 fn global_signal_broadcast_skips_suspension_check() {
-    let engine = ProcessEngine::new("global-signal-suspended".to_string());
+    let engine = ProcessEngine::new("global-signal-suspended".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let (pi_id, _execution_id, signal_ref) = deploy_signal_catch(&engine, "1");
@@ -251,7 +257,7 @@ fn global_signal_broadcast_skips_suspension_check() {
 
     // Global signal broadcast should NOT fail (Java parity: SignalEventReceivedCmd
     // with executionId == null does NOT check suspension)
-    runtime.trigger_global_signal_intermediate_catch(signal_ref, _execution_id);
+    runtime.trigger_global_signal_intermediate_catch(signal_ref, _execution_id).unwrap();
 
     // The process instance should have completed (execution was triggered)
     let store = engine.get_runtime_store();
@@ -266,7 +272,7 @@ fn global_signal_broadcast_skips_suspension_check() {
 
 #[test]
 fn message_trigger_on_active_execution_succeeds() {
-    let engine = ProcessEngine::new("msg-trigger-active".to_string());
+    let engine = ProcessEngine::new("msg-trigger-active".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
 
     let (_pi_id, execution_id, message_ref) = deploy_message_catch(&engine, "1");

@@ -33,9 +33,9 @@ impl IntermediateThrowEventActivityBehavior {
         execution: &Execution,
         command_context: &mut CommandContext,
         activity_ref: Option<&str>,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let Some(process_instance_id) = execution.process_instance_id.as_ref() else {
-            return;
+            return Ok(());
         };
 
         // Java `IntermediateThrowCompensationEventActivityBehavior#execute`
@@ -93,7 +93,7 @@ impl IntermediateThrowEventActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&compensation_execution, &mut command_context.session);
+                .insert(&compensation_execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(compensation_execution);
@@ -101,7 +101,8 @@ impl IntermediateThrowEventActivityBehavior {
                 .runtime_store
                 .delete_compensation_subscription(&subscription.id, &mut command_context.session);
         }
-    }
+        Ok(())
+}
 }
 
 fn unique_event_refs(mut refs: Vec<String>) -> Vec<String> {
@@ -271,9 +272,9 @@ fn record_throw_audit(
 fn promote_throw_variables_to_process_scope(
     execution: &Execution,
     command_context: &mut CommandContext,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let Some(process_instance_id) = execution.process_instance_id.as_deref() else {
-        return;
+        return Ok(());
     };
 
     // P6-B audit (not observable): this function promotes the throwing
@@ -291,14 +292,14 @@ fn promote_throw_variables_to_process_scope(
     variables.extend(execution.local_variables.clone());
     variables.extend(execution.transient_variables.clone());
     if variables.is_empty() {
-        return;
+        return Ok(());
     }
 
     let Some(mut root_execution) = command_context
         .runtime_store
         .find_execution(process_instance_id, &mut command_context.session)
     else {
-        return;
+        return Ok(());
     };
 
     let root_execution_id = root_execution.id.clone();
@@ -314,7 +315,7 @@ fn promote_throw_variables_to_process_scope(
                 &variable_id,
                 value,
                 &mut command_context.session,
-            );
+            )?;
         } else {
             command_context.history_manager.record_variable_created(
                 &variable_id,
@@ -325,13 +326,14 @@ fn promote_throw_variables_to_process_scope(
                 Some(&root_execution_id),
                 None,
                 &mut command_context.session,
-            );
+            )?;
         }
     }
 
     command_context
         .execution_entity_manager
-        .update(&root_execution, &mut command_context.session);
+        .update(&root_execution, &mut command_context.session)?;
+    Ok(())
 }
 
 fn trigger_matching_intermediate_catches(
@@ -399,7 +401,7 @@ fn trigger_message_or_signal_runtime(
         return Ok(());
     }
 
-    promote_throw_variables_to_process_scope(execution, command_context);
+    promote_throw_variables_to_process_scope(execution, command_context)?;
     record_throw_audit(execution, command_context, &event_kind, &event_refs);
 
     // Deliver once per throw. `event_refs` may hold both signal/message id and
@@ -446,7 +448,7 @@ fn broadcast_signal_engine_wide(
         return Ok(());
     }
 
-    promote_throw_variables_to_process_scope(execution, command_context);
+    promote_throw_variables_to_process_scope(execution, command_context)?;
     record_throw_audit(
         execution,
         command_context,
@@ -552,7 +554,7 @@ fn broadcast_signal_engine_wide(
                 &EventSubscriptionKind::Signal,
                 event_ref,
                 &mut command_context.session,
-            )
+            )?
         {
             // Query order is deploy order → later entries win per key.
             start_subscriptions.insert(subscription.process_definition_key.clone(), subscription);
@@ -683,7 +685,7 @@ impl ActivityBehavior for IntermediateThrowEventActivityBehavior {
                 execution,
                 command_context,
                 activity_ref.as_deref(),
-            );
+            )?;
             command_context
                 .agenda
                 .plan_take_outgoing_sequence_flows_operation(execution.clone());
@@ -705,7 +707,7 @@ impl ActivityBehavior for IntermediateThrowEventActivityBehavior {
             execution.activity_id = Some(target_id);
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(execution.clone());

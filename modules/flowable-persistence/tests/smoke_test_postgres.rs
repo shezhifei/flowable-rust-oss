@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! PostgreSQL smoke test for the sqlx dual-backend slice.
 //!
 //! Opt-in via the `postgres` cargo feature and `FLOWABLE_TEST_POSTGRES_URL`:
@@ -27,7 +33,7 @@ fn postgres_url() -> String {
 }
 
 fn locked_postgres_url() -> (String, std::sync::MutexGuard<'static, ()>) {
-    (postgres_url(), PG_TEST_LOCK.lock().unwrap())
+    (postgres_url(), PG_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner()))
 }
 
 fn postgres_config(url: &str) -> DatabaseConfig {

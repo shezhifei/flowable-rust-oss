@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P105 — XML-deployed `<sendTask>` and `<manualTask>` runtime semantics.
 //!
 //! Java reference: `SendTaskParseHandler.java:37-56` (mail/dmn/none dispatch),
@@ -48,7 +54,7 @@ fn deploy_decision(engine: &DmnEngine, name: &str, decision: DmnDecision) {
 /// helper as serviceTask mail) and continues the process.
 #[test]
 fn send_task_mail_sends_mail_and_continues() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -107,7 +113,7 @@ fn send_task_mail_sends_mail_and_continues() {
 /// run to completion without sending mail.
 #[test]
 fn send_task_without_type_passes_through() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -165,7 +171,7 @@ fn send_task_dmn_executes_decision_and_writes_outputs() {
         dmn_engine: Some(dmn),
         ..ProcessEngineConfiguration::default()
     };
-    let process_engine = ProcessEngine::new_with_config("default".to_string(), config);
+    let process_engine = ProcessEngine::new_with_config("default".to_string(), config).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -230,7 +236,7 @@ fn send_task_dmn_executes_decision_and_writes_outputs() {
 /// (Java ManualTaskActivityBehavior extends TaskActivityBehavior).
 #[test]
 fn manual_task_xml_deploy_passes_through() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -279,7 +285,7 @@ fn manual_task_xml_deploy_passes_through() {
 /// sequence flows dangling.
 #[test]
 fn mixed_send_and_manual_tasks_deploy_and_run_to_completion() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -341,7 +347,7 @@ fn mixed_send_and_manual_tasks_deploy_and_run_to_completion() {
 /// a clear error instead of silently dropping the node.
 #[test]
 fn send_task_webservice_deployment_is_rejected() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
 
     let xml = r###"<?xml version="1.0" encoding="UTF-8"?>

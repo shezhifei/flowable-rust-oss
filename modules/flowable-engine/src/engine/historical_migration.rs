@@ -474,7 +474,7 @@ pub fn import_historical_migration_sqlite(
             deployment_manager,
             process_definition,
             &mut session,
-        ) {
+        )? {
             deployment_manager.insert_bpmn_model(&process_definition.id, model.clone());
             timer_start_subscriptions.extend(extract_timer_start_subscriptions(
                 process_definition,
@@ -505,15 +505,15 @@ pub fn import_historical_migration_sqlite(
     }
 
     for execution in &executions {
-        runtime_store.insert_execution(execution, &mut session);
+        runtime_store.insert_execution(execution, &mut session)?;
     }
 
     for task in &tasks {
-        runtime_store.insert_task(task, &mut session);
+        runtime_store.insert_task(task, &mut session)?;
     }
 
     for timer_job in timer_jobs {
-        runtime_store.insert_timer_job_state(&timer_job, &mut session);
+        runtime_store.insert_timer_job_state(&timer_job, &mut session)?;
     }
 
     for wait_state in event_wait_states {
@@ -528,7 +528,7 @@ pub fn import_historical_migration_sqlite(
         runtime_store.insert_historic_variable_instance(&variable, &mut session);
     }
 
-    session.flush_and_commit().unwrap();
+    session.flush_and_commit()?;
 
     Ok(HistoricalMigrationImportResult {
         imported_deployments: report.deployment_count,
@@ -986,9 +986,9 @@ fn ensure_target_is_empty(
     runtime_store: &RuntimeStore,
     session: &mut DbSession,
 ) -> Result<(), FlowableError> {
-    let has_existing_data = !deployment_manager.get_deployments(session).is_empty()
+    let has_existing_data = !deployment_manager.get_deployments(session)?.is_empty()
         || !deployment_manager
-            .get_process_definitions(session)
+            .get_process_definitions(session)?
             .is_empty()
         || !runtime_store.snapshot_process_instances(session).is_empty()
         || !runtime_store.snapshot_executions(session).is_empty()
@@ -3129,13 +3129,24 @@ fn load_bpmn_model_for_process_definition(
     deployment_manager: &DeploymentManager,
     process_definition: &ProcessDefinition,
     session: &mut DbSession,
-) -> Option<flowable_bpmn_model::model::BpmnModel> {
-    let deployment_id = process_definition.deployment_id.as_ref()?;
-    let resource_name = process_definition.resource_name.as_ref()?;
-    let bytes =
-        deployment_manager.get_deployment_resource_bytes(deployment_id, resource_name, session)?;
-    let xml = std::str::from_utf8(&bytes).ok()?;
-    converter.try_convert_to_bpmn_model(xml).ok()
+) -> Result<Option<flowable_bpmn_model::model::BpmnModel>, crate::error::FlowableError> {
+    let (Some(deployment_id), Some(resource_name)) = (
+        process_definition.deployment_id.as_ref(),
+        process_definition.resource_name.as_ref(),
+    ) else {
+        return Ok(None);
+    };
+    // Propagate storage errors reading the deployment resource; only a genuinely absent
+    // or undecodable resource yields None (best-effort model load).
+    let Some(bytes) =
+        deployment_manager.get_deployment_resource_bytes(deployment_id, resource_name, session)?
+    else {
+        return Ok(None);
+    };
+    let Ok(xml) = std::str::from_utf8(&bytes) else {
+        return Ok(None);
+    };
+    Ok(converter.try_convert_to_bpmn_model(xml).ok())
 }
 
 /// P64: import-time timer-start extraction resolves through the same business

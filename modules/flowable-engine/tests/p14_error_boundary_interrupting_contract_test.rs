@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P14 contract: error boundary events are always interrupting at runtime,
 //! regardless of the model-level `cancelActivity` flag.
 //!
@@ -24,7 +30,7 @@ use flowable_engine::persistence::runtime_store::EventSubscriptionKind;
 /// task remains.
 #[test]
 fn p14_error_boundary_with_model_cancel_activity_false_still_interrupts_host() {
-    let engine = ProcessEngine::new("p14-error-interrupting".to_string());
+    let engine = ProcessEngine::new("p14-error-interrupting".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();

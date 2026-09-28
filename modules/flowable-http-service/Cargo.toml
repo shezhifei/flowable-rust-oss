@@ -10,3 +10,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 reqwest = { version = "0.12", features = ["blocking", "json", "native-tls"] }
 tokio = { version = "1", features = ["full"] }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

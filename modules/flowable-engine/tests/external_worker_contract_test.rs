@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::external_worker_service::{
     ExternalWorkerBpmnErrorRequest, ExternalWorkerFailureRequest, ExternalWorkerFetchAndLockRequest,
@@ -395,6 +401,7 @@ fn process_suspension_releases_and_restores_external_worker_job_family() {
     let suspended = engine
         .get_management_service()
         .find_suspended_job_by_id(&job.id)
+        .unwrap()
         .expect("external worker job should be visible as suspended");
     assert_eq!(suspended.due_time, original_due_time);
     assert_eq!(suspended.retries, Some(original_retries));
@@ -421,6 +428,7 @@ fn process_suspension_releases_and_restores_external_worker_job_family() {
         engine
             .get_management_service()
             .find_suspended_job_by_id(&job.id)
+            .unwrap()
             .is_none()
     );
 
@@ -867,6 +875,7 @@ fn failure_with_zero_retries_moves_job_to_deadletter() {
     let deadletter = engine
         .get_management_service()
         .find_deadletter_job_by_id(&job.id)
+        .unwrap()
         .expect("exhausted external worker job must be queryable as deadletter");
     assert_eq!(deadletter.job_state.as_deref(), Some("deadletter"));
     assert_eq!(deadletter.retries, Some(0));
@@ -995,6 +1004,7 @@ fn failure_with_negative_retries_decrements_and_may_deadletter() {
     let deadletter = engine
         .get_management_service()
         .find_deadletter_job_by_id(&job.id)
+        .unwrap()
         .expect("decrement-to-zero must move to deadletter");
     assert_eq!(deadletter.retries, Some(0));
     assert_eq!(deadletter.job_state.as_deref(), Some("deadletter"));
@@ -1086,7 +1096,10 @@ fn external_worker_service_task_skip_expression_leaves_without_job() {
         ],
     );
 
-    let active = engine.get_external_worker_service().list_active_timer_jobs();
+    let active = engine
+        .get_external_worker_service()
+        .list_active_timer_jobs()
+        .unwrap();
     assert!(
         active
             .iter()
@@ -1121,7 +1134,10 @@ fn external_worker_service_task_job_category_on_created_job() {
         ],
     );
 
-    let jobs = engine.get_external_worker_service().list_active_timer_jobs();
+    let jobs = engine
+        .get_external_worker_service()
+        .list_active_timer_jobs()
+        .unwrap();
     let job = jobs
         .iter()
         .find(|j| j.process_instance_id == process_instance_id)
@@ -1205,7 +1221,10 @@ fn external_worker_service_task_create_interceptor_overrides_topic() {
     assert_eq!(interceptor.before.load(Ordering::SeqCst), 1);
     assert_eq!(interceptor.after.load(Ordering::SeqCst), 1);
 
-    let jobs = engine.get_external_worker_service().list_active_timer_jobs();
+    let jobs = engine
+        .get_external_worker_service()
+        .list_active_timer_jobs()
+        .unwrap();
     let job = jobs
         .iter()
         .find(|j| j.process_instance_id == process_instance_id)

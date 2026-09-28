@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::identity::entities::{IdentityLink, User};
@@ -20,7 +26,7 @@ const PROCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
     let engine = Arc::new(ProcessEngine::new(
         "rest-bpmn-process-definition-identity-links".to_string(),
-    ));
+    ).unwrap());
     engine.get_identity_service().save_user(User {
         id: "admin".to_string(),
         first_name: None,
@@ -28,7 +34,7 @@ async fn spawn_server() -> (Arc<ProcessEngine>, String, reqwest::Client) {
         email: None,
         password: Some("test".to_string()),
         tenant_id: None,
-    });
+    }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -73,7 +79,7 @@ async fn process_definition_identity_links_are_listed_and_deleted_without_touchi
         task_id: None,
         process_instance_id: None,
         process_definition_id: Some(process_definition_id.clone()),
-    });
+    }).unwrap();
     identity_link_service.add_identity_link(IdentityLink {
         id: format!("process-definition:{process_definition_id}:groups:management"),
         link_type: "candidate".to_string(),
@@ -82,7 +88,7 @@ async fn process_definition_identity_links_are_listed_and_deleted_without_touchi
         task_id: None,
         process_instance_id: None,
         process_definition_id: Some(process_definition_id.clone()),
-    });
+    }).unwrap();
     identity_link_service.add_identity_link(IdentityLink {
         id: "runtime-task:groups:management".to_string(),
         link_type: "candidate".to_string(),
@@ -91,7 +97,7 @@ async fn process_definition_identity_links_are_listed_and_deleted_without_touchi
         task_id: Some("task-1".to_string()),
         process_instance_id: None,
         process_definition_id: None,
-    });
+    }).unwrap();
 
     let list_response = client
         .get(format!(
@@ -323,7 +329,7 @@ async fn task_identity_links_hyphen_paths_use_camel_case_and_service_aliases() {
             task_id: Some("unrelated-task".to_string()),
             process_instance_id: None,
             process_definition_id: None,
-        });
+        }).unwrap();
 
     let create_user_response = client
         .post(format!("{base_url}/runtime/tasks/{task_id}/identity-links"))
@@ -489,7 +495,7 @@ async fn process_instance_identity_links_match_user_only_participant_contract() 
             task_id: None,
             process_instance_id: Some("unrelated-process-instance".to_string()),
             process_definition_id: None,
-        });
+        }).unwrap();
 
     let create_response = client
         .post(format!(

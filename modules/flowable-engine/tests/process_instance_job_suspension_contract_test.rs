@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::persistence::runtime_store::RuntimeTimerJobState;
 use flowable_engine::runtime::execution::Execution;
@@ -5,7 +11,7 @@ use flowable_engine::runtime::process_instance::{ProcessInstance, ProcessInstanc
 
 #[test]
 fn process_suspension_moves_and_restores_each_runtime_job_family() {
-    let engine = ProcessEngine::new("process-job-suspension-contract".to_string());
+    let engine = ProcessEngine::new("process-job-suspension-contract".to_string()).unwrap();
     seed_process_instance(&engine, "process-1", "definition-1");
     seed_process_instance(&engine, "other-process", "other-definition");
 
@@ -106,7 +112,7 @@ fn process_suspension_moves_and_restores_each_runtime_job_family() {
 
 #[test]
 fn definition_scope_suspension_moves_only_matching_process_jobs() {
-    let engine = ProcessEngine::new("definition-job-suspension-contract".to_string());
+    let engine = ProcessEngine::new("definition-job-suspension-contract".to_string()).unwrap();
     for id in ["process-a", "process-b"] {
         seed_process_instance(&engine, id, "definition-1");
     }

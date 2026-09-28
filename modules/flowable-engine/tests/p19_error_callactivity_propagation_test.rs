@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P19: BPMN error propagation across call activities.
 //!
 //! Java reference:
@@ -287,7 +293,7 @@ fn all_process_instances(engine: &ProcessEngine) -> Vec<(String, bool, Option<St
 /// child error end → parent subprocess error boundary (exact code).
 #[test]
 fn p19_single_level_call_activity_error_caught_by_subprocess_boundary() {
-    let engine = ProcessEngine::new("p19-single-level-sub".to_string());
+    let engine = ProcessEngine::new("p19-single-level-sub".to_string()).unwrap();
     deploy(
         &engine,
         "p19-single",
@@ -321,7 +327,7 @@ fn p19_single_level_call_activity_error_caught_by_subprocess_boundary() {
 /// Boundary attached directly on the call activity element.
 #[test]
 fn p19_single_level_error_boundary_on_call_activity() {
-    let engine = ProcessEngine::new("p19-single-level-ca".to_string());
+    let engine = ProcessEngine::new("p19-single-level-ca".to_string()).unwrap();
     deploy(
         &engine,
         "p19-ca-boundary",
@@ -344,7 +350,7 @@ fn p19_single_level_error_boundary_on_call_activity() {
 /// No-code error boundary on call activity catches any thrown code.
 #[test]
 fn p19_no_code_boundary_on_call_activity_catches_coded_error() {
-    let engine = ProcessEngine::new("p19-no-code".to_string());
+    let engine = ProcessEngine::new("p19-no-code".to_string()).unwrap();
     deploy(
         &engine,
         "p19-no-code",
@@ -364,7 +370,7 @@ fn p19_no_code_boundary_on_call_activity_catches_coded_error() {
 /// Exact errorCode on subprocess boundary does not match; empty catch-all does.
 #[test]
 fn p19_no_code_boundary_fallback_when_code_does_not_match() {
-    let engine = ProcessEngine::new("p19-no-code-fallback".to_string());
+    let engine = ProcessEngine::new("p19-no-code-fallback".to_string()).unwrap();
     let parent_xml = SINGLE_LEVEL_PARENT_XML
         .replace("throwError", "throwOtherError")
         .replace("id=\"singleLevelCatch\"", "id=\"singleLevelCatchOther\"");
@@ -391,7 +397,7 @@ fn p19_no_code_boundary_fallback_when_code_does_not_match() {
 /// preserved by `end_process_instance_with_callback_outcome` — not part of P19.
 #[test]
 fn p19_uncaught_error_on_call_activity_fails_child() {
-    let engine = ProcessEngine::new("p19-uncaught".to_string());
+    let engine = ProcessEngine::new("p19-uncaught".to_string()).unwrap();
     deploy(
         &engine,
         "p19-uncaught",
@@ -413,7 +419,7 @@ fn p19_uncaught_error_on_call_activity_fails_child() {
 /// Java `ErrorPropagationTest`: two-level call, middle boundary catches → MyErrorTaskNested.
 #[test]
 fn p19_two_level_call_activity_middle_boundary_catches() {
-    let engine = ProcessEngine::new("p19-two-level-middle".to_string());
+    let engine = ProcessEngine::new("p19-two-level-middle".to_string()).unwrap();
     deploy(
         &engine,
         "p19-two-level",
@@ -478,7 +484,7 @@ fn p19_two_level_call_activity_middle_boundary_catches() {
 /// Two-level hop: middle has no catch; outer call activity boundary must catch.
 #[test]
 fn p19_two_level_call_activity_outer_boundary_catches_through_middle() {
-    let engine = ProcessEngine::new("p19-two-level-outer".to_string());
+    let engine = ProcessEngine::new("p19-two-level-outer".to_string()).unwrap();
     deploy(
         &engine,
         "p19-two-level-outer",
@@ -511,7 +517,7 @@ fn p19_two_level_call_activity_outer_boundary_catches_through_middle() {
 /// on the call activity host execution.
 #[test]
 fn p19_call_activity_registers_error_boundary_state() {
-    let engine = ProcessEngine::new("p19-register".to_string());
+    let engine = ProcessEngine::new("p19-register".to_string()).unwrap();
     // Child that waits so we can inspect boundary registration mid-flight.
     let waiting_child = r#"
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"

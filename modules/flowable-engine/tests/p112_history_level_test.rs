@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P112 — History Level full semantics (6 levels + gating + per-definition override).
 //!
 //! Java sources (verified):
@@ -56,7 +62,7 @@ fn engine_with_level(name: &str, level: HistoryLevel) -> Arc<ProcessEngine> {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = level;
     config.enable_process_definition_history_level = false;
-    Arc::new(ProcessEngine::new_with_config(name.to_string(), config))
+    Arc::new(ProcessEngine::new_with_config(name.to_string(), config).unwrap())
 }
 
 fn deploy_and_start(
@@ -354,7 +360,7 @@ fn per_definition_override_replaces_engine_level_when_enabled() {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::Full;
     config.enable_process_definition_history_level = true;
-    let engine = ProcessEngine::new_with_config("p112-pd-none".into(), config);
+    let engine = ProcessEngine::new_with_config("p112-pd-none".into(), config).unwrap();
 
     let pi = deploy_and_start(
         &engine,
@@ -375,7 +381,7 @@ fn per_definition_override_ignored_when_flag_disabled() {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::Full;
     config.enable_process_definition_history_level = false;
-    let engine = ProcessEngine::new_with_config("p112-pd-flag-off".into(), config);
+    let engine = ProcessEngine::new_with_config("p112-pd-flag-off".into(), config).unwrap();
 
     let pi = deploy_and_start(
         &engine,
@@ -395,7 +401,7 @@ fn per_definition_override_can_raise_above_engine() {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::None;
     config.enable_process_definition_history_level = true;
-    let engine = ProcessEngine::new_with_config("p112-pd-raise".into(), config);
+    let engine = ProcessEngine::new_with_config("p112-pd-raise".into(), config).unwrap();
 
     let mut vars = HashMap::new();
     vars.insert("v1".into(), json!(1));
@@ -418,7 +424,7 @@ fn per_definition_illegal_level_falls_back_to_engine() {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::Audit;
     config.enable_process_definition_history_level = true;
-    let engine = ProcessEngine::new_with_config("p112-pd-illegal".into(), config);
+    let engine = ProcessEngine::new_with_config("p112-pd-illegal".into(), config).unwrap();
 
     let pi = deploy_and_start(
         &engine,

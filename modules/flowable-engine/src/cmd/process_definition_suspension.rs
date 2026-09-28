@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::cmd::process_instance_suspension::set_process_instance_suspension_state;
 use crate::engine::event_dispatcher::{EngineEvent, EngineEventType, EntityEventData, EntityKind};
 use crate::engine::repository_service::{
@@ -84,7 +92,7 @@ pub(crate) fn set_process_definition_suspension_state(
 ) -> Result<ProcessDefinition, FlowableError> {
     let deployment_manager = command_context.deployment_manager_handle();
     let mut definition = deployment_manager
-        .get_process_definitions(&mut command_context.session)
+        .get_process_definitions(&mut command_context.session)?
         .remove(process_definition_id)
         .ok_or_else(|| {
             FlowableError::NotFound(format!(
@@ -102,7 +110,7 @@ pub(crate) fn set_process_definition_suspension_state(
 
     definition.is_suspended = suspended;
     deployment_manager
-        .update_process_definition(definition.clone(), &mut command_context.session)
+        .update_process_definition(definition.clone(), &mut command_context.session)?
         .ok_or_else(|| {
             FlowableError::NotFound(format!(
                 "Process definition '{}' was not found",
@@ -172,7 +180,7 @@ mod tests {
 
     #[test]
     fn definition_instance_and_job_suspension_roll_back_together() {
-        let engine = ProcessEngine::new("definition-suspension-rollback".to_string());
+        let engine = ProcessEngine::new("definition-suspension-rollback".to_string()).unwrap();
         let executor = engine.get_command_executor();
         let deployment_manager = executor.deployment_manager();
         let mut session = deployment_manager.create_session().unwrap();
@@ -203,7 +211,7 @@ mod tests {
         let mut session = store.create_session().unwrap();
         assert!(
             !store
-                .find_process_instance("process-1", &mut session)
+                .find_process_instance("process-1", &mut session).expect("process instance query")
                 .expect("process should remain")
                 .is_suspended
         );

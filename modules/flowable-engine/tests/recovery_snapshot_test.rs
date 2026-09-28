@@ -1,8 +1,14 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 #[test]
 fn test_recovery_snapshot_user_task() {
-    let engine1 = ProcessEngine::new("test_engine".to_string());
+    let engine1 = ProcessEngine::new("test_engine".to_string()).unwrap();
 
     let deployment_builder = engine1.get_repository_service().create_deployment()
         .add_string(
@@ -45,11 +51,11 @@ fn test_recovery_snapshot_user_task() {
         .find(|e| e.activity_id.as_deref() == Some("userTask"))
         .unwrap();
 
-    let snapshot = engine1.export_recovery_snapshot();
+    let snapshot = engine1.export_recovery_snapshot().unwrap();
 
     // Simulate restart
-    let engine2 = ProcessEngine::new("test_engine_2".to_string());
-    engine2.import_recovery_snapshot(snapshot);
+    let engine2 = ProcessEngine::new("test_engine_2".to_string()).unwrap();
+    engine2.import_recovery_snapshot(snapshot).unwrap();
 
     let __runtime_store = engine2.get_runtime_store();
     let mut __runtime_session = __runtime_store.create_session().unwrap();
@@ -79,7 +85,7 @@ fn test_recovery_snapshot_user_task() {
 
 #[test]
 fn test_recovery_snapshot_message_start() {
-    let engine1 = ProcessEngine::new("test_engine".to_string());
+    let engine1 = ProcessEngine::new("test_engine".to_string()).unwrap();
     let bpmn = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
       <message id="msg" name="myMessage" />
@@ -101,13 +107,15 @@ fn test_recovery_snapshot_message_start() {
         .deploy(deployment_builder)
         .unwrap();
 
-    let snapshot = engine1.export_recovery_snapshot();
+    let snapshot = engine1.export_recovery_snapshot().unwrap();
 
-    let engine2 = ProcessEngine::new("test_engine_2".to_string());
-    engine2.import_recovery_snapshot(snapshot);
+    let engine2 = ProcessEngine::new("test_engine_2".to_string()).unwrap();
+    engine2.import_recovery_snapshot(snapshot).unwrap();
 
     // Start instance by message on the recovered engine
-    let pi = engine2.start_process_instance_by_message("myMessage".to_string());
+    let pi = engine2
+        .start_process_instance_by_message("myMessage".to_string())
+        .expect("test message start must succeed");
     let runtime_store = engine2.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
     let pi2 = runtime_store
@@ -121,7 +129,7 @@ fn test_recovery_snapshot_timer_job() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine1 = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone());
+    let engine1 = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
     let bpmn = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
       <process id="myProcess" isExecutable="true">
@@ -160,10 +168,10 @@ fn test_recovery_snapshot_timer_job() {
         .start_process_instance(builder)
         .unwrap();
 
-    let snapshot = engine1.export_recovery_snapshot();
+    let snapshot = engine1.export_recovery_snapshot().unwrap();
 
-    let engine2 = ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone());
-    engine2.import_recovery_snapshot(snapshot);
+    let engine2 = ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone()).unwrap();
+    engine2.import_recovery_snapshot(snapshot).unwrap();
 
     time_source.advance_time(2 * 60 * 60 * 1000);
 
@@ -183,7 +191,7 @@ fn test_recovery_snapshot_timer_start_subscription() {
     let time_source = std::sync::Arc::new(
         flowable_engine::engine::time_source::TestTimeSource::new(chrono::Utc::now()),
     );
-    let engine1 = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone());
+    let engine1 = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
     let bpmn = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
       <process id="myProcess" isExecutable="true">
@@ -206,12 +214,14 @@ fn test_recovery_snapshot_timer_start_subscription() {
         .deploy(deployment_builder)
         .unwrap();
 
-    let snapshot = engine1.export_recovery_snapshot();
+    let snapshot = engine1.export_recovery_snapshot().unwrap();
 
-    let engine2 = ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone());
-    engine2.import_recovery_snapshot(snapshot);
+    let engine2 = ProcessEngine::with_time_source("test_engine_2".to_string(), time_source.clone()).unwrap();
+    engine2.import_recovery_snapshot(snapshot).unwrap();
 
-    let timer_subs = engine2.get_timer_start_subscriptions();
+    let timer_subs = engine2
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(timer_subs.len(), 1);
     assert!(
         !timer_subs[0].id.is_empty(),

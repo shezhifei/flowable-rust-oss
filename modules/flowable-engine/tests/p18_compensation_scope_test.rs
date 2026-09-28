@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P18-B contract tests: an unscoped compensation throw only compensates
 //! activities inside the throwing event's OWN scope container.
 //!
@@ -237,7 +243,7 @@ fn http_handler_activity_ids(engine: &ProcessEngine, process_instance_id: &str) 
 /// sub-process, in reverse completion order. Outer activities stay untouched.
 #[test]
 fn unscoped_throw_inside_subprocess_only_compensates_that_scope() {
-    let engine = ProcessEngine::new("p18-compensation-inner-scope".to_string());
+    let engine = ProcessEngine::new("p18-compensation-inner-scope".to_string()).unwrap();
     deploy(&engine, "compensation_inner_throw_p18", INNER_THROW_XML);
 
     let process_instance_id = start_by_key(&engine, "compensationInnerThrowP18");
@@ -281,7 +287,7 @@ fn unscoped_throw_inside_subprocess_only_compensates_that_scope() {
 /// / `CompensationEventHandler` cascade), reverse completion order preserved.
 #[test]
 fn unscoped_throw_at_process_level_compensates_nested_children_in_reverse_order() {
-    let engine = ProcessEngine::new("p18-compensation-top-scope".to_string());
+    let engine = ProcessEngine::new("p18-compensation-top-scope".to_string()).unwrap();
     deploy(&engine, "compensation_top_throw_p18", TOP_THROW_XML);
 
     let process_instance_id = start_by_key(&engine, "compensationTopThrowP18");

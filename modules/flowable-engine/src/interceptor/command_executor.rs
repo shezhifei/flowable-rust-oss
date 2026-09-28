@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::agenda::FlowableEngineAgenda;
 use crate::bpmn::behavior::inclusive_gateway_activity_behavior::execute_inactive_inclusive_joins;
 use crate::engine::deployment_manager::DeploymentManager;
@@ -30,11 +38,19 @@ fn rollback_with_transaction_events(
     command_context: &mut CommandContext,
     primary_error: FlowableError,
 ) -> FlowableError {
+    // Capture the sticky storage failure before rollback clears it. Java's
+    // DbSqlSession throws PersistenceException on SQL errors, so a storage
+    // fault must outrank a synthesized FlowableObjectNotFoundException (404):
+    // we never established "absent", only "could not read".
+    let sticky_storage_error = command_context.session.take_write_error();
     // Listener failures must never prevent the actual database rollback.
     let _ = command_context.dispatch_transaction_events(TransactionState::RollingBack);
     let _ = command_context.session.rollback();
     let _ = command_context.dispatch_transaction_events(TransactionState::RolledBack);
-    primary_error
+    match (sticky_storage_error, primary_error) {
+        (Some(storage), FlowableError::NotFound(_)) => storage.into(),
+        (_, primary) => primary,
+    }
 }
 
 /// Interface for executing commands
@@ -148,7 +164,7 @@ impl DefaultCommandExecutor {
                             }
                         }
                     }
-                    if !execute_inactive_inclusive_joins(&mut command_context) {
+                    if !execute_inactive_inclusive_joins(&mut command_context)? {
                         break;
                     }
                 }
@@ -168,7 +184,7 @@ impl DefaultCommandExecutor {
                 if self.config.async_history.enabled {
                     command_context
                         .history_manager
-                        .flush_history(&mut command_context.session);
+                        .flush_history(&mut command_context.session)?;
                 }
                 let pending = if self.config.async_history.enabled {
                     command_context.history_manager.take_pending_jobs()

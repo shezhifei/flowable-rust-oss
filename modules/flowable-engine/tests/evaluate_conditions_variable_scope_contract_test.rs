@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the variable scope a conditional-event condition is
 //! evaluated against.
 //!
@@ -100,7 +106,7 @@ fn task_keys(engine: &ProcessEngine, process_instance_id: &str) -> Vec<String> {
 /// so a local variable made the condition evaluate to false.
 #[test]
 fn ancestor_local_variables_are_visible_to_condition_evaluation() {
-    let engine = ProcessEngine::new("cond-scope-ancestor-local".to_string());
+    let engine = ProcessEngine::new("cond-scope-ancestor-local".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         SUBPROCESS_CONDITION_XML,
@@ -154,7 +160,7 @@ fn ancestor_local_variables_are_visible_to_condition_evaluation() {
 /// process instance / root execution row.
 #[test]
 fn condition_variables_passed_to_the_command_still_resolve() {
-    let engine = ProcessEngine::new("cond-scope-command-variables".to_string());
+    let engine = ProcessEngine::new("cond-scope-command-variables".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         SUBPROCESS_CONDITION_XML,
@@ -180,7 +186,7 @@ fn condition_variables_passed_to_the_command_still_resolve() {
 /// the nearest-scope-wins rule of `VariableScopeImpl#getVariable`.
 #[test]
 fn own_scope_shadows_the_ancestor_value_during_evaluation() {
-    let engine = ProcessEngine::new("cond-scope-shadowing".to_string());
+    let engine = ProcessEngine::new("cond-scope-shadowing".to_string()).unwrap();
     let process_instance_id =
         deploy_and_start(&engine, SUBPROCESS_CONDITION_XML, "cond_scope_shadowing");
     let scope_id = scope_execution_id(&engine);

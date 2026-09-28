@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P21: Call activity attribute wiring (parsed but unread / wrong-priority).
 //!
 //! Java evidence lives in
@@ -61,7 +67,7 @@ fn find_child_pi(
 
 #[test]
 fn p21_called_element_type_id_resolves_by_definition_id() {
-    let engine = ProcessEngine::new("p21-element-type-id".into());
+    let engine = ProcessEngine::new("p21-element-type-id".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -131,7 +137,7 @@ fn p21_called_element_type_id_resolves_by_definition_id() {
 
 #[test]
 fn p21_fallback_to_default_tenant_resolves_global_definition() {
-    let engine = ProcessEngine::new("p21-fallback-tenant".into());
+    let engine = ProcessEngine::new("p21-fallback-tenant".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -199,7 +205,7 @@ fn p21_fallback_to_default_tenant_resolves_global_definition() {
 
 #[test]
 fn p21_without_fallback_tenant_miss_is_not_found() {
-    let engine = ProcessEngine::new("p21-no-fallback-tenant".into());
+    let engine = ProcessEngine::new("p21-no-fallback-tenant".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 
@@ -252,7 +258,7 @@ fn p21_without_fallback_tenant_miss_is_not_found() {
 
 #[test]
 fn p21_use_local_scope_for_out_parameters() {
-    let engine = ProcessEngine::new("p21-local-out".into());
+    let engine = ProcessEngine::new("p21-local-out".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -354,7 +360,7 @@ fn p21_use_local_scope_for_out_parameters() {
 
 #[test]
 fn p21_explicit_business_key_wins_over_inherit() {
-    let engine = ProcessEngine::new("p21-bk-priority".into());
+    let engine = ProcessEngine::new("p21-bk-priority".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 
@@ -407,7 +413,7 @@ fn p21_explicit_business_key_wins_over_inherit() {
 
 #[test]
 fn p21_out_target_expression_evaluated_on_child_scope() {
-    let engine = ProcessEngine::new("p21-out-target-expr".into());
+    let engine = ProcessEngine::new("p21-out-target-expr".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -488,7 +494,7 @@ fn p21_out_parameter_transient_routes_to_transient_variables() {
     // P45: transient out is pure memory (Java VariableScopeImpl). Mid-command
     // it is visible to subsequent routing in the same complete-task command;
     // after commit it is stripped and must not appear as durable or via get_variable.
-    let engine = ProcessEngine::new("p21-out-transient".into());
+    let engine = ProcessEngine::new("p21-out-transient".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -600,7 +606,7 @@ fn p21_inherit_variables_keeps_transient_as_transient() {
     // P45: inheritVariables must copy parent transient onto the child as
     // transient (not durable) so mid-command child routing can read it.
     // After commit, transient is stripped (Java VariableScopeImpl parity).
-    let engine = ProcessEngine::new("p21-inherit-transient".into());
+    let engine = ProcessEngine::new("p21-inherit-transient".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -695,7 +701,7 @@ fn p21_inherit_variables_keeps_transient_as_transient() {
 
 #[test]
 fn p21_process_instance_name_expression() {
-    let engine = ProcessEngine::new("p21-pi-name".into());
+    let engine = ProcessEngine::new("p21-pi-name".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 
@@ -747,7 +753,7 @@ fn p21_process_instance_name_expression() {
 
 #[test]
 fn p21_child_complete_rejects_when_parent_suspended() {
-    let engine = ProcessEngine::new("p21-suspended-parent".into());
+    let engine = ProcessEngine::new("p21-suspended-parent".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -806,7 +812,7 @@ fn p21_child_complete_rejects_when_parent_suspended() {
 
 #[test]
 fn p21_same_deployment_miss_falls_back_to_latest_by_key() {
-    let engine = ProcessEngine::new("p21-same-dep-miss".into());
+    let engine = ProcessEngine::new("p21-same-dep-miss".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -877,7 +883,7 @@ fn p21_same_deployment_miss_falls_back_to_latest_by_key() {
 
 #[test]
 fn p21_process_instance_id_variable_name_expression() {
-    let engine = ProcessEngine::new("p21-id-var-expr".into());
+    let engine = ProcessEngine::new("p21-id-var-expr".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let variables = engine.get_variable_service();
@@ -940,7 +946,7 @@ fn p21_process_instance_id_variable_name_expression() {
 
 #[test]
 fn p21_entity_links_default_off_no_links_created() {
-    let engine = ProcessEngine::new("p21-entity-links-off".into());
+    let engine = ProcessEngine::new("p21-entity-links-off".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 
@@ -992,7 +998,7 @@ fn p21_entity_links_created_when_enabled() {
         enable_entity_links: true,
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("p21-entity-links-on".into(), config);
+    let engine = ProcessEngine::new_with_config("p21-entity-links-on".into(), config).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
 
@@ -1049,7 +1055,7 @@ fn p21_entity_links_created_when_enabled() {
 
 #[test]
 fn p21_complete_async_defers_parent_continuation_to_job() {
-    let engine = ProcessEngine::new("p21-complete-async".into());
+    let engine = ProcessEngine::new("p21-complete-async".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -1108,6 +1114,7 @@ fn p21_complete_async_defers_parent_continuation_to_job() {
     let jobs: Vec<_> = engine
         .get_management_service()
         .list_executable_jobs()
+        .unwrap()
         .into_iter()
         .filter(|job| {
             job.handler_type.as_deref()
@@ -1166,6 +1173,7 @@ fn p21_complete_async_defers_parent_continuation_to_job() {
         engine
             .get_management_service()
             .list_executable_jobs()
+            .unwrap()
             .into_iter()
             .all(|job| job.handler_type.as_deref()
                 != Some(job_handler_types::ASYNC_COMPLETE_CALL_ACTIVITY)),

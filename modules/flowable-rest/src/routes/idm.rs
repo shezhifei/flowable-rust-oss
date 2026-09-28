@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::error::ApiError;
 use axum::extract::Query as AxumQuery;
 use axum::{
@@ -311,18 +319,17 @@ async fn list_rest_users(
 ) -> Result<Json<DataResponse<RestUserResponse>>, ApiError> {
     let users = list_user_entities(&engine.0, &directory_state, &params)?;
     let base_url = request_base_url(None);
+    let mut rest_users = Vec::with_capacity(users.len());
+    for user in users {
+        let has_picture = engine
+            .0
+            .get_identity_service()
+            .get_user_picture(&user.id)?
+            .is_some();
+        rest_users.push(RestUserResponse::from_user(user, &base_url, has_picture));
+    }
     Ok(Json(paged_response(
-        users
-            .into_iter()
-            .map(|user| {
-                let has_picture = engine
-                    .0
-                    .get_identity_service()
-                    .get_user_picture(&user.id)
-                    .is_some();
-                RestUserResponse::from_user(user, &base_url, has_picture)
-            })
-            .collect(),
+        rest_users,
         &params.paging(),
         params.sort.as_deref().unwrap_or("id"),
         params.order.as_deref().unwrap_or("asc"),
@@ -339,7 +346,7 @@ async fn get_user(
         return Ok(Json(UserResponse::from_user(user, &base_url)));
     }
 
-    let user = engine.0.get_identity_service().find_user_by_id(&user_id);
+    let user = engine.0.get_identity_service().find_user_by_id(&user_id)?;
     match user {
         Some(u) => Ok(Json(UserResponse::from_user(u, &base_url))),
         None => Err(ApiError::NotFound(format!("User '{}' not found", user_id))),
@@ -355,7 +362,7 @@ async fn get_rest_user(
     let has_picture = engine
         .0
         .get_identity_service()
-        .get_user_picture(&user.id)
+        .get_user_picture(&user.id)?
         .is_some();
     let base_url = request_base_url(None);
     Ok(Json(RestUserResponse::from_user(user, &base_url, has_picture)))
@@ -426,7 +433,7 @@ async fn create_rest_user(
     let has_picture = engine
         .0
         .get_identity_service()
-        .get_user_picture(&user.id)
+        .get_user_picture(&user.id)?
         .is_some();
     let base_url = request_base_url(None);
     // Security deviation from Java: the 201 response never echoes the
@@ -459,7 +466,7 @@ async fn update_rest_user(
     let has_picture = engine
         .0
         .get_identity_service()
-        .get_user_picture(&user.id)
+        .get_user_picture(&user.id)?
         .is_some();
     let base_url = request_base_url(None);
     Ok(Json(RestUserResponse::from_user(user, &base_url, has_picture)))
@@ -475,7 +482,7 @@ async fn delete_user(
     {
         return Ok(StatusCode::NO_CONTENT);
     }
-    engine.0.get_identity_service().delete_user(&user_id);
+    engine.0.get_identity_service().delete_user(&user_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -507,7 +514,7 @@ async fn list_user_info(
     let service = engine.0.get_identity_service();
     let base_url = request_base_url(None);
     let info = service
-        .get_user_info_keys(&user_id)
+        .get_user_info_keys(&user_id)?
         .into_iter()
         .map(|key| UserInfoResponse {
             url: user_info_url(&base_url, &user_id, &key),
@@ -528,14 +535,14 @@ async fn create_user_info(
     let key = required_body_field(req.key, "key")?;
     let value = required_body_field(req.value, "value")?;
     let service = engine.0.get_identity_service();
-    if service.get_user_info(&user_id, &key).is_some() {
+    if service.get_user_info(&user_id, &key)?.is_some() {
         return Ok(conflict_response(format!(
             "User '{}' already has info for key '{}'",
             user_id, key
         )));
     }
     let base_url = request_base_url(None);
-    let info = service.set_user_info(user_id, key, value);
+    let info = service.set_user_info(user_id, key, value)?;
     Ok((
         StatusCode::CREATED,
         Json(UserInfoResponse::from_user_info(info, &base_url)),
@@ -552,7 +559,7 @@ async fn get_user_info(
     let info = engine
         .0
         .get_identity_service()
-        .get_user_info(&user_id, &key)
+        .get_user_info(&user_id, &key)?
         .ok_or_else(|| {
             ApiError::NotFound(format!("User '{}' has no info for key '{}'", user_id, key))
         })?;
@@ -571,7 +578,7 @@ async fn update_user_info(
     if engine
         .0
         .get_identity_service()
-        .get_user_info(&user_id, &key)
+        .get_user_info(&user_id, &key)?
         .is_none()
     {
         return Err(ApiError::NotFound(format!(
@@ -583,7 +590,7 @@ async fn update_user_info(
     let info = engine
         .0
         .get_identity_service()
-        .set_user_info(user_id, key, value);
+        .set_user_info(user_id, key, value)?;
     Ok(Json(UserInfoResponse::from_user_info(info, &base_url)))
 }
 
@@ -596,7 +603,7 @@ async fn delete_user_info(
     if !engine
         .0
         .get_identity_service()
-        .delete_user_info(&user_id, &key)
+        .delete_user_info(&user_id, &key)?
     {
         return Err(ApiError::NotFound(format!(
             "User '{}' has no info for key '{}'",
@@ -615,7 +622,7 @@ async fn get_user_picture(
     let picture = engine
         .0
         .get_identity_service()
-        .get_user_picture(&user_id)
+        .get_user_picture(&user_id)?
         .ok_or_else(|| ApiError::NotFound(format!("User '{}' has no picture", user_id)))?;
     Response::builder()
         .status(StatusCode::OK)
@@ -636,7 +643,7 @@ async fn update_user_picture(
     engine
         .0
         .get_identity_service()
-        .set_user_picture(user_id, upload.mime_type, upload.bytes);
+        .set_user_picture(user_id, upload.mime_type, upload.bytes)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -652,7 +659,7 @@ async fn create_user_picture(
     engine
         .0
         .get_identity_service()
-        .set_user_picture(user_id, upload.mime_type, upload.bytes);
+        .set_user_picture(user_id, upload.mime_type, upload.bytes)?;
     Ok(StatusCode::CREATED)
 }
 
@@ -665,7 +672,7 @@ async fn delete_user_picture(
     if !engine
         .0
         .get_identity_service()
-        .delete_user_picture(&user_id)
+        .delete_user_picture(&user_id)?
     {
         return Err(ApiError::NotFound(format!(
             "User '{}' has no picture",
@@ -767,7 +774,7 @@ async fn get_group(
         return Ok(Json(GroupResponse::from(group)));
     }
 
-    let group = engine.0.get_identity_service().find_group_by_id(&group_id);
+    let group = engine.0.get_identity_service().find_group_by_id(&group_id)?;
     match group {
         Some(g) => Ok(Json(GroupResponse::from(g))),
         None => Err(ApiError::NotFound(format!(
@@ -806,7 +813,7 @@ async fn create_group(
         if engine
             .0
             .get_identity_service()
-            .find_group_by_id(&group.id)
+            .find_group_by_id(&group.id)?
             .is_some()
         {
             return Err(ApiError::bad_request(format!(
@@ -818,7 +825,7 @@ async fn create_group(
             return Ok((StatusCode::CREATED, Json(GroupResponse::from(saved_group))));
         }
     }
-    engine.0.get_identity_service().save_group(group.clone());
+    engine.0.get_identity_service().save_group(group.clone())?;
     Ok((StatusCode::CREATED, Json(GroupResponse::from(group))))
 }
 
@@ -841,7 +848,7 @@ async fn update_group(
     {
         return Ok(Json(GroupResponse::from(saved_group)));
     }
-    engine.0.get_identity_service().save_group(group.clone());
+    engine.0.get_identity_service().save_group(group.clone())?;
     Ok(Json(GroupResponse::from(group)))
 }
 
@@ -855,7 +862,7 @@ async fn delete_group(
     {
         return Ok(StatusCode::NO_CONTENT);
     }
-    engine.0.get_identity_service().delete_group(&group_id);
+    engine.0.get_identity_service().delete_group(&group_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -890,7 +897,7 @@ async fn list_memberships_for_user(
     let stored_memberships = engine
         .0
         .get_identity_service()
-        .get_groups_by_user(&user_id)
+        .get_groups_by_user(&user_id)?
         .into_iter()
         .map(|group| Membership {
             user_id: user_id.clone(),
@@ -971,7 +978,7 @@ async fn create_membership(
     engine
         .0
         .get_identity_service()
-        .create_membership(req.user_id.clone(), req.group_id.clone());
+        .create_membership(req.user_id.clone(), req.group_id.clone())?;
     Ok(created_membership_response(
         &base_url,
         req.user_id,
@@ -1008,7 +1015,7 @@ async fn delete_membership(
     engine
         .0
         .get_identity_service()
-        .delete_membership(&user_id, &group_id);
+        .delete_membership(&user_id, &group_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1051,7 +1058,7 @@ pub async fn list_privileges(
     params: AxumQuery<PrivilegeQueryParams>,
 ) -> Result<Json<DataResponse<PrivilegeResponse>>, ApiError> {
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut privileges = store.list_privileges(&mut session);
     if let Some(id) = params.id.as_deref() {
         privileges.retain(|privilege| privilege.id == id);
@@ -1103,12 +1110,14 @@ pub async fn get_privilege(
     Path(privilege_id): Path<String>,
 ) -> Result<Json<PrivilegeResponse>, ApiError> {
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().unwrap();
-    let privilege = engine
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .0
         .get_identity_service()
-        .find_privilege_by_id_in_session(&privilege_id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Privilege '{}' not found", privilege_id)))?;
+        .find_privilege_by_id_in_session(&privilege_id, &mut session);
+    let privilege = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Privilege '{}' not found", privilege_id))
+    })?;
     let mut users = store
         .find_privilege_mappings_by_privilege(&privilege_id, &mut session)
         .into_iter()
@@ -1148,7 +1157,7 @@ pub async fn create_privilege(
     engine
         .0
         .get_identity_service()
-        .save_privilege(privilege.clone());
+        .save_privilege(privilege.clone())?;
     Ok(Json(PrivilegeResponse::from(privilege)))
 }
 
@@ -1159,7 +1168,7 @@ pub async fn delete_privilege(
     engine
         .0
         .get_identity_service()
-        .delete_privilege(&privilege_id);
+        .delete_privilege(&privilege_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1206,7 +1215,7 @@ async fn list_privilege_users(
 ) -> Result<Json<Vec<UserResponse>>, ApiError> {
     ensure_privilege_exists(&engine.0, &privilege_id)?;
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut users = store
         .find_privilege_mappings_by_privilege(&privilege_id, &mut session)
         .into_iter()
@@ -1232,7 +1241,7 @@ async fn add_user_privilege(
     engine
         .0
         .get_identity_service()
-        .add_user_privilege_mapping(privilege_id, req.user_id);
+        .add_user_privilege_mapping(privilege_id, req.user_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -1244,7 +1253,7 @@ async fn delete_user_privilege(
     engine
         .0
         .get_identity_service()
-        .delete_user_privilege_mapping(&privilege_id, &user_id);
+        .delete_user_privilege_mapping(&privilege_id, &user_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -1254,7 +1263,7 @@ async fn list_privilege_groups(
 ) -> Result<Json<Vec<GroupResponse>>, ApiError> {
     ensure_privilege_exists(&engine.0, &privilege_id)?;
     let store = engine.0.get_runtime_store();
-    let mut session = store.create_session().unwrap();
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut groups = store
         .find_privilege_mappings_by_privilege(&privilege_id, &mut session)
         .into_iter()
@@ -1275,7 +1284,7 @@ async fn add_group_privilege(
     engine
         .0
         .get_identity_service()
-        .add_group_privilege_mapping(privilege_id, req.group_id);
+        .add_group_privilege_mapping(privilege_id, req.group_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -1287,7 +1296,7 @@ async fn delete_group_privilege(
     engine
         .0
         .get_identity_service()
-        .delete_group_privilege_mapping(&privilege_id, &group_id);
+        .delete_group_privilege_mapping(&privilege_id, &group_id)?;
     Ok(StatusCode::OK)
 }
 
@@ -1368,7 +1377,7 @@ pub async fn create_token(
         ip_address: None,
         user_agent: None,
     };
-    engine.0.get_identity_service().save_token(token.clone());
+    engine.0.get_identity_service().save_token(token.clone())?;
     Ok(Json(TokenResponse::from(token)))
 }
 
@@ -1376,7 +1385,7 @@ pub async fn delete_token(
     engine: EngineState,
     Path(token_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    engine.0.get_identity_service().delete_token(&token_id);
+    engine.0.get_identity_service().delete_token(&token_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1415,7 +1424,7 @@ fn save_created_user(
     if directory_state.has_live_provider() {
         if engine
             .get_identity_service()
-            .find_user_by_id(&user.id)
+            .find_user_by_id(&user.id)?
             .is_some()
         {
             return Err(ApiError::bad_request(format!(
@@ -1427,7 +1436,7 @@ fn save_created_user(
             return Ok(saved_user);
         }
     }
-    engine.get_identity_service().save_user(user.clone());
+    engine.get_identity_service().save_user(user.clone())?;
     Ok(user)
 }
 
@@ -1459,7 +1468,7 @@ fn save_updated_user(
     {
         return Ok(saved_user);
     }
-    engine.get_identity_service().save_user(user.clone());
+    engine.get_identity_service().save_user(user.clone())?;
     Ok(user)
 }
 
@@ -1535,7 +1544,10 @@ fn query_engine_groups(
     Ok(groups
         .into_iter()
         .filter(|group| group_matches(group, params))
-        .filter(|group| group_membership_matches(engine, group, params))
+        .map(|group| group_membership_matches(engine, &group, params).map(|matched| (group, matched)))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .filter_map(|(group, matched)| matched.then_some(group))
         .collect())
 }
 
@@ -1593,7 +1605,7 @@ fn membership_exists(
 ) -> Result<bool, ApiError> {
     if engine
         .get_identity_service()
-        .membership_exists(user_id, group_id)
+        .membership_exists(user_id, group_id)?
     {
         return Ok(true);
     }
@@ -1612,7 +1624,7 @@ fn get_user_entity(
     }
     engine
         .get_identity_service()
-        .find_user_by_id(user_id)
+        .find_user_by_id(user_id)?
         .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", user_id)))
 }
 
@@ -1626,7 +1638,7 @@ fn get_group_entity(
     }
     engine
         .get_identity_service()
-        .find_group_by_id(group_id)
+        .find_group_by_id(group_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Group '{}' not found", group_id)))
 }
 
@@ -1636,14 +1648,14 @@ fn ensure_privilege_exists(
 ) -> Result<Privilege, ApiError> {
     engine
         .get_identity_service()
-        .find_privilege_by_id(privilege_id)
+        .find_privilege_by_id(privilege_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Privilege '{}' not found", privilege_id)))
 }
 
 fn ensure_user_exists(engine: &Arc<ProcessEngine>, user_id: &str) -> Result<(), ApiError> {
     engine
         .get_identity_service()
-        .find_user_by_id(user_id)
+        .find_user_by_id(user_id)?
         .map(|_| ())
         .ok_or_else(|| ApiError::NotFound(format!("User '{}' not found", user_id)))
 }
@@ -1651,7 +1663,7 @@ fn ensure_user_exists(engine: &Arc<ProcessEngine>, user_id: &str) -> Result<(), 
 fn ensure_group_exists(engine: &Arc<ProcessEngine>, group_id: &str) -> Result<(), ApiError> {
     engine
         .get_identity_service()
-        .find_group_by_id(group_id)
+        .find_group_by_id(group_id)?
         .map(|_| ())
         .ok_or_else(|| ApiError::NotFound(format!("Group '{}' not found", group_id)))
 }
@@ -1752,7 +1764,17 @@ fn potential_starter_group_ids(
         .create_session()
         .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
     let links = store.find_identity_links_by_process_definition(process_definition_id, &mut session);
-    let _ = session.rollback();
+    // Read the sticky slot before rolling back: the store records a failed read
+    // there and hands back an empty Vec (`DbSession::rollback_read`). Without
+    // this, an unreachable store would look like "no potential starter groups",
+    // i.e. every user is denied start rights instead of a 500.
+    // Java parity: `IdentityLinkEntityManagerImpl` -> `MybatisIdentityLinkDataManager`
+    // -> `DbSqlSession.selectList`
+    // (flowable-engine-common/.../impl/db/DbSqlSession.java:282-299) lets the
+    // `PersistenceException` escape; an empty list means a successful no-row query.
+    session
+        .rollback_read()
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
     Ok(links.into_iter().filter_map(|link| link.group_id).collect())
 }
 
@@ -1760,14 +1782,15 @@ fn group_membership_matches(
     engine: &Arc<ProcessEngine>,
     group: &Group,
     params: &GroupQueryParams,
-) -> bool {
+) -> Result<bool, ApiError> {
     match &params.member_user_id {
-        Some(user_id) => engine
+        Some(user_id) => Ok(engine
             .get_identity_service()
             .get_groups_by_user(user_id)
+            .map_err(|error| ApiError::InternalServerError(error.to_string()))?
             .into_iter()
-            .any(|candidate| candidate.id == group.id),
-        None => true,
+            .any(|candidate| candidate.id == group.id)),
+        None => Ok(true),
     }
 }
 
@@ -2135,7 +2158,7 @@ mod tests {
 
     #[test]
     fn privilege_lookup_includes_group_assignments() {
-        let engine = Arc::new(ProcessEngine::new("idm-privilege-test".to_string()));
+        let engine = Arc::new(ProcessEngine::new("idm-privilege-test".to_string()).unwrap());
         let identity = engine.get_identity_service();
         let mut session = engine.get_runtime_store().create_session().unwrap();
         identity.save_user_in_session(

@@ -53,7 +53,7 @@ impl Command<RepositoryModel> for UpdateRepositoryModelCmd {
         let session = command_context.session();
 
         let current = dm
-            .get_repository_model(&self.model.id, session)
+            .get_repository_model(&self.model.id, session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Model '{}' was not found",
@@ -63,7 +63,7 @@ impl Command<RepositoryModel> for UpdateRepositoryModelCmd {
         let mut model = self.model.clone();
         let now = store.time_source().now().timestamp_millis();
         model.last_update_time = now.max(current.last_update_time + 1);
-        if dm.update_repository_model(model.clone(), session).is_none() {
+        if dm.update_repository_model(model.clone(), session)?.is_none() {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Model '{}' was not found",
                 model.id
@@ -92,7 +92,7 @@ impl Command<()> for DeleteRepositoryModelCmd {
         let dm = command_context.deployment_manager_handle();
         let session = command_context.session();
 
-        if dm.delete_repository_model(&self.model_id, session) {
+        if dm.delete_repository_model(&self.model_id, session)? {
             Ok(())
         } else {
             Err(crate::error::FlowableError::NotFound(format!(
@@ -114,7 +114,7 @@ impl Command<Vec<RepositoryModel>> for GetRepositoryModelsCmd {
         let dm = command_context.deployment_manager_handle();
         let session = command_context.session();
 
-        Ok(dm.get_repository_models(session))
+        dm.get_repository_models(session)
     }
 }
 
@@ -137,7 +137,7 @@ impl Command<RepositoryModel> for GetRepositoryModelCmd {
         let dm = command_context.deployment_manager_handle();
         let session = command_context.session();
 
-        dm.get_repository_model(&self.model_id, session)
+        dm.get_repository_model(&self.model_id, session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Model '{}' was not found",
@@ -166,7 +166,7 @@ impl Command<RepositoryModelBytes> for GetRepositoryModelSourceCmd {
         let dm = command_context.deployment_manager_handle();
         let session = command_context.session();
 
-        dm.get_repository_model_source(&self.model_id, session)
+        dm.get_repository_model_source(&self.model_id, session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Source for model '{}' was not found",
@@ -202,7 +202,7 @@ impl Command<()> for UpdateRepositoryModelSourceCmd {
         let session = command_context.session();
 
         let mut model = dm
-            .get_repository_model(&self.model_id, session)
+            .get_repository_model(&self.model_id, session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Model '{}' was not found",
@@ -212,7 +212,7 @@ impl Command<()> for UpdateRepositoryModelSourceCmd {
         let now = store.time_source().now().timestamp_millis();
         model.last_update_time = now.max(model.last_update_time + 1);
         model.source_content_type = self.content_type.clone();
-        dm.update_repository_model_source(model, self.bytes.clone(), session)
+        dm.update_repository_model_source(model, self.bytes.clone(), session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Model '{}' was not found",
@@ -241,7 +241,7 @@ impl Command<RepositoryModelBytes> for GetRepositoryModelSourceExtraCmd {
         let dm = command_context.deployment_manager_handle();
         let session = command_context.session();
 
-        dm.get_repository_model_source_extra(&self.model_id, session)
+        dm.get_repository_model_source_extra(&self.model_id, session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Source extra for model '{}' was not found",
@@ -277,7 +277,7 @@ impl Command<()> for UpdateRepositoryModelSourceExtraCmd {
         let session = command_context.session();
 
         let mut model = dm
-            .get_repository_model(&self.model_id, session)
+            .get_repository_model(&self.model_id, session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Model '{}' was not found",
@@ -287,7 +287,7 @@ impl Command<()> for UpdateRepositoryModelSourceExtraCmd {
         let now = store.time_source().now().timestamp_millis();
         model.last_update_time = now.max(model.last_update_time + 1);
         model.source_extra_content_type = self.content_type.clone();
-        dm.update_repository_model_source_extra(model, self.bytes.clone(), session)
+        dm.update_repository_model_source_extra(model, self.bytes.clone(), session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Model '{}' was not found",

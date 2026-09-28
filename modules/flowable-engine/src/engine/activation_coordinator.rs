@@ -77,7 +77,7 @@ impl std::fmt::Debug for ActivationCoordinator {
             .field("async_job_lock_ms", &self.async_job_lock_ms())
             .field(
                 "has_submit_handle",
-                &self.inner.submit.lock().unwrap().is_some(),
+                &self.inner.submit.lock().unwrap_or_else(|e| e.into_inner()).is_some(),
             )
             .finish()
     }
@@ -123,23 +123,23 @@ impl ActivationCoordinator {
         enabled_categories: Vec<String>,
         tenant_ids: Vec<String>,
     ) {
-        *self.inner.lock_owner.lock().unwrap() = lock_owner.into();
-        *self.inner.async_job_lock_ms.lock().unwrap() = async_job_lock_ms;
-        *self.inner.enabled_categories.lock().unwrap() = enabled_categories;
-        *self.inner.tenant_ids.lock().unwrap() = tenant_ids;
+        *self.inner.lock_owner.lock().unwrap_or_else(|e| e.into_inner()) = lock_owner.into();
+        *self.inner.async_job_lock_ms.lock().unwrap_or_else(|e| e.into_inner()) = async_job_lock_ms;
+        *self.inner.enabled_categories.lock().unwrap_or_else(|e| e.into_inner()) = enabled_categories;
+        *self.inner.tenant_ids.lock().unwrap_or_else(|e| e.into_inner()) = tenant_ids;
     }
 
     pub fn lock_owner(&self) -> String {
-        self.inner.lock_owner.lock().unwrap().clone()
+        self.inner.lock_owner.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn async_job_lock_ms(&self) -> i64 {
-        *self.inner.async_job_lock_ms.lock().unwrap()
+        *self.inner.async_job_lock_ms.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Install the post-commit submit handle. Idempotent; the last handle wins.
     pub fn set_submit_handle(&self, handle: SubmitHandle) {
-        *self.inner.submit.lock().unwrap() = Some(handle);
+        *self.inner.submit.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
     }
 
     /// Category predicate mirroring Java `isJobApplicableForExecutorExecution`:
@@ -148,7 +148,7 @@ impl ActivationCoordinator {
     /// list contains the job category. This decides *hinting only*, never
     /// whether the row is pre-locked.
     pub fn category_enabled_for_hint(&self, job_category: Option<&str>) -> bool {
-        let enabled = self.inner.enabled_categories.lock().unwrap();
+        let enabled = self.inner.enabled_categories.lock().unwrap_or_else(|e| e.into_inner());
         if enabled.is_empty() {
             return true;
         }
@@ -168,7 +168,7 @@ impl ActivationCoordinator {
 
     /// Offer a committed job to the executor. Returns [`HintSubmitOutcome`].
     pub fn submit(&self, job: RuntimeTimerJobState) -> HintSubmitOutcome {
-        let handle = self.inner.submit.lock().unwrap().clone();
+        let handle = self.inner.submit.lock().unwrap_or_else(|e| e.into_inner()).clone();
         match handle {
             Some(handle) => handle(job),
             None => HintSubmitOutcome::NoExecutor,

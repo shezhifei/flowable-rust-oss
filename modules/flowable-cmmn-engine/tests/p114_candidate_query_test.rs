@@ -41,9 +41,11 @@ const XML: &str = r#"
 /// Identity fixture backing the group expansion: charlie/carol belong to
 /// `managers` (a candidate group on the Review task); nobody else has groups.
 fn identity_resolver() -> CmmnUserGroupResolver {
-    Arc::new(|user_id: &str| match user_id {
-        "charlie" | "carol" => vec!["managers".to_string()],
-        _ => Vec::new(),
+    Arc::new(|user_id: &str| {
+        Ok(match user_id {
+            "charlie" | "carol" => vec!["managers".to_string()],
+            _ => Vec::new(),
+        })
     })
 }
 

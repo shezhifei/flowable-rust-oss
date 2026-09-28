@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P2-10 contract tests: the delivery retry state machine only accepts legal
 //! (direction, status) combinations, inbound retries re-run the consumer, and
 //! outbound retries replay against the original channel definition version.
@@ -32,7 +38,7 @@ impl OutboundChannelAdapter for RecordingAdapter {
     ) -> Result<(), FlowableError> {
         self.destinations
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(destination.unwrap_or("<none>").to_string());
         if self.fail_times.load(Ordering::SeqCst) > 0 {
             self.fail_times.fetch_sub(1, Ordering::SeqCst);
@@ -91,7 +97,7 @@ fn outbound_service(
     let mut config = EventRegistryConfiguration::default();
     config.register_outbound_adapter("in-memory", Arc::clone(&adapter) as Arc<_>);
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new(name.to_string())),
+        Arc::new(ProcessEngine::new(name.to_string()).unwrap()),
         config,
     );
     (service, adapter)
@@ -158,7 +164,7 @@ fn inbound_service(
         }),
     );
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new(name.to_string())),
+        Arc::new(ProcessEngine::new(name.to_string()).unwrap()),
         config,
     );
     (service, consumer)
@@ -224,7 +230,7 @@ fn retry_published_outbound_is_rejected_without_redispatch() {
         })
         .unwrap();
     assert_eq!(delivery.status, EventInstanceStatus::Published);
-    assert_eq!(adapter.destinations.lock().unwrap().len(), 1);
+    assert_eq!(adapter.destinations.lock().unwrap_or_else(|e| e.into_inner()).len(), 1);
 
     let error = service.retry_event_delivery(&delivery.id).unwrap_err();
     assert!(
@@ -233,7 +239,7 @@ fn retry_published_outbound_is_rejected_without_redispatch() {
     );
 
     // No re-dispatch and no state mutation happened.
-    assert_eq!(adapter.destinations.lock().unwrap().len(), 1);
+    assert_eq!(adapter.destinations.lock().unwrap_or_else(|e| e.into_inner()).len(), 1);
     let unchanged = service.get_event_instance_delivery(&delivery.id).unwrap();
     assert_eq!(unchanged.status, EventInstanceStatus::Published);
     assert_eq!(unchanged.status_history, delivery.status_history);
@@ -363,7 +369,7 @@ fn outbound_retry_replays_against_original_channel_version() {
         Some(original_channel_id.as_str())
     );
     assert_eq!(
-        adapter.destinations.lock().unwrap().as_slice(),
+        adapter.destinations.lock().unwrap_or_else(|e| e.into_inner()).as_slice(),
         &["dest-v1", "dest-v1"],
         "retry must dispatch through the original channel version"
     );

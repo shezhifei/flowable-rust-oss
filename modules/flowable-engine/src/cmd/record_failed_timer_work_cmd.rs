@@ -183,7 +183,7 @@ impl Command<()> for RecordFailedTimerWorkCmd {
 
         command_context
             .runtime_store
-            .insert_timer_job_state(&persisted_job, &mut command_context.session);
+            .insert_timer_job_state(&persisted_job, &mut command_context.session)?;
         if moved_to_deadletter {
             let moved_to_deadletter = EngineEvent::Job {
                 event_type: EngineEventType::JobMovedToDeadLetter,

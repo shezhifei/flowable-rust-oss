@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::persistence::runtime_store::RuntimeTimerJobState;
 use flowable_job_service::FlowableJobService;
@@ -7,7 +13,7 @@ use std::sync::Arc;
 fn moving_deadletter_job_to_executable_returns_job_and_preserves_exception_metadata() {
     let engine = Arc::new(ProcessEngine::new(
         "job-service-deadletter-management-contract".to_string(),
-    ));
+    ).unwrap());
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
     store.insert_timer_job_state(
@@ -56,6 +62,7 @@ fn moving_deadletter_job_to_executable_returns_job_and_preserves_exception_metad
     let persisted = engine
         .get_management_service()
         .find_executable_job_by_id("deadletter-retry")
+        .unwrap()
         .unwrap();
     assert_eq!(persisted, moved);
 }

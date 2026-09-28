@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use flowable_form_service::{
@@ -50,9 +56,9 @@ fn deploy_form(
 
 #[test]
 fn test_list_versions_after_deployment() {
-    let engine = Arc::new(ProcessEngine::new("test-list-versions".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-list-versions".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     // Deploy v1
     deploy_form(
@@ -83,9 +89,9 @@ fn test_list_versions_after_deployment() {
 
 #[test]
 fn test_get_latest_version() {
-    let engine = Arc::new(ProcessEngine::new("test-latest-version".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-latest-version".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     deploy_form(
         &form_service,
@@ -120,9 +126,9 @@ fn test_get_latest_version() {
 
 #[test]
 fn test_get_specific_version() {
-    let engine = Arc::new(ProcessEngine::new("test-specific-version".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-specific-version".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     deploy_form(
         &form_service,
@@ -165,9 +171,9 @@ fn test_get_specific_version() {
 
 #[test]
 fn test_delete_by_deployment_id_cascading() {
-    let engine = Arc::new(ProcessEngine::new("test-delete-by-deployment".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-delete-by-deployment".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     // Deploy a form
     let deployment_id = deploy_form(
@@ -204,9 +210,9 @@ fn test_delete_by_deployment_id_cascading() {
 
 #[test]
 fn test_delete_by_key() {
-    let engine = Arc::new(ProcessEngine::new("test-delete-by-key".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-delete-by-key".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     // Deploy v1 and v2
     deploy_form(
@@ -247,9 +253,9 @@ fn test_delete_by_key() {
 
 #[test]
 fn test_activation_deactivation() {
-    let engine = Arc::new(ProcessEngine::new("test-activation".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-activation".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     deploy_form(
         &form_service,
@@ -288,9 +294,9 @@ fn test_activation_deactivation() {
 
 #[test]
 fn test_deactivated_form_not_returned_as_latest() {
-    let engine = Arc::new(ProcessEngine::new("test-deactivated-latest".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-deactivated-latest".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     deploy_form(
         &form_service,
@@ -322,9 +328,9 @@ fn test_deactivated_form_not_returned_as_latest() {
 
 #[test]
 fn test_transaction_rollback_on_delete_failure() {
-    let engine = Arc::new(ProcessEngine::new("test-rollback".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-rollback".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     // Deploy two forms with different keys
     deploy_form(
@@ -364,9 +370,9 @@ fn test_transaction_rollback_on_delete_failure() {
 
 #[test]
 fn test_cascading_delete_removes_instances() {
-    let engine = Arc::new(ProcessEngine::new("test-cascade-instances".to_string()));
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-cascade-instances".to_string()).unwrap());
+    let form_service = FlowableFormService::new(Arc::clone(&engine)).unwrap();
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     // Deploy a form
     deploy_form(
@@ -404,8 +410,8 @@ fn test_cascading_delete_removes_instances() {
 
 #[test]
 fn test_set_activation_nonexistent_id() {
-    let engine = Arc::new(ProcessEngine::new("test-activation-missing".to_string()));
-    let mgmt = FormManagementService::new(Arc::clone(&engine));
+    let engine = Arc::new(ProcessEngine::new("test-activation-missing".to_string()).unwrap());
+    let mgmt = FormManagementService::new(Arc::clone(&engine)).unwrap();
 
     let result = mgmt.set_activation("non-existent-id", false);
     assert!(result.is_err());

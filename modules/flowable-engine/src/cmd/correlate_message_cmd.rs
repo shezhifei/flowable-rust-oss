@@ -36,7 +36,7 @@ fn find_wait_state_target(
     process_instance_id: Option<&str>,
     business_key: Option<&str>,
     tenant_id: Option<&str>,
-) -> Option<CorrelateMessageTarget> {
+) -> Result<Option<CorrelateMessageTarget>, crate::error::FlowableError> {
     let mut candidates: Vec<_> = command_context
         .runtime_store
         .snapshot_event_wait_states(&mut command_context.session)
@@ -53,53 +53,42 @@ fn find_wait_state_target(
         .collect();
 
     if candidates.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     // Apply business_key / tenant_id filters by looking up the process instance
     if business_key.is_some() || tenant_id.is_some() {
-        candidates.retain(|ws| {
-            if let Some(pi) = command_context
-                .runtime_store
-                .find_process_instance(&ws.process_instance_id, &mut command_context.session)
-            {
-                if let Some(bk) = business_key
-                    && pi.business_key.as_deref() != Some(bk)
-                {
-                    return false;
-                }
-                if let Some(tid) = tenant_id
-                    && pi.tenant_id.as_deref() != Some(tid)
-                {
-                    return false;
-                }
-                true
-            } else {
-                false
-            }
-        });
+        let mut filtered = Vec::with_capacity(candidates.len());
+        for ws in candidates {
+            let Some(pi) = command_context.runtime_store
+                .find_process_instance(&ws.process_instance_id, &mut command_context.session)? else { continue; };
+            if business_key.is_some_and(|key| pi.business_key.as_deref() != Some(key)) { continue; }
+            if tenant_id.is_some_and(|tenant| pi.tenant_id.as_deref() != Some(tenant)) { continue; }
+            filtered.push(ws);
+        }
+        candidates = filtered;
     }
 
     if candidates.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     // Deterministic: sort by execution_id, take the first deterministically
     candidates.sort_by(|a, b| a.execution_id.cmp(&b.execution_id));
 
-    candidates.first().map(|ws| CorrelateMessageTarget {
+    Ok(candidates.first().map(|ws| CorrelateMessageTarget {
         execution_id: ws.execution_id.clone(),
         process_instance_id: ws.process_instance_id.clone(),
-    })
+    }))
 }
 
 fn write_correlation_variables(
     command_context: &mut CommandContext,
     execution: &Execution,
     variables: &HashMap<String, Value>,
-) {
+) -> Result<(), crate::error::FlowableError> {
     if variables.is_empty() {
-        return;
+        return Ok(());
     }
 
     let process_instance_id = execution
@@ -118,7 +107,7 @@ fn write_correlation_variables(
                 &variable_id,
                 value.clone(),
                 &mut command_context.session,
-            );
+            )?;
         } else {
             command_context.history_manager.record_variable_created(
                 &variable_id,
@@ -129,9 +118,10 @@ fn write_correlation_variables(
                 Some(&execution.id),
                 None,
                 &mut command_context.session,
-            );
+            )?;
         }
     }
+    Ok(())
 }
 
 /// Options for message correlation.
@@ -191,7 +181,7 @@ impl Command<CorrelateMessageResult> for CorrelateMessageCmd {
             self.options.process_instance_id.as_deref(),
             self.options.business_key.as_deref(),
             self.options.tenant_id.as_deref(),
-        );
+        )?;
 
         if let Some(target) = target {
             // Write correlation variables to the matched execution
@@ -206,8 +196,8 @@ impl Command<CorrelateMessageResult> for CorrelateMessageCmd {
                 }
                 command_context
                     .execution_entity_manager
-                    .update(&exec, &mut command_context.session);
-                write_correlation_variables(command_context, &exec, &self.options.variables);
+                    .update(&exec, &mut command_context.session)?;
+                write_correlation_variables(command_context, &exec, &self.options.variables)?;
             }
 
             // Check if this is a receive task (needs task completion) or intermediate catch
@@ -224,7 +214,7 @@ impl Command<CorrelateMessageResult> for CorrelateMessageCmd {
                     if let Some(task_id) = wait_state.as_ref().and_then(|ws| ws.task_id.as_deref())
                         && let Some(task) = command_context
                             .task_entity_manager
-                            .find_task_by_id(task_id, &mut command_context.session)
+                            .find_task_by_id(task_id, &mut command_context.session)?
                     {
                         crate::engine::task_service::complete_task_internal(command_context, task)?;
                     }
@@ -285,8 +275,7 @@ impl Command<CorrelateMessageResult> for CorrelateMessageCmd {
                 pi_id.clone(),
             );
             let triggered = boundary_cmd
-                .execute_with_trigger_result(command_context)
-                .unwrap_or(false);
+                .execute_with_trigger_result(command_context)?;
             if triggered {
                 return Ok(CorrelateMessageResult::MatchedExecution {
                     execution_id: String::new(),
@@ -302,7 +291,7 @@ impl Command<CorrelateMessageResult> for CorrelateMessageCmd {
                 self.message_name.clone(),
                 pi_id.clone(),
             );
-            let triggered_ids = event_sub_cmd.execute(command_context).unwrap_or_default();
+            let triggered_ids = event_sub_cmd.execute(command_context)?;
             if !triggered_ids.is_empty() {
                 return Ok(CorrelateMessageResult::MatchedExecution {
                     execution_id: String::new(),

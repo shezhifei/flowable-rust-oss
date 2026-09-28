@@ -52,7 +52,7 @@ fn is_waiting_token_at_parallel_gateway(
 /// kept inactive as the scope parent of the forked branches
 /// (`ParallelGatewayActivityBehavior#execute` inactivates the incoming
 /// execution instead of destroying it). Any other token is deleted.
-fn delete_or_preserve_scope_execution(command_context: &mut CommandContext, execution: &Execution) {
+fn delete_or_preserve_scope_execution(command_context: &mut CommandContext, execution: &Execution) -> Result<(), crate::error::FlowableError> {
     if execution.is_process_instance_scope_execution() {
         let mut preserved = execution.clone();
         preserved.is_active = false;
@@ -60,12 +60,13 @@ fn delete_or_preserve_scope_execution(command_context: &mut CommandContext, exec
         preserved.activity_id = None;
         command_context
             .execution_entity_manager
-            .update(&preserved, &mut command_context.session);
+            .update(&preserved, &mut command_context.session)?;
     } else {
         command_context
             .execution_entity_manager
             .delete(&execution.id, &mut command_context.session);
     }
+    Ok(())
 }
 
 /// Java `ParallelGatewayActivityBehavior#findMultiInstanceParentExecution`
@@ -200,7 +201,7 @@ impl ActivityBehavior for ParallelGatewayActivityBehavior {
             waiting_execution.is_concurrent = true;
             command_context
                 .execution_entity_manager
-                .update(&waiting_execution, &mut command_context.session);
+                .update(&waiting_execution, &mut command_context.session)?;
 
             let snapshot = command_context
                 .runtime_store
@@ -239,9 +240,9 @@ impl ActivityBehavior for ParallelGatewayActivityBehavior {
                     .delete(&waiting_token.id, &mut command_context.session);
             }
 
-            delete_or_preserve_scope_execution(command_context, execution);
+            delete_or_preserve_scope_execution(command_context, execution)?;
         } else {
-            delete_or_preserve_scope_execution(command_context, execution);
+            delete_or_preserve_scope_execution(command_context, execution)?;
         }
 
         for flow in outgoing_flows {
@@ -268,7 +269,7 @@ impl ActivityBehavior for ParallelGatewayActivityBehavior {
 
             command_context
                 .execution_entity_manager
-                .insert(&child, &mut command_context.session);
+                .insert(&child, &mut command_context.session)?;
             command_context
                 .agenda
                 .plan_continue_process_operation(child);

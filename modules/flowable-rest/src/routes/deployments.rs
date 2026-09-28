@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::common::{PagedResponse, PagingQuery, absolute_url, parse_query};
 use crate::error::ApiError;
 use axum::{
@@ -404,7 +412,10 @@ async fn parse_upload_deployment_form(
             }
             continue;
         }
-        let field_name = field.name().unwrap_or_default().to_string();
+        let field_name = field
+            .name()
+            .ok_or_else(|| ApiError::bad_request("Multipart field is missing a name"))?
+            .to_string();
         let text_bytes = read_multipart_field_limited(
             field,
             MAX_MULTIPART_TEXT_FIELD_BYTES,
@@ -440,14 +451,20 @@ fn deployment_builder_from_upload(
 
     // Java: fall back to `file.getName()` (the field name) when the original
     // filename is empty or has no supported suffix.
-    let mut file_name = form.original_name.clone().unwrap_or_default();
+    let mut file_name = form
+        .original_name
+        .clone()
+        .ok_or_else(|| ApiError::bad_request("Uploaded file is missing a filename"))?;
     if file_name.is_empty()
         || !(file_name.ends_with(".bpmn20.xml")
             || file_name.ends_with(".bpmn")
             || file_name.to_ascii_lowercase().ends_with(".bar")
             || file_name.to_ascii_lowercase().ends_with(".zip"))
     {
-        file_name = form.field_name.clone().unwrap_or_default();
+        file_name = form
+            .field_name
+            .clone()
+            .ok_or_else(|| ApiError::bad_request("Uploaded file is missing a field name"))?;
     }
 
     let mut builder = DeploymentBuilder::new();

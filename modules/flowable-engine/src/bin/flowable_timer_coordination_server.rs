@@ -88,9 +88,21 @@ fn main() {
     .expect("Failed to install Ctrl-C handler");
 
     let bind_addr = config.bind_addr.clone();
-    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config);
+    let service = TimerCoordinationService::new(Arc::clone(&runtime_service), config)
+        .unwrap_or_else(|error| {
+            eprintln!("Failed to initialise timer coordination identity runtime: {error}");
+            std::process::exit(1);
+        });
 
-    let handle = service.start(Arc::clone(&shutdown_requested));
+    let handle = service
+        .start(Arc::clone(&shutdown_requested))
+        .unwrap_or_else(|error| {
+            eprintln!(
+                "Failed to bind timer coordination listener on {}: {error}",
+                bind_addr
+            );
+            std::process::exit(1);
+        });
     println!(
         "[flowable_timer_coordination_server] listening on http://{} (Ctrl-C to stop)",
         bind_addr
@@ -101,7 +113,10 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    let _ = handle.join();
+    if handle.join().is_err() {
+        eprintln!("Timer coordination acceptor thread panicked");
+        std::process::exit(1);
+    }
     println!("[flowable_timer_coordination_server] stopped");
 }
 

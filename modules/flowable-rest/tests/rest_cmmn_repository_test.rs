@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -36,7 +42,7 @@ impl MockCmmnApi {
         repository
             .case_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(CaseDefinitionRecord {
                 id: "case-definition-1".to_string(),
                 key: "loanApprovalCase".to_string(),
@@ -52,7 +58,7 @@ impl MockCmmnApi {
         repository
             .deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(CmmnDeploymentRecord {
                 id: "deployment-1".to_string(),
                 name: "Loan cases".to_string(),
@@ -60,7 +66,7 @@ impl MockCmmnApi {
                 resource_names: vec!["loan-approval-case.cmmn".to_string()],
                 tenant_id: None,
             });
-        repository.resources.lock().unwrap().push((
+        repository.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
             "deployment-1".to_string(),
             "loan-approval-case.cmmn".to_string(),
             b"<definitions />".to_vec(),
@@ -75,7 +81,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         command: CmmnDeploymentCommand,
     ) -> Result<CmmnDeploymentRecord, ApiError> {
         let deployment_id = {
-            let deployments = self.deployments.lock().unwrap();
+            let deployments = self.deployments.lock().unwrap_or_else(|e| e.into_inner());
             format!("deployment-{}", deployments.len() + 1)
         };
 
@@ -92,7 +98,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         };
 
         for resource in &command.resources {
-            self.resources.lock().unwrap().push((
+            self.resources.lock().unwrap_or_else(|e| e.into_inner()).push((
                 deployment_id.clone(),
                 resource.resource_name.clone(),
                 resource.resource.clone().into_bytes(),
@@ -101,12 +107,12 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
 
         if let Some(resource) = command.resources.first() {
             let case_definition_id = {
-                let case_definitions = self.case_definitions.lock().unwrap();
+                let case_definitions = self.case_definitions.lock().unwrap_or_else(|e| e.into_inner());
                 format!("case-definition-{}", case_definitions.len() + 1)
             };
             self.case_definitions
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push(CaseDefinitionRecord {
                     id: case_definition_id,
                     key: resource.resource_name.trim_end_matches(".cmmn").to_string(),
@@ -121,7 +127,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
                 });
         }
 
-        self.deployments.lock().unwrap().push(deployment.clone());
+        self.deployments.lock().unwrap_or_else(|e| e.into_inner()).push(deployment.clone());
         Ok(deployment)
     }
 
@@ -132,7 +138,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         let filtered =
             self.deployments
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|deployment| {
                     query
@@ -167,7 +173,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
     fn get_deployment(&self, deployment_id: &str) -> Result<CmmnDeploymentRecord, ApiError> {
         self.deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|deployment| deployment.id == deployment_id)
             .cloned()
@@ -180,15 +186,15 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         self.get_deployment(deployment_id)?;
         self.deployments
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|deployment| deployment.id != deployment_id);
         self.case_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|definition| definition.deployment_id != deployment_id);
         self.resources
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|(candidate, _, _)| candidate != deployment_id);
         Ok(())
     }
@@ -200,7 +206,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
     ) -> Result<CmmnResourceDataRecord, ApiError> {
         self.resources
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|(candidate_deployment_id, candidate_resource_name, _)| {
                 candidate_deployment_id == deployment_id && candidate_resource_name == resource_name
@@ -223,7 +229,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
         let filtered = self
             .case_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|definition| {
                 query
@@ -258,7 +264,7 @@ impl cmmn::CmmnRepositoryApi for MockCmmnApi {
     ) -> Result<CaseDefinitionRecord, ApiError> {
         self.case_definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|definition| definition.id == case_definition_id)
             .cloned()
@@ -388,7 +394,7 @@ async fn spawn_server(api: Arc<MockCmmnApi>) -> (String, reqwest::Client) {
 }
 
 async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -398,7 +404,7 @@ async fn spawn_real_server(test_name: &str) -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

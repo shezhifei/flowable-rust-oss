@@ -194,14 +194,14 @@ pub(crate) fn create_external_worker_service_task_job(
         &job,
         Some(&RuntimeJobType::ExternalWorker),
         &mut command_context.session,
-    );
+    )?;
 
     // Wait-state: keep the token on the service task until complete/trigger.
     execution.is_active = true;
     execution.is_ended = false;
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
 
     if let Some(interceptor) = command_context
         .config
@@ -438,24 +438,25 @@ impl ExternalWorkerService {
 
     /// Active external-worker family only (`job_type=externalWorker`, `job_state=timer`,
     /// parent not suspended). Shared by REST list/get — not a second state pipeline.
-    pub fn list_active_timer_jobs(&self) -> Vec<RuntimeTimerJobState> {
+    pub fn list_active_timer_jobs(&self) -> Result<Vec<RuntimeTimerJobState>, FlowableError> {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        let mut jobs: Vec<_> = store
-            .snapshot_timer_job_states(&mut session)
-            .into_values()
-            .filter(|job| store.is_active_external_worker_job(job, &mut session))
-            .collect();
+        let mut session = store.create_session()?;
+        let mut jobs = Vec::new();
+        for job in store.snapshot_timer_job_states(&mut session).into_values() {
+            if store.is_active_external_worker_job(&job, &mut session)? { jobs.push(job); }
+        }
         jobs.sort_by(|left, right| left.timer_job_id.cmp(&right.timer_job_id));
-        jobs
+        Ok(jobs)
     }
 
-    /// Same family isolation as [`Self::list_active_timer_jobs`]. Non-family / unknown → None.
-    pub fn find_active_timer_job(&self, job_id: &str) -> Option<RuntimeTimerJobState> {
+    /// Same family isolation as [`Self::list_active_timer_jobs`]. Non-family / unknown → `None`.
+    pub fn find_active_timer_job(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<RuntimeTimerJobState>, FlowableError> {
         let store = self.command_executor.runtime_store();
-        let mut session = store.create_session().unwrap();
-        store
-            .find_timer_job_state(job_id, &mut session)
-            .filter(|job| store.is_active_external_worker_job(job, &mut session))
+        let mut session = store.create_session()?;
+        let Some(job) = store.find_timer_job_state(job_id, &mut session) else { return Ok(None); };
+        if store.is_active_external_worker_job(&job, &mut session)? { Ok(Some(job)) } else { Ok(None) }
     }
 }

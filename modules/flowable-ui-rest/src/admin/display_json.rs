@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 //! Admin display-json assembly from `BpmnModel` DI (Java `DisplayJsonClientResource`)
 //! and from the CMMN case model (Java `CmmnDisplayJsonClientResource`).
 
@@ -124,10 +132,10 @@ fn build_display(
         "diagramHeight": diagram_bottom,
     });
     if !pools.is_empty() {
-        display
-            .as_object_mut()
-            .unwrap()
-            .insert("pools".into(), json!(pools));
+        // Java parity: Modeler display JSON building never throws; missing object is no-op, not abort.
+        if let Some(obj) = display.as_object_mut() {
+            obj.insert("pools".into(), json!(pools));
+        }
     }
     display
 }
@@ -158,9 +166,7 @@ fn process_elements(
                     "name": fe.name,
                 });
                 if let Some(c) = completed {
-                    node.as_object_mut()
-                        .unwrap()
-                        .insert("completed".into(), json!(c.contains(&id)));
+                    if let Some(obj) = node.as_object_mut() { obj.insert("completed".into(), json!(c.contains(&id))); }
                 }
                 let waypoints = model
                     .flow_location_map
@@ -174,9 +180,7 @@ fn process_elements(
                     wp.push(p);
                     expand_diagram(gi, diagram_x, diagram_y, diagram_right, diagram_bottom, first);
                 }
-                node.as_object_mut()
-                    .unwrap()
-                    .insert("waypoints".into(), json!(wp));
+                if let Some(obj) = node.as_object_mut() { obj.insert("waypoints".into(), json!(wp)); }
                 flows.push(node);
             }
             other => {
@@ -187,14 +191,10 @@ fn process_elements(
                     "type": type_name,
                 });
                 if let Some(c) = completed {
-                    node.as_object_mut()
-                        .unwrap()
-                        .insert("completed".into(), json!(c.contains(&id)));
+                    if let Some(obj) = node.as_object_mut() { obj.insert("completed".into(), json!(c.contains(&id))); }
                 }
                 if let Some(c) = current {
-                    node.as_object_mut()
-                        .unwrap()
-                        .insert("current".into(), json!(c.contains(&id)));
+                    if let Some(obj) = node.as_object_mut() { obj.insert("current".into(), json!(c.contains(&id))); }
                 }
                 if let Some(gi) = model.location_map.get(&id) {
                     fill_graphic(&mut node, gi, true);
@@ -359,7 +359,10 @@ fn element_meta(
 }
 
 fn fill_graphic(node: &mut Value, gi: &GraphicInfo, include_wh: bool) {
-    let obj = node.as_object_mut().unwrap();
+    // Java parity: BPMN DI building never throws; non-object node is no-op.
+    let Some(obj) = node.as_object_mut() else {
+        return;
+    };
     obj.insert("x".into(), json!(gi.x));
     obj.insert("y".into(), json!(gi.y));
     if include_wh {
@@ -682,19 +685,13 @@ fn process_cmmn_container(
         });
         // Java highlights on planItemDefinitionId, not the plan item id.
         if let Some(c) = completed {
-            node.as_object_mut()
-                .unwrap()
-                .insert("completed".into(), json!(c.contains(&plan_item.definition_ref)));
+            if let Some(obj) = node.as_object_mut() { obj.insert("completed".into(), json!(c.contains(&plan_item.definition_ref))); }
         }
         if let Some(c) = current {
-            node.as_object_mut()
-                .unwrap()
-                .insert("current".into(), json!(c.contains(&plan_item.definition_ref)));
+            if let Some(obj) = node.as_object_mut() { obj.insert("current".into(), json!(c.contains(&plan_item.definition_ref))); }
         }
         if let Some(c) = available {
-            node.as_object_mut()
-                .unwrap()
-                .insert("available".into(), json!(c.contains(&plan_item.definition_ref)));
+            if let Some(obj) = node.as_object_mut() { obj.insert("available".into(), json!(c.contains(&plan_item.definition_ref))); }
         }
         if let Some(gi) = graphics.get(&plan_item.id) {
             fill_graphic(&mut node, gi, true);

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use serde_json::json;
 use std::collections::HashMap;
@@ -19,7 +25,7 @@ const SEQUENTIAL_MI_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn test_sequential_multi_instance_user_task() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -94,7 +100,7 @@ const PARALLEL_MI_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn test_parallel_multi_instance_user_task() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -171,7 +177,7 @@ const PARALLEL_MI_COMPLETION_CONDITION_XML: &str = r#"<?xml version="1.0" encodi
 
 #[test]
 fn parallel_multi_instance_completion_condition_leaves_and_cancels_remaining_tasks() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -278,7 +284,7 @@ const PARALLEL_MI_EMPTY_COLLECTION_XML: &str = r#"<?xml version="1.0" encoding="
 
 #[test]
 fn parallel_multi_instance_collection_sets_element_variable_per_instance() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -324,7 +330,7 @@ fn parallel_multi_instance_collection_sets_element_variable_per_instance() {
 
 #[test]
 fn parallel_multi_instance_collection_accepts_simple_expression_reference() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -358,7 +364,7 @@ fn parallel_multi_instance_collection_accepts_simple_expression_reference() {
 
 #[test]
 fn parallel_multi_instance_empty_collection_continues_without_creating_instances() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -393,7 +399,7 @@ fn parallel_multi_instance_empty_collection_continues_without_creating_instances
 
 #[test]
 fn parallel_multi_instance_missing_collection_variable_fails_instead_of_creating_single_task() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -443,7 +449,7 @@ const SEQUENTIAL_MI_COLLECTION_XML: &str = r#"<?xml version="1.0" encoding="UTF-
 
 #[test]
 fn sequential_multi_instance_collection_advances_element_and_index_variables() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -522,7 +528,7 @@ const PARALLEL_MI_SERVICE_TASK_XML: &str = r#"<?xml version="1.0" encoding="UTF-
 
 #[test]
 fn parallel_multi_instance_service_task_continues_once_after_all_instances_complete() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -583,7 +589,7 @@ const PARALLEL_MI_VARIABLE_AGGREGATION_XML: &str = r#"<?xml version="1.0" encodi
 
 #[test]
 fn multi_instance_variable_aggregation_collects_task_local_completion_variables() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -687,7 +693,7 @@ fn deploy_and_start_mi(
     resource: &str,
     variables: HashMap<String, serde_json::Value>,
 ) -> Result<(ProcessEngine, String), flowable_engine::error::FlowableError> {
-    let process_engine = ProcessEngine::new(engine_name.to_string());
+    let process_engine = ProcessEngine::new(engine_name.to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

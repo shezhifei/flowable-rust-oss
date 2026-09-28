@@ -17,9 +17,14 @@ uuid = { version = "1.23.1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1.43", features = ["net", "rt", "time"] }
+tracing = "0.1"
 
 [dev-dependencies]
 flowable-form-service = { path = "../flowable-form-service" }
 flowable-content-service = { path = "../flowable-content-service" }
 native-tls = "0.2"
 tokio = { version = "1.43", features = ["full"] }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

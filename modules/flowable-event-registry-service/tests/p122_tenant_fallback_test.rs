@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P122 — event-registry tenant fallback alignment.
 //!
 //! Java sources:
@@ -30,7 +36,7 @@ fn service_with_fallback(name: &str, fallback: bool) -> FlowableEventRegistrySer
         .fallback_to_default_tenant(fallback)
         .build();
     FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new(name.to_string())),
+        Arc::new(ProcessEngine::new(name.to_string()).unwrap()),
         configuration,
     )
 }
@@ -218,7 +224,7 @@ fn channel_definition_falls_back_when_enabled() {
 #[test]
 fn empty_event_tenant_does_not_filter_cmmn_subscriptions() {
     // BaseEventRegistryEventConsumer.java:177-178 — empty tenant skips filter.
-    let process_engine = Arc::new(ProcessEngine::new("p122-empty-tenant-cmmn".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p122-empty-tenant-cmmn".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -272,7 +278,7 @@ fn empty_event_tenant_does_not_filter_cmmn_subscriptions() {
 #[test]
 fn cmmn_consumer_exact_tenant_hit() {
     // Instance-level exact match (BaseEventRegistryEventConsumer.java:198-201).
-    let process_engine = Arc::new(ProcessEngine::new("p122-cmmn-exact".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p122-cmmn-exact".to_string()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -339,7 +345,7 @@ fn cmmn_consumer_exact_tenant_hit() {
 
 #[test]
 fn bpmn_consumer_exact_tenant_hit() {
-    let process_engine = Arc::new(ProcessEngine::new("p122-bpmn-exact".to_string()));
+    let process_engine = Arc::new(ProcessEngine::new("p122-bpmn-exact".to_string()).unwrap());
     let config = EventRegistryConfiguration::builder()
         .fallback_to_default_tenant(true)
         .build();

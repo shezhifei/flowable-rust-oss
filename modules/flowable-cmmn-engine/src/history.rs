@@ -858,16 +858,17 @@ impl CmmnHistoricCaseInstanceQuery {
             "SELECT DATA_ FROM ACT_CMMN_IDENTITY_LINK".to_string(),
             DbParams::new(),
         ))?;
-        let matching_case_ids: std::collections::HashSet<String> = rows
-            .into_iter()
-            .filter_map(|row| row.get_text("DATA_"))
-            .filter_map(|json| serde_json::from_str::<CmmnIdentityLink>(&json).ok())
-            .filter(|link| {
-                link.scope_type == "caseInstance"
-                    && link.user_id.as_deref() == Some(involved_user)
-            })
-            .map(|link| link.scope_id)
-            .collect();
+        let mut matching_case_ids: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for row in rows {
+            let Some(json) = row.get_text("DATA_") else {
+                continue;
+            };
+            let link = serde_json::from_str::<CmmnIdentityLink>(&json).map_err(CmmnError::from)?;
+            if link.scope_type == "caseInstance" && link.user_id.as_deref() == Some(involved_user) {
+                matching_case_ids.insert(link.scope_id);
+            }
+        }
         items.retain(|item| matching_case_ids.contains(&item.case_instance_id));
         Ok(())
     }
@@ -885,13 +886,18 @@ impl CmmnHistoricCaseInstanceQuery {
             "SELECT DATA_ FROM ACT_CMMN_RU_PLAN_ITEM_INST WHERE STATE_ = 'ACTIVE'".to_string(),
             DbParams::new(),
         ))?;
-        let mut matching_case_ids: std::collections::HashSet<String> = plan_item_rows
-            .into_iter()
-            .filter_map(|row| row.get_text("DATA_"))
-            .filter_map(|json| serde_json::from_str::<CmmnPlanItemInstance>(&json).ok())
-            .filter(|plan_item| plan_item.plan_item_definition_id == definition_id)
-            .map(|plan_item| plan_item.case_instance_id)
-            .collect();
+        let mut matching_case_ids: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for row in plan_item_rows {
+            let Some(json) = row.get_text("DATA_") else {
+                continue;
+            };
+            let plan_item = serde_json::from_str::<CmmnPlanItemInstance>(&json)
+                .map_err(CmmnError::from)?;
+            if plan_item.plan_item_definition_id == definition_id {
+                matching_case_ids.insert(plan_item.case_instance_id);
+            }
+        }
 
         // Human tasks are deliberately not mirrored into the unified runtime
         // table (runtime.rs:10430-10434), so include that source explicitly.
@@ -899,14 +905,16 @@ impl CmmnHistoricCaseInstanceQuery {
             "SELECT DATA_ FROM ACT_CMMN_HUMAN_TASK WHERE STATE_ = 'ACTIVE'".to_string(),
             DbParams::new(),
         ))?;
-        matching_case_ids.extend(
-            human_task_rows
-                .into_iter()
-                .filter_map(|row| row.get_text("DATA_"))
-                .filter_map(|json| serde_json::from_str::<CmmnHumanTaskInstance>(&json).ok())
-                .filter(|task| task.task_definition_id == definition_id)
-                .map(|task| task.case_instance_id),
-        );
+        for row in human_task_rows {
+            let Some(json) = row.get_text("DATA_") else {
+                continue;
+            };
+            let task = serde_json::from_str::<CmmnHumanTaskInstance>(&json)
+                .map_err(CmmnError::from)?;
+            if task.task_definition_id == definition_id {
+                matching_case_ids.insert(task.case_instance_id);
+            }
+        }
 
         items.retain(|item| matching_case_ids.contains(&item.case_instance_id));
         Ok(())
@@ -1288,9 +1296,7 @@ impl CmmnHistoricHumanTaskQuery {
             let Some(json) = row.get_text("DATA_") else {
                 continue;
             };
-            let Ok(link) = serde_json::from_str::<CmmnIdentityLink>(&json) else {
-                continue;
-            };
+            let link = serde_json::from_str::<CmmnIdentityLink>(&json).map_err(CmmnError::from)?;
             if link.scope_type == "humanTask" {
                 links_by_task
                     .entry(link.scope_id.clone())
@@ -1306,11 +1312,16 @@ impl CmmnHistoricHumanTaskQuery {
         }
 
         if let Some(candidate_user) = &self.candidate_user {
-            let user_group_ids: std::collections::HashSet<String> = self
-                .user_group_resolver
-                .as_ref()
-                .map(|resolver| resolver(candidate_user).into_iter().collect())
-                .unwrap_or_default();
+            // Java historic-task candidateUser expands through the same group
+            // query as the runtime query, with no try/catch
+            // (HistoricTaskInstance.xml candidateUser block ->
+            // TaskQueryImpl.getGroupsForCandidateUser, TaskQueryImpl.java:2021-2032),
+            // so a resolver failure must propagate rather than read as "no groups".
+            let user_group_ids: std::collections::HashSet<String> =
+                match self.user_group_resolver.as_ref() {
+                    Some(resolver) => resolver(candidate_user)?.into_iter().collect(),
+                    None => std::collections::HashSet::new(),
+                };
             items.retain(|task| {
                 links_by_task.get(task.task_id.as_str()).is_some_and(|links| {
                     links.iter().any(|link| {

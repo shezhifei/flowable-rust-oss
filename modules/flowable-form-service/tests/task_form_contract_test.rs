@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Engine-side Java parity contract for CompleteTaskWithForm (P2-FORM).
 //!
 //! Java: `CompleteTaskWithFormCmd` + `FormService.saveFormInstance(..., outcome)`

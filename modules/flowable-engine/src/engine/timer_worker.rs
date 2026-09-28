@@ -113,38 +113,53 @@ impl TimerWorker {
     }
 
     pub fn heartbeat(&self) {
-        let _ = self.runtime_service.heartbeat_timer_node(&self.worker_type);
+        // Java parity: node liveness writes funnel through the MyBatis session
+        // (`DbSqlSession.flushInserts`, flowable-engine-common/.../impl/db/DbSqlSession.java:495),
+        // which throws on a SQL failure. The worker loop must keep running, so the failure
+        // is logged rather than dropped.
+        if let Err(error) = self
+            .runtime_service
+            .heartbeat_timer_node(&self.worker_type)
+        {
+            tracing::error!("failed to record timer node heartbeat: {error}");
+        }
     }
 
-    pub fn acquire_due_timers(&self, coordinator_lease_timeout_ms: u64) -> Vec<TimerWork> {
+    pub fn acquire_due_timers(
+        &self,
+        coordinator_lease_timeout_ms: u64,
+    ) -> Result<Vec<TimerWork>, crate::error::FlowableError> {
         self.acquire_due_timers_for_tenants(coordinator_lease_timeout_ms, &[], &[])
     }
 
     /// Acquire due timers, optionally restricted by process-instance tenant.
     /// Empty `tenant_ids` means all tenants (shared mode).
+    ///
+    /// Java parity: `AcquireTimerJobsRunnable` retries a failed acquisition by catching the
+    /// exception and waiting (`AcquireTimerJobsRunnable.java:169-175` for lock errors,
+    /// `:212-216` for other throwables) — it never reports "no work due" for a failure.
+    /// Only `Ok(None)` from the lease query ("a peer holds the coordinator lease") is a
+    /// legitimate empty batch.
     pub fn acquire_due_timers_for_tenants(
         &self,
         coordinator_lease_timeout_ms: u64,
         tenant_ids: &[String],
         enabled_job_categories: &[String],
-    ) -> Vec<TimerWork> {
+    ) -> Result<Vec<TimerWork>, crate::error::FlowableError> {
         self.heartbeat();
-        if let Ok(Some(token)) = self
+        let Some(token) = self
             .runtime_service
-            .acquire_coordinator_lease(coordinator_lease_timeout_ms)
-        {
-            self.fencing_token
-                .store(token, std::sync::atomic::Ordering::Relaxed);
-            self.runtime_service.acquire_timer_work_for_tenants(
-                token,
-                tenant_ids,
-                enabled_job_categories,
-            )
-        } else {
+            .acquire_coordinator_lease(coordinator_lease_timeout_ms)?
+        else {
+            // A peer holds the coordinator lease: genuinely nothing to acquire here.
             self.fencing_token
                 .store(0, std::sync::atomic::Ordering::Relaxed);
-            Vec::new()
-        }
+            return Ok(Vec::new());
+        };
+        self.fencing_token
+            .store(token, std::sync::atomic::Ordering::Relaxed);
+        self.runtime_service
+            .acquire_timer_work_for_tenants(token, tenant_ids, enabled_job_categories)
     }
 
     pub(crate) fn acquire_due_scheduled_timers_for_tenants(
@@ -156,35 +171,32 @@ impl TimerWorker {
         global_acquire_permit: Option<&crate::engine::lock_manager::GlobalAcquirePermit<'_>>,
     ) -> Result<Vec<TimerWork>, crate::error::FlowableError> {
         self.heartbeat();
-        if let Ok(Some(token)) = self
+        let Some(token) = self
             .runtime_service
-            .acquire_coordinator_lease(coordinator_lease_timeout_ms)
-        {
-            self.fencing_token
-                .store(token, std::sync::atomic::Ordering::Relaxed);
-            if let Some(permit) = global_acquire_permit {
-                self.runtime_service
-                    .acquire_scheduled_timer_work_global_for_tenants(
-                        permit,
-                        token,
-                        tenant_ids,
-                        enabled_job_categories,
-                        max_jobs,
-                    )
-            } else {
-                Ok(self
-                    .runtime_service
-                    .acquire_scheduled_timer_work_for_tenants(
-                        token,
-                        tenant_ids,
-                        enabled_job_categories,
-                        max_jobs,
-                    ))
-            }
-        } else {
+            .acquire_coordinator_lease(coordinator_lease_timeout_ms)?
+        else {
             self.fencing_token
                 .store(0, std::sync::atomic::Ordering::Relaxed);
-            Ok(Vec::new())
+            return Ok(Vec::new());
+        };
+        self.fencing_token
+            .store(token, std::sync::atomic::Ordering::Relaxed);
+        if let Some(permit) = global_acquire_permit {
+            self.runtime_service
+                .acquire_scheduled_timer_work_global_for_tenants(
+                    permit,
+                    token,
+                    tenant_ids,
+                    enabled_job_categories,
+                    max_jobs,
+                )
+        } else {
+            self.runtime_service.acquire_scheduled_timer_work_for_tenants(
+                token,
+                tenant_ids,
+                enabled_job_categories,
+                max_jobs,
+            )
         }
     }
 
@@ -202,7 +214,9 @@ impl TimerWorker {
             .fencing_token
             .load(std::sync::atomic::Ordering::Relaxed);
         if token > 0 {
-            self.runtime_service.renew_timer_lease(work, token)
+            if let Err(error) = self.runtime_service.renew_timer_lease(work, token) {
+                tracing::error!("failed to renew timer lease: {error}");
+            }
         }
     }
 
@@ -211,7 +225,12 @@ impl TimerWorker {
             .fencing_token
             .load(std::sync::atomic::Ordering::Relaxed);
         if token > 0 {
-            let _ = self.runtime_service.release_coordinator_lease(token);
+            // Java parity: `DbSqlSession.flushDeletes` (DbSqlSession.java:636) throws on a
+            // SQL failure. A failed release degrades to lease expiry, which must be
+            // observable rather than silent.
+            if let Err(error) = self.runtime_service.release_coordinator_lease(token) {
+                tracing::error!("failed to release coordinator lease: {error}");
+            }
             self.fencing_token
                 .store(0, std::sync::atomic::Ordering::Relaxed);
         }
@@ -221,9 +240,14 @@ impl TimerWorker {
     /// Called during graceful shutdown so that the node is no longer
     /// listed by the control surface.
     pub fn deregister(&self) {
-        let _ = self
+        // Java parity: the node-registry delete goes through the session, whose flush
+        // throws on a SQL failure; report it instead of leaving a stale "Active" node.
+        if let Err(error) = self
             .runtime_service
-            .deregister_timer_node(self.runtime_service.timer_owner_id());
+            .deregister_timer_node(self.runtime_service.timer_owner_id())
+        {
+            tracing::error!("failed to deregister timer node: {error}");
+        }
     }
 
     /// Combined graceful shutdown: release leadership + deregister node.

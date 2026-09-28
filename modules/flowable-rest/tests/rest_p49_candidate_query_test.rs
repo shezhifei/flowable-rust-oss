@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P49 REST contract tests for candidate group expansion, involvedGroups,
 //! and ignoreAssignee (Java TaskCollectionResourceTest candidateUser group
 //! membership + ignoreAssignee paths).
@@ -34,7 +40,7 @@ const INVOLVED_BPMN: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -44,7 +50,7 @@ async fn spawn_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());
@@ -116,10 +122,10 @@ async fn t1_candidate_user_group_expansion_via_rest() {
         id: "sales".to_string(),
         name: "Sales".to_string(),
         group_type: None,
-    });
+    }).unwrap();
     engine
         .get_identity_service()
-        .create_membership("aSalesUser".to_string(), "sales".to_string());
+        .create_membership("aSalesUser".to_string(), "sales".to_string()).unwrap();
 
     let body = get_tasks(&client, &base_url, "candidateUser=aSalesUser").await;
     assert_eq!(body["total"], 1);

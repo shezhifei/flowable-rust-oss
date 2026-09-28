@@ -62,11 +62,11 @@ impl PendingFuture {
     }
 
     pub fn is_done(&self) -> bool {
-        matches!(*self.state.lock().unwrap(), FutureState::Completed(_))
+        matches!(*self.state.lock().unwrap_or_else(|e| e.into_inner()), FutureState::Completed(_))
     }
 
     pub fn complete(&self, result: Result<Value, String>) {
-        let mut guard = self.state.lock().unwrap();
+        let mut guard = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if matches!(*guard, FutureState::Completed(_)) {
             return;
         }
@@ -75,21 +75,21 @@ impl PendingFuture {
     }
 
     pub(crate) fn complete_operation(&self, result: PendingOperationResult) {
-        *self.operation_result.lock().unwrap() = Some(result);
+        *self.operation_result.lock().unwrap_or_else(|e| e.into_inner()) = Some(result);
         self.complete(Ok(Value::Null));
     }
 
     pub(crate) fn operation_result(&self) -> Option<PendingOperationResult> {
-        self.operation_result.lock().unwrap().clone()
+        self.operation_result.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn state(&self) -> FutureState {
-        self.state.lock().unwrap().clone()
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Blocking wait with a timeout (used by direct RuntimeService APIs).
     pub fn wait_timeout(&self, timeout: Duration) -> Result<Value, FlowableError> {
-        let mut guard = self.state.lock().unwrap();
+        let mut guard = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let deadline = Instant::now() + timeout;
         loop {
             match &*guard {
@@ -105,7 +105,10 @@ impl PendingFuture {
                             self.id, timeout
                         )));
                     }
-                    let (g, wait_result) = self.condvar.wait_timeout(guard, remaining).unwrap();
+                    let (g, wait_result) = self
+                        .condvar
+                        .wait_timeout(guard, remaining)
+                        .unwrap_or_else(|e| e.into_inner());
                     guard = g;
                     if wait_result.timed_out() && matches!(*guard, FutureState::Pending) {
                         return Err(FlowableError::ExecutionError(format!(
@@ -133,24 +136,24 @@ impl PendingFutureRegistry {
     pub fn create(&self) -> Arc<PendingFuture> {
         let id = uuid::Uuid::new_v4().to_string();
         let future = Arc::new(PendingFuture::new(id.clone()));
-        self.futures.lock().unwrap().insert(id, Arc::clone(&future));
+        self.futures.lock().unwrap_or_else(|e| e.into_inner()).insert(id, Arc::clone(&future));
         future
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<PendingFuture>> {
-        self.futures.lock().unwrap().get(id).cloned()
+        self.futures.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned()
     }
 
     pub fn remove(&self, id: &str) -> Option<Arc<PendingFuture>> {
-        self.futures.lock().unwrap().remove(id)
+        self.futures.lock().unwrap_or_else(|e| e.into_inner()).remove(id)
     }
 
     pub fn len(&self) -> usize {
-        self.futures.lock().unwrap().len()
+        self.futures.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.futures.lock().unwrap().is_empty()
+        self.futures.lock().unwrap_or_else(|e| e.into_inner()).is_empty()
     }
 
     pub fn complete(&self, id: &str, result: Result<Value, String>) -> bool {
@@ -299,7 +302,7 @@ impl AgendaOperation for WaitForFutureOperation {
 
                 command_context
                     .execution_entity_manager
-                    .update(&execution, &mut command_context.session);
+                    .update(&execution, &mut command_context.session)?;
 
                 command_context
                     .agenda

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P136 1c + 2 (CMMN): definition-level start path + tenant key dedup.
 //!
 //! Java: CmmnEventRegistryEventConsumer.java:138-278,
@@ -112,7 +118,7 @@ fn deliver(
 
 #[test]
 fn broadcast_definition_start_creates_case_instance() {
-    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-broadcast".into()));
+    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-broadcast".into()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -149,7 +155,7 @@ fn broadcast_definition_start_creates_case_instance() {
 
 #[test]
 fn store_as_unique_reference_id_first_starts_second_skips() {
-    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-unique".into()));
+    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-unique".into()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -188,7 +194,7 @@ fn store_as_unique_reference_id_first_starts_second_skips() {
 
 #[test]
 fn tenant_override_on_started_case() {
-    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-tenant".into()));
+    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-tenant".into()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine
@@ -226,7 +232,7 @@ fn tenant_override_on_started_case() {
 
 #[test]
 fn same_key_tenant_and_tenantless_dedup_starts_once() {
-    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-dedup".into()));
+    let process_engine = Arc::new(ProcessEngine::new("p136-cmmn-dedup".into()).unwrap());
     let cmmn = process_engine
         .get_config()
         .cmmn_engine

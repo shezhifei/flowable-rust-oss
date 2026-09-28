@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -35,7 +41,7 @@ impl MockFormRepository {
         repository
             .definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(FormDefinitionRecord {
                 id: "form-1".to_string(),
                 key: "expenseApproval".to_string(),
@@ -46,7 +52,7 @@ impl MockFormRepository {
                 tenant_id: None,
                 active: Some(true),
             });
-        *repository.versions.lock().unwrap() = vec![
+        *repository.versions.lock().unwrap_or_else(|e| e.into_inner()) = vec![
             FormDefinitionVersionRecord {
                 id: "form-1".to_string(),
                 key: "expenseApproval".to_string(),
@@ -68,12 +74,12 @@ impl MockFormRepository {
                 active: Some(true),
             },
         ];
-        *repository.layout.lock().unwrap() = json!({"row": 1, "col": 2, "colSpan": 6});
-        *repository.outcomes.lock().unwrap() = vec![FormOutcome {
+        *repository.layout.lock().unwrap_or_else(|e| e.into_inner()) = json!({"row": 1, "col": 2, "colSpan": 6});
+        *repository.outcomes.lock().unwrap_or_else(|e| e.into_inner()) = vec![FormOutcome {
             id: Some("approve".to_string()),
             name: Some("Approve".to_string()),
         }];
-        *repository.active_latest_version.lock().unwrap() = 2;
+        *repository.active_latest_version.lock().unwrap_or_else(|e| e.into_inner()) = 2;
         repository
     }
 }
@@ -99,11 +105,11 @@ impl forms::FormRepositoryApi for MockFormRepository {
         &self,
         query: FormDefinitionQuery,
     ) -> Result<flowable_rest::common::PagedResponse<FormDefinitionRecord>, ApiError> {
-        let requested_version = *self.active_latest_version.lock().unwrap();
+        let requested_version = *self.active_latest_version.lock().unwrap_or_else(|e| e.into_inner());
         let defs: Vec<FormDefinitionRecord> = self
             .definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|d| query.id.as_ref().is_none_or(|v| d.id == *v))
             .filter(|d| query.key.as_ref().is_none_or(|v| d.key == *v))
@@ -120,10 +126,10 @@ impl forms::FormRepositoryApi for MockFormRepository {
         &self,
         form_definition_id: &str,
     ) -> Result<FormDefinitionRecord, ApiError> {
-        let requested_version = *self.active_latest_version.lock().unwrap();
+        let requested_version = *self.active_latest_version.lock().unwrap_or_else(|e| e.into_inner());
         self.definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|d| d.id == form_definition_id)
             .map(|d| {
@@ -142,18 +148,18 @@ impl forms::FormRepositoryApi for MockFormRepository {
         &self,
         _form_definition_id: &str,
     ) -> Result<Vec<FormDefinitionVersionRecord>, ApiError> {
-        Ok(self.versions.lock().unwrap().clone())
+        Ok(self.versions.lock().unwrap_or_else(|e| e.into_inner()).clone())
     }
 
     fn get_form_definition_layout(&self, _form_definition_id: &str) -> Result<Value, ApiError> {
-        Ok(self.layout.lock().unwrap().clone())
+        Ok(self.layout.lock().unwrap_or_else(|e| e.into_inner()).clone())
     }
 
     fn get_form_definition_outcomes(
         &self,
         _form_definition_id: &str,
     ) -> Result<Vec<FormOutcome>, ApiError> {
-        Ok(self.outcomes.lock().unwrap().clone())
+        Ok(self.outcomes.lock().unwrap_or_else(|e| e.into_inner()).clone())
     }
 
     fn delete_form_definitions(&self, query: FormDeleteQuery) -> Result<usize, ApiError> {
@@ -176,12 +182,12 @@ impl forms::FormRepositoryApi for MockFormRepository {
                 "Form definition '{form_definition_id}' was not found"
             )));
         }
-        *self.active_latest_version.lock().unwrap() = if active { 2 } else { 1 };
+        *self.active_latest_version.lock().unwrap_or_else(|e| e.into_inner()) = if active { 2 } else { 1 };
         // Update the active flag on the stored definition so get_form_definition reflects it
         if let Some(d) = self
             .definitions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter_mut()
             .find(|d| d.id == form_definition_id)
         {
@@ -224,7 +230,7 @@ async fn spawn_server(repository: DynFormRepository) -> (String, reqwest::Client
 }
 
 async fn spawn_real_server() -> (String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new("rest-form-breadth".to_string()));
+    let engine = Arc::new(ProcessEngine::new("rest-form-breadth".to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -234,7 +240,7 @@ async fn spawn_real_server() -> (String, reqwest::Client) {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use super::process_instances::{ProcessInstanceResponse, to_process_instance_response};
 use crate::common::{PagedResponse, PagingQuery, parse_query, parse_rfc3339_datetime};
 use crate::error::ApiError;
@@ -236,7 +244,7 @@ fn query_process_instances_from_store(
         .find_all::<flowable_engine::runtime::process_instance::ProcessInstance>(
             "process_instances",
         )
-        .unwrap();
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
 
     if let Some(process_instance_id) = query.id.as_deref().or(query.process_instance_id.as_deref())
     {
@@ -483,7 +491,7 @@ fn query_process_instances_from_store(
             store
                 .db_store()
                 .find_all::<Execution>("executions")
-                .unwrap(),
+                .map_err(|error| ApiError::InternalServerError(error.to_string()))?,
         )
     } else {
         None
@@ -924,10 +932,11 @@ pub(crate) async fn get_execution(
     Path(execution_id): Path<String>,
 ) -> Result<Json<ExecutionResponse>, ApiError> {
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
-    let execution = store
-        .find_execution(&execution_id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Execution '{}' was not found", execution_id)))?;
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = store.find_execution(&execution_id, &mut session);
+    let execution = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Execution '{}' was not found", execution_id))
+    })?;
 
     Ok(Json(to_execution_response(execution)))
 }
@@ -937,15 +946,16 @@ pub(crate) async fn get_execution_active_activities(
     Path(execution_id): Path<String>,
 ) -> Result<Json<Vec<String>>, ApiError> {
     let runtime_store = engine.get_runtime_store();
-    let mut session = runtime_store.create_session().unwrap();
-    runtime_store
-        .find_execution(&execution_id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Execution '{}' was not found", execution_id)))?;
+    let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = runtime_store.find_execution(&execution_id, &mut session);
+    ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Execution '{}' was not found", execution_id))
+    })?;
 
     let executions = runtime_store
         .db_store()
         .find_all::<Execution>("executions")
-        .unwrap();
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
     let mut active_activity_ids = executions
         .iter()
         .filter(|execution| {
@@ -994,7 +1004,7 @@ fn executions_for_query(
         .get_runtime_store()
         .db_store()
         .find_all::<Execution>("executions")
-        .unwrap();
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
 
     if query.without_tenant_id.unwrap_or(false) && query.tenant_id.is_some() {
         return Err(ApiError::bad_request(
@@ -1050,7 +1060,7 @@ fn executions_for_query(
             .find_all::<flowable_engine::runtime::process_instance::ProcessInstance>(
                 "process_instances",
             )
-            .unwrap()
+            .map_err(|error| ApiError::InternalServerError(error.to_string()))?
             .into_iter()
             .map(|instance| (instance.id.clone(), instance))
             .collect::<HashMap<_, _>>();
@@ -1087,7 +1097,7 @@ fn executions_for_query(
             .get_runtime_store()
             .db_store()
             .find_all::<RuntimeEventWaitState>("event_wait_states")
-            .unwrap();
+            .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
         if let Some(message_name) = query.message_event_subscription_name.as_deref() {
             executions.retain(|execution| {
                 execution_has_event_subscription(

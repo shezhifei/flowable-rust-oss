@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Engine contract tests for task comments/events (P2-COMMENT).
 //!
 //! Java parity sources:
@@ -89,7 +95,7 @@ fn normalize_comment_event_message_matches_java_rules() {
 
 #[test]
 fn create_comment_stores_full_message_and_normalized_event() {
-    let engine = ProcessEngine::new("comment-normalize-create".to_string());
+    let engine = ProcessEngine::new("comment-normalize-create".to_string()).unwrap();
     let (_pi, task_id) = deploy_and_start(&engine, "commentNormalizeProcess");
 
     let raw = "Please   review\nthis   invoice   carefully";
@@ -118,7 +124,7 @@ fn create_comment_stores_full_message_and_normalized_event() {
 
 #[test]
 fn create_comment_truncates_event_message_at_163() {
-    let engine = ProcessEngine::new("comment-truncate-event".to_string());
+    let engine = ProcessEngine::new("comment-truncate-event".to_string()).unwrap();
     let (_pi, task_id) = deploy_and_start(&engine, "commentTruncateProcess");
 
     let raw: String = "z".repeat(200);
@@ -146,7 +152,7 @@ fn create_comment_truncates_event_message_at_163() {
 
 #[test]
 fn empty_and_whitespace_messages_are_accepted() {
-    let engine = ProcessEngine::new("comment-empty-ws".to_string());
+    let engine = ProcessEngine::new("comment-empty-ws".to_string()).unwrap();
     let (_pi, task_id) = deploy_and_start(&engine, "commentEmptyWsProcess");
     let history = engine.get_history_service();
 
@@ -180,7 +186,7 @@ fn empty_and_whitespace_messages_are_accepted() {
 
 #[test]
 fn comments_and_events_are_ordered_newest_first() {
-    let engine = ProcessEngine::new("comment-order-desc".to_string());
+    let engine = ProcessEngine::new("comment-order-desc".to_string()).unwrap();
     let (_pi, task_id) = deploy_and_start(&engine, "commentOrderProcess");
     let history = engine.get_history_service();
 
@@ -222,7 +228,7 @@ fn comments_and_events_are_ordered_newest_first() {
 
 #[test]
 fn comments_and_events_readable_after_task_completion() {
-    let engine = ProcessEngine::new("comment-after-complete".to_string());
+    let engine = ProcessEngine::new("comment-after-complete".to_string()).unwrap();
     let (_pi, task_id) = deploy_and_start(&engine, "commentAfterCompleteProcess");
     let history = engine.get_history_service();
 
@@ -263,7 +269,7 @@ fn comments_and_events_readable_after_task_completion() {
 
 #[test]
 fn missing_and_suspended_task_guards_remain() {
-    let engine = ProcessEngine::new("comment-guards".to_string());
+    let engine = ProcessEngine::new("comment-guards".to_string()).unwrap();
 
     let err = engine
         .get_history_service()
@@ -290,7 +296,7 @@ fn missing_and_suspended_task_guards_remain() {
 
 #[test]
 fn suspended_process_instance_still_rejected_when_linked() {
-    let engine = ProcessEngine::new("comment-suspended-pi".to_string());
+    let engine = ProcessEngine::new("comment-suspended-pi".to_string()).unwrap();
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
     store.insert_task(
@@ -340,7 +346,7 @@ fn suspended_process_instance_still_rejected_when_linked() {
 
 #[test]
 fn default_comment_type_is_comment() {
-    let engine = ProcessEngine::new("comment-default-type".to_string());
+    let engine = ProcessEngine::new("comment-default-type".to_string()).unwrap();
     let (_pi, task_id) = deploy_and_start(&engine, "commentDefaultTypeProcess");
 
     let comment = engine
@@ -360,7 +366,7 @@ fn default_comment_type_is_comment() {
 
 #[test]
 fn custom_comment_type_is_persisted_and_queryable() {
-    let engine = ProcessEngine::new("comment-custom-type".to_string());
+    let engine = ProcessEngine::new("comment-custom-type".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "commentCustomTypeProcess");
     let history = engine.get_history_service();
 
@@ -405,7 +411,7 @@ fn custom_comment_type_is_persisted_and_queryable() {
 
 #[test]
 fn typed_and_default_comments_newest_first_and_do_not_conflate_events() {
-    let engine = ProcessEngine::new("comment-type-order".to_string());
+    let engine = ProcessEngine::new("comment-type-order".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "commentTypeOrderProcess");
     let history = engine.get_history_service();
 
@@ -455,7 +461,7 @@ fn typed_and_default_comments_newest_first_and_do_not_conflate_events() {
 
 #[test]
 fn process_instance_typed_comment_and_global_type_list() {
-    let engine = ProcessEngine::new("comment-pi-type".to_string());
+    let engine = ProcessEngine::new("comment-pi-type".to_string()).unwrap();
     let (pi_id, _task_id) = deploy_and_start(&engine, "commentPiTypeProcess");
     let history = engine.get_history_service();
 
@@ -485,7 +491,7 @@ fn process_instance_typed_comment_and_global_type_list() {
 
 #[test]
 fn save_comment_preserves_id_and_can_update_type() {
-    let engine = ProcessEngine::new("comment-save-type".to_string());
+    let engine = ProcessEngine::new("comment-save-type".to_string()).unwrap();
     let (pi_id, task_id) = deploy_and_start(&engine, "commentSaveTypeProcess");
     let history = engine.get_history_service();
 
@@ -521,7 +527,7 @@ fn legacy_comment_json_without_type_resolves_as_comment() {
     use chrono::Utc;
     use flowable_engine::history::historic_entities::HistoricComment;
 
-    let engine = ProcessEngine::new("comment-legacy-type".to_string());
+    let engine = ProcessEngine::new("comment-legacy-type".to_string()).unwrap();
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
 

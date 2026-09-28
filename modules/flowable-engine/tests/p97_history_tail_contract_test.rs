@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P97 contract tests — history tail fixes.
 //!
 //! ⑥ `insert_task` no longer silently syncs the historic row: the
@@ -57,7 +63,7 @@ fn create_listener_assignee_change_produces_historic_identity_link() {
     registry.register("assigningCreateListener", Arc::new(AssigningCreateListener));
     let mut config = ProcessEngineConfiguration::default();
     config.task_listener_registry = Some(registry);
-    let engine = ProcessEngine::new_with_config("p97-listener-il".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p97-listener-il".to_string(), config).unwrap();
 
     let repository = engine.get_repository_service();
     repository
@@ -108,7 +114,7 @@ fn create_listener_assignee_change_produces_historic_identity_link() {
 /// priority, and `record_task_updated` overwrote the historic row with None.
 #[test]
 fn model_priority_and_due_date_reach_historic_task() {
-    let engine = ProcessEngine::new("p97-priority-historic".to_string());
+    let engine = ProcessEngine::new("p97-priority-historic".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
                  xmlns:flowable="http://flowable.org/bpmn"
@@ -163,7 +169,7 @@ fn model_priority_and_due_date_reach_historic_task() {
 fn standalone_create_task_respects_history_disabled() {
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::None;
-    let engine = ProcessEngine::new_with_config("p97-standalone-none".to_string(), config);
+    let engine = ProcessEngine::new_with_config("p97-standalone-none".to_string(), config).unwrap();
 
     let task = Task::new(
         String::new(),
@@ -193,7 +199,7 @@ fn standalone_create_task_respects_history_disabled() {
 /// standalone assignee).
 #[test]
 fn standalone_create_task_records_history_without_identity_link() {
-    let engine = ProcessEngine::new("p97-standalone-full".to_string());
+    let engine = ProcessEngine::new("p97-standalone-full".to_string()).unwrap();
     let mut task = Task::new(
         String::new(),
         String::new(),
@@ -232,7 +238,7 @@ fn standalone_create_task_records_history_without_identity_link() {
 #[test]
 fn claim_unclaim_task_events_respect_history_level() {
     // FULL: events recorded.
-    let engine = ProcessEngine::new("p97-claim-full".to_string());
+    let engine = ProcessEngine::new("p97-claim-full".to_string()).unwrap();
     let task = Task::new(
         String::new(),
         String::new(),
@@ -271,7 +277,7 @@ fn claim_unclaim_task_events_respect_history_level() {
     // NONE: nothing recorded.
     let mut config = ProcessEngineConfiguration::default();
     config.history_level = HistoryLevel::None;
-    let engine_none = ProcessEngine::new_with_config("p97-claim-none".to_string(), config);
+    let engine_none = ProcessEngine::new_with_config("p97-claim-none".to_string(), config).unwrap();
     let task_none = Task::new(
         String::new(),
         String::new(),

@@ -54,7 +54,7 @@ pub struct TaskVariableMutation {
 fn load_task(command_context: &mut CommandContext, task_id: &str) -> Result<Task, FlowableError> {
     command_context
         .task_entity_manager
-        .find_task_by_id(task_id, &mut command_context.session)
+        .find_task_by_id(task_id, &mut command_context.session)?
         .ok_or_else(|| FlowableError::NotFound(format!("Cannot find task with id {}", task_id)))
 }
 
@@ -238,16 +238,19 @@ pub(crate) fn mutate_task_variables(
                     &task,
                     &mutation.name,
                     mutation.value.clone(),
-                );
+                )?;
             }
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
             Ok(task.local_variables())
         }
         TaskVariableScope::Global => {
-            let task_execution_id =
-                task_execution_id.expect("global scope resolves the task execution");
+            let Some(task_execution_id) = task_execution_id else {
+                return Err(FlowableError::ExecutionError(
+                    "Global task variable scope requires a task execution".to_string(),
+                ));
+            };
             // Apply every variable to its owning execution, updating each
             // touched execution entity once.
             let mut touched: HashMap<String, Execution> = HashMap::new();
@@ -266,7 +269,11 @@ pub(crate) fn mutate_task_variables(
                         })?;
                     touched.insert(owner_id.clone(), execution);
                 }
-                let owner = touched.get_mut(&owner_id).expect("owner execution cached");
+                let Some(owner) = touched.get_mut(&owner_id) else {
+                    return Err(FlowableError::ExecutionError(format!(
+                        "Execution '{owner_id}' was not found"
+                    )));
+                };
                 owner.set_process_variable(mutation.name.clone(), mutation.value.clone());
                 let process_instance_id = owner
                     .process_instance_id
@@ -283,7 +290,7 @@ pub(crate) fn mutate_task_variables(
                         &id,
                         mutation.value.clone(),
                         &mut command_context.session,
-                    );
+                    )?;
                 } else {
                     command_context.history_manager.record_variable_created(
                         &id,
@@ -294,13 +301,13 @@ pub(crate) fn mutate_task_variables(
                         Some(&owner_execution_id),
                         None,
                         &mut command_context.session,
-                    );
+                    )?;
                 }
             }
             for execution in touched.values() {
                 command_context
                     .execution_entity_manager
-                    .update(execution, &mut command_context.session);
+                    .update(execution, &mut command_context.session)?;
             }
             let store = command_context.runtime_store.clone();
             Ok(collect_execution_variables(
@@ -366,18 +373,21 @@ pub(crate) fn remove_task_variables(
             }
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
             for name in &removed {
                 command_context.history_manager.record_variable_removed(
                     &format!("{}:{}", task.id, name),
                     &mut command_context.session,
-                );
+                )?;
             }
             Ok(())
         }
         TaskVariableScope::Global => {
-            let task_execution_id =
-                task_execution_id.expect("global scope resolves the task execution");
+            let Some(task_execution_id) = task_execution_id else {
+                return Err(FlowableError::ExecutionError(
+                    "Global task variable scope requires a task execution".to_string(),
+                ));
+            };
             let names = names.unwrap_or_default();
             let store = command_context.runtime_store.clone();
             let mut touched: HashMap<String, Execution> = HashMap::new();
@@ -402,7 +412,11 @@ pub(crate) fn remove_task_variables(
                         })?;
                     touched.insert(owner_id.clone(), execution);
                 }
-                let owner = touched.get_mut(&owner_id).expect("owner execution cached");
+                let Some(owner) = touched.get_mut(&owner_id) else {
+                    return Err(FlowableError::ExecutionError(format!(
+                        "Execution '{owner_id}' was not found"
+                    )));
+                };
                 owner.variables.remove(name);
                 owner.local_variables.remove(name);
                 owner.transient_variables.remove(name);
@@ -414,12 +428,12 @@ pub(crate) fn remove_task_variables(
                 command_context.history_manager.record_variable_removed(
                     &format!("{}:{}", owner_id, name),
                     &mut command_context.session,
-                );
+                )?;
             }
             for execution in touched.values() {
                 command_context
                     .execution_entity_manager
-                    .update(execution, &mut command_context.session);
+                    .update(execution, &mut command_context.session)?;
             }
             Ok(())
         }

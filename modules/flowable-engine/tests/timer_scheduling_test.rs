@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::TestTimeSource;
@@ -6,7 +12,7 @@ use std::sync::Arc;
 fn create_engine() -> (ProcessEngine, Arc<TestTimeSource>) {
     let now = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(now));
-    let engine = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone());
+    let engine = ProcessEngine::with_time_source("test_engine".to_string(), time_source.clone()).unwrap();
     (engine, time_source)
 }
 
@@ -546,7 +552,7 @@ fn test_mixed_timer_message_signal_coexistence() {
                 .process_definition_id(pd_id.clone()),
         )
         .unwrap();
-    engine.trigger_boundary_event_by_message_ref("myMessage".to_string(), pi2.id.clone());
+    engine.trigger_boundary_event_by_message_ref("myMessage".to_string(), pi2.id.clone()).unwrap();
 
     // Timer should be deleted because message triggered and interrupted
     time_source.advance_time(60 * 60 * 1000);

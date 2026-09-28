@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P46: execution-local read APIs must include transient variables, and
 //! `removeVariable` must never delete a transient — Java VariableScopeImpl parity.
 //!
@@ -36,7 +42,7 @@ const ONE_TASK_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </definitions>"#;
 
 fn engine_with_started_instance(name: &str) -> (ProcessEngine, String) {
-    let engine = ProcessEngine::new(name.into());
+    let engine = ProcessEngine::new(name.into()).unwrap();
     let repo = engine.get_repository_service();
     repo.deploy(
         repo.create_deployment()

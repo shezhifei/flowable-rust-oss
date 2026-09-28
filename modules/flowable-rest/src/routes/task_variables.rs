@@ -293,7 +293,11 @@ async fn create_task_variables(
         variables.insert(name.clone(), value.clone());
         created_order.push((name, value));
     }
-    let scope = shared_scope.expect("non-empty create batch has a shared scope");
+    let scope = shared_scope.ok_or_else(|| {
+        ApiError::InternalServerError(
+            "Variable scope was not resolved for non-empty create batch".to_string(),
+        )
+    })?;
     engine
         .get_task_service()
         .create_task_variables(task.id.clone(), scope, variables)?;

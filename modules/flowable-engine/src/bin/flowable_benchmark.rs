@@ -1,3 +1,10 @@
+// Benchmark harness: `unwrap()` is the intended tool here - a benchmark that cannot
+// set up, drive or read its fixture must abort loudly rather than report a number.
+// This file has no `#[cfg(test)]` block, so the workspace ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"`) is exempted for the whole file.
+// Do not add more without an audit note.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::el::expression::{Expression, SimpleExpression};
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::runtime::execution::Execution;
@@ -100,13 +107,13 @@ where
 
 fn bench_engine_new() -> BenchResult {
     bench("engine new (in-memory)", 100, || {
-        let _engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+        let _engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
     })
 }
 
 fn bench_deploy_bpmn() -> BenchResult {
     bench("deploy BPMN linear", 200, || {
-        let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+        let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()
@@ -119,7 +126,7 @@ fn bench_deploy_bpmn() -> BenchResult {
 }
 
 fn bench_start_process() -> BenchResult {
-    let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+    let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
     let deploy_builder = engine
         .get_repository_service()
         .create_deployment()
@@ -152,7 +159,7 @@ fn bench_start_process() -> BenchResult {
 
 fn bench_full_process_lifecycle() -> BenchResult {
     bench("full process lifecycle (start+complete)", 200, || {
-        let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+        let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()
@@ -187,7 +194,7 @@ fn bench_full_process_lifecycle() -> BenchResult {
 
 fn bench_complex_process_lifecycle() -> BenchResult {
     bench("complex process lifecycle (4 tasks)", 100, || {
-        let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+        let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()
@@ -248,7 +255,7 @@ fn bench_complex_process_lifecycle() -> BenchResult {
 }
 
 fn bench_expression_eval() -> BenchResult {
-    let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+    let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
     let deploy_builder = engine
         .get_repository_service()
         .create_deployment()
@@ -283,7 +290,7 @@ fn bench_expression_eval() -> BenchResult {
 
 fn bench_history_recording() -> BenchResult {
     bench("history recording (task created)", 200, || {
-        let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+        let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()
@@ -315,7 +322,7 @@ fn bench_history_recording() -> BenchResult {
 
 fn bench_deploy_complex() -> BenchResult {
     bench("deploy BPMN complex", 100, || {
-        let engine = ProcessEngine::new_with_memory_backend("bench".to_string());
+        let engine = ProcessEngine::new_with_memory_backend("bench".to_string()).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()
@@ -329,7 +336,7 @@ fn bench_deploy_complex() -> BenchResult {
 
 fn bench_timer_job_acquisition() -> BenchResult {
     bench("timer job acquisition (100 candidates)", 100, || {
-        let engine = ProcessEngine::new("bench".to_string());
+        let engine = ProcessEngine::new("bench".to_string()).unwrap();
         let store = engine.get_runtime_store();
         let mut session = store.create_session().unwrap();
         let now = chrono::Utc::now().timestamp_millis();
@@ -358,7 +365,9 @@ fn bench_timer_job_acquisition() -> BenchResult {
                 category: None,
                 ..Default::default()
             };
-            store.insert_timer_job_state(&job, &mut session);
+            store
+                .insert_timer_job_state(&job, &mut session)
+                .expect("insert timer job state");
         }
 
         // Flush pending writes so raw pool queries see the data
@@ -448,7 +457,7 @@ fn bench_complex_start_history_decomp() -> Vec<BenchResult> {
             history_level: level,
             ..Default::default()
         };
-        let engine = ProcessEngine::new_with_config("bench".to_string(), config);
+        let engine = ProcessEngine::new_with_config("bench".to_string(), config).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()
@@ -498,7 +507,7 @@ fn main() {
     // Warmup
     println!("[Warmup] Running 3 warmup iterations...");
     for _ in 0..3 {
-        let engine = ProcessEngine::new_with_memory_backend("warmup".to_string());
+        let engine = ProcessEngine::new_with_memory_backend("warmup".to_string()).unwrap();
         let deploy_builder = engine
             .get_repository_service()
             .create_deployment()

@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::common::{PagedResponse, PagingQuery, parse_query};
 use crate::error::ApiError;
 use crate::query_variable::{
@@ -540,15 +548,18 @@ pub(crate) struct TaskEventResponse {
     pub user_id: Option<String>,
 }
 
-fn to_task_response(engine: &ProcessEngine, task: Task) -> TaskResponse {
-    let (candidate_users, candidate_groups) = candidate_identity_ids(engine, &task.id);
+fn to_task_response(
+    engine: &ProcessEngine,
+    task: Task,
+) -> Result<TaskResponse, ApiError> {
+    let (candidate_users, candidate_groups) = candidate_identity_ids(engine, &task.id)?;
     // Java parity: REST returns "active" or "suspended" string
     let suspension_state = if task.is_suspended() {
         "suspended".to_string()
     } else {
         "active".to_string()
     };
-    TaskResponse {
+    Ok(TaskResponse {
         id: task.id,
         name: task.name,
         description: task.description,
@@ -570,20 +581,29 @@ fn to_task_response(engine: &ProcessEngine, task: Task) -> TaskResponse {
         state: task.state,
         suspension_state,
         variables: Vec::new(),
-    }
+    })
 }
 
 pub(crate) fn candidate_identity_ids(
     engine: &ProcessEngine,
     task_id: &str,
-) -> (Vec<String>, Vec<String>) {
+) -> Result<(Vec<String>, Vec<String>), ApiError> {
+    let store = engine.get_runtime_store();
+    let mut session = store
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    candidate_identity_ids_with_session(&store, &mut session, task_id)
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))
+}
+
+fn candidate_identity_ids_with_session(
+    store: &flowable_engine::persistence::runtime_store::RuntimeStore,
+    session: &mut flowable_engine::persistence::db_session::DbSession,
+    task_id: &str,
+) -> Result<(Vec<String>, Vec<String>), flowable_engine::persistence::StorageError> {
     let mut users = Vec::new();
     let mut groups = Vec::new();
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    for link in engine
-        .get_runtime_store()
-        .find_identity_links_by_task(task_id, &mut session)
-    {
+    for link in store.find_identity_links_by_task(task_id, session) {
         if link.link_type != "candidate" {
             continue;
         }
@@ -598,7 +618,7 @@ pub(crate) fn candidate_identity_ids(
             groups.push(group_id);
         }
     }
-    (users, groups)
+    Ok((users, groups))
 }
 
 pub(crate) async fn list(
@@ -825,6 +845,26 @@ fn tasks_for_query(
         tasks.retain(|task| task.tenant_id.as_deref().unwrap_or("").is_empty());
     }
     let ignore_assignee = query.ignore_assignee == Some(true);
+    // Every post-filter that touches the store runs against this one ad-hoc
+    // read-only session, and the session's sticky slot is checked once at the end
+    // of the filtered section. The store's read helpers substitute
+    // `None`/`Vec::new()` for a failed read and record the failure on the
+    // session, so without that check an unreachable store reads as "this user is
+    // in no groups" / "no candidate links" / "no such process instance" and the
+    // query silently returns fewer tasks instead of failing.
+    //
+    // Java parity: each of those reads is a MyBatis statement whose
+    // `PersistenceException` escapes the command
+    // (flowable-engine-common/.../impl/db/DbSqlSession.java:282-299), and
+    // TaskQueryImpl.getGroupsForCandidateUser
+    // (flowable-engine/.../impl/TaskQueryImpl.java:2021-2032) has no try/catch.
+    let mut read_session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    // Sticky-read swallows inside `retain` closures cannot use `?`, so they set
+    // this flag instead and the flag is turned into a 500 below.
+    let mut read_failed = false;
     if let Some(candidate_groups) = query
         .candidate_groups
         .as_ref()
@@ -832,25 +872,35 @@ fn tasks_for_query(
     {
         // Java Task.xml candidateGroupIn: ASSIGNEE_ is null unless ignoreAssignee.
         let groups = candidate_groups.values();
+        let store = engine.get_runtime_store();
         tasks.retain(|task| {
             if !ignore_assignee && task.assignee.is_some() {
                 return false;
             }
-            let (_, task_groups) = candidate_identity_ids(&engine, &task.id);
+            let ids = candidate_identity_ids_with_session(&store, &mut read_session, &task.id);
+            if read_session.has_pending_error() {
+                read_failed = true;
+            }
+            let (_, task_groups) = ids.unwrap_or_default();
             task_groups.iter().any(|group| groups.contains(group))
         });
     }
     if let Some(involved_user) = query.involved_user.as_deref() {
         // Java `taskInvolvedUser`: assignee, owner or any identity link user.
         let store = engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
         tasks.retain(|task| {
-            task.assignee.as_deref() == Some(involved_user)
+            if task.assignee.as_deref() == Some(involved_user)
                 || task.owner.as_deref() == Some(involved_user)
-                || store
-                    .find_identity_links_by_task(&task.id, &mut session)
-                    .iter()
-                    .any(|link| link.user_id.as_deref() == Some(involved_user))
+            {
+                return true;
+            }
+            let links = store.find_identity_links_by_task(&task.id, &mut read_session);
+            if read_session.has_pending_error() {
+                read_failed = true;
+            }
+            links
+                .iter()
+                .any(|link| link.user_id.as_deref() == Some(involved_user))
         });
     }
     if let Some(candidate_or_assigned) = query.candidate_or_assigned.as_deref() {
@@ -861,9 +911,11 @@ fn tasks_for_query(
         let user_groups: Vec<String> = engine
             .get_identity_service()
             .get_groups_by_user(candidate_or_assigned)
+            .map_err(|e| ApiError::InternalServerError(e.to_string()))?
             .into_iter()
             .map(|group| group.id)
             .collect();
+        let store = engine.get_runtime_store();
         tasks.retain(|task| {
             if task.assignee.as_deref() == Some(candidate_or_assigned) {
                 return true;
@@ -871,7 +923,11 @@ fn tasks_for_query(
             if !ignore_assignee && task.assignee.is_some() {
                 return false;
             }
-            let (candidate_users, candidate_groups) = candidate_identity_ids(&engine, &task.id);
+            let ids = candidate_identity_ids_with_session(&store, &mut read_session, &task.id);
+            if read_session.has_pending_error() {
+                read_failed = true;
+            }
+            let (candidate_users, candidate_groups) = ids.unwrap_or_default();
             candidate_users.iter().any(|u| u == candidate_or_assigned)
                 || candidate_groups
                     .iter()
@@ -887,11 +943,15 @@ fn tasks_for_query(
         || query.process_instance_business_key_like.is_some();
     if needs_process_instance_filter {
         let store = engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
         tasks.retain(|task| {
-            let Some(pi) = store.find_process_instance(&task.process_instance_id, &mut session)
-            else {
-                return false;
+            let pi = match store.find_process_instance(&task.process_instance_id, &mut read_session) {
+                Ok(Some(pi)) => pi,
+                Ok(None) => return false,
+                Err(error) => {
+                    read_session.note_write_error(error);
+                    read_failed = true;
+                    return false;
+                }
             };
             if let Some(v) = query.process_definition_id.as_deref()
                 && pi.process_definition_id != v
@@ -941,7 +1001,6 @@ fn tasks_for_query(
         // Java `processInstanceIdWithChildren`: the task's process instance
         // or any ancestor along the call-activity chain matches the id.
         let store = engine.get_runtime_store();
-        let mut session = store.create_session().unwrap();
         tasks.retain(|task| {
             if task.process_instance_id.is_empty() {
                 return false;
@@ -951,14 +1010,23 @@ fn tasks_for_query(
                 if current == target {
                     return true;
                 }
-                let Some(pi) = store.find_process_instance(&current, &mut session) else {
-                    return false;
+                let pi = match store.find_process_instance(&current, &mut read_session) {
+                    Ok(Some(pi)) => pi,
+                    Ok(None) => return false,
+                    Err(error) => {
+                        read_session.note_write_error(error);
+                        read_failed = true;
+                        return false;
+                    }
                 };
                 let Some(super_execution_id) = pi.super_execution_id else {
                     return false;
                 };
-                let Some(execution) = store.find_execution(&super_execution_id, &mut session)
+                let Some(execution) = store.find_execution(&super_execution_id, &mut read_session)
                 else {
+                    if read_session.has_pending_error() {
+                        read_failed = true;
+                    }
                     return false;
                 };
                 let Some(parent_instance_id) = execution.process_instance_id else {
@@ -988,6 +1056,17 @@ fn tasks_for_query(
         query.root_scope_id.as_deref(),
         query.parent_scope_id.as_deref(),
     );
+    // Turn a sticky read failure into a 500 and close the shared read session.
+    // The store's read helpers substitute `None`/`Vec::new()` for a failed read
+    // and record it on the session, so without this the filters above would have
+    // silently matched fewer tasks whenever the store was unreachable.
+    let read_end = read_session.rollback_read();
+    if read_failed {
+        return Err(ApiError::InternalServerError(
+            "task query could not read the persistence store".to_string(),
+        ));
+    }
+    read_end.map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     sort_tasks(&mut tasks, query.sort.as_deref(), query.order.as_deref())?;
 
     let include_task_local_variables = query.include_task_local_variables == Some(true);
@@ -1003,7 +1082,7 @@ fn tasks_for_query(
 
     let mut result = Vec::new();
     for task in tasks {
-        let mut response = to_task_response(&engine, task);
+        let mut response = to_task_response(&engine, task)?;
         if include_task_local_variables {
             let mut locals: Vec<(String, serde_json::Value)> = engine
                 .get_task_service()
@@ -1303,7 +1382,7 @@ pub(crate) async fn get_task(
 ) -> Result<Json<TaskResponse>, ApiError> {
     let task = load_task(&engine, &id)?;
 
-    Ok(Json(to_task_response(&engine, task)))
+    Ok(Json(to_task_response(&engine, task)?))
 }
 
 /// Java `TaskCollectionResource.createTask`: POST /runtime/tasks → 201 with
@@ -1322,7 +1401,10 @@ pub(crate) async fn create_task(
     );
     apply_task_request_fields(request, &mut task)?;
     let task = engine.get_task_service().create_task(task)?;
-    Ok((StatusCode::CREATED, Json(to_task_response(&engine, task))))
+    Ok((
+        StatusCode::CREATED,
+        Json(to_task_response(&engine, task)?),
+    ))
 }
 
 /// Java `TaskRequest` setter semantics: only fields present in the JSON body
@@ -1433,7 +1515,7 @@ pub(crate) async fn bulk_update_tasks(
     let mut data = Vec::new();
     for task_id in &task_ids {
         let task = task_service.update_task_by_id(task_id.clone(), update.clone())?;
-        data.push(to_task_response(&engine, task));
+        data.push(to_task_response(&engine, task)?);
     }
 
     // Java returns a bare `DataResponse` with only `data` populated.
@@ -1456,7 +1538,7 @@ pub(crate) async fn update_task(
     let request = parse_update_task_request(&body)?;
     let task = task_service.update_task_by_id(id, request.into_update()?)?;
 
-    Ok(Json(to_task_response(&engine, task)))
+    Ok(Json(to_task_response(&engine, task)?))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1498,13 +1580,13 @@ pub(crate) async fn list_sub_tasks(
 ) -> Result<Json<Vec<TaskResponse>>, ApiError> {
     let task = load_task(&engine, &id)?;
     let task_service = FlowableTaskService::new(Arc::clone(&engine));
-    let subtasks = task_service
+    let subtasks: Result<Vec<_>, ApiError> = task_service
         .get_sub_tasks(task.id)?
         .into_iter()
         .map(|task| to_task_response(&engine, task))
         .collect();
 
-    Ok(Json(subtasks))
+    Ok(Json(subtasks?))
 }
 
 pub(crate) async fn complete(
@@ -1657,7 +1739,7 @@ fn complete_task_action(
             }
         }
         // When local_scope is true, all variables go to variablesLocal in Java.
-        let form_service = FlowableFormService::new(Arc::clone(engine));
+        let form_service = FlowableFormService::new(Arc::clone(engine))?;
         form_service.complete_task_with_form_definition(
             task_id,
             form_definition_id,
@@ -1753,7 +1835,7 @@ pub(crate) async fn get_form(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let service = FlowableFormService::new(engine);
+    let service = FlowableFormService::new(engine)?;
     let form_data = service.get_task_form_data(&id)?;
     let definition = service.get_form_definition(&form_data.form_definition_id)?;
     Ok(Json(definition.form_payload))
@@ -1781,8 +1863,8 @@ pub(crate) async fn create_task_attachment(
 
     // Java parity: CreateAttachmentCmd.verifyExecutionParameters checks execution.isSuspended()
     let store = engine.get_runtime_store();
-    let mut session = store.create_session().unwrap();
-    if let Some(pi) = store.find_process_instance(&task.process_instance_id, &mut session) {
+    let mut session = store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    if let Some(pi) = store.find_process_instance(&task.process_instance_id, &mut session)? {
         if pi.is_suspended {
             return Err(ApiError::InternalServerError(format!(
                 "It is not allowed to add an attachment to a suspended process instance '{}'",
@@ -1918,7 +2000,7 @@ pub(crate) async fn list_task_comments(
     // List uses historic task so comments remain readable after completion
     // (Java `TaskCommentCollectionResource.getComments` → getHistoricTaskFromRequest).
     let task = load_historic_task(&engine, &id)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let comments = engine
         .get_history_service()
         .get_task_comments(&task.id, &mut session)
@@ -1962,7 +2044,7 @@ pub(crate) async fn list_task_events(
 ) -> Result<Json<Vec<TaskEventResponse>>, ApiError> {
     // List uses historic task (Java `TaskEventCollectionResource.getEvents`).
     let task = load_historic_task(&engine, &id)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let events = engine
         .get_history_service()
         .get_task_events(&task.id, &mut session)
@@ -1978,16 +2060,16 @@ pub(crate) async fn get_task_event(
 ) -> Result<Json<TaskEventResponse>, ApiError> {
     // Get uses historic task (Java `TaskEventResource.getEvent`).
     let task = load_historic_task(&engine, &id)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    let event = engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_history_service()
-        .get_task_event(&task.id, &event_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Task '{}' event '{}' was not found",
-                task.id, event_id
-            ))
-        })?;
+        .get_task_event(&task.id, &event_id, &mut session);
+    let event = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!(
+            "Task '{}' event '{}' was not found",
+            task.id, event_id
+        ))
+    })?;
     Ok(Json(task_event_response(event)))
 }
 
@@ -2012,21 +2094,25 @@ pub(crate) async fn delete_task_event(
 }
 
 pub(crate) fn load_task(engine: &ProcessEngine, id: &str) -> Result<Task, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
-        .find_task(id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Task '{}' was not found", id)))
+        .find_task(id, &mut session)?;
+    ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Task '{}' was not found", id))
+    })
 }
 
 /// Resolve a historic task instance for comment/event list/get.
 /// Java: `TaskBaseResource.getHistoricTaskFromRequest`.
 fn load_historic_task(engine: &ProcessEngine, id: &str) -> Result<HistoricTaskInstance, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
-        .get_historic_task_instance(id, &mut session)
-        .ok_or_else(|| ApiError::NotFound(format!("Task '{}' was not found", id)))
+        .get_historic_task_instance(id, &mut session);
+    ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Task '{}' was not found", id))
+    })
 }
 
 /// Extract authenticated user id from HTTP Basic auth (Java Authentication).
@@ -2052,16 +2138,16 @@ fn task_comment_for_historic(
     task: &HistoricTaskInstance,
     comment_id: &str,
 ) -> Result<flowable_engine::history::historic_entities::HistoricComment, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    let comment = engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_history_service()
-        .get_comment(comment_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Task '{}' comment '{}' was not found",
-                task.id, comment_id
-            ))
-        })?;
+        .get_comment(comment_id, &mut session);
+    let comment = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!(
+            "Task '{}' comment '{}' was not found",
+            task.id, comment_id
+        ))
+    })?;
     if comment.task_id.as_deref() != Some(task.id.as_str()) {
         return Err(ApiError::NotFound(format!(
             "Task '{}' comment '{}' was not found",

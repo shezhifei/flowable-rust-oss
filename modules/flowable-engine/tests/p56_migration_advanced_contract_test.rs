@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for P56 migration validation framework, batch migration
 //! and per-PI callback. Mirrors Java
 //! `ProcessInstanceMigrationManagerImpl.java` (validation,
@@ -77,7 +83,7 @@ fn deploy_and_start(engine: &ProcessEngine, xml: &str) -> (String, String) {
 
 #[test]
 fn validate_blank_process_instance_id_reports_error() {
-    let engine = ProcessEngine::new("p56-validate-blank-pi".to_string());
+    let engine = ProcessEngine::new("p56-validate-blank-pi".to_string()).unwrap();
     let report = engine
         .get_runtime_service()
         .validate_migration_plan(
@@ -95,7 +101,7 @@ fn validate_blank_process_instance_id_reports_error() {
 
 #[test]
 fn validate_blank_target_definition_id_reports_error() {
-    let engine = ProcessEngine::new("p56-validate-blank-td".to_string());
+    let engine = ProcessEngine::new("p56-validate-blank-td".to_string()).unwrap();
     let report = engine
         .get_runtime_service()
         .validate_migration_plan(&MigrationPlan::new("some-instance", ""))
@@ -111,7 +117,7 @@ fn validate_blank_target_definition_id_reports_error() {
 
 #[test]
 fn validate_unknown_target_definition_reports_error() {
-    let engine = ProcessEngine::new("p56-validate-unknown-td".to_string());
+    let engine = ProcessEngine::new("p56-validate-unknown-td".to_string()).unwrap();
     let (_instance, _definition) = deploy_and_start(&engine, USER_TASK_XML);
 
     let report = engine
@@ -129,7 +135,7 @@ fn validate_unknown_target_definition_reports_error() {
 
 #[test]
 fn validate_unknown_process_instance_reports_error() {
-    let engine = ProcessEngine::new("p56-validate-unknown-pi".to_string());
+    let engine = ProcessEngine::new("p56-validate-unknown-pi".to_string()).unwrap();
     deploy(&engine, USER_TASK_XML);
     let target_id = definition_id_for_version(&engine, 1);
 
@@ -148,7 +154,7 @@ fn validate_unknown_process_instance_reports_error() {
 
 #[test]
 fn validate_happy_plan_returns_empty_report() {
-    let engine = ProcessEngine::new("p56-validate-happy".to_string());
+    let engine = ProcessEngine::new("p56-validate-happy".to_string()).unwrap();
     let (instance_id, _definition_id) = deploy_and_start(&engine, USER_TASK_XML);
     deploy(&engine, RENAMED_TASK_XML);
     let target_id = definition_id_for_version(&engine, 2);
@@ -165,7 +171,7 @@ fn validate_happy_plan_returns_empty_report() {
 
 #[test]
 fn validate_unknown_target_activity_reports_error() {
-    let engine = ProcessEngine::new("p56-validate-unknown-target".to_string());
+    let engine = ProcessEngine::new("p56-validate-unknown-target".to_string()).unwrap();
     let (instance_id, _definition_id) = deploy_and_start(&engine, USER_TASK_XML);
     deploy(&engine, RENAMED_TASK_XML);
     let target_id = definition_id_for_version(&engine, 2);
@@ -202,7 +208,7 @@ fn validate_severity_classification_works() {
 
 #[test]
 fn batch_migration_continues_after_individual_failure() {
-    let engine = ProcessEngine::new("p56-batch-partial-failure".to_string());
+    let engine = ProcessEngine::new("p56-batch-partial-failure".to_string()).unwrap();
     let (instance_a, _definition_a) = deploy_and_start(&engine, USER_TASK_XML);
     deploy(&engine, RENAMED_TASK_XML);
     let target_id = definition_id_for_version(&engine, 2);
@@ -236,7 +242,7 @@ fn batch_migration_continues_after_individual_failure() {
 
 #[test]
 fn batch_migration_with_callback_observes_pre_and_post() {
-    let engine = ProcessEngine::new("p56-batch-callback".to_string());
+    let engine = ProcessEngine::new("p56-batch-callback".to_string()).unwrap();
     let (instance_id, _definition_id) = deploy_and_start(&engine, USER_TASK_XML);
     deploy(&engine, RENAMED_TASK_XML);
     let target_id = definition_id_for_version(&engine, 2);
@@ -253,7 +259,7 @@ fn batch_migration_with_callback_observes_pre_and_post() {
         ) -> Result<(), flowable_engine::error::FlowableError> {
             self.log
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push(("pre".to_string(), plan.process_instance_id.clone()));
             Ok(())
         }
@@ -266,7 +272,7 @@ fn batch_migration_with_callback_observes_pre_and_post() {
             let tag = if result.is_ok() { "post-ok" } else { "post-err" };
             self.log
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push((tag.to_string(), plan.process_instance_id.clone()));
             Ok(())
         }
@@ -281,7 +287,7 @@ fn batch_migration_with_callback_observes_pre_and_post() {
         .migrate_process_instances_with_callback(vec![plan], recorder.clone())
         .unwrap();
 
-    let log = recorder.log.lock().unwrap().clone();
+    let log = recorder.log.lock().unwrap_or_else(|e| e.into_inner()).clone();
     assert_eq!(log.len(), 2);
     assert_eq!(log[0].0, "pre");
     assert_eq!(log[0].1, instance_id);
@@ -291,7 +297,7 @@ fn batch_migration_with_callback_observes_pre_and_post() {
 
 #[test]
 fn batch_migration_with_callback_records_post_err_for_failed_plan() {
-    let engine = ProcessEngine::new("p56-batch-callback-err".to_string());
+    let engine = ProcessEngine::new("p56-batch-callback-err".to_string()).unwrap();
     deploy(&engine, USER_TASK_XML);
     let target_id = definition_id_for_version(&engine, 1);
 
@@ -316,7 +322,7 @@ fn batch_migration_with_callback_records_post_err_for_failed_plan() {
             if result.is_err() {
                 self.post_errs
                     .lock()
-                    .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                     .push(plan.process_instance_id.clone());
             }
             Ok(())
@@ -329,5 +335,5 @@ fn batch_migration_with_callback_records_post_err_for_failed_plan() {
         .get_runtime_service()
         .migrate_process_instances_with_callback(vec![bad_plan], recorder.clone())
         .unwrap();
-    assert_eq!(*recorder.post_errs.lock().unwrap(), vec!["missing-pi".to_string()]);
+    assert_eq!(*recorder.post_errs.lock().unwrap_or_else(|e| e.into_inner()), vec!["missing-pi".to_string()]);
 }

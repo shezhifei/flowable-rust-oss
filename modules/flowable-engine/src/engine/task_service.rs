@@ -220,9 +220,12 @@ impl TaskQuery {
     /// TaskQueryImpl.java:215-219).
     fn target(&mut self) -> &mut TaskQueryCriteria {
         if self.or_active {
-            self.or_query_objects
-                .last_mut()
-                .expect("or_active implies an open or() block")
+            if self.or_query_objects.is_empty() {
+                // `or()` always opens a block; heal direct struct-literal
+                // misuse instead of panicking.
+                self.or_query_objects.push(TaskQueryCriteria::default());
+            }
+            self.or_query_objects.last_mut().unwrap_or(&mut self.criteria)
         } else {
             &mut self.criteria
         }
@@ -469,10 +472,19 @@ impl Command<Vec<Task>> for TaskQueryCmd {
             None => None,
         };
 
-        let mut tasks: Vec<Task> = command_context
+        let mut tasks: Vec<Task> = match command_context
             .session()
             .find_with_filters("tasks", &filters, order_by, None)
-            .unwrap();
+        {
+            Ok(found) => found,
+            Err(error) => {
+                // Java parity: TaskQueryImpl.list() -> AbstractQuery.list()
+                // (AbstractQuery.java:119-129) throws on a storage failure rather than
+                // returning an empty list.
+                command_context.session().note_write_error(error);
+                Vec::new()
+            }
+        };
 
         // Filter by suspension state if set
         if let Some(state) = self.query.criteria.suspension_state {
@@ -598,6 +610,20 @@ impl Command<Vec<Task>> for TaskQueryCmd {
 
         if order_by.is_none() {
             tasks.sort_by(|a, b| a.id.cmp(&b.id));
+        }
+
+        // `get_groups_by_user` / `find_identity_links_by_tasks` substitute an
+        // empty result and record the failure on the session. Left unchecked, an
+        // unreachable identity store reads as "the user is in no groups", which
+        // silently drops every group-expanded candidate task from the result.
+        // Java parity: TaskQueryImpl.getGroupsForCandidateUser runs the group
+        // query with no try/catch (TaskQueryImpl.java:2021-2032) and the SQL
+        // error escapes the command (DbSqlSession.java:282-299); only a
+        // successful zero-row query is empty.
+        if command_context.session.has_pending_error() {
+            return Err(crate::error::FlowableError::Internal(
+                "task candidate query could not read the identity store".to_string(),
+            ));
         }
 
         Ok(tasks)
@@ -909,7 +935,7 @@ fn set_execution_variable_for_task_complete(
     target.set_process_variable(name.clone(), value.clone());
     command_context
         .execution_entity_manager
-        .update(&target, &mut command_context.session);
+        .update(&target, &mut command_context.session)?;
 
     let id = format!("{}:{}", target.id, name);
     if command_context
@@ -921,7 +947,7 @@ fn set_execution_variable_for_task_complete(
             &id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         command_context.history_manager.record_variable_created(
             &id,
@@ -932,7 +958,7 @@ fn set_execution_variable_for_task_complete(
             Some(&target.id),
             None,
             &mut command_context.session,
-        );
+        )?;
     }
 
     Ok(())
@@ -957,7 +983,7 @@ fn set_transient_execution_variable_for_task_complete(
     execution.set_process_variable(name, value);
     command_context
         .execution_entity_manager
-        .update(&execution, &mut command_context.session);
+        .update(&execution, &mut command_context.session)?;
     Ok(())
 }
 
@@ -966,7 +992,7 @@ pub(crate) fn record_task_local_variable(
     task: &Task,
     name: &str,
     value: serde_json::Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let id = format!("{}:{}", task.id, name);
     if command_context
         .runtime_store
@@ -977,7 +1003,7 @@ pub(crate) fn record_task_local_variable(
             &id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         command_context.history_manager.record_variable_created(
             &id,
@@ -988,8 +1014,9 @@ pub(crate) fn record_task_local_variable(
             Some(&task.execution_id),
             Some(&task.id),
             &mut command_context.session,
-        );
+        )?;
     }
+    Ok(())
 }
 
 fn set_task_local_variable_for_task_complete(
@@ -997,9 +1024,10 @@ fn set_task_local_variable_for_task_complete(
     task: &mut Task,
     name: String,
     value: serde_json::Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     task.set_local_variable(name.clone(), value.clone());
-    record_task_local_variable(command_context, task, &name, value);
+    record_task_local_variable(command_context, task, &name, value)?;
+    Ok(())
 }
 
 pub(crate) fn complete_task_internal(
@@ -1013,7 +1041,7 @@ pub(crate) fn complete_task_internal(
     completed_task.mark_completed();
     command_context
         .task_entity_manager
-        .update(&completed_task, &mut command_context.session);
+        .update(&completed_task, &mut command_context.session)?;
     command_context
         .task_entity_manager
         .delete(&task.id, &mut command_context.session);
@@ -1031,7 +1059,7 @@ pub(crate) fn complete_task_internal(
 
     command_context
         .history_manager
-        .record_task_end(&task.id, None, &mut command_context.session);
+        .record_task_end(&task.id, None, &mut command_context.session)?;
 
     command_context.history_manager.record_audit_event(
         "complete",
@@ -1111,7 +1139,7 @@ pub(crate) fn complete_task_internal(
                         root_exec.set_process_variables(process_vars);
                         command_context
                             .execution_entity_manager
-                            .update(&root_exec, &mut command_context.session);
+                            .update(&root_exec, &mut command_context.session)?;
                     }
                 }
                 Err(e) => {
@@ -1252,21 +1280,21 @@ pub(crate) fn complete_task_internal(
                             crate::bpmn::behavior::multi_instance_support::record_mi_child_activity_end(
                                 command_context,
                                 &current_execution,
-                            );
+                            )?;
                             current_execution.is_ended = true;
                             current_execution.is_active = false;
                             command_context
                                 .execution_entity_manager
-                                .update(&current_execution, &mut command_context.session);
+                                .update(&current_execution, &mut command_context.session)?;
                             command_context
                                 .execution_entity_manager
-                                .update(&p, &mut command_context.session);
+                                .update(&p, &mut command_context.session)?;
                             // SequentialMultiInstanceBehavior.java:90-97.
                             crate::bpmn::behavior::multi_instance_support::cleanup_mi_root_and_leave(
                                 &p,
                                 command_context,
                                 complete_condition,
-                            );
+                            )?;
                             return Ok(());
                         }
 
@@ -1278,15 +1306,15 @@ pub(crate) fn complete_task_internal(
                         crate::bpmn::behavior::multi_instance_support::record_mi_child_activity_end(
                             command_context,
                             &current_execution,
-                        );
+                        )?;
                         current_execution.is_ended = false;
                         current_execution.is_active = true;
                         command_context
                             .execution_entity_manager
-                            .update(&current_execution, &mut command_context.session);
+                            .update(&current_execution, &mut command_context.session)?;
                         command_context
                             .execution_entity_manager
-                            .update(&p, &mut command_context.session);
+                            .update(&p, &mut command_context.session)?;
                         command_context.agenda.plan_continue_process_operation(p);
                         return Ok(());
                     } else {
@@ -1294,12 +1322,12 @@ pub(crate) fn complete_task_internal(
                         crate::bpmn::behavior::multi_instance_support::record_mi_child_activity_end(
                             command_context,
                             &current_execution,
-                        );
+                        )?;
                         current_execution.is_ended = true;
                         current_execution.is_active = false;
                         command_context
                             .execution_entity_manager
-                            .update(&current_execution, &mut command_context.session);
+                            .update(&current_execution, &mut command_context.session)?;
 
                         let nr_of_active = p
                             .process_variable("nrOfActiveInstances")
@@ -1316,11 +1344,11 @@ pub(crate) fn complete_task_internal(
                                 command_context,
                                 pi_id,
                                 &current_execution,
-                            );
+                            )?;
                         } else if active_siblings > 0 {
                             command_context
                                 .execution_entity_manager
-                                .update(&p, &mut command_context.session);
+                                .update(&p, &mut command_context.session)?;
                             return Ok(());
                         }
                     }
@@ -1336,12 +1364,12 @@ pub(crate) fn complete_task_internal(
                     )?;
                     command_context
                         .execution_entity_manager
-                        .update(&p, &mut command_context.session);
+                        .update(&p, &mut command_context.session)?;
                     crate::bpmn::behavior::multi_instance_support::cleanup_mi_root_and_leave(
                         &p,
                         command_context,
                         with_condition,
-                    );
+                    )?;
                     return Ok(());
                 }
             }
@@ -1351,7 +1379,7 @@ pub(crate) fn complete_task_internal(
     // Non-MI leave: persist the ended mark, then take outgoing flows.
     command_context
         .execution_entity_manager
-        .update(&current_execution, &mut command_context.session);
+        .update(&current_execution, &mut command_context.session)?;
     let latest_execution = command_context
         .execution_entity_manager
         .find_by_id(&task.execution_id, &mut command_context.session)
@@ -1620,7 +1648,7 @@ fn cancel_remaining_multi_instance_children(
     command_context: &mut CommandContext,
     process_instance_id: &str,
     completed_execution: &crate::runtime::execution::Execution,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let sibling_execution_ids = command_context
         .runtime_store
         .snapshot_executions(&mut command_context.session)
@@ -1643,7 +1671,7 @@ fn cancel_remaining_multi_instance_children(
             cancelled_task.mark_completed();
             command_context
                 .task_entity_manager
-                .update(&cancelled_task, &mut command_context.session);
+                .update(&cancelled_task, &mut command_context.session)?;
             command_context
                 .task_entity_manager
                 .delete(&task.id, &mut command_context.session);
@@ -1651,7 +1679,7 @@ fn cancel_remaining_multi_instance_children(
                 &task.id,
                 Some("multi-instance completion condition"),
                 &mut command_context.session,
-            );
+            )?;
         }
 
         command_context
@@ -1675,9 +1703,10 @@ fn cancel_remaining_multi_instance_children(
             execution.is_ended = true;
             command_context
                 .execution_entity_manager
-                .update(&execution, &mut command_context.session);
+                .update(&execution, &mut command_context.session)?;
         }
     }
+    Ok(())
 }
 
 struct WakeUpMessageByProcessInstanceIdCmd {
@@ -1718,7 +1747,7 @@ impl Command<()> for WakeUpMessageByProcessInstanceIdCmd {
         let task = match wait_state.task_id.as_deref() {
             Some(task_id) => command_context
                 .task_entity_manager
-                .find_task_by_id(task_id, &mut command_context.session),
+                .find_task_by_id(task_id, &mut command_context.session)?,
             None => None,
         };
 
@@ -1776,7 +1805,7 @@ impl Command<()> for WakeUpMessageByMessageRefCmd {
         let task = match wait_state.task_id.as_deref() {
             Some(task_id) => command_context
                 .task_entity_manager
-                .find_task_by_id(task_id, &mut command_context.session),
+                .find_task_by_id(task_id, &mut command_context.session)?,
             None => None,
         };
 
@@ -1904,7 +1933,7 @@ pub fn complete_task_by_id_in_context(
 ) -> Result<(), crate::error::FlowableError> {
     let mut task = match command_context
         .task_entity_manager
-        .find_task_by_id(task_id, &mut command_context.session)
+        .find_task_by_id(task_id, &mut command_context.session)?
     {
         Some(task) => task,
         None => {
@@ -1926,7 +1955,7 @@ pub fn complete_task_by_id_in_context(
                 &mut task,
                 name.clone(),
                 value.clone(),
-            );
+            )?;
         }
     } else {
         for (name, value) in variables {
@@ -2033,7 +2062,7 @@ impl Command<HashMap<String, serde_json::Value>> for GetTaskLocalVariablesCmd {
     ) -> Result<HashMap<String, serde_json::Value>, crate::error::FlowableError> {
         let task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Task '{}' was not found",
@@ -2062,7 +2091,7 @@ impl Command<Option<serde_json::Value>> for GetTaskLocalVariableCmd {
     ) -> Result<Option<serde_json::Value>, crate::error::FlowableError> {
         let task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Task '{}' was not found",
@@ -2073,10 +2102,11 @@ impl Command<Option<serde_json::Value>> for GetTaskLocalVariableCmd {
     }
 }
 
-fn update_historic_task_assignment(command_context: &mut CommandContext, task: &Task) {
+fn update_historic_task_assignment(command_context: &mut CommandContext, task: &Task) -> Result<(), crate::error::FlowableError> {
     command_context
         .history_manager
-        .record_task_updated(task, &mut command_context.session);
+        .record_task_updated(task, &mut command_context.session)?;
+    Ok(())
 }
 
 fn record_assignee_identity_link_event(
@@ -2128,7 +2158,7 @@ fn fire_task_listeners_for_event(
     )?;
     command_context
         .execution_entity_manager
-        .update(&execution, &mut command_context.session);
+        .update(&execution, &mut command_context.session)?;
     // Task may have been mutated by the listener (e.g. name/assignee); keep store in sync
     // unless we are about to delete it (complete).
     if event != "complete" {
@@ -2137,10 +2167,10 @@ fn fire_task_listeners_for_event(
         // bypassed history gating and consumed the identity-link diff.
         command_context
             .history_manager
-            .record_task_updated(&task_mut, &mut command_context.session);
+            .record_task_updated(&task_mut, &mut command_context.session)?;
         command_context
             .task_entity_manager
-            .update(&task_mut, &mut command_context.session);
+            .update(&task_mut, &mut command_context.session)?;
     }
     Ok(())
 }
@@ -2197,7 +2227,7 @@ impl Command<()> for DeleteTaskCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2261,7 +2291,7 @@ impl Command<()> for ClaimTaskByIdCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2284,18 +2314,18 @@ impl Command<()> for ClaimTaskByIdCmd {
             // refreshes the claim state (recordTaskInfoChange).
             task.claim_time = Some(Utc::now());
             task.state = "claimed".to_string();
-            update_historic_task_assignment(command_context, &task);
+            update_historic_task_assignment(command_context, &task)?;
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
         } else {
             task.assignee = Some(self.assignee.clone());
             task.claim_time = Some(Utc::now());
             task.state = "claimed".to_string();
-            update_historic_task_assignment(command_context, &task);
+            update_historic_task_assignment(command_context, &task)?;
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
             record_assignee_identity_link_event(
                 command_context,
                 &task.id,
@@ -2335,7 +2365,7 @@ impl Command<()> for SetTaskAssigneeByIdCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = match command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
         {
             Some(task) => task,
             None => {
@@ -2362,10 +2392,10 @@ impl Command<()> for SetTaskAssigneeByIdCmd {
                 "DeleteUserLink",
             );
         }
-        update_historic_task_assignment(command_context, &task);
+        update_historic_task_assignment(command_context, &task)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
         fire_task_listeners_for_event(command_context, &task, "assignment")?;
         // P53 layer 1: `TASK_ASSIGNED` for the set-assignee path as well.
         crate::engine::event_dispatcher::dispatch_task_assigned(
@@ -2449,7 +2479,7 @@ impl Command<Task> for CreateTaskCmd {
         let task = self.task.clone();
         command_context
             .task_entity_manager
-            .insert(&task, &mut command_context.session);
+            .insert(&task, &mut command_context.session)?;
 
         // P97: route through the HistoryManager like every other task-creation
         // path (Java TaskServiceImpl.saveTask → TaskEntityManager.insert →
@@ -2458,7 +2488,7 @@ impl Command<Task> for CreateTaskCmd {
         // assignee/owner identity links and full-extras log entries.
         command_context
             .history_manager
-            .record_task_created(&task, &mut command_context.session);
+            .record_task_created(&task, &mut command_context.session)?;
 
         Ok(task)
     }
@@ -2482,7 +2512,7 @@ impl Command<Task> for UpdateTaskByIdCmd {
     ) -> Result<Task, crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2517,10 +2547,10 @@ impl Command<Task> for UpdateTaskByIdCmd {
         // (`HistoricTaskServiceImpl.recordTaskInfoChange:142-152`).
         command_context
             .history_manager
-            .record_task_updated(&task, &mut command_context.session);
+            .record_task_updated(&task, &mut command_context.session)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
 
         // P119: field-change events mirror Java logTaskUpdateEvents for
         // owner / priority / dueDate / name (assignee uses TASK_ASSIGNED).
@@ -2581,7 +2611,7 @@ impl Command<()> for DelegateTaskByIdCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2599,10 +2629,10 @@ impl Command<()> for DelegateTaskByIdCmd {
         }
         task.assignee = Some(self.user_id.clone());
         task.delegation_state = Some("pending".to_string());
-        update_historic_task_assignment(command_context, &task);
+        update_historic_task_assignment(command_context, &task)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
         Ok(())
     }
 }
@@ -2632,7 +2662,7 @@ impl Command<()> for ResolveTaskByIdCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2667,10 +2697,10 @@ impl Command<()> for ResolveTaskByIdCmd {
         // back to the owner (even when the task was never delegated).
         task.delegation_state = Some("resolved".to_string());
         task.assignee = task.owner.clone();
-        update_historic_task_assignment(command_context, &task);
+        update_historic_task_assignment(command_context, &task)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
         Ok(())
     }
 }
@@ -2693,7 +2723,7 @@ impl Command<()> for SetTaskDueDateByIdCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2709,10 +2739,10 @@ impl Command<()> for SetTaskDueDateByIdCmd {
         task.due_date = self.due_date;
         command_context
             .history_manager
-            .record_task_updated(&task, &mut command_context.session);
+            .record_task_updated(&task, &mut command_context.session)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
         // P119: TASK_DUEDATE_CHANGED — Java TaskEntityManagerImpl.java:291-295.
         if previous_due != task.due_date {
             crate::engine::event_dispatcher::dispatch_task_duedate_changed(
@@ -2744,7 +2774,7 @@ impl Command<()> for SetTaskPriorityByIdCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -2760,10 +2790,10 @@ impl Command<()> for SetTaskPriorityByIdCmd {
         task.priority = Some(self.priority);
         command_context
             .history_manager
-            .record_task_updated(&task, &mut command_context.session);
+            .record_task_updated(&task, &mut command_context.session)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
         // P119: TASK_PRIORITY_CHANGED — Java TaskEntityManagerImpl.java:284-288.
         if previous_priority != task.priority {
             crate::engine::event_dispatcher::dispatch_task_priority_changed(
@@ -2863,16 +2893,16 @@ impl TaskService {
     pub fn get_event_wait_states_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) -> Vec<EventWaitState> {
+    ) -> Result<Vec<EventWaitState>, crate::error::FlowableError> {
         let cmd = QueryEventWaitStatesByProcessInstanceIdCmd::new(process_instance_id);
-        self.command_executor.execute(&cmd).unwrap()
+        self.command_executor.execute(&cmd)
     }
 
     /// Type alias for callers that depend on the older name
     pub fn get_message_style_wait_states_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) -> Vec<EventWaitState> {
+    ) -> Result<Vec<EventWaitState>, crate::error::FlowableError> {
         self.get_event_wait_states_by_process_instance_id(process_instance_id)
     }
 
@@ -3379,7 +3409,7 @@ impl Command<()> for AddIdentityLinkCmd {
     ) -> Result<(), crate::error::FlowableError> {
         let mut task = command_context
             .task_entity_manager
-            .find_task_by_id(&self.task_id, &mut command_context.session)
+            .find_task_by_id(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "No task found for task id {}",
@@ -3401,10 +3431,10 @@ impl Command<()> for AddIdentityLinkCmd {
             // `TaskEntityManagerImpl:125,139` → `recordTaskInfoChange`. That both
             // syncs the historic task row and appends the accumulating historic
             // identity link; without it the historic assignee/owner went stale.
-            update_historic_task_assignment(command_context, &task);
+            update_historic_task_assignment(command_context, &task)?;
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
             return Ok(());
         }
 
@@ -3427,7 +3457,7 @@ impl Command<()> for AddIdentityLinkCmd {
         // → HistoryManager.recordIdentityLinkCreated.
         command_context
             .history_manager
-            .record_identity_link_created(&link, &mut command_context.session);
+            .record_identity_link_created(&link, &mut command_context.session)?;
         command_context
             .runtime_store
             .insert_identity_link(link, &mut command_context.session);
@@ -3466,7 +3496,7 @@ impl Command<()> for DeleteIdentityLinkCmd {
         // Java parity: DeleteIdentityLinkCmd extends NeedsActiveTaskCmd.
         let store = command_context.runtime_store_handle();
         let task = store
-            .find_task(&self.task_id, &mut command_context.session)
+            .find_task(&self.task_id, &mut command_context.session)?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Cannot find task with id {}",
@@ -3486,10 +3516,10 @@ impl Command<()> for DeleteIdentityLinkCmd {
             // via `TaskHelper.changeTaskAssignee(task, null)` /
             // `changeTaskOwner(task, null)` → `recordTaskInfoChange`, which
             // appends a historic identity link carrying a null userId.
-            update_historic_task_assignment(command_context, &task);
+            update_historic_task_assignment(command_context, &task)?;
             command_context
                 .task_entity_manager
-                .update(&task, &mut command_context.session);
+                .update(&task, &mut command_context.session)?;
             return Ok(());
         }
 

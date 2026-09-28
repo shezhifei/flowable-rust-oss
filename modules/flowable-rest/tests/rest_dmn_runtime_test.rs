@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -99,7 +105,7 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
             row.insert("gObject".to_string(), json!({"nested": 1}));
             row.insert("hArray".to_string(), json!([1, "two"]));
             return Ok(DecisionExecutionRecord {
-                id: format!("execution-{}", self.history.lock().unwrap().len() + 1),
+                id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
                 decision_table_id: "types-1".to_string(),
                 deployment_id: "deployment-1".to_string(),
                 decision_key: command.decision_key.clone(),
@@ -127,7 +133,7 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
             );
             row2.insert("priority".to_string(), json!(20));
             return Ok(DecisionExecutionRecord {
-                id: format!("execution-{}", self.history.lock().unwrap().len() + 1),
+                id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
                 decision_table_id: "collect-1".to_string(),
                 deployment_id: "deployment-1".to_string(),
                 decision_key: command.decision_key.clone(),
@@ -149,7 +155,7 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
         // P82d: zero-hit decision for single-result empty 201
         if command.decision_key == "emptyHits" {
             return Ok(DecisionExecutionRecord {
-                id: format!("execution-{}", self.history.lock().unwrap().len() + 1),
+                id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
                 decision_table_id: "empty-1".to_string(),
                 deployment_id: "deployment-1".to_string(),
                 decision_key: command.decision_key.clone(),
@@ -187,7 +193,7 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
         let result_variables = vec![row];
 
         let execution = DecisionExecutionRecord {
-            id: format!("execution-{}", self.history.lock().unwrap().len() + 1),
+            id: format!("execution-{}", self.history.lock().unwrap_or_else(|e| e.into_inner()).len() + 1),
             decision_table_id: "decision-1".to_string(),
             deployment_id: "deployment-1".to_string(),
             decision_key: command.decision_key.clone(),
@@ -209,7 +215,7 @@ impl dmn::DmnRuntimeApi for MockDmnApi {
 
         self.history
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(HistoricDecisionExecutionRecord {
                 id: execution.id.clone(),
                 decision_table_id: execution.decision_table_id.clone(),
@@ -243,7 +249,7 @@ impl dmn::DmnHistoryApi for MockDmnApi {
         let filtered: Vec<HistoricDecisionExecutionRecord> = self
             .history
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|entry| {
                 query.id.as_ref().is_none_or(|value| entry.id == *value)
@@ -266,7 +272,7 @@ impl dmn::DmnHistoryApi for MockDmnApi {
         &self,
         historic_decision_execution_id: &str,
     ) -> Result<(), ApiError> {
-        let mut history = self.history.lock().unwrap();
+        let mut history = self.history.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(pos) = history
             .iter()
             .position(|entry| entry.id == historic_decision_execution_id)
@@ -284,7 +290,7 @@ impl dmn::DmnHistoryApi for MockDmnApi {
         &self,
         historic_decision_execution_ids: Vec<String>,
     ) -> Result<(), ApiError> {
-        let mut history = self.history.lock().unwrap();
+        let mut history = self.history.lock().unwrap_or_else(|e| e.into_inner());
         history.retain(|entry| !historic_decision_execution_ids.contains(&entry.id));
         Ok(())
     }

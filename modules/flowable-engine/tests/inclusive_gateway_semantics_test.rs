@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 fn deploy_inclusive_gateway_process(
@@ -66,7 +72,7 @@ fn start_process_instance(
 
 #[test]
 fn inclusive_gateway_takes_all_matching_outgoing_flows_and_joins_after_both_complete() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -133,7 +139,7 @@ fn inclusive_gateway_takes_all_matching_outgoing_flows_and_joins_after_both_comp
 
 #[test]
 fn inclusive_gateway_uses_default_flow_when_no_condition_matches_and_joins_single_branch() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -173,7 +179,7 @@ fn inclusive_gateway_uses_default_flow_when_no_condition_matches_and_joins_singl
 /// token-count join would wait forever for the destroyed branch.
 #[test]
 fn inclusive_join_activates_after_interrupting_boundary_destroys_sibling_branch() {
-    let process_engine = ProcessEngine::new("inclusive-join-boundary-destroy".to_string());
+    let process_engine = ProcessEngine::new("inclusive-join-boundary-destroy".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -296,7 +302,7 @@ fn inclusive_join_activates_after_interrupting_boundary_destroys_sibling_branch(
 /// where the dead path completes first (no ExecuteInactiveBehaviors needed).
 #[test]
 fn inclusive_join_activates_when_sibling_branch_ends_without_reaching_join() {
-    let process_engine = ProcessEngine::new("inclusive-join-dead-path".to_string());
+    let process_engine = ProcessEngine::new("inclusive-join-dead-path".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -419,7 +425,7 @@ fn inclusive_join_activates_when_sibling_branch_ends_without_reaching_join() {
 /// branch.
 #[test]
 fn inclusive_join_activates_after_terminate_end_destroys_subprocess_branch() {
-    let process_engine = ProcessEngine::new("inclusive-join-terminate-sub".to_string());
+    let process_engine = ProcessEngine::new("inclusive-join-terminate-sub".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

@@ -1,11 +1,12 @@
 use crate::persistence::db_session::DbSession;
 use crate::persistence::entity_manager::EntityManager;
 use crate::persistence::runtime_store::RuntimeStore;
+use crate::persistence::StorageError;
 use crate::task::Task;
 use std::collections::HashMap;
 
 pub trait TaskEntityManager: EntityManager<Task> {
-    fn find_task_by_id(&mut self, id: &str, session: &mut DbSession) -> Option<Task>;
+    fn find_task_by_id(&mut self, id: &str, session: &mut DbSession) -> Result<Option<Task>, StorageError>;
     fn find_by_process_instance_id(
         &mut self,
         process_instance_id: &str,
@@ -32,12 +33,12 @@ impl DefaultTaskEntityManager {
 }
 
 impl EntityManager<Task> for DefaultTaskEntityManager {
-    fn insert(&mut self, entity: &Task, session: &mut DbSession) {
-        self.runtime_store.insert_task(entity, session);
+    fn insert(&mut self, entity: &Task, session: &mut DbSession) -> Result<(), StorageError> {
+        self.runtime_store.insert_task(entity, session)
     }
 
-    fn update(&mut self, entity: &Task, session: &mut DbSession) {
-        self.runtime_store.update_task(entity, session);
+    fn update(&mut self, entity: &Task, session: &mut DbSession) -> Result<(), StorageError> {
+        self.runtime_store.update_task(entity, session)
     }
 
     fn delete(&mut self, id: &str, session: &mut DbSession) {
@@ -50,7 +51,7 @@ impl EntityManager<Task> for DefaultTaskEntityManager {
 }
 
 impl TaskEntityManager for DefaultTaskEntityManager {
-    fn find_task_by_id(&mut self, id: &str, session: &mut DbSession) -> Option<Task> {
+    fn find_task_by_id(&mut self, id: &str, session: &mut DbSession) -> Result<Option<Task>, StorageError> {
         self.runtime_store.find_task(id, session)
     }
 

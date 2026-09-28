@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 #[test]
@@ -17,7 +23,7 @@ fn test_timer_intermediate_catch_event() {
         </process>
     </definitions>"#;
 
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -61,7 +67,7 @@ fn test_timer_intermediate_catch_event() {
     drop(session);
 
     // Trigger the timer deterministically
-    process_engine.trigger_timer_intermediate_catch_event(timer_execution.id.clone());
+    process_engine.trigger_timer_intermediate_catch_event(timer_execution.id.clone()).unwrap();
 
     let mut session_after = runtime_store.create_session().unwrap();
     let process_instance_ended = runtime_store
@@ -96,7 +102,7 @@ fn intermediate_timer_job_category_is_populated() {
         </process>
     </definitions>"#;
 
-    let process_engine = ProcessEngine::new("timer-job-category".to_string());
+    let process_engine = ProcessEngine::new("timer-job-category".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -154,7 +160,7 @@ fn test_timer_boundary_event_on_user_task() {
         </process>
     </definitions>"#;
 
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -201,7 +207,7 @@ fn test_timer_boundary_event_on_user_task() {
 
     // Trigger boundary event
     process_engine
-        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone());
+        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone()).unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -251,7 +257,7 @@ fn test_mixed_boundary_events() {
         </process>
     </definitions>"#;
 
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -289,7 +295,7 @@ fn test_mixed_boundary_events() {
 
     // Trigger the non-interrupting timer
     process_engine
-        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone());
+        .trigger_timer_boundary_event("timerBoundary1".to_string(), process_instance.id.clone()).unwrap();
 
     let mut session_after = runtime_store.create_session().unwrap();
     let timer_states_after = runtime_store
@@ -310,7 +316,7 @@ fn test_mixed_boundary_events() {
     process_engine.trigger_boundary_event_by_message_ref(
         "myMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     let mut session_final = runtime_store.create_session().unwrap();
     let message_states_final = runtime_store.find_boundary_event_states_by_process_instance_id(

@@ -120,6 +120,26 @@ impl InboundEventConsumer for CmmnEventRegistryConsumer {
             && event_tenant.is_some()
         {
             let engine = self.cmmn_engine.clone();
+            // Java parity: CmmnEventRegistryEventConsumer.findDefinitionKeyById resolves the
+            // case-definition key via findById, which throws on a storage failure
+            // (DbSqlSession.selectById). Pre-resolve the keys so a storage error surfaces
+            // instead of being masked as an absent dedup key -- masking would wrongly KEEP a
+            // tenantless subscription that should be dropped, causing event double-delivery.
+            // Only a genuinely deleted definition (NotFound) yields no key.
+            let mut def_key_by_id: std::collections::HashMap<String, Option<String>> =
+                std::collections::HashMap::new();
+            for sub in &subscriptions {
+                if let Some(def_id) = sub.case_definition_id.as_ref() {
+                    if !def_key_by_id.contains_key(def_id) {
+                        let key = match engine.repository_service().get_case_definition(def_id) {
+                            Ok(definition) => Some(definition.key),
+                            Err(CmmnError::NotFound { .. }) => None,
+                            Err(error) => return Err(map_cmmn_error(error)),
+                        };
+                        def_key_by_id.insert(def_id.clone(), key);
+                    }
+                }
+            }
             subscriptions = dedup_definition_level_subscriptions_by_key(
                 subscriptions,
                 |sub| {
@@ -128,13 +148,9 @@ impl InboundEventConsumer for CmmnEventRegistryConsumer {
                     (!is_instance, sub.tenant_id.clone())
                 },
                 |sub| {
-                    sub.case_definition_id.as_ref().and_then(|def_id| {
-                        engine
-                            .repository_service()
-                            .get_case_definition(def_id)
-                            .ok()
-                            .map(|d| d.key)
-                    })
+                    sub.case_definition_id
+                        .as_ref()
+                        .and_then(|def_id| def_key_by_id.get(def_id).cloned().flatten())
                 },
             );
         }

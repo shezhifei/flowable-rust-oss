@@ -656,7 +656,7 @@ pub async fn get_form_data(
     uri: Uri,
 ) -> Result<Json<RuntimeFormData>, ApiError> {
     let query: RuntimeFormQueryParams = parse_query(&uri)?;
-    let service = FlowableFormService::new(engine);
+    let service = FlowableFormService::new(engine)?;
 
     match (
         query.process_definition_id.as_deref(),
@@ -691,7 +691,7 @@ pub async fn submit_form(
         )));
     }
 
-    let service = FlowableFormService::new(engine);
+    let service = FlowableFormService::new(engine)?;
     let request = FormSubmissionRequest {
         process_definition_id: payload.process_definition_id,
         task_id: payload.task_id,
@@ -732,7 +732,7 @@ pub async fn list_form_instances(
     query.validate()?;
 
     let mut instance_query =
-        FlowableFormService::new(Arc::clone(&engine)).create_form_instance_query();
+        FlowableFormService::new(Arc::clone(&engine))?.create_form_instance_query();
     if let Some(form_definition_id) = query.form_definition_id.clone() {
         instance_query = instance_query.form_definition_id(form_definition_id);
     }
@@ -806,7 +806,7 @@ pub async fn get_form_instance(
     Path(form_instance_id): Path<String>,
 ) -> Result<Json<FormInstanceResponse>, ApiError> {
     let instance =
-        FlowableFormService::new(Arc::clone(&engine)).get_form_instance(&form_instance_id)?;
+        FlowableFormService::new(Arc::clone(&engine))?.get_form_instance(&form_instance_id)?;
     Ok(Json(form_instance_response(instance)))
 }
 
@@ -818,7 +818,7 @@ pub async fn get_form_instance_values(
     Path(form_instance_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let bytes =
-        FlowableFormService::new(Arc::clone(&engine)).get_form_instance_values(&form_instance_id)?;
+        FlowableFormService::new(Arc::clone(&engine))?.get_form_instance_values(&form_instance_id)?;
     Ok((
         StatusCode::OK,
         [(header::CONTENT_TYPE, "application/json")],
@@ -832,7 +832,7 @@ pub async fn delete_form_instance(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(form_instance_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    FlowableFormService::new(Arc::clone(&engine)).delete_form_instance(&form_instance_id)?;
+    FlowableFormService::new(Arc::clone(&engine))?.delete_form_instance(&form_instance_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 

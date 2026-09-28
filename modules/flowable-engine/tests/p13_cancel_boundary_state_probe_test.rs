@@ -1,10 +1,16 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 
 /// P13 probe: cancel end → cancel boundary does not go through
 /// `execute_boundary_trigger`; assert whether `boundary_event_state` remains.
 #[test]
 fn p13_probe_cancel_boundary_state_after_cancel_end() {
-    let engine = ProcessEngine::new("p13-cancel-state-probe".to_string());
+    let engine = ProcessEngine::new("p13-cancel-state-probe".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P93: event-registry correlation model — subscription configuration storage,
 //! match semantics (`configuration IS NULL OR IN keys`), and
 //! `storeAsUniqueReferenceId` referenceId count dedup.
@@ -66,10 +72,10 @@ fn expected_customer_key() -> String {
 /// event's full-parameter key (would trigger start in the consumer).
 #[test]
 fn correlation_hit_matches_start_subscription() {
-    let engine = ProcessEngine::new("p93-corr-hit".to_string());
+    let engine = ProcessEngine::new("p93-corr-hit".to_string()).unwrap();
     deploy_correlated_start(&engine, "corr-hit");
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     let sub = subs
         .iter()
         .find(|s| s.event_ref == "myEvent")
@@ -101,10 +107,10 @@ fn correlation_hit_matches_start_subscription() {
 /// subscription configuration (consumer ignores).
 #[test]
 fn correlation_miss_ignores_non_matching_key() {
-    let engine = ProcessEngine::new("p93-corr-miss".to_string());
+    let engine = ProcessEngine::new("p93-corr-miss".to_string()).unwrap();
     deploy_correlated_start(&engine, "corr-miss");
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     let sub = subs
         .iter()
         .find(|s| s.event_ref == "myEvent")
@@ -131,10 +137,10 @@ fn correlation_miss_ignores_non_matching_key() {
 /// referenceType; skip second start when count > 0 (no distributed lock).
 #[test]
 fn unique_reference_id_dedup_skips_second_start() {
-    let engine = ProcessEngine::new("p93-unique-ref".to_string());
+    let engine = ProcessEngine::new("p93-unique-ref".to_string()).unwrap();
     deploy_correlated_start(&engine, "unique-ref");
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     let sub = subs
         .iter()
         .find(|s| s.event_ref == "myEvent")
@@ -235,7 +241,7 @@ fn unique_reference_id_dedup_skips_second_start() {
 /// the wait state (runtime path with variable evaluation).
 #[test]
 fn intermediate_catch_stores_runtime_correlation_configuration() {
-    let engine = ProcessEngine::new("p93-catch-corr".to_string());
+    let engine = ProcessEngine::new("p93-catch-corr".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:flowable="http://flowable.org/bpmn"
@@ -272,7 +278,7 @@ fn intermediate_catch_stores_runtime_correlation_configuration() {
         .variable("customerIdVar".to_string(), json!("cust-42"));
     let pi = runtime.start_process_instance(builder).unwrap();
 
-    let waits = runtime.get_event_wait_states_by_process_instance_id(pi.id.clone());
+    let waits = runtime.get_event_wait_states_by_process_instance_id(pi.id.clone()).unwrap();
     assert_eq!(waits.len(), 1, "one intermediate catch wait state");
     let wait = &waits[0];
     assert_eq!(wait.event_ref.as_deref(), Some("myEvent"));
@@ -360,10 +366,10 @@ fn correlation_three_params_produce_seven_powerset_keys() {
 /// generated only the two-parameter key and missed.
 #[test]
 fn correlation_subset_key_hits_subscription_with_fewer_params() {
-    let engine = ProcessEngine::new("p98-subset-hit".to_string());
+    let engine = ProcessEngine::new("p98-subset-hit".to_string()).unwrap();
     deploy_correlated_start(&engine, "subset-hit");
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     let sub = subs
         .iter()
         .find(|s| s.event_ref == "myEvent")
@@ -391,10 +397,10 @@ fn correlation_subset_key_hits_subscription_with_fewer_params() {
 /// the subset keys (customerId=other / orderId / both) equals the configuration.
 #[test]
 fn correlation_value_mismatch_no_subset_key_hits() {
-    let engine = ProcessEngine::new("p98-subset-miss".to_string());
+    let engine = ProcessEngine::new("p98-subset-miss".to_string()).unwrap();
     deploy_correlated_start(&engine, "subset-miss");
 
-    let subs = engine.get_event_start_subscriptions();
+    let subs = engine.get_event_start_subscriptions().unwrap();
     let sub = subs
         .iter()
         .find(|s| s.event_ref == "myEvent")

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Contract tests for the process-instance scope execution row in top-level
 //! parallel / inclusive topologies, mirroring the Java model where the process
 //! instance IS an `ExecutionEntity` (`ExecutionEntityImpl`) and therefore an
@@ -108,7 +114,7 @@ fn child_execution_id(engine: &ProcessEngine, activity_id: &str) -> String {
 /// as the (inactive) scope parent of the branch executions.
 #[test]
 fn top_level_parallel_fork_preserves_process_instance_scope_execution() {
-    let engine = ProcessEngine::new("top-level-parallel-scope-row".to_string());
+    let engine = ProcessEngine::new("top-level-parallel-scope-row".to_string()).unwrap();
     let process_instance = deploy_and_start(
         &engine,
         "top_level_parallel.bpmn20.xml",
@@ -147,7 +153,7 @@ fn top_level_parallel_fork_preserves_process_instance_scope_execution() {
 /// row to land on and the branch's parent chain pointed at a deleted row.
 #[test]
 fn top_level_parallel_branch_resolves_process_variable_written_after_fork() {
-    let engine = ProcessEngine::new("top-level-parallel-parent-chain".to_string());
+    let engine = ProcessEngine::new("top-level-parallel-parent-chain".to_string()).unwrap();
     let process_instance = deploy_and_start(
         &engine,
         "top_level_parallel.bpmn20.xml",
@@ -189,7 +195,7 @@ fn top_level_parallel_branch_resolves_process_variable_written_after_fork() {
 /// unconditionally. The process-instance scope row must survive here too.
 #[test]
 fn top_level_inclusive_split_preserves_process_instance_scope_execution() {
-    let engine = ProcessEngine::new("top-level-inclusive-scope-row".to_string());
+    let engine = ProcessEngine::new("top-level-inclusive-scope-row".to_string()).unwrap();
     let process_instance = deploy_and_start(
         &engine,
         "top_level_inclusive.bpmn20.xml",
@@ -214,7 +220,7 @@ fn top_level_inclusive_split_preserves_process_instance_scope_execution() {
 /// process instance.
 #[test]
 fn top_level_parallel_fork_join_semantics_unchanged() {
-    let engine = ProcessEngine::new("top-level-parallel-regression".to_string());
+    let engine = ProcessEngine::new("top-level-parallel-regression".to_string()).unwrap();
     let process_instance = deploy_and_start(
         &engine,
         "top_level_parallel.bpmn20.xml",
@@ -253,7 +259,7 @@ fn top_level_parallel_fork_join_semantics_unchanged() {
 /// `get_variables(process_instance_id)`.
 #[test]
 fn process_level_variables_live_only_on_the_scope_execution_row() {
-    let engine = ProcessEngine::new("top-level-parallel-single-storage".to_string());
+    let engine = ProcessEngine::new("top-level-parallel-single-storage".to_string()).unwrap();
     let process_instance = deploy_and_start(
         &engine,
         "top_level_parallel.bpmn20.xml",

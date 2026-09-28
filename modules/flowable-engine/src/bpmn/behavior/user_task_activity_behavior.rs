@@ -219,12 +219,12 @@ impl ActivityBehavior for UserTaskActivityBehavior {
 
         command_context
             .history_manager
-            .record_task_created(&task, &mut command_context.session);
+            .record_task_created(&task, &mut command_context.session)?;
 
         let task_id = task.id.clone();
         command_context
             .task_entity_manager
-            .insert(&task, &mut command_context.session);
+            .insert(&task, &mut command_context.session)?;
         insert_candidate_identity_links(
             command_context,
             &task_id,
@@ -232,7 +232,7 @@ impl ActivityBehavior for UserTaskActivityBehavior {
             &process_definition_id,
             &candidate_users,
             &candidate_groups,
-        );
+        )?;
 
         // Task listeners: create (always), assignment (when assignee is set).
         crate::bpmn::listener::notify_task_listeners(
@@ -277,13 +277,13 @@ impl ActivityBehavior for UserTaskActivityBehavior {
         // (Java HistoricTaskServiceImpl.recordTaskInfoChange:142-152).
         command_context
             .history_manager
-            .record_task_updated(&task, &mut command_context.session);
+            .record_task_updated(&task, &mut command_context.session)?;
         command_context
             .task_entity_manager
-            .update(&task, &mut command_context.session);
+            .update(&task, &mut command_context.session)?;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         let bpmn_model = command_context
             .deployment_manager
@@ -371,7 +371,7 @@ impl ActivityBehavior for UserTaskActivityBehavior {
                     };
                     command_context
                         .runtime_store
-                        .insert_timer_job_state(&timer_job, &mut command_context.session);
+                        .insert_timer_job_state(&timer_job, &mut command_context.session)?;
                     // P119: TIMER_SCHEDULED — Java TimerJobSchedulerImpl.java:69-73.
                     crate::engine::event_dispatcher::dispatch_timer_scheduled(
                         command_context,
@@ -422,7 +422,7 @@ impl ActivityBehavior for UserTaskActivityBehavior {
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         register_event_subprocess_timer_subscriptions(
             command_context,
@@ -465,7 +465,7 @@ fn insert_candidate_identity_links(
     process_definition_id: &str,
     candidate_users: &[String],
     candidate_groups: &[String],
-) {
+) -> Result<(), crate::error::FlowableError> {
     for user_id in candidate_users {
         let link = IdentityLink {
             id: format!("task:{task_id}:users:{user_id}:type:candidate"),
@@ -479,7 +479,7 @@ fn insert_candidate_identity_links(
         // P77: Java IdentityLinkUtil.handleTaskIdentityLinkAddition → historic IL.
         command_context
             .history_manager
-            .record_identity_link_created(&link, &mut command_context.session);
+            .record_identity_link_created(&link, &mut command_context.session)?;
         command_context
             .runtime_store
             .insert_identity_link(link, &mut command_context.session);
@@ -497,11 +497,12 @@ fn insert_candidate_identity_links(
         };
         command_context
             .history_manager
-            .record_identity_link_created(&link, &mut command_context.session);
+            .record_identity_link_created(&link, &mut command_context.session)?;
         command_context
             .runtime_store
             .insert_identity_link(link, &mut command_context.session);
     }
+    Ok(())
 }
 
 fn register_event_subprocess_timer_subscriptions(

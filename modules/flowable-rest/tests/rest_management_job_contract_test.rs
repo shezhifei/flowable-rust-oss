@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Java contract parity tests for the management job family REST API
 //! (batch P2-JOB-A): bulk deadletter moves, single deadletter move routing,
 //! execute error classification, query contract (fields, paging, sort
@@ -54,7 +60,7 @@ fn build_engine(test_name: &str) -> Arc<ProcessEngine> {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     engine
 }
@@ -197,12 +203,18 @@ async fn bulk_deadletter_move_moves_all_existing_jobs_atomically() {
 
     let management_service = engine.get_management_service();
     for id in ["bulk-dead-1", "bulk-dead-2"] {
-        let revived = management_service
-            .find_executable_job_by_id(id)
-            .unwrap_or_else(|| panic!("{id} must be executable after the bulk move"));
+        let revived = match management_service.find_executable_job_by_id(id).unwrap() {
+            Some(job) => job,
+            None => panic!("{id} must be executable after the bulk move"),
+        };
         // Default retries come from the engine async executor configuration.
         assert_eq!(revived.retries, Some(3));
-        assert!(management_service.find_deadletter_job_by_id(id).is_none());
+        assert!(
+            management_service
+                .find_deadletter_job_by_id(id)
+                .unwrap()
+                .is_none()
+        );
     }
 }
 
@@ -238,11 +250,13 @@ async fn bulk_deadletter_move_with_a_missing_id_is_404_and_writes_nothing() {
     assert!(
         management_service
             .find_deadletter_job_by_id("bulk-dead-existing")
+            .unwrap()
             .is_some()
     );
     assert!(
         management_service
             .find_executable_job_by_id("bulk-dead-existing")
+            .unwrap()
             .is_none()
     );
 }
@@ -291,6 +305,7 @@ async fn bulk_deadletter_move_rejects_unsupported_actions() {
         engine
             .get_management_service()
             .find_deadletter_job_by_id("bulk-dead-action")
+            .unwrap()
             .is_some()
     );
 }
@@ -315,6 +330,7 @@ async fn bulk_deadletter_move_to_history_jobs_routes_history_origin_jobs() {
     let management_service = engine.get_management_service();
     let history_job = management_service
         .find_history_job_by_id("bulk-dead-history-origin")
+        .unwrap()
         .expect("history-origin deadletter must land in the history family");
     // Java moveToHistoryJob uses asyncHistoryExecutorNumberOfRetries (default 10).
     assert_eq!(history_job.retries, Some(10));
@@ -344,11 +360,13 @@ async fn bulk_deadletter_move_routes_mixed_origins_by_persisted_type() {
     assert!(
         management_service
             .find_executable_job_by_id("bulk-dead-runtime")
+            .unwrap()
             .is_some()
     );
     assert!(
         management_service
             .find_history_job_by_id("bulk-dead-history")
+            .unwrap()
             .is_some()
     );
 }
@@ -382,6 +400,7 @@ async fn single_deadletter_move_auto_routes_history_origin_and_defaults_retries(
     let management_service = engine.get_management_service();
     let history_job = management_service
         .find_history_job_by_id("single-dead-history-origin")
+        .unwrap()
         .expect("history-origin deadletter must auto-route to the history family");
     // Default retries = engine `number_of_retries` configuration value (3).
     assert_eq!(history_job.retries, Some(3));
@@ -396,6 +415,7 @@ async fn single_deadletter_move_auto_routes_history_origin_and_defaults_retries(
     assert_eq!(moved_runtime.status(), reqwest::StatusCode::NO_CONTENT);
     let executable_job = management_service
         .find_executable_job_by_id("single-dead-runtime-origin")
+        .unwrap()
         .expect("runtime-origin deadletter must become executable");
     assert_eq!(executable_job.retries, Some(3));
 }
@@ -875,6 +895,7 @@ async fn suspended_move_preserves_retries_and_rejects_suspended_parents() {
     let management_service = engine.get_management_service();
     let activated = management_service
         .find_executable_job_by_id("suspended-preserved")
+        .unwrap()
         .expect("suspended job must be activated");
     assert_eq!(activated.retries, Some(0));
     assert_eq!(activated.error_message.as_deref(), Some("kept failure"));
@@ -891,6 +912,7 @@ async fn suspended_move_preserves_retries_and_rejects_suspended_parents() {
     assert!(
         management_service
             .find_suspended_job_by_id("suspended-blocked")
+            .unwrap()
             .is_some(),
         "rejected activation must leave the job suspended"
     );
@@ -1115,6 +1137,7 @@ async fn execute_async_continuation_job_via_management_jobs() {
         engine
             .get_management_service()
             .find_executable_job_by_id("async-fail-exec")
+            .unwrap()
             .is_some()
     );
 
@@ -1136,6 +1159,7 @@ async fn execute_async_continuation_job_via_management_jobs() {
     let after = engine
         .get_management_service()
         .find_job_by_id("async-fail-exec")
+        .unwrap()
         .expect("job should still exist after failed execute");
     assert_eq!(after.retries, Some(1), "retries must decrement on failure");
 }
@@ -1166,6 +1190,7 @@ async fn move_to_history_job_uses_async_history_retries_default() {
     let moved = engine
         .get_management_service()
         .find_history_job_by_id("hist-dl-retries")
+        .unwrap()
         .expect("moved history job");
     assert_eq!(
         moved.retries,

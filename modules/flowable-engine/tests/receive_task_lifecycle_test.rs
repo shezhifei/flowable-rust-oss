@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 use serde_json::json;
@@ -32,7 +38,7 @@ fn deploy_receive_task_process(process_engine: &ProcessEngine, process_id: &str)
 
 #[test]
 fn receive_task_skip_expression_true_skips_wait_state_and_takes_outgoing_flow() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
     let process_definition_id =
@@ -57,7 +63,7 @@ fn receive_task_skip_expression_true_skips_wait_state_and_takes_outgoing_flow() 
     );
 
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert!(
         wait_states.is_empty(),
         "skipExpression=true should not create a receive-task wait state"
@@ -76,7 +82,7 @@ fn receive_task_skip_expression_true_skips_wait_state_and_takes_outgoing_flow() 
 
 #[test]
 fn receive_task_skip_expression_false_preserves_wait_state() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
     let process_definition_id =
@@ -100,7 +106,7 @@ fn receive_task_skip_expression_false_preserves_wait_state() {
     assert_eq!(tasks[0].name, "Wait for callback");
 
     let wait_states =
-        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        task_service.get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert_eq!(wait_states.len(), 1);
 
     let runtime_store = process_engine.get_runtime_store();
@@ -116,7 +122,7 @@ fn receive_task_skip_expression_false_preserves_wait_state() {
 
 #[test]
 fn receive_task_skip_expression_ignored_when_not_enabled() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
     let process_definition_id =
@@ -150,7 +156,7 @@ fn receive_task_skip_expression_ignored_when_not_enabled() {
 
 #[test]
 fn receive_task_skip_expression_requires_boolean_result() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let runtime_service = process_engine.get_runtime_service();
     let process_definition_id =
         deploy_receive_task_process(&process_engine, "receiveTaskSkipExpressionInvalid");

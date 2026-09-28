@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::persistence::runtime_store::RuntimeTimerJobState;
@@ -1256,7 +1264,7 @@ mod tests {
         fn on_event(&self, event: &EngineEvent) -> Result<(), FlowableError> {
             self.events
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push(format!("{}:{:?}", self.name, event.event_type()));
             match self.error {
                 Some(error) => Err(FlowableError::ExecutionError(error.to_string())),
@@ -1320,7 +1328,7 @@ mod tests {
 
         dispatcher.dispatch(&event()).unwrap();
         assert_eq!(
-            *events.lock().unwrap(),
+            *events.lock().unwrap_or_else(|e| e.into_inner()),
             vec!["global:EntityUpdated", "typed:EntityUpdated"]
         );
     }

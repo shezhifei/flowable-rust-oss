@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 mod test_support;
 
 use flowable_engine::engine::outbound_event_dispatch::OutboundEventDispatchRequest;
@@ -30,7 +36,7 @@ impl OutboundEventTransformer for LoggingOutboundTransformer {
         _channel_config: &Value,
         _event_type: &str,
     ) -> Result<Value, FlowableError> {
-        self.log.stages.lock().unwrap().push("transform".to_string());
+        self.log.stages.lock().unwrap_or_else(|e| e.into_inner()).push("transform".to_string());
         let mut object = payload.as_object().cloned().unwrap_or_default();
         object.insert("transformed".to_string(), Value::String(self.marker.clone()));
         Ok(Value::Object(object))
@@ -49,8 +55,8 @@ impl OutboundChannelAdapter for LoggingOutboundAdapter {
         event: EventPayload,
         _channel_config: &Value,
     ) -> Result<(), FlowableError> {
-        self.log.stages.lock().unwrap().push("adapter".to_string());
-        self.log.payloads.lock().unwrap().push(event.payload.clone());
+        self.log.stages.lock().unwrap_or_else(|e| e.into_inner()).push("adapter".to_string());
+        self.log.payloads.lock().unwrap_or_else(|e| e.into_inner()).push(event.payload.clone());
         let remaining = self.fail_times.load(Ordering::SeqCst);
         if remaining > 0 {
             self.fail_times.fetch_sub(1, Ordering::SeqCst);
@@ -129,7 +135,7 @@ fn service_with_logging(
         }),
     );
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new(name.to_string())),
+        Arc::new(ProcessEngine::new(name.to_string()).unwrap()),
         config,
     );
     (service, log)
@@ -149,8 +155,8 @@ fn outbound_pipeline_runs_transform_before_adapter_with_transformed_payload() {
         .unwrap();
 
     assert_eq!(delivery.status, EventInstanceStatus::Published);
-    assert_eq!(log.stages.lock().unwrap().as_slice(), &["transform", "adapter"]);
-    let payload = log.payloads.lock().unwrap()[0].clone();
+    assert_eq!(log.stages.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &["transform", "adapter"]);
+    let payload = log.payloads.lock().unwrap_or_else(|e| e.into_inner())[0].clone();
     assert_eq!(payload["orderId"], json!("A-1"));
     assert_eq!(payload["transformed"], json!("yes"));
     assert!(delivery.dispatch_token.is_some());
@@ -160,7 +166,7 @@ fn outbound_pipeline_runs_transform_before_adapter_with_transformed_payload() {
 fn outbound_pipeline_rejects_unknown_adapter_at_deploy_time() {
     let service = FlowableEventRegistryService::new(Arc::new(ProcessEngine::new(
         "outbound-unknown-adapter".to_string(),
-    )));
+    ).unwrap()));
     let error = service
         .deploy(EventRegistryDeploymentRequest {
             name: "bad".to_string(),
@@ -202,7 +208,7 @@ fn outbound_pipeline_validation_failure_does_not_call_adapter() {
         })
         .unwrap_err();
     assert!(error.to_string().contains("orderId") || error.to_string().contains("invalid"));
-    assert!(log.stages.lock().unwrap().is_empty());
+    assert!(log.stages.lock().unwrap_or_else(|e| e.into_inner()).is_empty());
 }
 
 #[test]
@@ -218,7 +224,7 @@ fn outbound_pipeline_adapter_failure_marks_failed_with_created_history() {
         })
         .unwrap_err();
 
-    assert_eq!(log.stages.lock().unwrap().as_slice(), &["transform", "adapter"]);
+    assert_eq!(log.stages.lock().unwrap_or_else(|e| e.into_inner()).as_slice(), &["transform", "adapter"]);
     let delivery = service
         .create_event_instance_delivery_query()
         .list_page()
@@ -276,11 +282,11 @@ fn outbound_retry_reuses_original_definition_id_and_reruns_pipeline() {
     assert_eq!(retried.retry_count, 1);
     // transform+adapter on first attempt, transform+adapter on retry
     assert_eq!(
-        log.stages.lock().unwrap().as_slice(),
+        log.stages.lock().unwrap_or_else(|e| e.into_inner()).as_slice(),
         &["transform", "adapter", "transform", "adapter"]
     );
-    assert_eq!(log.payloads.lock().unwrap().len(), 2);
-    assert_eq!(log.payloads.lock().unwrap()[1]["transformed"], json!("yes"));
+    assert_eq!(log.payloads.lock().unwrap_or_else(|e| e.into_inner()).len(), 2);
+    assert_eq!(log.payloads.lock().unwrap_or_else(|e| e.into_inner())[1]["transformed"], json!("yes"));
 }
 
 #[test]
@@ -333,7 +339,7 @@ fn in_memory_adapter_is_invoked_through_registry() {
     let mut config = EventRegistryConfiguration::default();
     config.register_outbound_adapter("in-memory", Arc::new(CountingAdapter(Arc::clone(&counter))));
     let service = FlowableEventRegistryService::with_configuration(
-        Arc::new(ProcessEngine::new("outbound-in-memory-count".to_string())),
+        Arc::new(ProcessEngine::new("outbound-in-memory-count".to_string()).unwrap()),
         config,
     );
     deploy_outbound(&service, "orderPublished", "ordersOut", "in-memory", None);
@@ -387,7 +393,7 @@ fn engine_outbound_hook_installed_by_service_runs_transform_and_adapter() {
     );
     let engine = Arc::new(ProcessEngine::new(
         "outbound-engine-hook-bridge".to_string(),
-    ));
+    ).unwrap());
     let _service = FlowableEventRegistryService::with_configuration(Arc::clone(&engine), config);
 
     assert!(
@@ -413,10 +419,10 @@ fn engine_outbound_hook_installed_by_service_runs_transform_and_adapter() {
         .expect("installed hook should run the service outbound pipeline");
 
     assert_eq!(
-        log.stages.lock().unwrap().as_slice(),
+        log.stages.lock().unwrap_or_else(|e| e.into_inner()).as_slice(),
         &["transform", "adapter"]
     );
-    let payload = log.payloads.lock().unwrap()[0].clone();
+    let payload = log.payloads.lock().unwrap_or_else(|e| e.into_inner())[0].clone();
     assert_eq!(payload["orderId"], json!("bridge-1"));
     assert_eq!(payload["transformed"], json!("bridge"));
 }

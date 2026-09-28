@@ -49,7 +49,7 @@ impl TimerExecutor {
 
     /// Update the configuration of the executor
     pub fn set_config(&self, config: TimerWorkerConfig) {
-        *self.config.lock().unwrap() = config;
+        *self.config.lock().unwrap_or_else(|e| e.into_inner()) = config;
     }
 
     /// Returns the current number of in-flight work items.
@@ -65,13 +65,13 @@ impl TimerExecutor {
     /// Installs a callback that runs after a lease is acquired but before the
     /// work is executed. Used by tests to hold a genuine in-flight lease.
     pub fn set_before_execute_hook(&self, hook: Option<BeforeExecuteHook>) {
-        *self.before_execute_hook.lock().unwrap() = hook;
+        *self.before_execute_hook.lock().unwrap_or_else(|e| e.into_inner()) = hook;
     }
 
     pub fn start(&self, runtime_service: Arc<RuntimeService>) {
         // Prevent double-start
         {
-            let handle_guard = self.handle.lock().unwrap();
+            let handle_guard = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             if handle_guard.is_some() {
                 return;
             }
@@ -82,7 +82,7 @@ impl TimerExecutor {
         let is_acquiring = Arc::clone(&self.is_acquiring);
         let in_flight_count = Arc::clone(&self.in_flight_count);
         let drain_pair = Arc::clone(&self.drain_pair);
-        let worker_config = self.config.lock().unwrap().clone();
+        let worker_config = self.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let before_execute_hook = Arc::clone(&self.before_execute_hook);
 
         let handle = thread::spawn(move || {
@@ -93,7 +93,19 @@ impl TimerExecutor {
 
             while is_acquiring.load(Ordering::SeqCst) {
                 let current_timeout = worker_config.coordinator_lease_timeout_ms;
-                let works = worker.acquire_due_timers(current_timeout);
+                // Java parity: `AcquireTimerJobsRunnable.java:212-216` catches a failed
+                // acquisition, logs it and waits before retrying — it never treats the
+                // failure as "no timers due".
+                let works = match worker.acquire_due_timers(current_timeout) {
+                    Ok(works) => works,
+                    Err(error) => {
+                        tracing::error!("failed to acquire timer work: {error}");
+                        thread::sleep(Duration::from_millis(
+                            worker_config.poll_interval_ms.max(1),
+                        ));
+                        continue;
+                    }
+                };
 
                 for work in works {
                     // Increment in-flight counter before execution.
@@ -130,7 +142,7 @@ impl TimerExecutor {
                         }
                     });
 
-                    if let Some(hook) = before_execute_hook.lock().unwrap().clone() {
+                    if let Some(hook) = before_execute_hook.lock().unwrap_or_else(|e| e.into_inner()).clone() {
                         hook();
                     }
 
@@ -146,7 +158,7 @@ impl TimerExecutor {
                     if prev == 1 {
                         // Last in-flight item completed - notify drain.
                         let (lock, cvar) = &*drain_pair;
-                        let _guard = lock.lock().unwrap();
+                        let _guard = lock.lock().unwrap_or_else(|e| e.into_inner());
                         cvar.notify_all();
                     }
                 }
@@ -158,7 +170,7 @@ impl TimerExecutor {
             worker.graceful_shutdown();
         });
 
-        *self.handle.lock().unwrap() = Some(handle);
+        *self.handle.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
     }
 
     /// Stops acquiring new work, waits for in-flight work to finish (drain),
@@ -171,7 +183,7 @@ impl TimerExecutor {
         self.drain();
 
         // Phase 3: Join the poll-loop thread.
-        let mut handle_opt = self.handle.lock().unwrap();
+        let mut handle_opt = self.handle.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(handle) = handle_opt.take() {
             let _ = handle.join();
         }
@@ -187,10 +199,11 @@ impl TimerExecutor {
     /// This is typically called after `stop_acquiring()`.
     pub fn drain(&self) {
         let (lock, cvar) = &*self.drain_pair;
-        let guard = lock.lock().unwrap();
-        // Wait until in-flight count drops to zero.
+        let guard = lock.lock().unwrap_or_else(|e| e.into_inner());
+        // Wait until in-flight count drops to zero. Poison recovery via into_inner,
+        // matching Java DefaultAsyncJobExecutor shutdown (interrupt, never abort).
         let _guard = cvar
             .wait_while(guard, |_| self.in_flight_count.load(Ordering::SeqCst) > 0)
-            .unwrap();
+            .unwrap_or_else(|e| e.into_inner());
     }
 }

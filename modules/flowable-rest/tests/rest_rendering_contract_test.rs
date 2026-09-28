@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use axum::{
     Router,
     extract::Request,
@@ -76,19 +82,19 @@ struct MockRenderingApi {
 impl MockRenderingApi {
     fn with_seed() -> Self {
         let api = Self::default();
-        api.process_images.lock().unwrap().insert(
+        api.process_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
             "process-1".to_string(),
             r#"<svg xmlns="http://www.w3.org/2000/svg"><text>process-1</text></svg>"#.to_string(),
         );
-        api.decision_images.lock().unwrap().insert(
+        api.decision_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
             "decision-1".to_string(),
             r#"<svg xmlns="http://www.w3.org/2000/svg"><text>decision-1</text></svg>"#.to_string(),
         );
-        api.case_images.lock().unwrap().insert(
+        api.case_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
             "case-1".to_string(),
             r#"<svg xmlns="http://www.w3.org/2000/svg"><text>case-1</text></svg>"#.to_string(),
         );
-        api.app_images.lock().unwrap().insert(
+        api.app_images.lock().unwrap_or_else(|e| e.into_inner()).insert(
             "app-1".to_string(),
             r#"<svg xmlns="http://www.w3.org/2000/svg"><text>app-1</text></svg>"#.to_string(),
         );
@@ -101,7 +107,7 @@ impl MockRenderingApi {
     ) -> Result<String, ApiError> {
         images
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(definition_id)
             .cloned()
             .ok_or_else(|| {
@@ -201,7 +207,7 @@ async fn spawn_server(api: Arc<MockRenderingApi>) -> (String, reqwest::Client) {
 }
 
 async fn spawn_real_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqwest::Client) {
-    let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+    let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
     engine
         .get_identity_service()
         .save_user(flowable_engine::identity::entities::User {
@@ -211,7 +217,7 @@ async fn spawn_real_server(test_name: &str) -> (Arc<ProcessEngine>, String, reqw
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://{}", listener.local_addr().unwrap());

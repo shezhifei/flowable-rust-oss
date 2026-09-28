@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P58: ExecuteInactiveBehaviors re-evaluation contract.
 //!
 //! Java runs `ExecuteInactiveBehaviorsOperation` after the agenda drains at
@@ -21,7 +27,7 @@ use flowable_engine::engine::process_engine::ProcessEngine;
 /// Java: CommandInvoker.java:82-88 + InclusiveGatewayActivityBehavior.java:95-115.
 #[test]
 fn parked_inclusive_join_releases_when_interrupting_boundary_destroys_sibling() {
-    let process_engine = ProcessEngine::new("p58-boundary-after-park".to_string());
+    let process_engine = ProcessEngine::new("p58-boundary-after-park".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -137,7 +143,7 @@ fn parked_inclusive_join_releases_when_interrupting_boundary_destroys_sibling() 
 /// InclusiveGatewayActivityBehavior.java:59-61.
 #[test]
 fn parked_inclusive_join_releases_when_terminate_end_destroys_sibling() {
-    let process_engine = ProcessEngine::new("p58-terminate-after-park".to_string());
+    let process_engine = ProcessEngine::new("p58-terminate-after-park".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -264,7 +270,7 @@ fn parked_inclusive_join_releases_when_terminate_end_destroys_sibling() {
 /// activation is looped, not a one-shot scan.
 #[test]
 fn inactive_join_reevaluation_cascades_through_downstream_join_in_same_command() {
-    let process_engine = ProcessEngine::new("p58-cascade-joins".to_string());
+    let process_engine = ProcessEngine::new("p58-cascade-joins".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

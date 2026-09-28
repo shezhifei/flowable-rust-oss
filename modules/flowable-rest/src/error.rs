@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use axum::{
     Json,
     http::StatusCode,
@@ -37,6 +45,21 @@ impl ApiError {
 
     pub fn payload_too_large(message: impl Into<String>) -> Self {
         Self::PayloadTooLarge(message.into())
+    }
+
+    /// Prefer a sticky storage failure over a fabricated 404.
+    ///
+    /// Java: SQL/PersistenceException maps to 500; only a successful empty
+    /// lookup becomes `FlowableObjectNotFoundException` (404).
+    pub fn found_or_not_found<T>(
+        session: &mut flowable_engine::persistence::db_session::DbSession,
+        found: Option<T>,
+        not_found: impl FnOnce() -> Self,
+    ) -> Result<T, Self> {
+        if let Some(error) = session.take_write_error() {
+            return Err(flowable_engine::error::FlowableError::from(error).into());
+        }
+        found.ok_or_else(not_found)
     }
 }
 
@@ -115,6 +138,15 @@ impl From<flowable_engine::error::FlowableError> for ApiError {
             }
             _ => ApiError::InternalServerError(err.to_string()),
         }
+    }
+}
+
+/// Storage failures are server faults (Java `PersistenceException` → 500),
+/// never a client-facing 404. Callers that turn `Ok(None)` into 404 must do so
+/// only after a successful empty read.
+impl From<flowable_engine::persistence::StorageError> for ApiError {
+    fn from(err: flowable_engine::persistence::StorageError) -> Self {
+        ApiError::InternalServerError(err.to_string())
     }
 }
 
@@ -241,7 +273,7 @@ mod tests {
         assert_eq!(body["code"], "INTERNAL_SERVER_ERROR");
         assert_eq!(body["message"], "Internal Server Error");
         assert_eq!(body["details"], "Internal server error");
-        let details = body["details"].as_str().unwrap_or_default();
+        let details = body["details"].as_str().unwrap();
         assert!(!details.contains("C:\\Users"));
         assert!(!details.contains("shard"));
         assert!(!details.contains(leak));

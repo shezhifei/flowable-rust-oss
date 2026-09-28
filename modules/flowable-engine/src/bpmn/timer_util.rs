@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 //! Timer expression evaluation and schedule resolution (Java `TimerUtil` parity).
 //!
 //! Before scheduling a timer job/subscription, `timeDate` / `timeDuration` /
@@ -1021,7 +1029,7 @@ mod tests {
             now: DateTime<Utc>,
             max_iterations: Option<u32>,
         ) -> Result<Option<DateTime<Utc>>, FlowableError> {
-            self.resolve_max.lock().unwrap().push(max_iterations);
+            self.resolve_max.lock().unwrap_or_else(|e| e.into_inner()).push(max_iterations);
             Ok(Some(now + Duration::minutes(self.due_offset_minutes)))
         }
 
@@ -1047,7 +1055,7 @@ mod tests {
         ) -> Result<bool, FlowableError> {
             self.validate_seen
                 .lock()
-                .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
                 .push((max_iterations, end_date));
             if let Some(end) = end_date {
                 return Ok(candidate <= end);
@@ -1082,8 +1090,8 @@ mod tests {
             Utc::now(),
         )
         .unwrap();
-        assert_eq!(*calendar.resolve_max.lock().unwrap(), vec![Some(5)]);
-        assert_eq!(calendar.validate_seen.lock().unwrap()[0].0, Some(5));
+        assert_eq!(*calendar.resolve_max.lock().unwrap_or_else(|e| e.into_inner()), vec![Some(5)]);
+        assert_eq!(calendar.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0].0, Some(5));
     }
 
     #[test]
@@ -1101,7 +1109,7 @@ mod tests {
             Utc::now(),
         )
         .unwrap();
-        assert_eq!(*calendar.resolve_max.lock().unwrap(), vec![None]);
+        assert_eq!(*calendar.resolve_max.lock().unwrap_or_else(|e| e.into_inner()), vec![None]);
     }
 
     #[test]
@@ -1124,7 +1132,7 @@ mod tests {
         .unwrap();
         assert_eq!(s.end_date.as_deref(), Some("shift-close"));
         assert_eq!(
-            calendar.validate_seen.lock().unwrap()[0].1,
+            calendar.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0].1,
             Some(now + Duration::minutes(600)),
             "validate must see the calendar-resolved end bound"
         );
@@ -1190,12 +1198,12 @@ mod tests {
         .expect("within the calendar-resolved end bound");
         assert!(next.cycle.starts_with("R2/"), "unexpected cycle: {}", next.cycle);
         assert_eq!(
-            *calendar.resolve_max.lock().unwrap(),
+            *calendar.resolve_max.lock().unwrap_or_else(|e| e.into_inner()),
             vec![Some(2)],
             "the repeat bound is the remaining count"
         );
         assert_eq!(
-            calendar.validate_seen.lock().unwrap()[0],
+            calendar.validate_seen.lock().unwrap_or_else(|e| e.into_inner())[0],
             (Some(2), Some(now + Duration::minutes(600))),
             "validate must see the remaining count and the calendar-resolved end"
         );

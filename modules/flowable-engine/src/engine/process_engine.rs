@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::engine::async_executor::AsyncExecutor;
 use crate::engine::async_history_executor::AsyncHistoryExecutor;
 use crate::engine::batch_service::BatchService;
@@ -70,10 +78,12 @@ pub struct ProcessEngine {
 }
 
 impl ProcessEngine {
-    fn rebuild_bpmn_model_cache(deployment_manager: &DeploymentManager) {
-        let mut session = deployment_manager.create_session().unwrap();
-        let deployments = deployment_manager.get_deployments(&mut session);
-        let process_definitions = deployment_manager.get_process_definitions(&mut session);
+    fn rebuild_bpmn_model_cache(
+        deployment_manager: &DeploymentManager,
+    ) -> Result<(), FlowableError> {
+        let mut session = deployment_manager.create_session()?;
+        let deployments = deployment_manager.get_deployments(&mut session)?;
+        let process_definitions = deployment_manager.get_process_definitions(&mut session)?;
         let converter = BpmnXMLConverter::new();
         deployment_manager.invalidate_bpmn_model_cache();
 
@@ -107,6 +117,7 @@ impl ProcessEngine {
         // Read-only session; explicitly roll back so the pooled SQLite connection
         // is returned to the pool without an active transaction.
         let _ = session.rollback();
+        Ok(())
     }
 
     fn write_recovery_snapshot_file(
@@ -155,22 +166,19 @@ impl ProcessEngine {
         })
     }
 
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String) -> Result<Self, FlowableError> {
         Self::with_time_source(name, Arc::new(crate::engine::time_source::SystemTimeSource))
     }
 
-    pub fn new_with_config(name: String, config: ProcessEngineConfiguration) -> Self {
-        match Self::try_new_with_config(name.clone(), config) {
-            Ok(engine) => engine,
-            Err(error) => {
-                tracing::warn!(
-                    "Failed to initialize process engine '{}': {}; falling back to default in-memory configuration for legacy constructor",
-                    name,
-                    error
-                );
-                Self::new(name)
-            }
-        }
+    /// Build an engine from an explicit configuration.
+    ///
+    /// Returns `Err` when the configured database or HTTP runtime cannot be
+    /// initialized (Java `ProcessEngineConfiguration#buildProcessEngine` throws).
+    pub fn new_with_config(
+        name: String,
+        config: ProcessEngineConfiguration,
+    ) -> Result<Self, FlowableError> {
+        Self::try_new_with_config(name, config)
     }
 
     pub fn try_new_with_config(
@@ -179,24 +187,19 @@ impl ProcessEngine {
     ) -> Result<Self, FlowableError> {
         let config = Arc::new(config);
         let db_store = Arc::new(Self::create_db_store(&config)?);
-        let http_runtime = match config.http_service.build_runtime() {
-            Ok(runtime) => runtime,
-            Err(error) => {
-                tracing::warn!(
-                    "Failed to initialize HTTP runtime for process engine '{}': {}; falling back to deterministic runtime for legacy constructor",
-                    name,
-                    error
-                );
-                Arc::new(flowable_http_service::DeterministicHttpRuntime::default())
-            }
-        };
+        let http_runtime = config.http_service.build_runtime().map_err(|error| {
+            FlowableError::ExecutionError(format!(
+                "Failed to initialize HTTP runtime for process engine '{}': {}",
+                name, error
+            ))
+        })?;
         Ok(Self::build_with_runtime(
             name,
             Arc::new(crate::engine::time_source::SystemTimeSource),
             db_store,
             config,
             http_runtime,
-        ))
+        )?)
     }
 
     fn create_db_store(
@@ -210,7 +213,7 @@ impl ProcessEngine {
     pub fn with_time_source(
         name: String,
         time_source: Arc<dyn crate::engine::time_source::TimeSource>,
-    ) -> Self {
+    ) -> Result<Self, FlowableError> {
         // Honor FLOWABLE_TEST_ENGINE_DATABASE_URL (and any non-memory DatabaseConfiguration
         // default) so full multi-backend matrices can drive ProcessEngine::new without
         // rewriting every test constructor. Explicit new_with_memory_backend /
@@ -222,58 +225,80 @@ impl ProcessEngine {
         ) {
             let kind = config.database.kind;
             let url = config.database.url.clone();
-            return Self::build_with_config(name.clone(), time_source, config).unwrap_or_else(
-                |error| {
-                    panic!(
-                        "Failed to initialize process engine '{name}' against configured database {kind:?} ({url}): {error}"
-                    )
-                },
-            );
+            return Self::build_with_config(name.clone(), time_source, config).map_err(|error| {
+                FlowableError::Internal(format!(
+                    "Failed to initialize process engine '{name}' against configured database {kind:?} ({url}): {error}"
+                ))
+            });
         }
-        let db_store = Arc::new(crate::persistence::db_store::DbStore::new_in_memory().unwrap());
-        Self::build_with_runtime(
+        let db_store = Arc::new(
+            crate::persistence::db_store::DbStore::new_in_memory()
+                .map_err(|error| FlowableError::Internal(error.to_string()))?,
+        );
+        Ok(Self::build_with_runtime(
             name,
             time_source,
             db_store,
             Arc::new(config),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
-        )
+        )?)
     }
 
-    pub fn new_with_db_path(name: String, path: &str) -> Self {
-        let db_store = Arc::new(crate::persistence::db_store::DbStore::new_file(path).unwrap());
-        Self::build_with_runtime(
+    pub fn new_with_db_path(name: String, path: &str) -> Result<Self, FlowableError> {
+        // Java parity: startup DB failure throws (fails fast), never returns a half-open engine.
+        let db_store = Arc::new(
+            crate::persistence::db_store::DbStore::new_file(path)
+                .map_err(|error| FlowableError::Internal(error.to_string()))?,
+        );
+        Ok(Self::build_with_runtime(
             name,
             Arc::new(crate::engine::time_source::SystemTimeSource),
             db_store,
             Arc::new(ProcessEngineConfiguration::default()),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
-        )
+        )?)
     }
 
-    pub fn new_with_memory_backend(name: String) -> Self {
-        let db_store = Arc::new(crate::persistence::db_store::DbStore::new_in_memory().unwrap());
-        Self::build_with_runtime(
+    pub fn new_with_memory_backend(name: String) -> Result<Self, FlowableError> {
+        let db_store = Arc::new(
+            crate::persistence::db_store::DbStore::new_in_memory()
+                .map_err(|error| FlowableError::Internal(error.to_string()))?,
+        );
+        Ok(Self::build_with_runtime(
             name,
             Arc::new(crate::engine::time_source::SystemTimeSource),
             db_store,
             Arc::new(ProcessEngineConfiguration::default()),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
-        )
+        )?)
     }
 
+    /// Test/CLI convenience over [`try_build`](Self::try_build): a store that
+    /// cannot be read at construction time panics instead of handing back a
+    /// half-open engine, mirroring Java `buildProcessEngine()`, which throws.
     pub fn build(
         name: String,
         time_source: Arc<dyn crate::engine::time_source::TimeSource>,
         db_store: Arc<crate::persistence::db_store::DbStore>,
     ) -> Self {
-        Self::build_with_runtime(
+        Self::try_build(
             name,
             time_source,
             db_store,
             Arc::new(ProcessEngineConfiguration::default()),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
         )
+        .expect("process engine construction failed")
+    }
+
+    pub fn try_build(
+        name: String,
+        time_source: Arc<dyn crate::engine::time_source::TimeSource>,
+        db_store: Arc<crate::persistence::db_store::DbStore>,
+        config: Arc<ProcessEngineConfiguration>,
+        http_runtime: Arc<dyn flowable_http_service::HttpRuntime>,
+    ) -> Result<Self, FlowableError> {
+        Self::build_with_runtime(name, time_source, db_store, config, http_runtime)
     }
 
     /// Build a ProcessEngine from a ProcessEngineConfiguration.
@@ -300,7 +325,7 @@ impl ProcessEngine {
             db_store,
             config,
             http_runtime,
-        ))
+        )?)
     }
 
     /// Build a ProcessEngine from a shared `DbStore` and a `ProcessEngineConfiguration`.
@@ -328,7 +353,7 @@ impl ProcessEngine {
             db_store,
             config,
             http_runtime,
-        ))
+        )?)
     }
 
     fn build_with_runtime(
@@ -337,7 +362,7 @@ impl ProcessEngine {
         db_store: Arc<crate::persistence::db_store::DbStore>,
         config: Arc<ProcessEngineConfiguration>,
         http_runtime: Arc<dyn flowable_http_service::HttpRuntime>,
-    ) -> Self {
+    ) -> Result<Self, FlowableError> {
         let resolved_lock_owner = config
             .async_executor
             .lock_owner
@@ -405,7 +430,7 @@ impl ProcessEngine {
         let entity_link_service = Arc::new(EntityLinkService::new(Arc::clone(&command_executor)));
         let batch_service = Arc::new(BatchService::new(Arc::clone(&command_executor)));
 
-        Self::rebuild_bpmn_model_cache(&deployment_manager);
+        Self::rebuild_bpmn_model_cache(&deployment_manager)?;
 
         // P76: wire CMMN → BPMN caseServiceTask completion callback
         // (Java ChildBpmnCaseInstanceStateChangeCallback).
@@ -548,7 +573,7 @@ impl ProcessEngine {
                 );
             }
         }
-        engine
+        Ok(engine)
     }
 
     pub fn get_config(&self) -> Arc<ProcessEngineConfiguration> {
@@ -633,9 +658,9 @@ impl ProcessEngine {
     pub fn trigger_intermediate_catch_event_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service
-            .trigger_intermediate_catch_event_by_process_instance_id(process_instance_id);
+            .trigger_intermediate_catch_event_by_process_instance_id(process_instance_id)
     }
 
     /// Unified: triggers an intermediate catch event by subscription kind + event_ref + execution_id.
@@ -644,12 +669,12 @@ impl ProcessEngine {
         subscription_kind: EventSubscriptionKind,
         event_ref: String,
         execution_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service.trigger_event_intermediate_catch(
             subscription_kind,
             event_ref,
             execution_id,
-        );
+        )
     }
 
     /// Stable entry point for message intermediate catch.
@@ -657,24 +682,26 @@ impl ProcessEngine {
         &self,
         message_ref: String,
         execution_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service
             .trigger_intermediate_catch_event_by_message_ref_and_execution_id(
                 message_ref,
                 execution_id,
-            );
+            )
     }
 
-    pub fn trigger_timer_intermediate_catch_event(&self, execution_id: String) {
-        let _ = self
-            .runtime_service
-            .trigger_timer_intermediate_catch_event(execution_id);
+    pub fn trigger_timer_intermediate_catch_event(
+        &self,
+        execution_id: String,
+    ) -> Result<(), crate::error::FlowableError> {
+        self.runtime_service
+            .trigger_timer_intermediate_catch_event(execution_id)
     }
 
     pub fn get_event_wait_states_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) -> Vec<EventWaitState> {
+    ) -> Result<Vec<EventWaitState>, crate::error::FlowableError> {
         self.runtime_service
             .get_event_wait_states_by_process_instance_id(process_instance_id)
     }
@@ -683,14 +710,17 @@ impl ProcessEngine {
     pub fn get_message_style_wait_states_by_process_instance_id(
         &self,
         process_instance_id: String,
-    ) -> Vec<EventWaitState> {
+    ) -> Result<Vec<EventWaitState>, crate::error::FlowableError> {
         self.get_event_wait_states_by_process_instance_id(process_instance_id)
     }
 
-    pub fn trigger_boundary_event(&self, boundary_event_id: String, process_instance_id: String) {
-        let _ = self
-            .runtime_service
-            .trigger_boundary_event(boundary_event_id, process_instance_id);
+    pub fn trigger_boundary_event(
+        &self,
+        boundary_event_id: String,
+        process_instance_id: String,
+    ) -> Result<(), crate::error::FlowableError> {
+        self.runtime_service
+            .trigger_boundary_event(boundary_event_id, process_instance_id)
     }
 
     /// Unified: triggers a boundary event by subscription kind + event_ref.
@@ -699,12 +729,12 @@ impl ProcessEngine {
         subscription_kind: EventSubscriptionKind,
         event_ref: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service.trigger_boundary_event_by_event_ref(
             subscription_kind,
             event_ref,
             process_instance_id,
-        );
+        )
     }
 
     /// Stable entry point for message boundary trigger.
@@ -712,9 +742,9 @@ impl ProcessEngine {
         &self,
         message_ref: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service
-            .trigger_boundary_event_by_message_ref(message_ref, process_instance_id);
+            .trigger_boundary_event_by_message_ref(message_ref, process_instance_id)
     }
 
     /// Stable entry point for signal boundary trigger.
@@ -722,18 +752,18 @@ impl ProcessEngine {
         &self,
         signal_ref: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service
-            .trigger_boundary_event_by_signal_ref(signal_ref, process_instance_id);
+            .trigger_boundary_event_by_signal_ref(signal_ref, process_instance_id)
     }
 
     pub fn trigger_timer_boundary_event(
         &self,
         boundary_event_id: String,
         process_instance_id: String,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         self.runtime_service
-            .trigger_timer_boundary_event(boundary_event_id, process_instance_id);
+            .trigger_timer_boundary_event(boundary_event_id, process_instance_id)
     }
 
     pub fn get_runtime_store(&self) -> RuntimeStore {
@@ -745,7 +775,7 @@ impl ProcessEngine {
     }
 
     pub fn run_due_timers(&self) -> Vec<String> {
-        self.runtime_service.run_due_timers().unwrap()
+        self.runtime_service.run_due_timers().unwrap_or_default()
     }
 
     pub fn start_timer_executor(&self) {
@@ -869,46 +899,60 @@ impl ProcessEngine {
     /// Returns the current coordinator status (leader, fencing token, expiry, state).
     pub fn get_timer_coordinator_status(
         &self,
-    ) -> crate::persistence::runtime_store::TimerCoordinatorStatus {
+    ) -> Result<
+        crate::persistence::runtime_store::TimerCoordinatorStatus,
+        crate::error::FlowableError,
+    > {
         self.runtime_service.get_timer_coordinator_status()
     }
 
     /// Returns a snapshot of all registered timer worker nodes with liveness status.
-    pub fn list_timer_nodes(&self) -> Vec<crate::persistence::runtime_store::TimerNodeStatus> {
-        self.runtime_service.list_timer_nodes().unwrap()
+    pub fn list_timer_nodes(
+        &self,
+    ) -> Result<Vec<crate::persistence::runtime_store::TimerNodeStatus>, crate::error::FlowableError>
+    {
+        self.runtime_service.list_timer_nodes()
     }
 
     /// Owner-safe release: release leadership for the caller's owner identity.
     pub fn release_timer_leadership(&self, fencing_token: i64) -> bool {
         self.runtime_service
             .release_leadership(fencing_token)
-            .unwrap()
+            .unwrap_or_default()
     }
 
     /// Admin step-down: force release the current leader, advancing the fencing token.
     pub fn admin_step_down(&self) -> (bool, i64) {
-        self.runtime_service.admin_step_down().unwrap()
+        self.runtime_service.admin_step_down().unwrap_or_default()
     }
 
     /// Deregister a specific timer node by ID.
     pub fn deregister_timer_node(&self, node_id: &str) -> bool {
-        self.runtime_service.deregister_timer_node(node_id).unwrap()
+        self.runtime_service.deregister_timer_node(node_id).unwrap_or_default()
     }
 
     /// Remove all expired timer nodes from the registry.
     pub fn cleanup_expired_timer_nodes(&self) -> usize {
-        self.runtime_service.cleanup_expired_timer_nodes().unwrap()
+        self.runtime_service.cleanup_expired_timer_nodes().unwrap_or_default()
     }
 
-    pub fn get_timer_start_subscriptions(&self) -> Vec<ProcessTimerStartSubscription> {
-        let mut session = self.runtime_store.create_session().unwrap();
+    /// Java parity: `TimerManager`/`JobService` reads run through the MyBatis
+    /// session, so a storage failure surfaces as an exception rather than an
+    /// empty list (Java `TimerStartEventSubscriptionEntityManager` query path).
+    pub fn get_timer_start_subscriptions(
+        &self,
+    ) -> Result<Vec<ProcessTimerStartSubscription>, FlowableError> {
+        let mut session = self.runtime_store.create_session()?;
         self.command_executor
             .deployment_manager()
             .get_timer_start_subscriptions(&mut session)
+            .map_err(FlowableError::from)
     }
 
-    pub fn get_event_start_subscriptions(&self) -> Vec<ProcessEventStartSubscription> {
-        let mut session = self.runtime_store.create_session().unwrap();
+    pub fn get_event_start_subscriptions(
+        &self,
+    ) -> Result<Vec<ProcessEventStartSubscription>, FlowableError> {
+        let mut session = self.runtime_store.create_session()?;
         self.command_executor
             .deployment_manager()
             .get_event_start_subscriptions(&mut session)
@@ -917,23 +961,23 @@ impl ProcessEngine {
     // ── Message/Signal Start Event API ──
 
     /// Starts a new process instance by triggering a message start event subscription.
+    /// Java parity: `RuntimeService#startProcessInstanceByMessage` throws on failure.
     pub fn start_process_instance_by_message(
         &self,
         message_ref: String,
-    ) -> crate::runtime::process_instance::ProcessInstance {
+    ) -> Result<crate::runtime::process_instance::ProcessInstance, crate::error::FlowableError> {
         self.runtime_service
             .start_process_instance_by_message(message_ref)
-            .unwrap()
     }
 
     /// Starts a new process instance by triggering a signal start event subscription.
+    /// Java parity: `RuntimeService#startProcessInstanceBySignal` throws on failure.
     pub fn start_process_instance_by_signal(
         &self,
         signal_ref: String,
-    ) -> crate::runtime::process_instance::ProcessInstance {
+    ) -> Result<crate::runtime::process_instance::ProcessInstance, crate::error::FlowableError> {
         self.runtime_service
             .start_process_instance_by_signal(signal_ref)
-            .unwrap()
     }
 
     // ── Event Subprocess Trigger API (message/signal) ──
@@ -943,7 +987,7 @@ impl ProcessEngine {
         &self,
         message_ref: String,
         process_instance_id: String,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, crate::error::FlowableError> {
         self.runtime_service
             .trigger_event_subprocess_by_message(message_ref, process_instance_id)
     }
@@ -953,18 +997,18 @@ impl ProcessEngine {
         &self,
         signal_ref: String,
         process_instance_id: String,
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, crate::error::FlowableError> {
         self.runtime_service
             .trigger_event_subprocess_by_signal(signal_ref, process_instance_id)
     }
 
     // ── Snapshot / Recovery ──
 
-    pub fn export_recovery_snapshot(&self) -> RecoverySnapshot {
-        let mut session = self.runtime_store.create_session().unwrap();
+    pub fn export_recovery_snapshot(&self) -> Result<RecoverySnapshot, FlowableError> {
+        let mut session = self.runtime_store.create_session()?;
         let deployment_manager = self.command_executor.deployment_manager();
         let deployments = deployment_manager
-            .get_deployments(&mut session)
+            .get_deployments(&mut session)?
             .into_values()
             .map(|d| SnapshotDeployment {
                 resources: d.resources.clone(),
@@ -972,13 +1016,13 @@ impl ProcessEngine {
             })
             .collect();
         let process_definitions = deployment_manager
-            .get_process_definitions(&mut session)
+            .get_process_definitions(&mut session)?
             .into_values()
             .collect();
         let process_timer_start_subscriptions =
-            deployment_manager.get_timer_start_subscriptions(&mut session);
+            deployment_manager.get_timer_start_subscriptions(&mut session)?;
         let process_event_start_subscriptions =
-            deployment_manager.get_event_start_subscriptions(&mut session);
+            deployment_manager.get_event_start_subscriptions(&mut session)?;
 
         let process_instances = self
             .runtime_store
@@ -1021,7 +1065,7 @@ impl ProcessEngine {
             .into_values()
             .collect();
 
-        RecoverySnapshot {
+        Ok(RecoverySnapshot {
             deployments,
             process_definitions,
             process_timer_start_subscriptions,
@@ -1034,19 +1078,19 @@ impl ProcessEngine {
             event_subprocess_timer_subscriptions,
             event_subprocess_event_subscriptions,
             tasks,
-        }
+        })
     }
 
     pub fn export_recovery_snapshot_to_file<P: AsRef<Path>>(
         &self,
         path: P,
     ) -> Result<(), FlowableError> {
-        let snapshot = self.export_recovery_snapshot();
+        let snapshot = self.export_recovery_snapshot()?;
         Self::write_recovery_snapshot_file(&snapshot, path.as_ref())
     }
 
-    pub fn import_recovery_snapshot(&self, snapshot: RecoverySnapshot) {
-        let mut session = self.runtime_store.create_session().unwrap();
+    pub fn import_recovery_snapshot(&self, snapshot: RecoverySnapshot) -> Result<(), FlowableError> {
+        let mut session = self.runtime_store.create_session()?;
         let deployment_manager = self.command_executor.deployment_manager();
 
         for snap_dep in snapshot.deployments {
@@ -1073,7 +1117,7 @@ impl ProcessEngine {
                 .insert_process_instance(&pi, &mut session);
         }
         for ex in snapshot.executions {
-            self.runtime_store.insert_execution(&ex, &mut session);
+            self.runtime_store.insert_execution(&ex, &mut session)?;
         }
         for ws in snapshot.event_wait_states {
             self.runtime_store
@@ -1084,7 +1128,7 @@ impl ProcessEngine {
                 .insert_boundary_event_state(bs, &mut session);
         }
         for tj in snapshot.timer_job_states {
-            self.runtime_store.insert_timer_job_state(&tj, &mut session);
+            self.runtime_store.insert_timer_job_state(&tj, &mut session)?;
         }
         for sub in snapshot.event_subprocess_timer_subscriptions {
             self.runtime_store
@@ -1095,11 +1139,12 @@ impl ProcessEngine {
                 .insert_event_subprocess_event_subscription(sub, &mut session);
         }
         for task in snapshot.tasks {
-            self.runtime_store.insert_task(&task, &mut session);
+            self.runtime_store.insert_task(&task, &mut session)?;
         }
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit()?;
 
-        Self::rebuild_bpmn_model_cache(deployment_manager);
+        Self::rebuild_bpmn_model_cache(deployment_manager)?;
+        Ok(())
     }
 
     pub fn import_recovery_snapshot_from_file<P: AsRef<Path>>(
@@ -1107,7 +1152,7 @@ impl ProcessEngine {
         path: P,
     ) -> Result<(), FlowableError> {
         let snapshot = Self::read_recovery_snapshot_file(path.as_ref())?;
-        self.import_recovery_snapshot(snapshot);
+        self.import_recovery_snapshot(snapshot)?;
         Ok(())
     }
 

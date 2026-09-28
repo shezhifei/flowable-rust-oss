@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P92 service-side e2e: BPMN consumer triggers a waiting BPMN execution.
 //!
 //! Pipeline: deploy event+channel → deploy BPMN with eventType catch → start
@@ -14,7 +20,7 @@ use std::sync::Arc;
 
 #[test]
 fn bpmn_consumer_triggers_waiting_intermediate_catch_execution() {
-    let engine = Arc::new(ProcessEngine::new("p92-service-bridge".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p92-service-bridge".to_string()).unwrap());
     let service = FlowableEventRegistryService::with_bpmn_consumer(Arc::clone(&engine));
 
     service
@@ -101,7 +107,7 @@ fn bpmn_consumer_triggers_waiting_intermediate_catch_execution() {
 
     let wait = engine
         .get_runtime_service()
-        .get_event_wait_states_by_process_instance_id(process_instance.id.clone());
+        .get_event_wait_states_by_process_instance_id(process_instance.id.clone()).unwrap();
     assert!(
         wait.iter()
             .any(|w| w.activity_id.as_deref() == Some("waitEvent")),
@@ -130,7 +136,7 @@ fn bpmn_consumer_triggers_waiting_intermediate_catch_execution() {
 #[test]
 fn default_service_still_uses_noop_consumer() {
     // Existing service tests rely on FlowableEventRegistryService::new keeping NoOp.
-    let engine = Arc::new(ProcessEngine::new("p92-noop-default".to_string()));
+    let engine = Arc::new(ProcessEngine::new("p92-noop-default".to_string()).unwrap());
     let service = FlowableEventRegistryService::new(Arc::clone(&engine));
     assert!(
         service.configuration().consumer("default").is_some(),

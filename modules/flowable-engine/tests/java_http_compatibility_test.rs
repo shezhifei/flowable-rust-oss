@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::agenda::future_operations::PendingFutureRegistry;
 use flowable_engine::bpmn::http_handler::{
     HttpHandlerRegistry, HttpRequestHandler, HttpRequestHandlerContext, HttpResponseHandler,
@@ -65,7 +71,7 @@ impl HttpResponseHandler for ThreadRecordingResponseHandler {
         &self,
         _context: &mut HttpResponseHandlerContext<'_>,
     ) -> Result<(), FlowableError> {
-        *self.observed_thread.lock().unwrap() = Some(thread::current().id());
+        *self.observed_thread.lock().unwrap_or_else(|e| e.into_inner()) = Some(thread::current().id());
         Ok(())
     }
 }
@@ -126,7 +132,7 @@ fn deploy_and_start(engine: &ProcessEngine, process_id: &str, extensions: &str) 
 
 #[test]
 fn java_request_and_response_variables_coexist_with_rust_structured_result() {
-    let engine = ProcessEngine::new("java-http-compat".to_string());
+    let engine = ProcessEngine::new("java-http-compat".to_string()).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         "javaHttpCompatibility",
@@ -208,7 +214,7 @@ fn java_ignore_exception_continues_and_preserves_rust_error_result() {
         },
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-ignore".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-ignore".to_string(), config).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         "javaHttpIgnoreException",
@@ -266,7 +272,7 @@ fn java_response_variables_are_applied_before_async_continuation() {
         },
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-async".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-async".to_string(), config).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         "javaHttpAsyncCompatibility",
@@ -337,7 +343,7 @@ fn java_fail_status_codes_raise_stable_http_execution_error() {
         },
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-status".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-status".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpFailStatus",
@@ -362,7 +368,7 @@ fn java_fail_status_codes_raise_stable_http_execution_error() {
 
 #[test]
 fn java_http_field_expressions_resolve_against_process_variables() {
-    let engine = ProcessEngine::new("java-http-expressions".to_string());
+    let engine = ProcessEngine::new("java-http-expressions".to_string()).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpExpressions",
@@ -462,7 +468,7 @@ fn assert_java_handle_status_codes_triggers_error_boundary_event(
         },
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config(engine_name.to_string(), config);
+    let engine = ProcessEngine::new_with_config(engine_name.to_string(), config).unwrap();
     engine
         .get_repository_service()
         .deploy(
@@ -560,7 +566,7 @@ fn java_handle_status_codes_triggers_error_event_subprocess() {
         },
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-event-subprocess".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-event-subprocess".to_string(), config).unwrap();
     engine
         .get_repository_service()
         .deploy(
@@ -617,7 +623,7 @@ fn java_uncaught_handled_status_is_reported_as_bpmn_error_code() {
         ..Default::default()
     };
     let engine =
-        ProcessEngine::new_with_config("java-http-uncaught-bpmn-error".to_string(), config);
+        ProcessEngine::new_with_config("java-http-uncaught-bpmn-error".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpUncaughtHandledStatus",
@@ -652,7 +658,7 @@ fn java_http_request_and_response_handlers_use_independent_rust_registry() {
         http_handler_registry: Some(handlers),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-handlers".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-handlers".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpHandlers",
@@ -737,7 +743,7 @@ fn java_http_handlers_preserve_mutations_after_async_completion() {
         http_handler_registry: Some(handlers),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-handlers-async".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-handlers-async".to_string(), config).unwrap();
     let process_instance_id = deploy_and_start(
         &engine,
         "javaHttpHandlersAsync",
@@ -819,7 +825,7 @@ fn assert_response_handler_runs_on_command_thread(
         http_handler_registry: Some(handlers),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config(engine_name.to_string(), config);
+    let engine = ProcessEngine::new_with_config(engine_name.to_string(), config).unwrap();
     let parallel_extension = parallel_field
         .map(|value| {
             format!(
@@ -848,7 +854,7 @@ fn assert_response_handler_runs_on_command_thread(
     server.join().unwrap();
 
     assert_eq!(
-        *observed_thread.lock().unwrap(),
+        *observed_thread.lock().unwrap_or_else(|e| e.into_inner()),
         Some(command_thread),
         "response handlers must execute on the engine command/transaction thread"
     );
@@ -921,7 +927,7 @@ fn java_http_handler_failure_rolls_back_request_mutations_and_runtime_state() {
         pending_future_registry: Arc::clone(&pending_futures),
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-handler-rollback".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-handler-rollback".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpHandlerRollback",
@@ -959,7 +965,7 @@ fn java_http_handler_failure_rolls_back_request_mutations_and_runtime_state() {
         "unexpected response handler error: {error}"
     );
 
-    let snapshot = engine.export_recovery_snapshot();
+    let snapshot = engine.export_recovery_snapshot().unwrap();
     assert!(
         snapshot.process_instances.is_empty(),
         "failed HTTP command must not commit a process instance"
@@ -981,7 +987,7 @@ fn java_http_script_handlers_use_secure_script_engine() {
         supported_script_languages: vec!["javascript".to_string()],
         ..Default::default()
     };
-    let engine = ProcessEngine::new_with_config("java-http-script-handlers".to_string(), config);
+    let engine = ProcessEngine::new_with_config("java-http-script-handlers".to_string(), config).unwrap();
     let definition_id = deploy_process(
         &engine,
         "javaHttpScriptHandlers",

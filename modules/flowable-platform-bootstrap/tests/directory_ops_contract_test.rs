@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::identity::entities::{Group, User};
 use flowable_platform_bootstrap::{
     DirectoryProviderKind, FlowablePlatform, OperationsExposureKind, PlatformConfiguration,
@@ -100,16 +106,16 @@ fn bootstrap_loads_directory_and_operations_contracts_and_imports_directory_bund
 
     let identity_service = platform.process_engine().get_identity_service();
     let user = identity_service
-        .find_user_by_id("ldap-alice")
+        .find_user_by_id("ldap-alice").unwrap()
         .expect("directory user should be imported");
     assert_eq!(user.email.as_deref(), Some("alice@example.test"));
 
     let group = identity_service
-        .find_group_by_id("platform-admins")
+        .find_group_by_id("platform-admins").unwrap()
         .expect("directory group should be imported");
     assert_eq!(group.name, "Platform Admins");
 
-    let memberships = identity_service.get_groups_by_user("ldap-alice");
+    let memberships = identity_service.get_groups_by_user("ldap-alice").unwrap();
     assert_eq!(memberships.len(), 1);
     assert_eq!(memberships[0].id, "platform-admins");
 }
@@ -203,7 +209,7 @@ bundle_path = "{bundle_path}"
 
     let identity_service = platform.process_engine().get_identity_service();
     assert!(
-        identity_service.find_user_by_id("ldap-alice").is_none(),
+        identity_service.find_user_by_id("ldap-alice").unwrap().is_none(),
         "ldap-live must not mirror-import into the owned engine store"
     );
 }
@@ -295,11 +301,11 @@ bundle_path = "{bundle_path}"
 
     let identity_service = platform.process_engine().get_identity_service();
     assert!(
-        identity_service.find_user_by_id("ldap-bob").is_none(),
+        identity_service.find_user_by_id("ldap-bob").unwrap().is_none(),
         "live provider mutations must stay outside the owned engine store"
     );
     assert!(
-        identity_service.find_group_by_id("audit-team").is_none(),
+        identity_service.find_group_by_id("audit-team").unwrap().is_none(),
         "live provider group mutations must stay outside the owned engine store"
     );
 }

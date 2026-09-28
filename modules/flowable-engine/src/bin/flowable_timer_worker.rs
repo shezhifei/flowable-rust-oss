@@ -66,12 +66,18 @@ fn control_subcommand(args: &[String]) {
         }
         match command.as_str() {
             "status" => match client.get_status() {
-                Ok(status) => println!("{}", serde_json::to_string_pretty(&status).unwrap()),
-                Err(e) => eprintln!("Error: {}", e),
+                Ok(status) => print_json(&status),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                },
             },
             "nodes" => match client.get_nodes() {
-                Ok(nodes) => println!("{}", serde_json::to_string_pretty(&nodes).unwrap()),
-                Err(e) => eprintln!("Error: {}", e),
+                Ok(nodes) => print_json(&nodes),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                },
             },
             "release" => {
                 let fencing_token: i64 = parse_arg(args, "--fencing-token")
@@ -81,8 +87,11 @@ fn control_subcommand(args: &[String]) {
                         std::process::exit(1);
                     });
                 match client.release_leadership(fencing_token) {
-                    Ok(success) => println!("{}", serde_json::to_string_pretty(&success).unwrap()),
-                    Err(e) => eprintln!("Error: {}", e),
+                    Ok(success) => print_json(&success),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    },
                 }
             }
             "step-down" => match client.admin_step_down() {
@@ -91,9 +100,12 @@ fn control_subcommand(args: &[String]) {
                         "success": success,
                         "new_fencing_token": new_token
                     });
-                    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+                    print_json(&result);
                 }
-                Err(e) => eprintln!("Error: {}", e),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                },
             },
             "deregister" => {
                 let node_id = parse_arg(args, "--node-id").unwrap_or_else(|| {
@@ -105,8 +117,11 @@ fn control_subcommand(args: &[String]) {
                     }
                 });
                 match client.deregister_node(&node_id) {
-                    Ok(success) => println!("{}", serde_json::to_string_pretty(&success).unwrap()),
-                    Err(e) => eprintln!("Error: {}", e),
+                    Ok(success) => print_json(&success),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    },
                 }
             }
             "cleanup" => match client.cleanup_expired_nodes() {
@@ -114,9 +129,12 @@ fn control_subcommand(args: &[String]) {
                     let result = serde_json::json!({
                         "cleaned_count": cleaned
                     });
-                    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+                    print_json(&result);
                 }
-                Err(e) => eprintln!("Error: {}", e),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                },
             },
             _ => {
                 eprintln!("Unknown command: {}", command);
@@ -128,7 +146,7 @@ fn control_subcommand(args: &[String]) {
     }
 
     // Direct DB mode
-    let db_path = db_path.unwrap();
+    let db_path = db_path.unwrap_or_default();
     let owner_id = parse_arg(args, "--owner-id").unwrap_or_else(|| "admin".to_string());
 
     let mut config = flowable_engine::service::config::ProcessEngineConfiguration::default();
@@ -149,12 +167,24 @@ fn control_subcommand(args: &[String]) {
 
     match command.as_str() {
         "status" => {
-            let status = runtime_service.get_timer_coordinator_status();
-            println!("{}", serde_json::to_string_pretty(&status).unwrap());
+            let status = match runtime_service.get_timer_coordinator_status() {
+                Ok(status) => status,
+                Err(error) => {
+                    eprintln!("Error: failed to read coordinator status: {error}");
+                    std::process::exit(1);
+                }
+            };
+            print_json(&status);
         }
         "nodes" => {
-            let nodes = runtime_service.list_timer_nodes().unwrap();
-            println!("{}", serde_json::to_string_pretty(&nodes).unwrap());
+            let nodes = match runtime_service.list_timer_nodes() {
+                Ok(nodes) => nodes,
+                Err(error) => {
+                    eprintln!("Error: failed to read timer nodes: {error}");
+                    std::process::exit(1);
+                }
+            };
+            print_json(&nodes);
         }
         "release" => {
             let fencing_token: i64 = parse_arg(args, "--fencing-token")
@@ -163,16 +193,28 @@ fn control_subcommand(args: &[String]) {
                     eprintln!("Error: --fencing-token <token> is required for release command");
                     std::process::exit(1);
                 });
-            let success = runtime_service.release_leadership(fencing_token).unwrap();
-            println!("{}", serde_json::to_string_pretty(&success).unwrap());
+            let success = match runtime_service.release_leadership(fencing_token) {
+                Ok(success) => success,
+                Err(error) => {
+                    eprintln!("Error: failed to release leadership: {error}");
+                    std::process::exit(1);
+                }
+            };
+            print_json(&success);
         }
         "step-down" => {
-            let (success, new_token) = runtime_service.admin_step_down().unwrap();
+            let (success, new_token) = match runtime_service.admin_step_down() {
+                Ok(result) => result,
+                Err(error) => {
+                    eprintln!("Error: failed to step down: {error}");
+                    std::process::exit(1);
+                }
+            };
             let result = serde_json::json!({
                 "success": success,
                 "new_fencing_token": new_token
             });
-            println!("{}", serde_json::to_string_pretty(&result).unwrap());
+            print_json(&result);
         }
         "deregister" => {
             let node_id = parse_arg(args, "--node-id").unwrap_or_else(|| {
@@ -186,21 +228,46 @@ fn control_subcommand(args: &[String]) {
                     std::process::exit(1);
                 }
             });
-            let success = runtime_service
-                .deregister_timer_node(&node_id)
-                .unwrap_or(false);
-            println!("{}", serde_json::to_string_pretty(&success).unwrap());
+            let success = match runtime_service.deregister_timer_node(&node_id) {
+                Ok(success) => success,
+                Err(error) => {
+                    eprintln!("Error: failed to deregister timer node: {error}");
+                    std::process::exit(1);
+                }
+            };
+            print_json(&success);
         }
         "cleanup" => {
-            let cleaned = runtime_service.cleanup_expired_timer_nodes().unwrap();
+            let cleaned = match runtime_service.cleanup_expired_timer_nodes() {
+                Ok(cleaned) => cleaned,
+                Err(error) => {
+                    eprintln!("Error: failed to clean up expired timer nodes: {error}");
+                    std::process::exit(1);
+                }
+            };
             let result = serde_json::json!({
                 "cleaned_count": cleaned
             });
-            println!("{}", serde_json::to_string_pretty(&result).unwrap());
+            print_json(&result);
         }
         _ => {
             eprintln!("Unknown command: {}", command);
             print_control_help();
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Print a control-command result as pretty JSON.
+///
+/// A serialization failure must fail the command: printing nothing would look like a
+/// successful empty result, which is exactly the failure-as-benign-value shape this
+/// CLI must avoid.
+fn print_json<T: serde::Serialize>(value: &T) {
+    match serde_json::to_string_pretty(value) {
+        Ok(json) => println!("{json}"),
+        Err(error) => {
+            eprintln!("Error: failed to serialize result: {error}");
             std::process::exit(1);
         }
     }
@@ -361,7 +428,20 @@ pub(crate) fn run_worker_loop(
     shutdown_requested: Arc<AtomicBool>,
 ) {
     while !shutdown_requested.load(Ordering::SeqCst) {
-        let works = worker.acquire_due_timers(config.coordinator_lease_timeout_ms);
+        // Java parity: `AcquireTimerJobsRunnable.java:212-216` catches a failed
+        // acquisition, logs it and waits before retrying — a storage failure must not be
+        // mistaken for "no timers due".
+        let works = match worker.acquire_due_timers(config.coordinator_lease_timeout_ms) {
+            Ok(works) => works,
+            Err(error) => {
+                tracing::error!("failed to acquire timer work: {error}");
+                sleep_with_shutdown(
+                    &shutdown_requested,
+                    Duration::from_millis(config.poll_interval_ms.max(1)),
+                );
+                continue;
+            }
+        };
 
         for work in works {
             if shutdown_requested.load(Ordering::SeqCst) {
@@ -420,5 +500,9 @@ fn execute_with_heartbeat(
     worker.execute_timer(work);
 
     heartbeat_stop.store(true, Ordering::SeqCst);
-    let _ = heartbeat_handle.join();
+    // A panicked renewal thread means the lease was not renewed; report it instead of
+    // reporting a clean execution.
+    if heartbeat_handle.join().is_err() {
+        tracing::error!("timer lease renewal heartbeat thread panicked");
+    }
 }

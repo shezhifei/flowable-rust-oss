@@ -29,7 +29,7 @@ impl ActivityBehavior for EventBasedGatewayActivityBehavior {
         execution.is_scope = true;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         command_context
             .agenda

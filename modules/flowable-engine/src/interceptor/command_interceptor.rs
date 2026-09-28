@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::error::FlowableError;
 use crate::interceptor::command::Command;
 use std::sync::Arc;
@@ -118,10 +126,11 @@ where
     let terminal = std::cell::RefCell::new(Some(terminal));
 
     let around_result = run_around_chain(interceptors, 0, &mut || {
-        let run = terminal
-            .borrow_mut()
-            .take()
-            .expect("terminal command executed more than once");
+        let Some(run) = terminal.borrow_mut().take() else {
+            return Err(FlowableError::Internal(
+                "terminal command executed more than once".to_string(),
+            ));
+        };
         let result = run();
         let status = if result.is_ok() {
             Ok(())

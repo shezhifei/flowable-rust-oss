@@ -73,7 +73,7 @@ impl Command<ContentItem> for CreateTaskAttachmentCmd {
 
         // Java CreateAttachmentCmd.verifyTaskParameters: runtime task + not suspended.
         let (store, session) = command_context.store_and_session();
-        let task = store.find_task(&input.task_id, session).ok_or_else(|| {
+        let task = store.find_task(&input.task_id, session)?.ok_or_else(|| {
             FlowableError::NotFound(format!("Cannot find task with id {}", input.task_id))
         })?;
         if task.is_suspended() {
@@ -183,7 +183,7 @@ impl Command<ContentItem> for DeleteTaskAttachmentCmd {
     ) -> Result<ContentItem, FlowableError> {
         // Runtime task must exist (REST also guards; keep for direct service use).
         let (store, session) = command_context.store_and_session();
-        let _task = store.find_task(&self.task_id, session).ok_or_else(|| {
+        let _task = store.find_task(&self.task_id, session)?.ok_or_else(|| {
             FlowableError::NotFound(format!("Cannot find task with id {}", self.task_id))
         })?;
 

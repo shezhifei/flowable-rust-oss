@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P45: transient variable lifecycle — Java VariableScopeImpl parity.
 //!
 //! Java: `VariableScopeImpl.transientVariables` is pure memory (line 58); not
@@ -38,7 +44,7 @@ fn deploy_one_task(engine: &ProcessEngine) {
 /// Cross-command: start-time transient must vanish after the start command commits.
 #[test]
 fn transient_start_variable_invisible_after_command_commits() {
-    let engine = ProcessEngine::new("p45-cross-cmd-start".into());
+    let engine = ProcessEngine::new("p45-cross-cmd-start".into()).unwrap();
     deploy_one_task(&engine);
     let runtime = engine.get_runtime_service();
 
@@ -86,7 +92,7 @@ fn transient_start_variable_invisible_after_command_commits() {
 /// be permanently shadowed by leftover transient (pre-P45 bug).
 #[test]
 fn durable_write_not_shadowed_by_stale_transient() {
-    let engine = ProcessEngine::new("p45-shadow-guard".into());
+    let engine = ProcessEngine::new("p45-shadow-guard".into()).unwrap();
     deploy_one_task(&engine);
     let runtime = engine.get_runtime_service();
     let variables = engine.get_variable_service();
@@ -132,7 +138,7 @@ fn durable_write_not_shadowed_by_stale_transient() {
 /// on the child (gateway), not promoted to durable, gone after commit.
 #[test]
 fn call_activity_inherit_variables_transient_split_and_strip() {
-    let engine = ProcessEngine::new("p45-ca-inherit".into());
+    let engine = ProcessEngine::new("p45-ca-inherit".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -226,7 +232,7 @@ fn call_activity_inherit_variables_transient_split_and_strip() {
 /// it; after commit it is gone and never durable.
 #[test]
 fn call_activity_out_parameter_transient_mid_command_only() {
-    let engine = ProcessEngine::new("p45-ca-out-transient".into());
+    let engine = ProcessEngine::new("p45-ca-out-transient".into()).unwrap();
     let repo = engine.get_repository_service();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();

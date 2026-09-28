@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::task::Task;
@@ -18,7 +24,7 @@ fn standalone_task(engine: &ProcessEngine, task_id: &str) {
 
 #[test]
 fn assignee_and_owner_identity_links_update_task_without_creating_link_rows() {
-    let engine = ProcessEngine::new("p42-identity-link-direct".to_string());
+    let engine = ProcessEngine::new("p42-identity-link-direct".to_string()).unwrap();
     standalone_task(&engine, "task-1");
     let service = engine.get_task_service();
 
@@ -85,7 +91,7 @@ fn assignee_and_owner_identity_links_update_task_without_creating_link_rows() {
 
 #[test]
 fn candidate_identity_links_still_use_identity_link_rows() {
-    let engine = ProcessEngine::new("p42-identity-link-candidate".to_string());
+    let engine = ProcessEngine::new("p42-identity-link-candidate".to_string()).unwrap();
     standalone_task(&engine, "task-1");
 
     engine

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use chrono::{TimeZone, Utc};
 use flowable_cmmn_engine::{
     CmmnCase, CmmnCaseInstanceStartRequest, CmmnCasePlanModel, CmmnDeploymentRequest, CmmnEngine,
@@ -78,7 +84,7 @@ fn build_engine(test_name: &str) -> (Arc<ProcessEngine>, Arc<TestTimeSource>) {
         password: Some("test".to_string()),
         tenant_id: None,
     };
-    engine.get_identity_service().save_user(user);
+    engine.get_identity_service().save_user(user).unwrap();
 
     (engine, time_source)
 }
@@ -1393,6 +1399,7 @@ async fn external_worker_list_get_hide_jobs_while_process_suspended_and_restore_
     let suspended_row = engine
         .get_management_service()
         .find_suspended_job_by_id(&job_id)
+        .unwrap()
         .expect("moved to suspended family");
     assert!(suspended_row.lock_owner.is_none());
 
@@ -1415,4 +1422,85 @@ async fn external_worker_list_get_hide_jobs_while_process_suspended_and_restore_
         .await
         .unwrap();
     assert_eq!(list_restored.json::<Value>().await.unwrap()["total"], 1);
+}
+
+#[tokio::test]
+async fn external_worker_failure_omitted_retries_decrements_and_malformed_retry_timeout_is_bad_request() {
+    let (engine, time_source) = build_engine("rest-external-worker-failure-defaults");
+    let (base_url, client) = spawn_server(Arc::clone(&engine)).await;
+    start_timer_wait_process(&engine);
+    time_source.advance_time(300_001);
+
+    let acquire = client
+        .post(format!("{}/external-worker/jobs/fetch-and-lock", base_url))
+        .basic_auth("admin", Some("test"))
+        .json(&json!({
+            "workerId": "worker-a",
+            "numberOfTasks": 1,
+            "lockDuration": "PT1M"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(acquire.status().is_success());
+    let job_id = acquire.json::<Value>().await.unwrap()[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let before = client
+        .get(format!("{}/external-worker/jobs/{}", base_url, job_id))
+        .basic_auth("admin", Some("test"))
+        .send()
+        .await
+        .unwrap();
+    let retries_before = before.json::<Value>().await.unwrap()["retries"]
+        .as_i64()
+        .unwrap();
+    assert!(
+        retries_before > 1,
+        "fixture needs spare retries to observe the decrement, got {retries_before}"
+    );
+
+    // Java binds retryTimeout to java.time.Duration in the request DTO, so a malformed
+    // value is a deserialization failure answered with 400 - never a silent 0 ms backoff.
+    let bad_timeout = client
+        .post(format!(
+            "{}/external-worker/jobs/{}/failure",
+            base_url, job_id
+        ))
+        .basic_auth("admin", Some("test"))
+        .json(&json!({ "workerId": "worker-a", "retryTimeout": "yesterday" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_timeout.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert_eq!(
+        bad_timeout.json::<Value>().await.unwrap()["code"],
+        "BAD_REQUEST"
+    );
+
+    // ExternalWorkerJobFailureBuilderImpl keeps retries at its -1 default when the field is
+    // omitted, and ExternalWorkerJobFailCmd then decrements the job's retries.
+    let fail = client
+        .post(format!(
+            "{}/external-worker/jobs/{}/failure",
+            base_url, job_id
+        ))
+        .basic_auth("admin", Some("test"))
+        .json(&json!({ "workerId": "worker-a", "errorMessage": "boom" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(fail.status(), reqwest::StatusCode::NO_CONTENT);
+
+    let after = client
+        .get(format!("{}/external-worker/jobs/{}", base_url, job_id))
+        .basic_auth("admin", Some("test"))
+        .send()
+        .await
+        .unwrap();
+    let after_body = after.json::<Value>().await.unwrap();
+    assert_eq!(after_body["retries"], retries_before - 1);
+    assert_eq!(after_body["lockOwner"], Value::Null);
 }

@@ -178,7 +178,7 @@ fn resolve_same_deployment_definition(
 
     let definitions = command_context
         .deployment_manager
-        .get_process_definitions(&mut command_context.session);
+        .get_process_definitions(&mut command_context.session)?;
     let parent_definition = definitions.get(parent_definition_id).ok_or_else(|| {
         FlowableError::NotFound(format!(
             "Parent process definition '{}' was not found for call activity '{}'",
@@ -222,7 +222,7 @@ fn resolve_called_process_definition(
     let element_type = called_element_type(call_activity);
     let definitions = command_context
         .deployment_manager
-        .get_process_definitions(&mut command_context.session);
+        .get_process_definitions(&mut command_context.session)?;
 
     match element_type {
         CALLED_ELEMENT_TYPE_ID => {
@@ -252,7 +252,7 @@ fn resolve_called_process_definition(
             let tenant_id = execution.tenant_id.as_deref();
             let definitions = command_context
                 .deployment_manager
-                .get_process_definitions(&mut command_context.session);
+                .get_process_definitions(&mut command_context.session)?;
 
             if tenant_id.is_none() {
                 return find_latest_definition_by_key(&definitions, called_element, None).ok_or_else(
@@ -318,7 +318,7 @@ fn business_key_from_call_activity(
         && let Some(process_instance_id) = execution.process_instance_id.as_deref()
         && let Some(process_instance) = command_context
             .runtime_store
-            .find_process_instance(process_instance_id, &mut command_context.session)
+            .find_process_instance(process_instance_id, &mut command_context.session)?
         && let Some(business_key) = process_instance.business_key
     {
         return Ok(Some(business_key));
@@ -370,7 +370,7 @@ fn set_process_variable_with_history(
     execution: &mut Execution,
     name: String,
     value: Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     execution.set_process_variable(name.clone(), value.clone());
     let historic_variable_id = format!("{}:{}", execution.id, name);
     if command_context
@@ -382,7 +382,7 @@ fn set_process_variable_with_history(
             &historic_variable_id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         let process_instance_id = execution
             .process_instance_id
@@ -397,8 +397,9 @@ fn set_process_variable_with_history(
             Some(&execution.id),
             None,
             &mut command_context.session,
-        );
+        )?;
     }
+    Ok(())
 }
 
 fn set_local_variable_with_history(
@@ -406,7 +407,7 @@ fn set_local_variable_with_history(
     execution: &mut Execution,
     name: String,
     value: Value,
-) {
+) -> Result<(), crate::error::FlowableError> {
     execution.set_local_variable(name.clone(), value.clone());
     // Local vars are still historicized against the execution (best-effort parity).
     let historic_variable_id = format!("{}:local:{}", execution.id, name);
@@ -419,7 +420,7 @@ fn set_local_variable_with_history(
             &historic_variable_id,
             value,
             &mut command_context.session,
-        );
+        )?;
     } else {
         let process_instance_id = execution
             .process_instance_id
@@ -434,16 +435,18 @@ fn set_local_variable_with_history(
             Some(&execution.id),
             None,
             &mut command_context.session,
-        );
+        )?;
     }
+    Ok(())
 }
 
 /// Persists variable writes made on the execution row. The row is the single
 /// process-level variable store; nothing is mirrored onto the process instance.
-fn persist_execution(command_context: &mut CommandContext, execution: &Execution) {
+fn persist_execution(command_context: &mut CommandContext, execution: &Execution) -> Result<(), crate::error::FlowableError> {
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
+    Ok(())
 }
 
 fn expression_property_name(expression: &str) -> Option<&str> {
@@ -496,7 +499,7 @@ pub fn ensure_call_activity_parent_not_suspended(
     if let Some(process_instance_id) = super_execution.process_instance_id.as_deref()
         && let Some(pi) = command_context
             .runtime_store
-            .find_process_instance(process_instance_id, &mut command_context.session)
+            .find_process_instance(process_instance_id, &mut command_context.session)?
         && pi.is_suspended
     {
         return Err(FlowableError::ExecutionError(format!(
@@ -508,7 +511,7 @@ pub fn ensure_call_activity_parent_not_suspended(
     if let Some(definition_id) = super_execution.process_definition_id.as_deref() {
         let definitions = command_context
             .deployment_manager
-            .get_process_definitions(&mut command_context.session);
+            .get_process_definitions(&mut command_context.session)?;
         if definitions
             .get(definition_id)
             .map(|d| d.is_suspended)
@@ -609,15 +612,15 @@ pub fn apply_call_activity_out_parameters(
         if out_param.transient {
             super_execution.set_transient_variable(target, value);
         } else if use_local_scope {
-            set_local_variable_with_history(command_context, super_execution, target, value);
+            set_local_variable_with_history(command_context, super_execution, target, value)?;
         } else {
-            set_process_variable_with_history(command_context, super_execution, target, value);
+            set_process_variable_with_history(command_context, super_execution, target, value)?;
         }
         updated = true;
     }
 
     if updated {
-        persist_execution(command_context, super_execution);
+        persist_execution(command_context, super_execution)?;
     }
 
     Ok(())
@@ -854,7 +857,7 @@ impl ActivityBehavior for CallActivityBehavior {
                         ..Default::default()
                     },
                     &mut command_context.session,
-                );
+                )?;
                 continue;
             }
 
@@ -898,7 +901,7 @@ impl ActivityBehavior for CallActivityBehavior {
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         let start_cmd = StartProcessInstanceCmd::new(builder);
         let child_process_instance = start_cmd.execute(command_context)?;
@@ -942,8 +945,8 @@ impl ActivityBehavior for CallActivityBehavior {
                     &mut host,
                     variable_name,
                     Value::String(child_process_instance.id),
-                );
-                persist_execution(command_context, &host);
+                )?;
+                persist_execution(command_context, &host)?;
                 *execution = host;
             }
         }

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P17: timer EL evaluation + lifecycle (retries, suspended start skip,
 //! redeploy cancel / undeploy restore).
 //!
@@ -23,7 +29,7 @@ fn boundary_timer_time_duration_expression_evaluates() {
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("p17-boundary-el-duration".to_string(), time_source);
+        ProcessEngine::with_time_source("p17-boundary-el-duration".to_string(), time_source).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
                  xmlns:flowable="http://flowable.org/bpmn"
@@ -90,7 +96,7 @@ fn boundary_timer_time_duration_expression_evaluates() {
 #[test]
 fn boundary_timer_missing_expression_variable_fails_hard() {
     // Java TimerUtil: evaluation failure rolls back the command (no silent no-fire).
-    let engine = ProcessEngine::new("p17-boundary-el-fail".to_string());
+    let engine = ProcessEngine::new("p17-boundary-el-fail".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="elFailProcess" isExecutable="true">
@@ -150,7 +156,7 @@ fn intermediate_timer_time_cycle_expression_evaluates() {
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("p17-intermediate-el-cycle".to_string(), time_source);
+        ProcessEngine::with_time_source("p17-intermediate-el-cycle".to_string(), time_source).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="cycleElProcess" isExecutable="true">
@@ -215,7 +221,7 @@ fn boundary_timer_end_date_expression_evaluates() {
     let time_source = Arc::new(TestTimeSource::new(
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
-    let engine = ProcessEngine::with_time_source("p17-enddate-el".to_string(), time_source);
+    let engine = ProcessEngine::with_time_source("p17-enddate-el".to_string(), time_source).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
                  xmlns:flowable="http://flowable.org/bpmn"
@@ -279,7 +285,7 @@ fn boundary_timer_end_date_expression_evaluates() {
 fn start_timer_string_literal_expression_resolves() {
     // Java StartTimerEventTest.testExpressionStartTimerEvent:
     // <timeDate>${'2036-11-14T11:12:22'}</timeDate>
-    let engine = ProcessEngine::new("p17-start-el-literal".to_string());
+    let engine = ProcessEngine::new("p17-start-el-literal".to_string()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="startTimerEventExample" isExecutable="true">
@@ -306,7 +312,9 @@ fn start_timer_string_literal_expression_resolves() {
         )
         .unwrap();
 
-    let subs = engine.get_timer_start_subscriptions();
+    let subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(subs.len(), 1);
     assert_eq!(
         subs[0].time_date.as_deref(),
@@ -324,7 +332,7 @@ fn suspended_definition_timer_start_skips_without_panic_and_reschedules_cycle() 
         Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap(),
     ));
     let engine =
-        ProcessEngine::with_time_source("p17-suspended-start".to_string(), time_source.clone());
+        ProcessEngine::with_time_source("p17-suspended-start".to_string(), time_source.clone()).unwrap();
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="suspendedCycleStart" isExecutable="true">
@@ -365,6 +373,7 @@ fn suspended_definition_timer_start_skips_without_panic_and_reschedules_cycle() 
 
     let due_before = engine
         .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed")
         .into_iter()
         .find(|s| s.process_definition_id == def_id)
         .and_then(|s| s.due_time)
@@ -391,6 +400,7 @@ fn suspended_definition_timer_start_skips_without_panic_and_reschedules_cycle() 
     // Cycle must still reschedule to a future due.
     let due_after = engine
         .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed")
         .into_iter()
         .find(|s| s.process_definition_id == def_id)
         .and_then(|s| s.due_time);
@@ -404,7 +414,7 @@ fn suspended_definition_timer_start_skips_without_panic_and_reschedules_cycle() 
 fn redeploy_cancels_old_version_timer_start_subscriptions() {
     // Java StartTimerEventTest.testVersionUpgradeShouldCancelJobs /
     // testOldJobsDeletedOnRedeploy
-    let engine = ProcessEngine::new("p17-redeploy-cancel".to_string());
+    let engine = ProcessEngine::new("p17-redeploy-cancel".to_string()).unwrap();
     let xml_v1 = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="versionUpgradeTimer" isExecutable="true">
@@ -444,7 +454,9 @@ fn redeploy_cancels_old_version_timer_start_subscriptions() {
                 .add_string("v1.bpmn20.xml".to_string(), xml_v1.to_string()),
         )
         .unwrap();
-    let subs_v1 = engine.get_timer_start_subscriptions();
+    let subs_v1 = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(subs_v1.len(), 1);
     assert_eq!(subs_v1[0].time_duration.as_deref(), Some("PT1H"));
     let v1_def = subs_v1[0].process_definition_id.clone();
@@ -460,7 +472,9 @@ fn redeploy_cancels_old_version_timer_start_subscriptions() {
         )
         .unwrap();
 
-    let subs = engine.get_timer_start_subscriptions();
+    let subs = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(
         subs.len(),
         1,
@@ -476,7 +490,7 @@ fn redeploy_cancels_old_version_timer_start_subscriptions() {
 #[test]
 fn undeploy_old_version_keeps_latest_timer_start() {
     // Java StartTimerEventTest.testTimerShouldNotBeRemovedWhenUndeployingOldVersion
-    let engine = ProcessEngine::new("p17-undeploy-old-keep".to_string());
+    let engine = ProcessEngine::new("p17-undeploy-old-keep".to_string()).unwrap();
     let xml_v1 = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="keepLatestTimer" isExecutable="true">
@@ -531,7 +545,9 @@ fn undeploy_old_version_keeps_latest_timer_start() {
         .get_repository_service()
         .delete_deployment(&dep1.id)
         .unwrap();
-    let after_old = engine.get_timer_start_subscriptions();
+    let after_old = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(
         after_old.len(),
         1,
@@ -543,7 +559,7 @@ fn undeploy_old_version_keeps_latest_timer_start() {
 #[test]
 fn undeploy_latest_restores_previous_version_timer_start() {
     // Java DeploymentProcessDefinitionDeletionManagerImpl.restorePreviousStartEventsIfNeeded
-    let engine = ProcessEngine::new("p17-undeploy-restore".to_string());
+    let engine = ProcessEngine::new("p17-undeploy-restore".to_string()).unwrap();
     let xml_v1 = r#"<?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="Examples">
         <process id="restoreTimer" isExecutable="true">
@@ -595,9 +611,17 @@ fn undeploy_latest_restores_previous_version_timer_start() {
         .unwrap();
 
     // After v2, only PT45M remains (v1's subscription was cancelled on redeploy).
-    assert_eq!(engine.get_timer_start_subscriptions().len(), 1);
     assert_eq!(
-        engine.get_timer_start_subscriptions()[0]
+        engine
+            .get_timer_start_subscriptions()
+            .expect("timer start subscription read must succeed")
+            .len(),
+        1
+    );
+    assert_eq!(
+        engine
+            .get_timer_start_subscriptions()
+            .expect("timer start subscription read must succeed")[0]
             .time_duration
             .as_deref(),
         Some("PT45M")
@@ -608,7 +632,9 @@ fn undeploy_latest_restores_previous_version_timer_start() {
         .get_repository_service()
         .delete_deployment(&dep2.id)
         .unwrap();
-    let after_latest = engine.get_timer_start_subscriptions();
+    let after_latest = engine
+        .get_timer_start_subscriptions()
+        .expect("timer start subscription read must succeed");
     assert_eq!(
         after_latest.len(),
         1,

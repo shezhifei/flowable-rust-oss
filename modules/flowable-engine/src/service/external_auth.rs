@@ -141,8 +141,24 @@ impl AuthProvider for ExternalAuthProvider {
             })?;
 
         let mut matched_profile = None;
-        let mut session = self.runtime_store.create_session().unwrap();
-        let profiles = self.runtime_store.list_issuer_profiles(&mut session);
+        // Fail-closed: unreadable profiles -> auth denied. Java's BasicAuthenticationProvider
+        // has no try/catch around checkPassword, so a store error surfaces as a 500 there.
+        let Ok(mut session) = self.runtime_store.create_session() else {
+            return None;
+        };
+        // Java parity: a profile-query storage failure throws inside the command; this
+        // path always denies auth, but it must not do so silently.
+        let profiles = match self.runtime_store.list_issuer_profiles(&mut session) {
+            Ok(profiles) => profiles,
+            Err(error) => {
+                tracing::error!(
+                    error = %error,
+                    "external auth: issuer profile read failed; denying authentication"
+                );
+                let _ = session.rollback();
+                return None;
+            }
+        };
         for profile in &profiles {
             if profile.issuer == issuer && profile.audience == audience {
                 if profile.rollout_state == crate::service::issuer_profile::RolloutState::Deprecated
@@ -163,7 +179,7 @@ impl AuthProvider for ExternalAuthProvider {
                 break;
             }
         }
-        session.rollback().unwrap();
+        let _ = session.rollback();
         let profile = matched_profile.or_else(|| {
             tracing::warn!("No profile for iss {} aud {}", issuer, audience);
             if let Some(ref limiter) = self.rate_limiter {
@@ -182,21 +198,22 @@ impl AuthProvider for ExternalAuthProvider {
             return None;
         }
 
-        let decoding_key_res = self.jwks_cache.get_key(
+        let decoding_key = match self.jwks_cache.get_key(
             issuer,
             kid,
             jwks_uri,
             std::time::Duration::from_secs(profile.jwks_cache_ttl_seconds),
             &profile.jwks_refresh_policy,
-        );
-        if decoding_key_res.is_err() {
-            tracing::warn!("get_key failed: {}", decoding_key_res.err().unwrap());
-            if let Some(ref limiter) = self.rate_limiter {
-                limiter.record_failure(&limiter_key);
+        ) {
+            Ok(key) => key,
+            Err(e) => {
+                tracing::warn!("get_key failed: {}", e);
+                if let Some(ref limiter) = self.rate_limiter {
+                    limiter.record_failure(&limiter_key);
+                }
+                return None;
             }
-            return None;
-        }
-        let decoding_key = decoding_key_res.unwrap();
+        };
 
         let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::RS256);
         validation.set_issuer(&[issuer]);
@@ -207,14 +224,16 @@ impl AuthProvider for ExternalAuthProvider {
             _,
         > = jsonwebtoken::decode(token_str, &decoding_key, &validation);
 
-        if verified_token_res.is_err() {
-            tracing::warn!("verify failed: {:?}", verified_token_res);
-            if let Some(ref limiter) = self.rate_limiter {
-                limiter.record_failure(&limiter_key);
+        let verified_token = match verified_token_res {
+            Ok(token) => token,
+            Err(e) => {
+                tracing::warn!("verify failed: {:?}", e);
+                if let Some(ref limiter) = self.rate_limiter {
+                    limiter.record_failure(&limiter_key);
+                }
+                return None;
             }
-            return None;
-        }
-        let verified_token = verified_token_res.unwrap();
+        };
 
         let verified_claims = verified_token.claims;
 

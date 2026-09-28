@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::error::ApiError;
 use axum::{Extension, Json, Router, extract::Path, routing::post};
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -109,15 +117,15 @@ fn activate_adhoc_task_for_process_instance(
 ) -> Result<(), ApiError> {
     let runtime_store = engine.get_runtime_store();
     let (process_instance, mut candidate_execution_ids) = {
-        let mut session = runtime_store.create_session().unwrap();
-        let process_instance = runtime_store
-            .find_process_instance(process_instance_id, &mut session)
-            .ok_or_else(|| {
-                ApiError::NotFound(format!(
-                    "Process instance '{}' was not found",
-                    process_instance_id
-                ))
-            })?;
+        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let found = runtime_store
+            .find_process_instance(process_instance_id, &mut session)?;
+        let process_instance = ApiError::found_or_not_found(&mut session, found, || {
+            ApiError::NotFound(format!(
+                "Process instance '{}' was not found",
+                process_instance_id
+            ))
+        })?;
         let candidate_execution_ids = runtime_store
             .snapshot_executions(&mut session)
             .into_values()
@@ -169,15 +177,15 @@ fn complete_active_adhoc_task_for_process_instance(
 ) -> Result<(), ApiError> {
     {
         let runtime_store = engine.get_runtime_store();
-        let mut session = runtime_store.create_session().unwrap();
-        runtime_store
-            .find_process_instance(process_instance_id, &mut session)
-            .ok_or_else(|| {
-                ApiError::NotFound(format!(
-                    "Process instance '{}' was not found",
-                    process_instance_id
-                ))
-            })?;
+        let mut session = runtime_store.create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+        let found = runtime_store
+            .find_process_instance(process_instance_id, &mut session)?;
+        ApiError::found_or_not_found(&mut session, found.map(|_| ()), || {
+            ApiError::NotFound(format!(
+                "Process instance '{}' was not found",
+                process_instance_id
+            ))
+        })?;
         session.rollback().ok();
     }
 

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P138 (G12) — `<sendTask flowable:type="mail">` exercises the full P124/P134
 //! mail field surface (textVar/htmlVar indirection, mixed JUEL composite
 //! templates, `\${` escape).
@@ -25,7 +31,7 @@ use serde_json::json;
 /// process continues past the sendTask.
 #[test]
 fn send_task_mail_inline_composite_juel() {
-    let process_engine = ProcessEngine::new("p138-sendtask-inline".to_string());
+    let process_engine = ProcessEngine::new("p138-sendtask-inline".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -94,7 +100,7 @@ fn send_task_mail_inline_composite_juel() {
 /// variables, whose contents are themselves composite JUEL templates.
 #[test]
 fn send_task_mail_text_var_html_var_composite() {
-    let process_engine = ProcessEngine::new("p138-sendtask-var".to_string());
+    let process_engine = ProcessEngine::new("p138-sendtask-var".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 

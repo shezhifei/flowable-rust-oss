@@ -129,7 +129,7 @@ pub async fn create_entity_link(
     engine
         .0
         .get_entity_link_service()
-        .add_entity_link(link.clone());
+        .add_entity_link(link.clone())?;
     Ok(Json(EntityLinkResponse::from(link)))
 }
 
@@ -140,6 +140,6 @@ pub async fn delete_entity_link(
     engine
         .0
         .get_entity_link_service()
-        .remove_entity_link(&link_id);
+        .remove_entity_link(&link_id)?;
     Ok(StatusCode::NO_CONTENT)
 }

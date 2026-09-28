@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P16 timer cycle / duration parse parity probes and Java-aligned contracts.
 //!
 //! Java refs:
@@ -25,7 +31,7 @@ fn weeks_duration_is_not_immediate_zero() {
 fn three_segment_r_start_period_fires() {
     let start = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(start));
-    let engine = ProcessEngine::with_time_source("three-seg".to_string(), time_source.clone());
+    let engine = ProcessEngine::with_time_source("three-seg".to_string(), time_source.clone()).unwrap();
 
     let cycle = format!(
         "R2/{}/PT1H",
@@ -120,7 +126,7 @@ fn end_date_stops_boundary_cycle_reschedule() {
     // Java BoundaryTimerEventRepeatWithEndTest / StartTimerEventRepeatWithEndTest
     let start = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(start));
-    let engine = ProcessEngine::with_time_source("end-date".to_string(), time_source.clone());
+    let engine = ProcessEngine::with_time_source("end-date".to_string(), time_source.clone()).unwrap();
 
     // endDate is 90 minutes from start → first fire at +1h ok, reschedule to +2h blocked
     let end = (start + chrono::Duration::minutes(90))
@@ -213,7 +219,7 @@ fn start_timer_with_end_date_stops_repeating() {
     let start = Utc.with_ymd_and_hms(2026, 4, 18, 12, 0, 0).unwrap();
     let time_source = Arc::new(TestTimeSource::new(start));
     let engine =
-        ProcessEngine::with_time_source("start-end-date".to_string(), time_source.clone());
+        ProcessEngine::with_time_source("start-end-date".to_string(), time_source.clone()).unwrap();
 
     let end = (start + chrono::Duration::seconds(12))
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);

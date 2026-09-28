@@ -75,7 +75,7 @@ impl Command<ContentItem> for CreateProcessAttachmentCmd {
         // Java CreateAttachmentCmd.verifyExecutionParameters when processInstanceId set.
         let (store, session) = command_context.store_and_session();
         let process_instance = store
-            .find_process_instance(&input.process_instance_id, session)
+            .find_process_instance(&input.process_instance_id, session)?
             .ok_or_else(|| {
                 FlowableError::NotFound(format!(
                     "Process instance {} doesn't exist",
@@ -97,7 +97,7 @@ impl Command<ContentItem> for CreateProcessAttachmentCmd {
 
         // Optional task: must exist, not suspended, and belong to the process.
         let task_id = if let Some(task_id) = input.task_id.as_ref() {
-            let task = store.find_task(task_id, session).ok_or_else(|| {
+            let task = store.find_task(task_id, session)?.ok_or_else(|| {
                 FlowableError::NotFound(format!("Cannot find task with id {task_id}"))
             })?;
             if task.is_suspended() {
@@ -231,7 +231,7 @@ impl Command<ContentItem> for DeleteProcessAttachmentCmd {
         let (store, session) = command_context.store_and_session();
         // Runtime process required for mutation (mirrors create validation).
         let _process_instance = store
-            .find_process_instance(&self.process_instance_id, session)
+            .find_process_instance(&self.process_instance_id, session)?
             .ok_or_else(|| {
                 FlowableError::NotFound(format!(
                     "Process instance {} doesn't exist",

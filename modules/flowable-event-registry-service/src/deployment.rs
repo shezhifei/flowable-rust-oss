@@ -214,7 +214,7 @@ impl FlowableEventRegistryService {
 
         // Local cache is updated only after commit.
         {
-            let mut cache = self.definition_cache.lock().unwrap();
+            let mut cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
             for definition in channel_definitions {
                 cache.register_channel(definition);
             }
@@ -336,7 +336,7 @@ impl FlowableEventRegistryService {
         session.flush_and_commit()?;
 
         {
-            let mut cache = self.definition_cache.lock().unwrap();
+            let mut cache = self.definition_cache.lock().unwrap_or_else(|e| e.into_inner());
             for definition in &channels {
                 cache.unregister_channel_id(&definition.id);
             }
@@ -346,36 +346,52 @@ impl FlowableEventRegistryService {
             // Best-effort reload of the surviving latest versions: the delete
             // already committed, and reconcile repairs the cache from the
             // change log if this session fails.
-            if let Ok(mut reload_session) = store.create_session() {
-                let remaining_channels =
-                    store.list_event_registry_channel_definitions(&mut reload_session);
-                let remaining_events =
-                    store.list_event_registry_event_definitions(&mut reload_session);
-                for definition in &channels {
-                    if let Some(previous) = remaining_channels
-                        .iter()
-                        .filter(|candidate| {
-                            candidate.key == definition.key
-                                && candidate.tenant_id == definition.tenant_id
-                        })
-                        .max_by_key(|candidate| candidate.version)
-                        .cloned()
-                    {
-                        cache.register_channel(previous);
+            match store.create_session() {
+                Ok(mut reload_session) => {
+                    let remaining_channels =
+                        store.list_event_registry_channel_definitions(&mut reload_session);
+                    let remaining_events =
+                        store.list_event_registry_event_definitions(&mut reload_session);
+                    for definition in &channels {
+                        if let Some(previous) = remaining_channels
+                            .iter()
+                            .filter(|candidate| {
+                                candidate.key == definition.key
+                                    && candidate.tenant_id == definition.tenant_id
+                            })
+                            .max_by_key(|candidate| candidate.version)
+                            .cloned()
+                        {
+                            cache.register_channel(previous);
+                        }
+                    }
+                    for definition in &events {
+                        if let Some(previous) = remaining_events
+                            .iter()
+                            .filter(|candidate| {
+                                candidate.key == definition.key
+                                    && candidate.tenant_id == definition.tenant_id
+                            })
+                            .max_by_key(|candidate| candidate.version)
+                            .cloned()
+                        {
+                            cache.register_event(previous);
+                        }
                     }
                 }
-                for definition in &events {
-                    if let Some(previous) = remaining_events
-                        .iter()
-                        .filter(|candidate| {
-                            candidate.key == definition.key
-                                && candidate.tenant_id == definition.tenant_id
-                        })
-                        .max_by_key(|candidate| candidate.version)
-                        .cloned()
-                    {
-                        cache.register_event(previous);
-                    }
+                Err(error) => {
+                    // The version delete above is already committed (line 336), so
+                    // the cache refresh is best-effort only: log the storage failure
+                    // instead of silently keeping stale entries, and let reconcile
+                    // repair the cache from the change log.
+                    // Java parity: DbSqlSession.selectList/selectOne propagate SQL
+                    // errors as PersistenceException rather than logging-and-empty
+                    // (flowable-engine-common/.../impl/db/DbSqlSession.java:282-299).
+                    tracing::warn!(
+                        error = ?error,
+                        "could not open a session to refresh the event registry definition cache; \
+                         stale entries remain until reconciliation"
+                    );
                 }
             }
         }
@@ -516,7 +532,7 @@ impl FlowableEventRegistryService {
         // is idempotent and never skips foreign records.
         self.definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .register_channel(definition.clone());
         Ok(definition)
     }
@@ -576,7 +592,7 @@ impl FlowableEventRegistryService {
         // is idempotent and never skips foreign records.
         self.definition_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .register_event(definition.clone());
         Ok(definition)
     }

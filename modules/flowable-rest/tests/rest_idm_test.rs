@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::time_source::SystemTimeSource;
 use flowable_rest::run_server;
@@ -23,7 +29,7 @@ fn build_engine(test_name: &str) -> Arc<ProcessEngine> {
             email: None,
             password: Some("test".to_string()),
             tenant_id: None,
-        });
+        }).unwrap();
 
     engine
 }
@@ -828,6 +834,7 @@ async fn idm_user_info_has_created_at_and_updated_at_timestamps() {
     let info = engine
         .get_identity_service()
         .get_user_info("admin", "department")
+        .unwrap()
         .unwrap();
     assert!(info.created_at.is_some());
     assert!(info.updated_at.is_some());
@@ -848,6 +855,7 @@ async fn idm_user_info_has_created_at_and_updated_at_timestamps() {
     let updated_info = engine
         .get_identity_service()
         .get_user_info("admin", "department")
+        .unwrap()
         .unwrap();
     assert_eq!(updated_info.created_at, info.created_at);
     assert!(updated_info.updated_at.unwrap() >= info.updated_at.unwrap());

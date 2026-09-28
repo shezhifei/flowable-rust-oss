@@ -36,3 +36,7 @@ required-features = ["postgres"]
 [[test]]
 name = "smoke_test_mysql"
 required-features = ["mysql"]
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::common::{PagedResponse, PagingQuery, parse_query};
 use crate::error::ApiError;
 use crate::query_variable::{
@@ -533,7 +541,7 @@ pub(crate) async fn get_historic_process_instance_comments(
     Path(process_instance_id): Path<String>,
 ) -> Result<Json<Vec<super::tasks::TaskCommentResponse>>, ApiError> {
     ensure_historic_process_instance_exists(&engine, &process_instance_id)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let comments = engine
         .get_history_service()
         .get_process_instance_comments(&process_instance_id, &mut session)
@@ -549,7 +557,7 @@ pub(crate) async fn get_historic_process_instance_comment(
     Path((process_instance_id, comment_id)): Path<(String, String)>,
 ) -> Result<Json<super::tasks::TaskCommentResponse>, ApiError> {
     ensure_historic_process_instance_exists(&engine, &process_instance_id)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let comment = engine
         .get_history_service()
         .get_comment(&comment_id, &mut session)
@@ -602,7 +610,7 @@ pub(crate) async fn delete_historic_process_instance_comment(
     Path((process_instance_id, comment_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     ensure_historic_process_instance_exists(&engine, &process_instance_id)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let owned = engine
         .get_history_service()
         .get_comment(&comment_id, &mut session)
@@ -956,7 +964,7 @@ fn historic_process_instances_for_query(
         || query.root_scope_id.is_some()
         || query.state.is_some();
     let runtime = if runtime_needed {
-        runtime_process_instances_by_id(&engine)
+        runtime_process_instances_by_id(&engine)?
     } else {
         HashMap::new()
     };
@@ -1065,7 +1073,7 @@ fn historic_process_instances_for_query(
         || query.parent_scope_id.is_some()
         || query.exclude_subprocesses == Some(true)
     {
-        let super_map = runtime_super_process_instance_map(&engine);
+        let super_map = runtime_super_process_instance_map(&engine)?;
         if let Some(super_process_instance_id) = query.super_process_instance_id.as_deref() {
             instances.retain(|instance| {
                 super_map.get(&instance.id).map(String::as_str) == Some(super_process_instance_id)
@@ -1226,28 +1234,31 @@ fn historic_process_tenant_id(
 
 fn runtime_process_instances_by_id(
     engine: &ProcessEngine,
-) -> HashMap<String, flowable_engine::runtime::process_instance::ProcessInstance> {
-    engine
+) -> Result<HashMap<String, flowable_engine::runtime::process_instance::ProcessInstance>, ApiError>
+{
+    Ok(engine
         .get_runtime_store()
         .db_store()
         .find_all::<flowable_engine::runtime::process_instance::ProcessInstance>(
             "process_instances",
         )
-        .unwrap_or_default()
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?
         .into_iter()
         .map(|instance| (instance.id.clone(), instance))
-        .collect()
+        .collect())
 }
 
 /// child process instance id → parent process instance id, resolved through
 /// the call activity's super execution (runtime-only join: finished children
 /// no longer carry the relationship).
-fn runtime_super_process_instance_map(engine: &ProcessEngine) -> HashMap<String, String> {
+fn runtime_super_process_instance_map(
+    engine: &ProcessEngine,
+) -> Result<HashMap<String, String>, ApiError> {
     let executions = engine
         .get_runtime_store()
         .db_store()
         .find_all::<flowable_engine::runtime::execution::Execution>("executions")
-        .unwrap_or_default();
+        .map_err(|error| ApiError::InternalServerError(error.to_string()))?;
     let execution_process_instance: HashMap<String, String> = executions
         .into_iter()
         .filter_map(|execution| {
@@ -1255,14 +1266,14 @@ fn runtime_super_process_instance_map(engine: &ProcessEngine) -> HashMap<String,
             Some((execution.id, process_instance_id))
         })
         .collect();
-    runtime_process_instances_by_id(engine)
+    Ok(runtime_process_instances_by_id(engine)?
         .into_values()
         .filter_map(|instance| {
             let super_execution_id = instance.super_execution_id?;
             let parent = execution_process_instance.get(&super_execution_id)?;
             Some((instance.id, parent.clone()))
         })
-        .collect()
+        .collect())
 }
 
 fn sort_historic_process_instances(
@@ -1754,7 +1765,7 @@ pub(crate) async fn historic_details(
     uri: Uri,
 ) -> Result<Json<PagedResponse<HistoricDetailResponse>>, ApiError> {
     let query: HistoricDetailListQuery = parse_query(&uri)?;
-    Ok(Json(historic_details_for_query(engine, &query)))
+    Ok(Json(historic_details_for_query(engine, &query)?))
 }
 
 pub(crate) async fn query_historic_details(
@@ -1768,14 +1779,17 @@ pub(crate) async fn query_historic_details(
     query.start = url_query.start;
     query.size = url_query.size.or(query.size);
 
-    Ok(Json(historic_details_for_query(engine, &query)))
+    Ok(Json(historic_details_for_query(engine, &query)?))
 }
 
 fn historic_details_for_query(
     engine: Arc<ProcessEngine>,
     query: &HistoricDetailListQuery,
-) -> PagedResponse<HistoricDetailResponse> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+) -> Result<PagedResponse<HistoricDetailResponse>, ApiError> {
+    let mut session = engine
+        .get_runtime_store()
+        .create_session()
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut details = engine
         .get_history_service()
         .get_historic_details(&mut session);
@@ -1817,7 +1831,7 @@ fn historic_details_for_query(
         .into_iter()
         .map(to_historic_detail_response)
         .collect();
-    query.paging().paginate(result)
+    Ok(query.paging().paginate(result))
 }
 
 fn sort_historic_details(details: &mut [HistoricDetail], sort: Option<&str>, order: Option<&str>) {
@@ -1857,13 +1871,13 @@ pub(crate) async fn get_historic_detail_data(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(detail_id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    let detail = engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_history_service()
-        .get_historic_detail(&detail_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!("Historic detail '{}' was not found", detail_id))
-        })?;
+        .get_historic_detail(&detail_id, &mut session);
+    let detail = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!("Historic detail '{}' was not found", detail_id))
+    })?;
     let variable_type = detail.variable_type.as_deref().unwrap_or_default();
     if !matches!(variable_type, "binary" | "bytes" | "serializable") {
         return Err(ApiError::NotFound(format!(
@@ -1927,7 +1941,7 @@ pub(crate) async fn historic_task_log_entries(
     uri: Uri,
 ) -> Result<Json<PagedResponse<HistoricTaskLogEntryResponse>>, ApiError> {
     let query: HistoricTaskLogEntryListQuery = parse_query(&uri)?;
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     let mut entries = engine
         .get_history_service()
         .get_historic_task_log_entries(&mut session);
@@ -2056,16 +2070,16 @@ pub(crate) struct HistoricTaskInstanceResponse {
 fn to_historic_task_instance_response(
     engine: &ProcessEngine,
     task: HistoricTaskInstance,
-) -> HistoricTaskInstanceResponse {
+) -> Result<HistoricTaskInstanceResponse, ApiError> {
     let (candidate_users, candidate_groups) =
-        super::tasks::candidate_identity_ids(engine, &task.id);
+        super::tasks::candidate_identity_ids(engine, &task.id)?;
     // Java HistoricTaskInstanceEntityImpl#getWorkTimeInMillis: work starts when
     // the task is claimed and ends when the task finishes.
     let work_time_in_millis = task
         .end_time
         .zip(task.claim_time)
         .map(|(end, claim)| end.signed_duration_since(claim).num_milliseconds());
-    HistoricTaskInstanceResponse {
+    Ok(HistoricTaskInstanceResponse {
         id: task.id,
         process_instance_id: task.process_instance_id,
         process_definition_id: task.process_definition_id,
@@ -2090,7 +2104,7 @@ fn to_historic_task_instance_response(
         work_time_in_millis,
         delete_reason: task.delete_reason,
         variables: None,
-    }
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -2192,7 +2206,7 @@ pub(crate) async fn get_historic_task_instance(
 ) -> Result<Json<HistoricTaskInstanceResponse>, ApiError> {
     let task = load_historic_task_instance(&engine, &task_id)?;
 
-    Ok(Json(to_historic_task_instance_response(&engine, task)))
+    Ok(Json(to_historic_task_instance_response(&engine, task)?))
 }
 
 pub(crate) async fn delete_historic_task_instance(
@@ -2209,16 +2223,16 @@ fn load_historic_task_instance(
     engine: &ProcessEngine,
     task_id: &str,
 ) -> Result<HistoricTaskInstance, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
-        .get_historic_task_instance(task_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Historic task instance '{}' was not found",
-                task_id
-            ))
-        })
+        .get_historic_task_instance(task_id, &mut session);
+    ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!(
+            "Historic task instance '{}' was not found",
+            task_id
+        ))
+    })
 }
 
 fn ensure_historic_task_instance_exists(
@@ -2263,7 +2277,7 @@ pub(crate) async fn get_historic_task_instance_form(
     Path(task_id): Path<String>,
 ) -> Result<Json<HistoricTaskFormResponse>, ApiError> {
     let _task = load_historic_task_instance(&engine, &task_id)?;
-    let mut instances = FlowableFormService::new(engine)
+    let mut instances = FlowableFormService::new(engine)?
         .create_form_instance_query()
         .task_id(task_id.clone())
         .list()?;
@@ -2572,7 +2586,7 @@ fn historic_task_instances_for_query(
     }
     if let Some(root_id) = query.process_instance_id_with_children.as_deref() {
         // Runtime-only join: resolve the call activity parent chain upwards.
-        let super_map = runtime_super_process_instance_map(&engine);
+        let super_map = runtime_super_process_instance_map(&engine)?;
         tasks.retain(|task| {
             let mut current = task.process_instance_id.clone();
             loop {
@@ -2729,7 +2743,7 @@ fn historic_task_instances_for_query(
         } else {
             None
         };
-        let mut response = to_historic_task_instance_response(&engine, task);
+        let mut response = to_historic_task_instance_response(&engine, task)?;
         response.variables = variables;
         result.push(response);
     }
@@ -3536,16 +3550,16 @@ pub(crate) async fn get_historic_variable_instance_data(
     Extension(engine): Extension<Arc<ProcessEngine>>,
     Path(variable_instance_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut session = engine.get_runtime_store().create_session().unwrap();
-    let variable = engine
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+    let found = engine
         .get_runtime_store()
-        .get_historic_variable_instance(&variable_instance_id, &mut session)
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Historic variable instance '{}' was not found",
-                variable_instance_id
-            ))
-        })?;
+        .get_historic_variable_instance(&variable_instance_id, &mut session);
+    let variable = ApiError::found_or_not_found(&mut session, found, || {
+        ApiError::NotFound(format!(
+            "Historic variable instance '{}' was not found",
+            variable_instance_id
+        ))
+    })?;
 
     Ok(Json(variable.value))
 }
@@ -3621,7 +3635,7 @@ pub(crate) async fn cleanup_history(
     let deleted_variable_instances = 0;
     let deleted_details = 0;
 
-    let mut session = engine.get_runtime_store().create_session().unwrap();
+    let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     if let Some(process_instance_ids) = command.process_instance_ids {
         for chunk in process_instance_ids.chunks(batch_size) {
             for id in chunk {
@@ -3699,7 +3713,7 @@ pub(crate) async fn cleanup_history(
             deleted_process_instances += 1;
         }
     }
-    session.flush_and_commit().unwrap();
+    session.flush_and_commit().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     let duration = start_time.elapsed();
     let duration_ms = duration.as_millis() as u64;
@@ -3708,7 +3722,12 @@ pub(crate) async fn cleanup_history(
         id: uuid::Uuid::new_v4().to_string(),
         cleanup_type: cleanup_type.to_string(),
         before_date: before_date
-            .map(|ts| chrono::DateTime::from_timestamp_millis(ts).unwrap_or_default()),
+            .map(|ts| {
+                chrono::DateTime::from_timestamp_millis(ts).ok_or_else(|| {
+                    ApiError::BadRequest(format!("Invalid beforeDate millis: {ts}"))
+                })
+            })
+            .transpose()?,
         records_deleted: deleted_process_instances,
         duration_ms,
         status: "success".to_string(),
@@ -3716,11 +3735,11 @@ pub(crate) async fn cleanup_history(
         timestamp: chrono::Utc::now(),
     };
     {
-        let mut session = engine.get_runtime_store().create_session().unwrap();
+        let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         engine
             .get_runtime_store()
             .insert_cleanup_log(log, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     }
 
     Ok(Json(CleanupResultResponse {
@@ -3769,11 +3788,11 @@ pub(crate) async fn configure_cleanup_strategy(
         cleanup_schedule: strategy.cleanup_schedule.clone(),
     };
     {
-        let mut session = engine.get_runtime_store().create_session().unwrap();
+        let mut session = engine.get_runtime_store().create_session().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
         engine
             .get_runtime_store()
             .set_cleanup_strategy_config(&config, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit().map_err(|e| ApiError::InternalServerError(e.to_string()))?;
     }
 
     Ok(Json(CleanupStrategyResponse {

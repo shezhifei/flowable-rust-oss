@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, TimeZone, Timelike, Utc};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Mutex;
@@ -26,18 +34,18 @@ impl TestTimeSource {
     }
 
     pub fn set_time(&self, time: DateTime<Utc>) {
-        *self.time.lock().unwrap() = time;
+        *self.time.lock().unwrap_or_else(|e| e.into_inner()) = time;
     }
 
     pub fn advance_time(&self, duration_millis: i64) {
-        let mut time = self.time.lock().unwrap();
+        let mut time = self.time.lock().unwrap_or_else(|e| e.into_inner());
         *time += ChronoDuration::milliseconds(duration_millis);
     }
 }
 
 impl TimeSource for TestTimeSource {
     fn now(&self) -> DateTime<Utc> {
-        *self.time.lock().unwrap()
+        *self.time.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 

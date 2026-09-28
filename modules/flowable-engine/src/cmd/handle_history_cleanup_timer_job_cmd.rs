@@ -115,7 +115,7 @@ fn schedule_timer_job(
     job.handler_type = Some(job_handler_types::BPMN_HISTORY_CLEANUP.to_string());
 
     let (store, session) = command_context.store_and_session();
-    store.insert_timer_job_state(&job, session);
+    store.insert_timer_job_state(&job, session)?;
     Ok(())
 }
 

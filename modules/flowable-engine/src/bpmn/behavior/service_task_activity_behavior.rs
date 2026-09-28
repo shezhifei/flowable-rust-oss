@@ -302,7 +302,7 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
                     if service_task.triggerable {
                         command_context
                             .execution_entity_manager
-                            .update(execution, &mut command_context.session);
+                            .update(execution, &mut command_context.session)?;
                         return Ok(());
                     }
                 } else {
@@ -379,7 +379,7 @@ fn execute_async_http_service_task(
     );
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
     plan_wait_for_future(
         command_context,
         future_id,
@@ -859,7 +859,7 @@ fn execute_send_event_service_task(
         execution.is_active = false;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
         // Java SendEventTaskActivityBehavior.java:140-151 — create EventSubscription
         // (event-type / EventRegistry) and do not leave. P130: kind must be
         // EventRegistry so BpmnEventRegistryConsumer can route inbound events
@@ -960,7 +960,7 @@ fn trigger_send_event_service_task(
     execution.is_active = true;
     command_context
         .execution_entity_manager
-        .update(execution, &mut command_context.session);
+        .update(execution, &mut command_context.session)?;
     command_context
         .agenda
         .plan_take_outgoing_sequence_flows_operation(execution.clone());
@@ -1924,7 +1924,7 @@ pub(crate) fn execute_dmn_service_task(
     // - sameDeployment "true" → pass process definition deploymentId
     // - sameDeployment "false" → pass null
     request.parent_deployment_id =
-        resolve_dmn_parent_deployment_id(service_task, execution, command_context);
+        resolve_dmn_parent_deployment_id(service_task, execution, command_context)?;
 
     let dmn_engine = command_context.config.dmn_engine.clone().ok_or_else(|| {
         FlowableError::ExecutionError(
@@ -1988,15 +1988,17 @@ fn resolve_dmn_parent_deployment_id(
     service_task: &ServiceTask,
     execution: &Execution,
     command_context: &mut CommandContext,
-) -> Option<String> {
-    let process_definition_id = execution.process_definition_id.as_deref()?;
+) -> Result<Option<String>, FlowableError> {
+    let Some(process_definition_id) = execution.process_definition_id.as_deref() else {
+        return Ok(None);
+    };
     let definition_deployment_id = command_context
         .deployment_manager
-        .get_process_definitions(&mut command_context.session)
+        .get_process_definitions(&mut command_context.session)?
         .get(process_definition_id)
         .and_then(|def| def.deployment_id.clone());
 
-    match find_dmn_field(service_task, "sameDeployment") {
+    Ok(match find_dmn_field(service_task, "sameDeployment") {
         Some(field) => {
             // Java :183 — only stringValue, Boolean.parseBoolean
             let raw = field
@@ -2013,7 +2015,7 @@ fn resolve_dmn_parent_deployment_id(
         }
         // Field absent → backwards compatibility: always apply parent deployment id
         None => definition_deployment_id,
-    }
+    })
 }
 
 /// Java `DmnActivityBehavior.execute` :117-141 — throwErrorOnNoHits.

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
 use flowable_engine::engine::task_service::TaskUpdate;
@@ -41,7 +47,7 @@ fn deploy_and_start(engine: &ProcessEngine, id_suffix: &str) -> (String, String)
 
 #[test]
 fn suspend_cascades_to_tasks_and_query_reflects_state() {
-    let engine = ProcessEngine::new("suspend-cascade-tasks".to_string());
+    let engine = ProcessEngine::new("suspend-cascade-tasks".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -97,7 +103,7 @@ fn suspend_cascades_to_tasks_and_query_reflects_state() {
 
 #[test]
 fn task_query_suspended_and_active_filters() {
-    let engine = ProcessEngine::new("task-query-suspension".to_string());
+    let engine = ProcessEngine::new("task-query-suspension".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -153,7 +159,7 @@ fn task_query_suspended_and_active_filters() {
 
 #[test]
 fn complete_suspended_task_rejected() {
-    let engine = ProcessEngine::new("complete-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("complete-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -175,7 +181,7 @@ fn complete_suspended_task_rejected() {
 
 #[test]
 fn claim_suspended_task_rejected() {
-    let engine = ProcessEngine::new("claim-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("claim-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -196,7 +202,7 @@ fn claim_suspended_task_rejected() {
 
 #[test]
 fn unclaim_suspended_task_rejected() {
-    let engine = ProcessEngine::new("unclaim-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("unclaim-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -217,7 +223,7 @@ fn unclaim_suspended_task_rejected() {
 
 #[test]
 fn delegate_suspended_task_rejected() {
-    let engine = ProcessEngine::new("delegate-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("delegate-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -238,7 +244,7 @@ fn delegate_suspended_task_rejected() {
 
 #[test]
 fn update_suspended_task_allowed() {
-    let engine = ProcessEngine::new("update-suspended-allowed".to_string());
+    let engine = ProcessEngine::new("update-suspended-allowed".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -267,7 +273,7 @@ fn update_suspended_task_allowed() {
 
 #[test]
 fn set_variable_on_suspended_task_rejected() {
-    let engine = ProcessEngine::new("set-var-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("set-var-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -288,7 +294,7 @@ fn set_variable_on_suspended_task_rejected() {
 
 #[test]
 fn resolve_suspended_task_rejected() {
-    let engine = ProcessEngine::new("resolve-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("resolve-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -317,7 +323,7 @@ fn resolve_suspended_task_rejected() {
 
 #[test]
 fn activate_preserves_task_data() {
-    let engine = ProcessEngine::new("activate-preserves-data".to_string());
+    let engine = ProcessEngine::new("activate-preserves-data".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -392,7 +398,7 @@ fn activate_preserves_task_data() {
 
 #[test]
 fn add_candidate_user_to_suspended_task_rejected() {
-    let engine = ProcessEngine::new("candidate-user-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("candidate-user-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -413,7 +419,7 @@ fn add_candidate_user_to_suspended_task_rejected() {
 
 #[test]
 fn add_candidate_group_to_suspended_task_rejected() {
-    let engine = ProcessEngine::new("candidate-group-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("candidate-group-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 
@@ -434,7 +440,7 @@ fn add_candidate_group_to_suspended_task_rejected() {
 
 #[test]
 fn delete_candidate_user_from_suspended_task_rejected() {
-    let engine = ProcessEngine::new("delete-candidate-user-suspended-rejected".to_string());
+    let engine = ProcessEngine::new("delete-candidate-user-suspended-rejected".to_string()).unwrap();
     let runtime = engine.get_runtime_service();
     let task_service = engine.get_task_service();
 

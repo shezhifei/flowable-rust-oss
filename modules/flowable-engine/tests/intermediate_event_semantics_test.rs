@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::task_service::MessageStyleWaitKind;
 
@@ -6,7 +12,7 @@ fn start_process_instance(
     deployment_name: &str,
     process_name: &str,
 ) -> (ProcessEngine, String) {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
 
@@ -68,7 +74,7 @@ fn test_intermediate_catch_event_without_event_definitions_waits_for_trigger() {
     let task_service = process_engine.get_task_service();
     let runtime_service = process_engine.get_runtime_service();
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert!(visible_wait_states.is_empty());
 
     let mut session = runtime_store.create_session().unwrap();
@@ -95,10 +101,10 @@ fn test_intermediate_catch_event_without_event_definitions_waits_for_trigger() {
     assert!(tasks.is_empty());
 
     runtime_service
-        .trigger_intermediate_catch_event_by_process_instance_id(process_instance_id.clone());
+        .trigger_intermediate_catch_event_by_process_instance_id(process_instance_id.clone()).unwrap();
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert!(visible_wait_states.is_empty());
 
     let mut session2 = runtime_store.create_session().unwrap();
@@ -135,7 +141,7 @@ fn test_intermediate_catch_event_with_message_event_definition_exposes_display_n
     let runtime_service = process_engine.get_runtime_service();
     let execution_id = get_waiting_execution_id(&process_engine, &process_instance_id);
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].wait_kind,
@@ -165,7 +171,7 @@ fn test_intermediate_catch_event_with_message_event_definition_exposes_display_n
     runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
         "OrderApproved".to_string(),
         execution_id,
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -175,7 +181,7 @@ fn test_intermediate_catch_event_with_message_event_definition_exposes_display_n
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert!(visible_wait_states.is_empty());
 }
 
@@ -207,7 +213,7 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_dis
     runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
         "Catch With Message Definition".to_string(),
         execution_id,
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -226,7 +232,7 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_dis
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].message_name.as_deref(),
@@ -262,13 +268,13 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_exe
     let runtime_store = process_engine.get_runtime_store();
     let runtime_service = process_engine.get_runtime_service();
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 
     runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
         "OrderApproved".to_string(),
         "missing-execution-id".to_string(),
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -287,7 +293,7 @@ fn test_intermediate_catch_event_with_message_event_definition_rejects_wrong_exe
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 }
 
@@ -350,7 +356,7 @@ fn test_intermediate_catch_event_with_signal_event_definition_exposes_signal_ref
     let execution_id = get_waiting_execution_id(&process_engine, &process_instance_id);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].wait_kind,
@@ -380,7 +386,7 @@ fn test_intermediate_catch_event_with_signal_event_definition_exposes_signal_ref
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "Alert Signal".to_string(),
         execution_id,
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -390,7 +396,7 @@ fn test_intermediate_catch_event_with_signal_event_definition_exposes_signal_ref
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert!(visible_wait_states.is_empty());
 }
 
@@ -424,7 +430,7 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_signal_ref() {
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "wrongSignal".to_string(),
         execution_id.clone(),
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -443,7 +449,7 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_signal_ref() {
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
     assert_eq!(
         visible_wait_states[0].signal_ref.as_deref(),
@@ -454,7 +460,7 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_signal_ref() {
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "Alert Signal".to_string(),
         execution_id,
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -488,14 +494,14 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_execution_target() {
     let runtime_store = process_engine.get_runtime_store();
     let runtime_service = process_engine.get_runtime_service();
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 
     // Try triggering with wrong execution_id - should be no-op
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "alertSignal".to_string(),
         "missing-execution-id".to_string(),
-    );
+    ).unwrap();
 
     let mut session = runtime_store.create_session().unwrap();
     let stored_pi = runtime_store
@@ -514,7 +520,7 @@ fn test_intermediate_catch_event_with_signal_rejects_wrong_execution_target() {
     drop(session);
 
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(visible_wait_states.len(), 1);
 }
 
@@ -558,7 +564,7 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
 
     // Two wait states: one message, one signal
     let visible_wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(
         visible_wait_states.len(),
         2,
@@ -583,10 +589,10 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
     runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
         "OrderApproved".to_string(),
         message_execution_id,
-    );
+    ).unwrap();
 
     let wait_states_after_msg = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(
         wait_states_after_msg.len(),
         1,
@@ -611,10 +617,10 @@ fn test_mixed_message_and_signal_intermediate_catch_events_independent_trigger()
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "Alert Signal".to_string(),
         signal_execution_id,
-    );
+    ).unwrap();
 
     let wait_states_final = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert!(
         wait_states_final.is_empty(),
         "All wait states should be cleared"
@@ -666,7 +672,7 @@ fn test_mixed_intermediate_catch_wrong_ref_is_noop_for_both_types() {
     let runtime_service = process_engine.get_runtime_service();
 
     let wait_states = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(wait_states.len(), 2);
 
     let msg_exec = wait_states
@@ -686,26 +692,26 @@ fn test_mixed_intermediate_catch_wrong_ref_is_noop_for_both_types() {
     runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
         "WrongMessage".to_string(),
         msg_exec.clone(),
-    );
+    ).unwrap();
     // Wrong signal ref
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "wrongSignal".to_string(),
         sig_exec.clone(),
-    );
+    ).unwrap();
     // Cross-type: send signal ref to message execution
     runtime_service.trigger_intermediate_catch_event_by_signal_ref_and_execution_id(
         "alertSignal".to_string(),
         msg_exec.clone(),
-    );
+    ).unwrap();
     // Cross-type: send message ref to signal execution
     runtime_service.trigger_intermediate_catch_event_by_message_ref_and_execution_id(
         "OrderApproved".to_string(),
         sig_exec.clone(),
-    );
+    ).unwrap();
 
     // All four should be no-ops
     let wait_states_after = runtime_service
-        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone());
+        .get_message_style_wait_states_by_process_instance_id(process_instance_id.clone()).unwrap();
     assert_eq!(
         wait_states_after.len(),
         2,

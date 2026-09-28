@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::service::issuer_profile::JwksRefreshPolicy;
 use jsonwebtoken::DecodingKey;
 use jsonwebtoken::jwk::{Jwk, JwkSet};
@@ -106,7 +114,7 @@ impl JwksCache {
 
         // 1. Check negative cache first to avoid hammering.
         {
-            let neg = self.negative_cache.read().unwrap();
+            let neg = self.negative_cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(entry) = neg.get(&cache_key)
                 && entry.expires_at > Instant::now()
                 && entry.jwks_uri == jwks_uri
@@ -120,7 +128,7 @@ impl JwksCache {
 
         // 2. Check fresh cache hit.
         {
-            let lock = self.keys.read().unwrap();
+            let lock = self.keys.read().unwrap_or_else(|e| e.into_inner());
             if let Some(cached) = lock.get(&cache_key)
                 && cached.expires_at > Instant::now()
                 && cached.jwks_uri == jwks_uri
@@ -160,7 +168,7 @@ impl JwksCache {
         }
 
         // 5. After successful refresh, look up the kid.
-        let lock = self.keys.read().unwrap();
+        let lock = self.keys.read().unwrap_or_else(|e| e.into_inner());
         if let Some(cached) = lock.get(&cache_key)
             && cached.jwks_uri == jwks_uri
         {
@@ -208,7 +216,7 @@ impl JwksCache {
             });
         }
 
-        let lock = self.keys.read().unwrap();
+        let lock = self.keys.read().unwrap_or_else(|e| e.into_inner());
         let cache_key = (issuer.to_string(), kid.to_string());
         if let Some(cached) = lock.get(&cache_key)
             && cached.jwks_uri == jwks_uri
@@ -235,7 +243,7 @@ impl JwksCache {
         jwks_uri: &str,
         policy: &JwksRefreshPolicy,
     ) -> bool {
-        let lock = self.refresh_state.read().unwrap();
+        let lock = self.refresh_state.read().unwrap_or_else(|e| e.into_inner());
         if let Some(state) = lock.get(issuer) {
             if state.jwks_uri != jwks_uri {
                 return true;
@@ -263,7 +271,7 @@ impl JwksCache {
     }
 
     fn record_refresh_success(&self, issuer: &str, jwks_uri: &str) {
-        let mut lock = self.refresh_state.write().unwrap();
+        let mut lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
         lock.insert(
             issuer.to_string(),
             IssuerRefreshState {
@@ -275,7 +283,7 @@ impl JwksCache {
     }
 
     fn record_refresh_failure(&self, issuer: &str, jwks_uri: &str) {
-        let mut lock = self.refresh_state.write().unwrap();
+        let mut lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
         let entry = lock
             .entry(issuer.to_string())
             .or_insert(IssuerRefreshState {
@@ -289,7 +297,7 @@ impl JwksCache {
     }
 
     fn add_negative_cache(&self, issuer: &str, kid: &str, jwks_uri: &str, ttl: Duration) {
-        let mut lock = self.negative_cache.write().unwrap();
+        let mut lock = self.negative_cache.write().unwrap_or_else(|e| e.into_inner());
         lock.insert(
             (issuer.to_string(), kid.to_string()),
             NegativeCacheEntry {
@@ -306,8 +314,11 @@ impl JwksCache {
         cache_ttl: Duration,
     ) -> Result<(), String> {
         if jwks_uri == "test-local" {
-            let jwk_set: JwkSet = serde_json::from_str(r#"{"keys":[{"kty":"RSA","kid":"test-kid","n":"sZheYveJ-RGFFYQ5l5skvpvkBlCmm0vrfkH1yjZMaH2kAAbMlf4d5h-a1DUNw3Rniq7zXdCYz_fsr-MR9hiHowJeE46ApTxFrORAds1Wz6_7RSgFQYZJ-rAeEUx_xR35IGl6jID0ibHyupbpKpcGsZqS-geHapRqgLv2dDvD0YcyqO5Ncmy0bBXYvi66WsC73YV3KR26iD3qi4KEGDxg_cL22fwRk2E2l8ZCf_5ZtlED7xmJsSoeOAR-bQLwaLcdmkwC9DiYCKXU8E2dzZq1mmu6Xf54o0ymk5JC9OsHgkJghS3jPnskGJBHGGyFpGE9Xyq97R8W1_S7u5H8axVbvw","e":"AQAB"}]}"#).unwrap();
-            let mut lock = self.keys.write().unwrap();
+            // Static test vector must parse; failure maps to FetchFailed, never panics.
+            // Java parity: Nimbus JOSE parsing throws, caught as refresh failure.
+            let jwk_set: JwkSet = serde_json::from_str(r#"{"keys":[{"kty":"RSA","kid":"test-kid","n":"sZheYveJ-RGFFYQ5l5skvpvkBlCmm0vrfkH1yjZMaH2kAAbMlf4d5h-a1DUNw3Rniq7zXdCYz_fsr-MR9hiHowJeE46ApTxFrORAds1Wz6_7RSgFQYZJ-rAeEUx_xR35IGl6jID0ibHyupbpKpcGsZqS-geHapRqgLv2dDvD0YcyqO5Ncmy0bBXYvi66WsC73YV3KR26iD3qi4KEGDxg_cL22fwRk2E2l8ZCf_5ZtlED7xmJsSoeOAR-bQLwaLcdmkwC9DiYCKXU8E2dzZq1mmu6Xf54o0ymk5JC9OsHgkJghS3jPnskGJBHGGyFpGE9Xyq97R8W1_S7u5H8axVbvw","e":"AQAB"}]}"#)
+                .map_err(|e| format!("test-local JWKS parse failed: {e}"))?;
+            let mut lock = self.keys.write().unwrap_or_else(|e| e.into_inner());
             let expires_at = Instant::now() + cache_ttl;
             for jwk in jwk_set.keys {
                 if let Some(kid) = &jwk.common.key_id {
@@ -338,7 +349,7 @@ impl JwksCache {
             .json()
             .map_err(|e| format!("Failed to parse jwks: {}", e))?;
 
-        let mut lock = self.keys.write().unwrap();
+        let mut lock = self.keys.write().unwrap_or_else(|e| e.into_inner());
         let expires_at = Instant::now() + cache_ttl;
 
         for jwk in jwk_set.keys {
@@ -358,7 +369,7 @@ impl JwksCache {
     }
 
     pub fn inject_key(&self, issuer: &str, kid: &str, key: Jwk) {
-        let mut lock = self.keys.write().unwrap();
+        let mut lock = self.keys.write().unwrap_or_else(|e| e.into_inner());
         lock.insert(
             (issuer.to_string(), kid.to_string()),
             CachedKey {
@@ -371,7 +382,7 @@ impl JwksCache {
 
     /// Inject a key with a custom TTL (for testing stale-key scenarios).
     pub fn inject_key_with_ttl(&self, issuer: &str, kid: &str, key: Jwk, ttl: Duration) {
-        let mut lock = self.keys.write().unwrap();
+        let mut lock = self.keys.write().unwrap_or_else(|e| e.into_inner());
         lock.insert(
             (issuer.to_string(), kid.to_string()),
             CachedKey {
@@ -391,7 +402,7 @@ impl JwksCache {
         key: Jwk,
         expired_ago: Duration,
     ) {
-        let mut lock = self.keys.write().unwrap();
+        let mut lock = self.keys.write().unwrap_or_else(|e| e.into_inner());
         lock.insert(
             (issuer.to_string(), kid.to_string()),
             CachedKey {
@@ -404,18 +415,18 @@ impl JwksCache {
 
     /// Clear negative cache entries for testing.
     pub fn clear_negative_cache(&self) {
-        let mut lock = self.negative_cache.write().unwrap();
+        let mut lock = self.negative_cache.write().unwrap_or_else(|e| e.into_inner());
         lock.clear();
     }
 
     /// Clear refresh state for testing.
     pub fn clear_refresh_state(&self) {
-        let mut lock = self.refresh_state.write().unwrap();
+        let mut lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
         lock.clear();
     }
 
     pub fn count_keys_for_issuer(&self, issuer: &str) -> usize {
-        let lock = self.keys.read().unwrap();
+        let lock = self.keys.read().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         lock.iter()
             .filter(|((iss, _), cached)| iss == issuer && cached.expires_at > now)
@@ -423,7 +434,7 @@ impl JwksCache {
     }
 
     pub fn count_negative_cache_for_issuer(&self, issuer: &str) -> usize {
-        let lock = self.negative_cache.read().unwrap();
+        let lock = self.negative_cache.read().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         lock.iter()
             .filter(|((iss, _), entry)| iss == issuer && entry.expires_at > now)
@@ -431,7 +442,7 @@ impl JwksCache {
     }
 
     pub fn refresh_state_for_issuer(&self, issuer: &str) -> (u32, Option<u64>) {
-        let lock = self.refresh_state.read().unwrap();
+        let lock = self.refresh_state.read().unwrap_or_else(|e| e.into_inner());
         match lock.get(issuer) {
             Some(state) => {
                 let ago = state.last_attempt.elapsed().as_secs();
@@ -446,15 +457,15 @@ impl JwksCache {
     /// request for this issuer forces a fresh JWKS resolution.
     pub fn invalidate_issuer(&self, issuer: &str) {
         {
-            let mut keys_lock = self.keys.write().unwrap();
+            let mut keys_lock = self.keys.write().unwrap_or_else(|e| e.into_inner());
             keys_lock.retain(|(iss, _), _| iss != issuer);
         }
         {
-            let mut neg_cache_lock = self.negative_cache.write().unwrap();
+            let mut neg_cache_lock = self.negative_cache.write().unwrap_or_else(|e| e.into_inner());
             neg_cache_lock.retain(|(iss, _), _| iss != issuer);
         }
         {
-            let mut refresh_lock = self.refresh_state.write().unwrap();
+            let mut refresh_lock = self.refresh_state.write().unwrap_or_else(|e| e.into_inner());
             refresh_lock.remove(issuer);
         }
     }
@@ -496,7 +507,7 @@ mod tests {
 
         assert!(key.is_ok(), "test-local JWKS should provide a decoding key");
 
-        let lock = cache.keys.read().unwrap();
+        let lock = cache.keys.read().unwrap_or_else(|e| e.into_inner());
         assert!(lock.contains_key(&("issuer-a".to_string(), "test-kid".to_string())));
     }
 
@@ -504,7 +515,7 @@ mod tests {
     fn test_expired_cached_key_refreshes_with_new_ttl() {
         let cache = JwksCache::new();
         {
-            let mut lock = cache.keys.write().unwrap();
+            let mut lock = cache.keys.write().unwrap_or_else(|e| e.into_inner());
             lock.insert(
                 ("issuer-b".to_string(), "test-kid".to_string()),
                 CachedKey {
@@ -519,7 +530,7 @@ mod tests {
         let key = cache.get_key("issuer-b", "test-kid", "test-local", ttl, &default_policy());
         assert!(key.is_ok(), "expired key should refresh from JWKS source");
 
-        let lock = cache.keys.read().unwrap();
+        let lock = cache.keys.read().unwrap_or_else(|e| e.into_inner());
         let refreshed = lock
             .get(&("issuer-b".to_string(), "test-kid".to_string()))
             .expect("refreshed key should be present");
@@ -672,7 +683,7 @@ mod tests {
 
         // Expire the cached key immediately.
         {
-            let mut lock = cache.keys.write().unwrap();
+            let mut lock = cache.keys.write().unwrap_or_else(|e| e.into_inner());
             if let Some(entry) = lock.get_mut(&("issuer-g".to_string(), "test-kid".to_string())) {
                 entry.expires_at = Instant::now() - Duration::from_secs(1);
             }

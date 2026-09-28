@@ -1,9 +1,15 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::error::FlowableError;
 
 #[test]
 fn test_error_boundary_event_baseline() {
-    let engine = ProcessEngine::new("error-boundary-test".to_string());
+    let engine = ProcessEngine::new("error-boundary-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -72,7 +78,7 @@ fn test_error_boundary_event_baseline() {
 
 #[test]
 fn test_error_boundary_error_code_exact_handler_beats_catch_all() {
-    let engine = ProcessEngine::new("error-code-boundary-priority-test".to_string());
+    let engine = ProcessEngine::new("error-code-boundary-priority-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -155,7 +161,7 @@ fn test_error_boundary_error_code_exact_handler_beats_catch_all() {
 
 #[test]
 fn test_cancel_boundary_transaction_baseline() {
-    let engine = ProcessEngine::new("cancel-boundary-test".to_string());
+    let engine = ProcessEngine::new("cancel-boundary-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
     let task_service = engine.get_task_service();
@@ -224,7 +230,7 @@ fn test_cancel_boundary_transaction_baseline() {
 
 #[test]
 fn test_unsupported_boundary_variants() {
-    let engine = ProcessEngine::new("unsupported-boundary-test".to_string());
+    let engine = ProcessEngine::new("unsupported-boundary-test".to_string()).unwrap();
     let repository_service = engine.get_repository_service();
     let runtime_service = engine.get_runtime_service();
 

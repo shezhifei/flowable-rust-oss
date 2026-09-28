@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! Start-form submission atomicity (P1-2): process start, form instance,
 //! historic details and content association commit/roll back as one command.
 //!
@@ -262,10 +268,10 @@ fn start_form_custom_handler_error_rolls_back_process_and_content_association() 
 
     let engine = Arc::new(ProcessEngine::new(
         "start-form-rollback-handler".to_string(),
-    ));
+    ).unwrap());
     let mut custom: BTreeMap<String, Arc<dyn FormFieldHandler>> = BTreeMap::new();
     custom.insert("custom_widget".to_string(), Arc::new(FailingWidgetHandler));
-    let service = FlowableFormService::with_handlers(Arc::clone(&engine), custom);
+    let service = FlowableFormService::with_handlers(Arc::clone(&engine), custom).unwrap();
 
     // BTreeMap submit order is alphabetical: "files" (upload association
     // succeeds) runs before "widget" (handler hard error) — proving the

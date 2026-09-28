@@ -60,3 +60,7 @@ tempfile = "3.14"
 
 [lib]
 path = "src/lib.rs"
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

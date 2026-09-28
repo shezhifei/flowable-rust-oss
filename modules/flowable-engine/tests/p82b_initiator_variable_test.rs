@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P82b — start event initiator variable (G9).
 //!
 //! Java: ProcessInstanceHelper.java:197-199 + ExecutionEntityManagerImpl.java:298-300.
@@ -66,7 +72,7 @@ fn deploy(engine: &ProcessEngine, name: &str, xml: &str, resource: &str) -> Stri
 /// initiator + start_user_id → PI variable + history.
 #[test]
 fn p82b_initiator_and_start_user_writes_pi_variable_and_history() {
-    let engine = ProcessEngine::new("p82b-initiator-with-user".to_string());
+    let engine = ProcessEngine::new("p82b-initiator-with-user".to_string()).unwrap();
     let process_definition_id = deploy(
         &engine,
         "p82b initiator",
@@ -109,7 +115,7 @@ fn p82b_initiator_and_start_user_writes_pi_variable_and_history() {
 /// No initiator attribute → no initiator variable even with start_user_id.
 #[test]
 fn p82b_no_initiator_attribute_writes_no_variable() {
-    let engine = ProcessEngine::new("p82b-no-initiator".to_string());
+    let engine = ProcessEngine::new("p82b-no-initiator".to_string()).unwrap();
     let process_definition_id = deploy(
         &engine,
         "p82b no initiator",
@@ -138,7 +144,7 @@ fn p82b_no_initiator_attribute_writes_no_variable() {
 /// Initiator present but no start_user_id → do not write (Rust deviation).
 #[test]
 fn p82b_initiator_without_start_user_does_not_write() {
-    let engine = ProcessEngine::new("p82b-initiator-no-user".to_string());
+    let engine = ProcessEngine::new("p82b-initiator-no-user".to_string()).unwrap();
     let process_definition_id = deploy(
         &engine,
         "p82b initiator no user",
@@ -169,7 +175,7 @@ fn p82b_initiator_without_start_user_does_not_write() {
 /// Message start path with start_user_id covers override start_event_id + initiator.
 #[test]
 fn p82b_message_start_path_writes_initiator() {
-    let engine = ProcessEngine::new("p82b-message-initiator".to_string());
+    let engine = ProcessEngine::new("p82b-message-initiator".to_string()).unwrap();
     deploy(
         &engine,
         "p82b message initiator",

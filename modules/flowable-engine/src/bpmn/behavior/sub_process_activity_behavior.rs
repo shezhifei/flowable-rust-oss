@@ -329,20 +329,24 @@ impl ActivityBehavior for SubProcessActivityBehavior {
         execution.is_scope = true;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         let process_instance_id = execution
             .process_instance_id
             .clone()
             .unwrap_or_else(|| execution.id.clone());
 
-        register_event_subprocess_event_subscriptions(
-            command_context,
-            active_sub_process_clone.as_ref().unwrap(),
-            &process_instance_id,
-            &execution.id,
-            &activity_id,
-        );
+        // Java parity: missing subprocess model skips event-subscription registration,
+        // never panics (SubProcessEntityManager returns null -> no-op).
+        if let Some(sub_process) = active_sub_process_clone.as_ref() {
+            register_event_subprocess_event_subscriptions(
+                command_context,
+                sub_process,
+                &process_instance_id,
+                &execution.id,
+                &activity_id,
+            );
+        }
 
         let bpmn_model = command_context
             .deployment_manager
@@ -436,7 +440,7 @@ impl ActivityBehavior for SubProcessActivityBehavior {
                             ..Default::default()
                         },
                         &mut command_context.session,
-                    );
+                    )?;
                     continue;
                 }
 
@@ -493,7 +497,7 @@ impl ActivityBehavior for SubProcessActivityBehavior {
             }
             command_context
                 .execution_entity_manager
-                .update(execution, &mut command_context.session);
+                .update(execution, &mut command_context.session)?;
         }
 
         // Create a child execution for the inner start event
@@ -523,7 +527,7 @@ impl ActivityBehavior for SubProcessActivityBehavior {
 
         command_context
             .execution_entity_manager
-            .insert(&child_execution, &mut command_context.session);
+            .insert(&child_execution, &mut command_context.session)?;
         command_context
             .agenda
             .plan_continue_process_operation(child_execution);

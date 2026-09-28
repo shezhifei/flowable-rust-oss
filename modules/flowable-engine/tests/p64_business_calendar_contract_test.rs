@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! P64 Task 1 — engine-local BusinessCalendar registry contract.
 //!
 //! Java truth:
@@ -572,7 +578,9 @@ fn timer_start_event_resolves_its_calendar_at_deploy_time() {
     let deployment_manager = engine.get_command_executor().deployment_manager().clone();
     let runtime_store = engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
-    let subscriptions = deployment_manager.get_timer_start_subscriptions(&mut session);
+    let subscriptions = deployment_manager
+        .get_timer_start_subscriptions(&mut session)
+        .expect("timer start subscription read must succeed");
     assert_eq!(subscriptions.len(), 1);
     assert_eq!(
         subscriptions[0].due_time,

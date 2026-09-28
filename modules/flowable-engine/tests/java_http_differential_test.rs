@@ -85,7 +85,7 @@ struct TransactionRecordingJobEventListener {
 
 impl EngineEventListener for TransactionRecordingJobEventListener {
     fn on_event(&self, _event: &EngineEvent) -> Result<(), FlowableError> {
-        self.phases.lock().unwrap().push(self.label.to_string());
+        self.phases.lock().unwrap_or_else(|e| e.into_inner()).push(self.label.to_string());
         if self.fatal {
             return Err(FlowableError::ExecutionError(format!(
                 "fatal {} job event listener",
@@ -119,7 +119,7 @@ impl EngineEventListener for RecordingJobEventListener {
             EngineEventType::JobRetriesDecremented => "JOB_RETRIES_DECREMENTED",
             _ => return Ok(()),
         };
-        self.events.lock().unwrap().push(name.to_string());
+        self.events.lock().unwrap_or_else(|e| e.into_inner()).push(name.to_string());
         Ok(())
     }
 }
@@ -454,6 +454,7 @@ fn require_rust_owned_job(engine: &ProcessEngine, job_id: &str) -> RuntimeTimerJ
     engine
         .get_management_service()
         .find_job_by_id(job_id)
+        .expect("read Rust executable job by id")
         .unwrap_or_else(|| panic!("unlockOwnedJobs lifecycle removed executable job {job_id}"))
 }
 
@@ -740,6 +741,7 @@ fn require_rust_owned_job_for_process(
     engine
         .get_management_service()
         .list_executable_jobs()
+        .expect("list Rust executable jobs")
         .into_iter()
         .find(|job| job.process_instance_id == process_instance_id)
         .unwrap_or_else(|| {
@@ -1185,7 +1187,7 @@ fn run_rust_automatic_async_retry_contract(
         "retryTimer": retry_timer_node,
         "secondAcquisition": second_acquisition,
         "finalJobState": final_job_state,
-        "events": observed_events.lock().unwrap().clone(),
+        "events": observed_events.lock().unwrap_or_else(|e| e.into_inner()).clone(),
         "tasks": tasks,
     })
 }
@@ -1430,6 +1432,7 @@ fn run_rust_cancel_contract(fixture_directory: &Path, contract_case: &ContractCa
     let job = engine
         .get_management_service()
         .list_executable_jobs()
+        .expect("list Rust executable jobs")
         .into_iter()
         .find(|job| job.process_instance_id == process_instance.id)
         .expect("cancellation fixture should create one executable job");
@@ -1442,6 +1445,7 @@ fn run_rust_cancel_contract(fixture_directory: &Path, contract_case: &ContractCa
     let job_state = if engine
         .get_management_service()
         .find_job_by_id(&job.timer_job_id)
+        .expect("probe Rust job row after delete_job")
         .is_some()
     {
         "executable"
@@ -1450,7 +1454,7 @@ fn run_rust_cancel_contract(fixture_directory: &Path, contract_case: &ContractCa
     };
     json!({
         "requestCount": 0,
-        "phases": phases.lock().unwrap().clone(),
+        "phases": phases.lock().unwrap_or_else(|e| e.into_inner()).clone(),
         "commandError": command_error,
         "jobState": job_state,
         "error": null,
@@ -1468,6 +1472,7 @@ fn run_rust_async_contract(
     let management = engine.get_management_service();
     let initial_job = management
         .list_executable_jobs()
+        .expect("list Rust executable jobs")
         .into_iter()
         .find(|job| job.process_instance_id == process_instance_id)
         .expect("async Rust fixture should create one executable job");
@@ -1492,7 +1497,7 @@ fn run_rust_async_contract(
     json!({
         "requestCount": captured_requests.len(),
         "attempts": attempts,
-        "events": observed_events.lock().unwrap().clone(),
+        "events": observed_events.lock().unwrap_or_else(|e| e.into_inner()).clone(),
         "variables": normalize_rust_variables(engine, process_instance_id, observe_variables),
         "tasks": normalize_rust_tasks(engine, process_instance_id),
         "error": null,
@@ -1508,7 +1513,10 @@ fn execute_rust_job_attempt(
     let execution_error_message = execution_error
         .as_ref()
         .map(|error| java_compatible_error_message(error.clone()));
-    let persisted = engine.get_management_service().find_job_by_id(job_id);
+    let persisted = engine
+        .get_management_service()
+        .find_job_by_id(job_id)
+        .expect("read Rust job row after execution attempt");
     let error_details = persisted
         .as_ref()
         .and_then(|job| job.error_details.as_deref());

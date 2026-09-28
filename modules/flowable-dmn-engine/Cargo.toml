@@ -19,3 +19,7 @@ uuid = { version = "1.23.1", features = ["v4"] }
 flowable-dmn-model = { version = "0.1.0", path = "../flowable-dmn-model" }
 flowable-engine-common = { path = "../flowable-engine-common" }
 flowable-persistence = { version = "0.1.0", path = "../flowable-persistence" }
+[lints]
+# Inherit the workspace clippy ratchet (root Cargo.toml [workspace.lints]).
+# unwrap_used is warn: existing sites are grandfathered per file, new ones surface.
+workspace = true

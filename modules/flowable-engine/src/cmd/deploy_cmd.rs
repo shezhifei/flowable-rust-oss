@@ -31,10 +31,10 @@ impl DeployCmd {
         &self,
         candidate: &Deployment,
         command_context: &mut CommandContext,
-    ) -> Option<Deployment> {
-        let mut latest = command_context
+    ) -> Result<Option<Deployment>, crate::error::FlowableError> {
+        let latest = command_context
             .deployment_manager
-            .get_deployments(&mut command_context.session)
+            .get_deployments(&mut command_context.session)?
             .into_values()
             .filter(|deployment| {
                 deployment.name == candidate.name && deployment.tenant_id == candidate.tenant_id
@@ -43,16 +43,19 @@ impl DeployCmd {
                 left.deployment_time
                     .cmp(&right.deployment_time)
                     .then_with(|| left.id.cmp(&right.id))
-            })?;
+            });
 
+        let Some(mut latest) = latest else {
+            return Ok(None);
+        };
         if latest.resources != candidate.resources {
-            return None;
+            return Ok(None);
         }
 
         // Java DeployCmd returns the persisted deployment without running the
         // deployer when duplicate filtering finds identical resource bytes.
         latest.is_new = false;
-        Some(latest)
+        Ok(Some(latest))
     }
 }
 
@@ -296,7 +299,7 @@ impl Command<Deployment> for DeployCmd {
     ) -> Result<Deployment, crate::error::FlowableError> {
         let deployment = self.deployment_builder.clone().deploy();
         if self.deployment_builder.duplicate_filtering_enabled()
-            && let Some(existing) = self.find_duplicate_deployment(&deployment, command_context)
+            && let Some(existing) = self.find_duplicate_deployment(&deployment, command_context)?
         {
             return Ok(existing);
         }
@@ -397,14 +400,14 @@ impl Command<Deployment> for DeployCmd {
                     key,
                     tenant_id.as_deref(),
                     &mut command_context.session,
-                );
+                )?;
             command_context
                 .deployment_manager
                 .delete_event_start_subscriptions_by_process_definition_key(
                     key,
                     tenant_id.as_deref(),
                     &mut command_context.session,
-                );
+                )?;
         }
 
         let (all_timer_start_subscriptions, all_event_start_subscriptions) = {
@@ -495,8 +498,7 @@ impl Command<()> for DeleteDeploymentCmd {
     ) -> Result<(), crate::error::FlowableError> {
         if command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)
-            .is_none()
+            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.is_none()
         {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Deployment '{}' was not found",
@@ -507,8 +509,7 @@ impl Command<()> for DeleteDeploymentCmd {
         if self.cascade {
             let process_definition_ids = command_context
                 .deployment_manager
-                .get_process_definitions(&mut command_context.session)
-                .into_values()
+                .get_process_definitions(&mut command_context.session)                ?.into_values()
                 .filter(|definition| {
                     definition.deployment_id.as_deref() == Some(self.deployment_id.as_str())
                 })
@@ -548,7 +549,7 @@ impl Command<()> for DeleteDeploymentCmd {
         let restore_plan = {
             let defs = command_context
                 .deployment_manager
-                .get_process_definitions(&mut command_context.session);
+                .get_process_definitions(&mut command_context.session)?;
             let deleting: Vec<_> = defs
                 .values()
                 .filter(|d| d.deployment_id.as_deref() == Some(self.deployment_id.as_str()))
@@ -586,7 +587,7 @@ impl Command<()> for DeleteDeploymentCmd {
 
         command_context
             .deployment_manager
-            .delete_deployment(&self.deployment_id, &mut command_context.session);
+            .delete_deployment(&self.deployment_id, &mut command_context.session)?;
 
         // Restore previous-version timer + message/signal start subscriptions
         // after latest is gone. Java DeploymentProcessDefinitionDeletionManagerImpl
@@ -662,8 +663,7 @@ impl Command<Deployment> for GetDeploymentCmd {
     ) -> Result<Deployment, crate::error::FlowableError> {
         command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)
-            .ok_or_else(|| {
+            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Deployment '{}' was not found",
                     self.deployment_id
@@ -687,9 +687,9 @@ impl Command<Vec<String>> for GetDeploymentResourceNamesCmd {
         &self,
         command_context: &mut CommandContext,
     ) -> Result<Vec<String>, crate::error::FlowableError> {
-        Ok(command_context
+        command_context
             .deployment_manager
-            .get_deployment_resource_names(&self.deployment_id, &mut command_context.session))
+            .get_deployment_resource_names(&self.deployment_id, &mut command_context.session)
     }
 }
 
@@ -710,8 +710,7 @@ impl Command<Vec<DeploymentResource>> for GetDeploymentResourcesCmd {
     ) -> Result<Vec<DeploymentResource>, crate::error::FlowableError> {
         if command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)
-            .is_none()
+            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.is_none()
         {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Deployment '{}' was not found",
@@ -719,9 +718,9 @@ impl Command<Vec<DeploymentResource>> for GetDeploymentResourcesCmd {
             )));
         }
 
-        Ok(command_context
+        command_context
             .deployment_manager
-            .get_deployment_resources(&self.deployment_id, &mut command_context.session))
+            .get_deployment_resources(&self.deployment_id, &mut command_context.session)
     }
 }
 
@@ -746,8 +745,7 @@ impl Command<DeploymentResource> for GetDeploymentResourceCmd {
     ) -> Result<DeploymentResource, crate::error::FlowableError> {
         if command_context
             .deployment_manager
-            .get_deployment(&self.deployment_id, &mut command_context.session)
-            .is_none()
+            .get_deployment(&self.deployment_id, &mut command_context.session)            ?.is_none()
         {
             return Err(crate::error::FlowableError::NotFound(format!(
                 "Deployment '{}' was not found",
@@ -761,7 +759,7 @@ impl Command<DeploymentResource> for GetDeploymentResourceCmd {
                 &self.deployment_id,
                 &self.resource_name,
                 &mut command_context.session,
-            )
+            )?
             .ok_or_else(|| {
                 crate::error::FlowableError::NotFound(format!(
                     "Resource '{}' was not found in deployment '{}'",

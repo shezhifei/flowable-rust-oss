@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 //! The UI surface against a real MySQL backend.
 //!
 //! The MySQL twin of `ui_postgres_smoke_test`. The idm endpoints and the
@@ -288,7 +294,7 @@ async fn logout_deletes_the_token_row_in_mysql() {
     let series = series_of(&cookie);
 
     assert!(
-        app.identity().find_token_by_id(&series).is_some(),
+        app.identity().find_token_by_id(&series).unwrap().is_some(),
         "the token row should exist in mysql after login"
     );
 
@@ -305,7 +311,7 @@ async fn logout_deletes_the_token_row_in_mysql() {
     assert_eq!(response.status(), 302);
 
     assert!(
-        app.identity().find_token_by_id(&series).is_none(),
+        app.identity().find_token_by_id(&series).unwrap().is_none(),
         "logout must delete the row, not just clear the cookie"
     );
 
@@ -323,7 +329,7 @@ async fn token_remember_me_fields_round_trip_through_mysql() {
 
     let token = app
         .identity()
-        .find_token_by_id(&series_of(&cookie))
+        .find_token_by_id(&series_of(&cookie)).unwrap()
         .expect("token row");
 
     assert_eq!(token.user_id.as_deref(), Some(app.admin_id.as_str()));
@@ -356,7 +362,7 @@ async fn user_crud_round_trips_through_mysql() {
     assert_eq!(response.status(), 200);
 
     // The hash survived a real round trip, so the user can authenticate.
-    assert!(app.identity().check_password(&dave, "secret"));
+    assert!(app.identity().check_password(&dave, "secret").unwrap());
 
     let response = app
         .client
@@ -370,7 +376,7 @@ async fn user_crud_round_trips_through_mysql() {
         .unwrap();
     assert_eq!(response.status(), 200);
 
-    let updated = app.identity().find_user_by_id(&dave).expect("user");
+    let updated = app.identity().find_user_by_id(&dave).unwrap().expect("user");
     assert_eq!(updated.first_name.as_deref(), Some("David"));
     // Java calls every setter unconditionally, so an omitted field is written as
     // null rather than left alone. Worth pinning on a real backend: the column
@@ -383,7 +389,7 @@ async fn user_crud_round_trips_through_mysql() {
     // Regression cover on a real backend: an unrelated update must not clear the
     // password.
     assert!(
-        app.identity().check_password(&dave, "secret"),
+        app.identity().check_password(&dave, "secret").unwrap(),
         "updating a user must not wipe their password"
     );
 
@@ -395,7 +401,7 @@ async fn user_crud_round_trips_through_mysql() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    assert!(app.identity().find_user_by_id(&dave).is_none());
+    assert!(app.identity().find_user_by_id(&dave).unwrap().is_none());
 
     app.cleanup();
 }

@@ -1,3 +1,11 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crossbeam_channel::{Receiver, Sender, bounded};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -120,14 +128,14 @@ impl AsyncTaskExecutor {
         if self.shutdown.load(Ordering::SeqCst) {
             return None;
         }
-        self.sender.lock().unwrap().clone()
+        self.sender.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn remaining_capacity(&self) -> usize {
         if self.shutdown.load(Ordering::SeqCst) {
             return 0;
         }
-        let guard = self.sender.lock().unwrap();
+        let guard = self.sender.lock().unwrap_or_else(|e| e.into_inner());
         let Some(sender) = guard.as_ref() else {
             return 0;
         };
@@ -155,13 +163,12 @@ impl AsyncTaskExecutor {
 
     pub fn try_shutdown(mut self, timeout: Duration) -> TaskPoolShutdownOutcome {
         self.shutdown.store(true, Ordering::SeqCst);
-        if let Some(sender) = self.sender.lock().unwrap().take() {
+        if let Some(sender) = self.sender.lock().unwrap_or_else(|e| e.into_inner()).take() {
             drop(sender);
         }
-        let completion_rx = self
-            .completion_rx
-            .take()
-            .expect("completion_rx is present until shutdown");
+        let Some(completion_rx) = self.completion_rx.take() else {
+            return TaskPoolShutdownOutcome::Terminated;
+        };
 
         let mut completed = 0usize;
         let deadline = std::time::Instant::now() + timeout;

@@ -1,3 +1,9 @@
+// Tests opt out of the workspace `clippy::unwrap_used` ratchet on purpose: here
+// `unwrap()` is the correct tool, because a failing assertion or a missing fixture
+// should abort loudly rather than be papered over. Production code under `src/` is
+// held to the lint; see the root Cargo.toml `[workspace.lints]` table.
+#![allow(clippy::unwrap_used)]
+
 use flowable_engine::cmd::trigger_start_event_subscription_cmd::TriggerEventSubprocessByEventCmd;
 use flowable_engine::engine::process_engine::ProcessEngine;
 use flowable_engine::engine::query::Query;
@@ -25,7 +31,7 @@ const PROCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn test_subprocess_runtime_semantics() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -102,7 +108,7 @@ const EVENT_SUBPROCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
 #[test]
 fn test_event_subprocess_interrupting() {
-    let process_engine = ProcessEngine::new("default".to_string());
+    let process_engine = ProcessEngine::new("default".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -134,7 +140,7 @@ fn test_event_subprocess_interrupting() {
     let _ = runtime_service.trigger_event_subprocess_by_message(
         "cancelMessage".to_string(),
         process_instance.id.clone(),
-    );
+    ).unwrap();
 
     // 3. Main Task should be cancelled, Event Sub Task should be active
     let tasks = task_service
@@ -219,7 +225,7 @@ const EMBEDDED_ESCALATION_EVENT_SUBPROCESS_XML: &str = r#"<?xml version="1.0" en
 #[test]
 fn test_embedded_escalation_event_subprocess_prefers_throwing_scope() {
     let process_engine =
-        ProcessEngine::new("embedded-escalation-event-subprocess-test".to_string());
+        ProcessEngine::new("embedded-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -323,7 +329,7 @@ const EMBEDDED_END_ERROR_EVENT_SUBPROCESS_XML: &str = r#"<?xml version="1.0" enc
 #[test]
 fn test_embedded_escalation_event_subprocess_starts_from_end_escalation() {
     let process_engine =
-        ProcessEngine::new("embedded-end-escalation-event-subprocess-test".to_string());
+        ProcessEngine::new("embedded-end-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -360,7 +366,7 @@ fn test_embedded_escalation_event_subprocess_starts_from_end_escalation() {
 
 #[test]
 fn test_embedded_error_event_subprocess_starts_from_error_end_and_cancels_scope() {
-    let process_engine = ProcessEngine::new("embedded-end-error-event-subprocess-test".to_string());
+    let process_engine = ProcessEngine::new("embedded-end-error-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -410,7 +416,7 @@ fn test_embedded_error_event_subprocess_starts_from_error_end_and_cancels_scope(
 fn test_non_interrupting_embedded_escalation_event_subprocess_preserves_host_task() {
     let process_engine = ProcessEngine::new(
         "non-interrupting-embedded-escalation-event-subprocess-test".to_string(),
-    );
+    ).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -452,7 +458,7 @@ fn test_non_interrupting_embedded_escalation_event_subprocess_preserves_host_tas
 fn test_non_interrupting_embedded_escalation_event_subprocess_stays_in_throwing_scope() {
     let process_engine = ProcessEngine::new(
         "non-interrupting-embedded-escalation-event-subprocess-scope-test".to_string(),
-    );
+    ).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -529,7 +535,7 @@ const REPEATABLE_ESCALATION_EVENT_SUBPROCESS_XML: &str = r#"<?xml version="1.0" 
 #[test]
 fn test_non_interrupting_escalation_event_subprocess_subscription_repeats_until_host_scope_ends() {
     let process_engine =
-        ProcessEngine::new("repeatable-escalation-event-subprocess-test".to_string());
+        ProcessEngine::new("repeatable-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -717,7 +723,7 @@ fn test_non_interrupting_escalation_event_subprocess_subscription_repeats_until_
 #[test]
 fn test_interrupting_escalation_event_subprocess_subscription_is_consumed() {
     let process_engine =
-        ProcessEngine::new("interrupting-escalation-event-subprocess-repeat-test".to_string());
+        ProcessEngine::new("interrupting-escalation-event-subprocess-repeat-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -780,7 +786,7 @@ fn test_interrupting_escalation_event_subprocess_subscription_is_consumed() {
 
 #[test]
 fn test_no_code_escalation_event_subprocess_catches_any_escalation() {
-    let process_engine = ProcessEngine::new("no-code-escalation-event-subprocess-test".to_string());
+    let process_engine = ProcessEngine::new("no-code-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -873,7 +879,7 @@ fn test_no_code_escalation_event_subprocess_catches_any_escalation() {
 fn test_escalation_event_subprocess_prefers_exact_code_over_no_code_in_same_scope() {
     let process_engine = ProcessEngine::new(
         "exact-code-before-catch-all-escalation-event-subprocess-test".to_string(),
-    );
+    ).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -988,7 +994,7 @@ const PROCESS_SCOPE_ESCALATION_EVENT_SUBPROCESS_XML: &str = r#"<?xml version="1.
 #[test]
 fn test_process_scope_non_interrupting_escalation_event_subprocess_repeats_while_process_active() {
     let process_engine =
-        ProcessEngine::new("process-scope-repeatable-escalation-event-subprocess-test".to_string());
+        ProcessEngine::new("process-scope-repeatable-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1102,7 +1108,7 @@ fn test_process_scope_non_interrupting_escalation_event_subprocess_repeats_while
 fn test_process_scope_non_interrupting_escalation_event_subprocess_subscription_clears_when_process_ends()
  {
     let process_engine =
-        ProcessEngine::new("process-scope-ended-escalation-event-subprocess-test".to_string());
+        ProcessEngine::new("process-scope-ended-escalation-event-subprocess-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();
@@ -1201,7 +1207,7 @@ fn test_process_scope_non_interrupting_escalation_event_subprocess_subscription_
 /// handler task should remain.
 #[test]
 fn test_error_start_event_forces_interrupting_even_when_model_says_non_interrupting() {
-    let process_engine = ProcessEngine::new("error-start-forced-interrupting-test".to_string());
+    let process_engine = ProcessEngine::new("error-start-forced-interrupting-test".to_string()).unwrap();
     let repository_service = process_engine.get_repository_service();
     let runtime_service = process_engine.get_runtime_service();
     let task_service = process_engine.get_task_service();

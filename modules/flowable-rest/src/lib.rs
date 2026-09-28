@@ -1,8 +1,15 @@
+// Pre-existing `unwrap()` call(s), grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml). These
+// sites predate the ratchet and were NOT individually audited against Java. The
+// exemption is scoped with `cfg_attr(test, ...)`, so it covers only this file's
+// `#[cfg(test)]` code; a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use axum::{
     Router,
     extract::Extension,
     http::{HeaderName, Request},
-    middleware,
     routing::{delete, get, post},
 };
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
@@ -58,6 +65,7 @@ use tokio::net::TcpListener;
 pub mod common;
 pub mod config;
 pub mod error;
+pub mod middleware;
 pub mod routes;
 pub mod security;
 pub(crate) mod query_variable;
@@ -341,7 +349,7 @@ impl routes::forms::FormRepositoryApi for FormRepositoryAdapter {
         form_definition_id: &str,
     ) -> Result<Vec<routes::forms::FormDefinitionVersionRecord>, crate::error::ApiError> {
         let definition = self.service.get_form_definition(form_definition_id)?;
-        let mgmt = FormManagementService::new(Arc::clone(&self.engine));
+        let mgmt = FormManagementService::new(Arc::clone(&self.engine))?;
         let versions = mgmt.list_versions(&definition.key)?;
         Ok(versions
             .into_iter()
@@ -380,7 +388,7 @@ impl routes::forms::FormRepositoryApi for FormRepositoryAdapter {
         &self,
         query: routes::forms::FormDeleteQuery,
     ) -> Result<usize, crate::error::ApiError> {
-        let mgmt = FormManagementService::new(Arc::clone(&self.engine));
+        let mgmt = FormManagementService::new(Arc::clone(&self.engine))?;
         if let Some(deployment_id) = query.deployment_id {
             Ok(mgmt.delete_definitions_by_deployment_id(&deployment_id)?)
         } else if let Some(key) = query.key {
@@ -397,7 +405,7 @@ impl routes::forms::FormRepositoryApi for FormRepositoryAdapter {
         form_definition_id: &str,
         active: bool,
     ) -> Result<routes::forms::FormDefinitionRecord, crate::error::ApiError> {
-        let mgmt = FormManagementService::new(Arc::clone(&self.engine));
+        let mgmt = FormManagementService::new(Arc::clone(&self.engine))?;
         let definition = mgmt.set_activation(form_definition_id, active)?;
         Ok(routes::forms::FormDefinitionRecord {
             id: definition.id,
@@ -427,12 +435,18 @@ impl routes::content::ContentServiceApi for ContentServiceAdapter {
         // Tenant ownership comes from the authenticated principal's identity
         // record — never from the request payload — so tenant users get a
         // legitimate same-tenant pre-upload path for tenant-scoped form claims.
-        let tenant_id = authenticated_user_id.and_then(|user_id| {
-            self.engine
+        // Java parity: `UserEntityManagerImpl.findById` -> `DbSqlSession.selectById`;
+        // MyBatis `selectOne` throws on a SQL error, and only a genuinely absent row
+        // yields null. A failed lookup must not silently downgrade the caller to a
+        // tenant-less content item.
+        let tenant_id = match authenticated_user_id {
+            Some(user_id) => self
+                .engine
                 .get_identity_service()
-                .find_user_by_id(user_id)
-                .and_then(|user| user.tenant_id)
-        });
+                .find_user_by_id(user_id)?
+                .and_then(|user| user.tenant_id),
+            None => None,
+        };
         let item = self.service.create_content_item_for_tenant(
             CreateContentItemRequest {
                 name: command.name,
@@ -1086,7 +1100,7 @@ impl routes::dmn::DmnRepositoryApi for DmnApiAdapter {
         let drds = self.engine.repository_service().list_drds()?;
         let data = drds
             .into_iter()
-            .map(|drd| serde_json::to_value(&drd).unwrap())
+            .map(|drd| serde_json::to_value(&drd).unwrap_or_default())
             .collect::<Vec<_>>();
         let total = data.len();
         Ok(crate::common::PagedResponse {
@@ -5382,28 +5396,31 @@ impl DefinitionCatalog for AppDefinitionCatalogAdapter {
                 if let Some(tenant_id) = tenant_id {
                     query = query.tenant_id(tenant_id.to_string());
                 }
-                let definition = query
+                let initial = query
                     .list()
-                    .map_err(|error| flowable_app_engine::AppError::execution(error.to_string()))?
-                    .into_iter()
-                    .next()
-                    .or_else(|| {
-                        if tenant_id.is_some() {
-                            self.event_registry_service
-                                .create_event_definition_query()
-                                .key(definition_key)
-                                .latest()
-                                .list()
-                                .ok()
-                                .and_then(|definitions| {
-                                    definitions
-                                        .into_iter()
-                                        .find(|definition| definition.tenant_id.is_none())
-                                })
-                        } else {
-                            None
-                        }
-                    });
+                    .map_err(|error| flowable_app_engine::AppError::execution(error.to_string()))?;
+                let definition = match initial.into_iter().next() {
+                    Some(definition) => Some(definition),
+                    None if tenant_id.is_some() => {
+                        // Java parity: the event-definition query path
+                        // (`EventDefinitionEntityManagerImpl` -> `DbSqlSession.selectList`)
+                        // throws on a SQL error, so a tenant-less fallback query must not
+                        // degrade a storage failure into "definition not found".
+                        let tenant_less = self
+                            .event_registry_service
+                            .create_event_definition_query()
+                            .key(definition_key)
+                            .latest()
+                            .list()
+                            .map_err(|error| {
+                                flowable_app_engine::AppError::execution(error.to_string())
+                            })?;
+                        tenant_less
+                            .into_iter()
+                            .find(|definition| definition.tenant_id.is_none())
+                    }
+                    None => None,
+                };
                 Ok(definition.map(|definition| ResolvedDefinition {
                     definition_type,
                     definition_id: definition.id,
@@ -5931,7 +5948,7 @@ impl routes::rendering::RenderingApi for RenderingApiAdapter {
             .get_runtime_store()
             .db_store()
             .find_by_id::<ProcessInstance>("process_instances", process_instance_id)
-            .unwrap()
+            .map_err(|error| crate::error::ApiError::InternalServerError(error.to_string()))?
             .ok_or_else(|| {
                 crate::error::ApiError::NotFound(format!(
                     "Process instance '{process_instance_id}' was not found"
@@ -6351,7 +6368,7 @@ async fn run_server_with_components(
         management_state,
     } = components;
 
-    let form_service = FlowableFormService::new(Arc::clone(&engine));
+    let form_service = FlowableFormService::new(Arc::clone(&engine))?;
     let form_repository: routes::forms::DynFormRepository = Arc::new(FormRepositoryAdapter {
         service: form_service.clone(),
         engine: Arc::clone(&engine),
@@ -6371,15 +6388,20 @@ async fn run_server_with_components(
         // P114: the CMMN engine has no identity store, so candidateUser /
         // candidateOrAssigned group expansion is backed by the ProcessEngine
         // identity service (Java TaskQueryImpl.getGroupsForCandidateUser).
+        // The lookup is fallible: Java lets its group query throw
+        // (TaskQueryImpl.java:2021-2032, no try/catch), so an unreachable
+        // identity store must be a 500 rather than "the user is in no groups"
+        // (which would silently under-match candidate tasks).
         Some(std::sync::Arc::new({
             let identity_engine = Arc::clone(&engine);
-            move |user_id: &str| {
-                identity_engine
+            move |user_id: &str| -> Result<Vec<String>, flowable_cmmn_engine::CmmnError> {
+                Ok(identity_engine
                     .get_identity_service()
                     .get_groups_by_user(user_id)
+                    .map_err(|error| flowable_cmmn_engine::CmmnError::storage(error.to_string()))?
                     .into_iter()
                     .map(|group| group.id)
-                    .collect()
+                    .collect())
             }
         })),
     ));
@@ -6523,7 +6545,7 @@ async fn run_server_with_components(
         .route("/metrics", get(routes::metrics::metrics));
 
     let api_routes = if config.security.auth.mode.is_enforced() {
-        api_routes.layer(middleware::from_fn_with_state(
+        api_routes.layer(axum::middleware::from_fn_with_state(
             Arc::new(security::RestSecurityState::from_auth_config(
                 config.security.auth.clone(),
             )),
@@ -6532,6 +6554,12 @@ async fn run_server_with_components(
     } else {
         api_routes
     };
+    // Outermost layer: detection must run ahead of Basic auth so even 401s
+    // carry the resolved `ApiVersion` extension and echo header.
+    let api_routes =
+        api_routes.layer(axum::middleware::from_fn(
+            middleware::version_detection::version_detection_middleware,
+        ));
 
     // Layers applied bottom-up on the request path: SetRequestId first, then
     // TraceLayer reads x-request-id into the span, then Propagate echoes it.
@@ -6613,11 +6641,18 @@ impl FlowableRestApi {
             return Ok(());
         }
 
-        if self
+        let password_ok = match self
             .engine
             .get_identity_service()
             .check_password(user, pass)
         {
+            Ok(ok) => ok,
+            Err(error) => {
+                tracing::error!("password check failed: {error}");
+                false
+            }
+        };
+        if password_ok {
             Ok(())
         } else {
             Err("Unauthorized".to_string())
@@ -6636,7 +6671,7 @@ mod tests {
         test_name: &str,
         cmmn_engine: Arc<CmmnEngine>,
     ) -> (String, reqwest::Client) {
-        let engine = Arc::new(ProcessEngine::new(test_name.to_string()));
+        let engine = Arc::new(ProcessEngine::new(test_name.to_string()).unwrap());
         engine
             .get_identity_service()
             .save_user(flowable_engine::identity::entities::User {
@@ -6646,7 +6681,8 @@ mod tests {
                 email: None,
                 password: Some("test".to_string()),
                 tenant_id: None,
-            });
+            })
+            .unwrap();
 
         let dmn_engine = Arc::new(DmnEngine::new_in_memory().expect("dmn engine"));
         let app_catalog = Arc::new(AppDefinitionCatalogAdapter {
@@ -6689,7 +6725,7 @@ mod tests {
 
         let engine = Arc::new(ProcessEngine::new(
             "rest-app-event-catalog-tenant".to_string(),
-        ));
+        ).unwrap());
         let event_registry_service = FlowableEventRegistryService::new(Arc::clone(&engine));
         let store = engine.get_runtime_store();
         let mut session = store.create_session().unwrap();

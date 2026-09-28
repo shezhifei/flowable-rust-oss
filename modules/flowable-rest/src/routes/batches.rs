@@ -204,7 +204,7 @@ pub async fn get_batch(
     engine: EngineState,
     Path(batch_id): Path<String>,
 ) -> Result<Json<BatchResponse>, ApiError> {
-    let batch = engine.0.get_batch_service().find_batch_by_id(&batch_id);
+    let batch = engine.0.get_batch_service().find_batch_by_id(&batch_id)?;
     match batch {
         Some(b) => Ok(Json(BatchResponse::from(b))),
         None => Err(ApiError::NotFound(format!(
@@ -248,7 +248,7 @@ pub async fn create_batch(
         tenant_id: req.tenant_id.clone(),
         batch_document_json: req.batch_document_json.clone(),
     };
-    engine.0.get_batch_service().create_batch(batch.clone());
+    engine.0.get_batch_service().create_batch(batch.clone())?;
     Ok(Json(BatchResponse::from(batch)))
 }
 
@@ -256,7 +256,7 @@ pub async fn delete_batch(
     engine: EngineState,
     Path(batch_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    engine.0.get_batch_service().delete_batch(&batch_id);
+    engine.0.get_batch_service().delete_batch(&batch_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -267,7 +267,7 @@ pub async fn get_batch_document(
     let batch = engine
         .0
         .get_batch_service()
-        .find_batch_by_id(&batch_id)
+        .find_batch_by_id(&batch_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Batch '{}' not found", batch_id)))?;
     json_document_response(
         batch.batch_document_json,
@@ -284,7 +284,7 @@ pub async fn list_batch_parts(
     params: AxumQuery<BatchPartQueryParams>,
 ) -> Result<Json<Vec<BatchPartResponse>>, ApiError> {
     let service = engine.0.get_batch_service();
-    if service.find_batch_by_id(&batch_id).is_none() {
+    if service.find_batch_by_id(&batch_id)?.is_none() {
         return Err(ApiError::NotFound(format!(
             "No batch found for id {}",
             batch_id
@@ -292,9 +292,9 @@ pub async fn list_batch_parts(
     }
 
     let mut batch_parts = if let Some(status) = &params.status {
-        service.find_batch_parts_by_batch_id_and_status(&batch_id, status)
+        service.find_batch_parts_by_batch_id_and_status(&batch_id, status)?
     } else {
-        service.find_batch_parts_by_batch_id(&batch_id)
+        service.find_batch_parts_by_batch_id(&batch_id)?
     };
     batch_parts.sort_by(|left, right| left.id.cmp(&right.id));
     Ok(Json(
@@ -309,13 +309,12 @@ pub async fn get_batch_part(
     engine: EngineState,
     Path(batch_part_id): Path<String>,
 ) -> Result<Json<BatchPartResponse>, ApiError> {
-    engine
+    let batch_part = engine
         .0
         .get_batch_service()
-        .find_batch_part_by_id(&batch_part_id)
-        .map(BatchPartResponse::from)
-        .map(Json)
-        .ok_or_else(|| ApiError::NotFound(format!("Batch part '{}' not found", batch_part_id)))
+        .find_batch_part_by_id(&batch_part_id)?
+        .ok_or_else(|| ApiError::NotFound(format!("Batch part '{}' not found", batch_part_id)))?;
+    Ok(Json(BatchPartResponse::from(batch_part)))
 }
 
 pub async fn get_batch_part_document(
@@ -325,7 +324,7 @@ pub async fn get_batch_part_document(
     let batch_part = engine
         .0
         .get_batch_service()
-        .find_batch_part_by_id(&batch_part_id)
+        .find_batch_part_by_id(&batch_part_id)?
         .ok_or_else(|| ApiError::NotFound(format!("Batch part '{}' not found", batch_part_id)))?;
     json_document_response(
         batch_part.batch_part_document_json,

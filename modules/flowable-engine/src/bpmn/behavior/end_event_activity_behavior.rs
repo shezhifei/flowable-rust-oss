@@ -196,13 +196,13 @@ impl ActivityBehavior for EndEventActivityBehavior {
                 execution,
                 command_context,
                 activity_ref.as_deref(),
-            );
+            )?;
         }
 
         execution.is_ended = true;
         command_context
             .execution_entity_manager
-            .update(execution, &mut command_context.session);
+            .update(execution, &mut command_context.session)?;
 
         // Structural flag set when the non-interrupting event-subprocess path
         // was injected (see trigger_start_event_subscription_cmd). Not a
@@ -272,7 +272,7 @@ impl ActivityBehavior for EndEventActivityBehavior {
                             execution.is_ended = true;
                             command_context
                                 .execution_entity_manager
-                                .update(execution, &mut command_context.session);
+                                .update(execution, &mut command_context.session)?;
                             if crate::bpmn::behavior::multi_instance_support::leave_sequential_subprocess_mi_instance(
                                 &p,
                                 command_context,
@@ -288,7 +288,7 @@ impl ActivityBehavior for EndEventActivityBehavior {
                         p.is_ended = true;
                         command_context
                             .execution_entity_manager
-                            .update(&p, &mut command_context.session);
+                            .update(&p, &mut command_context.session)?;
                         command_context
                             .runtime_store
                             .delete_event_subprocess_event_subscriptions_by_scope_execution_id(
@@ -305,7 +305,7 @@ impl ActivityBehavior for EndEventActivityBehavior {
                 if !is_subprocess_scope
                     && command_context
                         .runtime_store
-                        .find_process_instance(pi_id, &mut command_context.session)
+                        .find_process_instance(pi_id, &mut command_context.session)?
                         .is_some()
                 {
                     end_process_instance_with_callback_outcome(
@@ -365,7 +365,7 @@ fn fire_process_end_listeners(
     // Persist any process variables written by the process end listener.
     command_context
         .execution_entity_manager
-        .update(&root_execution, &mut command_context.session);
+        .update(&root_execution, &mut command_context.session)?;
     Ok(())
 }
 
@@ -411,7 +411,7 @@ fn end_process_instance_with_callback_outcome_and_event(
 ) -> Result<(), crate::error::FlowableError> {
     let Some(mut pi) = command_context
         .runtime_store
-        .find_process_instance(process_instance_id, &mut command_context.session)
+        .find_process_instance(process_instance_id, &mut command_context.session)?
     else {
         return Ok(());
     };
@@ -429,7 +429,7 @@ fn end_process_instance_with_callback_outcome_and_event(
             .find_execution(super_exec_id, &mut command_context.session)
         && is_async_complete_call_activity(command_context, &super_exec)
     {
-        schedule_async_complete_call_activity(command_context, &super_exec, &pi);
+        schedule_async_complete_call_activity(command_context, &super_exec, &pi)?;
         return Ok(());
     }
     pi.is_ended = true;
@@ -507,7 +507,7 @@ fn end_process_instance_with_callback_outcome_and_event(
         process_instance_id,
         recorded_reason,
         &mut command_context.session,
-    );
+    )?;
 
     command_context.history_manager.record_audit_event(
         "process-instance-end",
@@ -593,7 +593,7 @@ fn schedule_async_complete_call_activity(
     command_context: &mut CommandContext,
     super_exec: &Execution,
     child_pi: &ProcessInstance,
-) {
+) -> Result<(), crate::error::FlowableError> {
     use crate::persistence::runtime_store::{
         RuntimeTimerJobState, job_handler_types, stamp_new_job_metadata,
     };
@@ -638,7 +638,8 @@ fn schedule_async_complete_call_activity(
         Some(child_pi.process_definition_id.clone()),
         super_exec.activity_name.clone(),
     );
-    store.insert_timer_job_state(&job, &mut command_context.session);
+    store.insert_timer_job_state(&job, &mut command_context.session)?;
+    Ok(())
 }
 
 /// Java `AsyncCompleteCallActivityJobHandler#execute` (:44-47): resolve the
@@ -657,7 +658,7 @@ pub(crate) fn execute_async_complete_call_activity_job(
         .to_string();
     if command_context
         .runtime_store
-        .find_process_instance(&child_pi_id, &mut command_context.session)
+        .find_process_instance(&child_pi_id, &mut command_context.session)?
         .is_none()
     {
         // ExecutionError (not NotFound) so REST job execute maps to 500 like
@@ -709,11 +710,11 @@ fn execute_terminate_end_event(
         &activity_id,
         Some(&delete_reason),
         &mut command_context.session,
-    );
+    )?;
     crate::bpmn::behavior::multi_instance_support::delete_execution_tree(
         command_context,
         &snapshot.id,
-    );
+    )?;
 
     if terminate_all {
         terminate_all_behaviour(&snapshot, command_context, &delete_reason)
@@ -734,18 +735,17 @@ fn terminate_all_behaviour(
     let Some(pi_id) = execution.process_instance_id.as_deref() else {
         return Ok(());
     };
-    let root_id = find_root_process_instance_id(command_context, pi_id);
+    let root_id = find_root_process_instance_id(command_context, pi_id)?;
 
     let all_instances: Vec<ProcessInstance> = command_context
         .runtime_store
         .snapshot_process_instances(&mut command_context.session)
         .into_values()
         .collect();
-    let member_ids: Vec<String> = all_instances
-        .iter()
-        .filter(|pi| find_root_process_instance_id(command_context, &pi.id) == root_id)
-        .map(|pi| pi.id.clone())
-        .collect();
+    let mut member_ids = Vec::new();
+    for instance in &all_instances {
+        if find_root_process_instance_id(command_context, &instance.id)? == root_id { member_ids.push(instance.id.clone()); }
+    }
 
     // Java `deleteExecutionEntities(..., root, ...)`: child instances end with
     // the terminate delete reason; only the root records the callback outcome.
@@ -755,7 +755,7 @@ fn terminate_all_behaviour(
         }
         if let Some(mut pi) = command_context
             .runtime_store
-            .find_process_instance(member_id, &mut command_context.session)
+            .find_process_instance(member_id, &mut command_context.session)?
             && !pi.is_ended
         {
             pi.is_ended = true;
@@ -766,7 +766,7 @@ fn terminate_all_behaviour(
                 member_id,
                 Some(delete_reason),
                 &mut command_context.session,
-            );
+            )?;
         }
     }
     end_process_instance_with_callback_outcome_and_event(
@@ -782,7 +782,7 @@ fn terminate_all_behaviour(
         ProcessCompletedEventKind::WithTerminateEnd,
     )?;
     for member_id in &member_ids {
-        delete_process_instance_runtime(command_context, member_id, delete_reason);
+        delete_process_instance_runtime(command_context, member_id, delete_reason)?;
     }
     Ok(())
 }
@@ -817,10 +817,10 @@ fn terminate_multi_instance_root(
     crate::bpmn::behavior::multi_instance_support::delete_execution_tree(
         command_context,
         &mi_root.id,
-    );
+    )?;
     command_context
         .execution_entity_manager
-        .insert(&sibling, &mut command_context.session);
+        .insert(&sibling, &mut command_context.session)?;
     command_context
         .agenda
         .plan_take_outgoing_sequence_flows_operation(sibling);
@@ -869,7 +869,7 @@ fn default_terminate_end_event_behaviour(
             crate::bpmn::behavior::multi_instance_support::delete_execution_tree(
                 command_context,
                 &child_id,
-            );
+            )?;
         }
         command_context
             .runtime_store
@@ -882,13 +882,13 @@ fn default_terminate_end_event_behaviour(
             scope.activity_id.as_deref().unwrap_or(""),
             Some(delete_reason),
             &mut command_context.session,
-        );
+        )?;
 
         let mut scope_exec = scope;
         scope_exec.is_ended = true;
         command_context
             .execution_entity_manager
-            .update(&scope_exec, &mut command_context.session);
+            .update(&scope_exec, &mut command_context.session)?;
         command_context
             .agenda
             .plan_take_outgoing_sequence_flows_operation(scope_exec);
@@ -904,7 +904,7 @@ fn default_terminate_end_event_behaviour(
     };
     let Some(pi) = command_context
         .runtime_store
-        .find_process_instance(pi_id, &mut command_context.session)
+        .find_process_instance(pi_id, &mut command_context.session)?
     else {
         return Ok(());
     };
@@ -927,7 +927,7 @@ fn default_terminate_end_event_behaviour(
         // (226-248) → PROCESS_COMPLETED_WITH_TERMINATE_END_EVENT.
         ProcessCompletedEventKind::WithTerminateEnd,
     )?;
-    delete_process_instance_runtime(command_context, pi_id, &reason);
+    delete_process_instance_runtime(command_context, pi_id, &reason)?;
     Ok(())
 }
 
@@ -944,9 +944,12 @@ fn find_first_scope(
         if guard > 64 {
             return None;
         }
-        let parent = command_context
+        let Some(parent) = command_context
             .runtime_store
-            .find_execution(&parent_id, &mut command_context.session)?;
+            .find_execution(&parent_id, &mut command_context.session)
+        else {
+            return None;
+        };
         if parent.is_scope {
             return Some(parent);
         }
@@ -995,14 +998,14 @@ fn parent_process_instance_id(
 
 /// Java `ExecutionEntityImpl#getRootProcessInstanceId`: follow the super
 /// execution chain across call activities up to the top-level instance.
-fn find_root_process_instance_id(command_context: &mut CommandContext, pi_id: &str) -> String {
+fn find_root_process_instance_id(command_context: &mut CommandContext, pi_id: &str) -> Result<String, crate::error::FlowableError> {
     let mut current = pi_id.to_string();
     let mut guard = 0;
     while guard < 64 {
         guard += 1;
         let Some(pi) = command_context
             .runtime_store
-            .find_process_instance(&current, &mut command_context.session)
+            .find_process_instance(&current, &mut command_context.session)?
         else {
             break;
         };
@@ -1011,7 +1014,7 @@ fn find_root_process_instance_id(command_context: &mut CommandContext, pi_id: &s
             None => break,
         }
     }
-    current
+    Ok(current)
 }
 
 /// Runtime cleanup for a terminated process instance, mirroring the entity
@@ -1022,7 +1025,7 @@ fn delete_process_instance_runtime(
     command_context: &mut CommandContext,
     process_instance_id: &str,
     delete_reason: &str,
-) {
+) -> Result<(), crate::error::FlowableError> {
     let tasks = command_context
         .task_entity_manager
         .find_by_process_instance_id(process_instance_id, &mut command_context.session);
@@ -1031,7 +1034,7 @@ fn delete_process_instance_runtime(
             &task.id,
             Some(delete_reason),
             &mut command_context.session,
-        );
+        )?;
         command_context
             .task_entity_manager
             .delete(&task.id, &mut command_context.session);
@@ -1065,6 +1068,7 @@ fn delete_process_instance_runtime(
         session,
     );
     store.delete_compensation_subscriptions_by_process_instance_id(process_instance_id, session);
+    Ok(())
 }
 
 /// Fire `ACTIVITY_MESSAGE_CANCELLED` for every message subscription still

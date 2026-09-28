@@ -19,18 +19,20 @@ impl EntityLinkService {
         self.command_executor.runtime_store().clone()
     }
 
-    pub fn add_entity_link(&self, link: EntityLink) {
+    pub fn add_entity_link(&self, link: EntityLink) -> Result<(), FlowableError> {
         let store = self.get_store();
-        let mut session = store.create_session().unwrap();
+        let mut session = store.create_session()?;
         store.insert_entity_link(link, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit()?;
+        Ok(())
     }
 
-    pub fn remove_entity_link(&self, link_id: &str) {
+    pub fn remove_entity_link(&self, link_id: &str) -> Result<(), FlowableError> {
         let store = self.get_store();
-        let mut session = store.create_session().unwrap();
+        let mut session = store.create_session()?;
         store.delete_entity_link(link_id, &mut session);
-        session.flush_and_commit().unwrap();
+        session.flush_and_commit()?;
+        Ok(())
     }
 
     pub fn create_entity_link_query(&self) -> EntityLinkQuery {
