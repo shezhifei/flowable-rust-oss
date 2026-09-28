@@ -239,6 +239,7 @@ fn after_completion_reads_ok_writes_need_runtime_task() {
         engine
             .get_runtime_store()
             .find_task(&task_id, &mut session)
+            .unwrap()
             .is_none()
     );
     assert!(

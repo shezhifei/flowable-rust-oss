@@ -180,12 +180,36 @@ impl FlowableContentService {
         let now = store.time_source().now().timestamp_millis();
         let expired_items = repository::find_expired_content_items(&store, now)?;
         let count = expired_items.len();
+        let mut blob_delete_failures = 0usize;
 
         for item in &expired_items {
-            if let Some(ref storage_id) = item.storage_id {
-                let _ = self.storage.delete(storage_id);
+            if let Some(ref storage_id) = item.storage_id
+                // Batch-job semantics: one undeletable blob must not abort the
+                // whole cleanup run. The DB row is still removed below (its
+                // expiry is authoritative), so a failure leaves an orphaned
+                // object; surface the identifiers operators need for a manual
+                // retry instead of silently dropping the error.
+                && let Err(error) = self.storage.delete(storage_id)
+            {
+                blob_delete_failures += 1;
+                tracing::error!(
+                    content_item_id = %item.id,
+                    storage_id = %storage_id,
+                    backend = %self.storage.backend_name(),
+                    error = %error,
+                    "Expired content cleanup: blob deletion failed; DB row is still removed and \
+                     the object is orphaned pending manual retry"
+                );
             }
             repository::delete_content_item(&store, &item.id)?;
+        }
+
+        if blob_delete_failures > 0 {
+            tracing::warn!(
+                removed_rows = count,
+                blob_delete_failures,
+                "Expired content cleanup completed with orphaned content objects"
+            );
         }
 
         Ok(count)
@@ -278,11 +302,13 @@ impl FlowableContentService {
         user_id: Option<&str>,
     ) -> Result<ContentItem, FlowableError> {
         // Capture FS storage_id (if any, from Content Service extension path)
-        // before the command deletes the DB row; best-effort FS cleanup after
-        // successful commit. Session-backed blobs are removed inside the command.
-        // A storage failure here propagates (500) instead of silently skipping
-        // the cleanup, and a genuine absence keeps reporting "not found" (404)
-        // exactly as the delete command below would.
+        // before the command deletes the DB row. Session-backed blobs are
+        // removed inside the command; the FS blob is deleted after the
+        // transaction commits. That cleanup is NOT best-effort: the blob is
+        // part of the attachment's primary data, so a storage failure returns
+        // 500 (rather than a successful response hiding an orphaned object).
+        // The row/event cannot be un-committed at that point; the error text
+        // identifies the orphan for operator cleanup.
         let preexisting = self.get_content_item(attachment_id)?;
         let cmd = DeleteTaskAttachmentCmd::new(
             task_id.to_string(),
@@ -291,7 +317,12 @@ impl FlowableContentService {
         );
         let item = self.engine.get_command_executor().execute(&cmd)?;
         if let Some(storage_id) = preexisting.storage_id.as_deref() {
-            let _ = self.storage.delete(storage_id);
+            self.storage.delete(storage_id).map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Task attachment '{attachment_id}' was deleted but its content object \
+                     '{storage_id}' could not be removed (orphaned object): {error}"
+                ))
+            })?;
         }
         Ok(item)
     }
@@ -368,7 +399,16 @@ impl FlowableContentService {
         );
         let item = self.engine.get_command_executor().execute(&cmd)?;
         if let Some(storage_id) = preexisting.storage_id.as_deref() {
-            let _ = self.storage.delete(storage_id);
+            // Same contract as the task variant: blob deletion is part of the
+            // delete command, so propagate a storage failure as 500 even though
+            // the row/history are already committed (the error names the
+            // orphaned object for cleanup instead of reporting success).
+            self.storage.delete(storage_id).map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Process attachment '{attachment_id}' was deleted but its content object \
+                     '{storage_id}' could not be removed (orphaned object): {error}"
+                ))
+            })?;
         }
         Ok(item)
     }
@@ -429,7 +469,12 @@ impl FlowableContentService {
         if let Some(item) = repository::find_content_item(&store, content_item_id)?
             && let Some(ref storage_id) = item.storage_id
         {
-            let _ = self.storage.delete(storage_id);
+            // Delete the blob BEFORE the DB row. On storage failure the command
+            // returns 500 with both records still present (safe to retry),
+            // instead of removing the row and returning success over an
+            // orphaned object — Java ContentService.deleteContentItem is a
+            // void, throwing contract for exactly this case.
+            self.storage.delete(storage_id)?;
         }
 
         if repository::delete_content_item(&store, content_item_id)? {
@@ -506,6 +551,14 @@ impl FlowableContentService {
         })
     }
 
+    /// Delete the storage blobs of every item matching `predicate`.
+    ///
+    /// Called by the cascade `delete_content_items_by_*` commands BEFORE the DB
+    /// rows are removed. Failures propagate: these are deletion commands and
+    /// the blob is the item's primary data, so swallowing the error would leave
+    /// orphaned objects behind a successful API response. The cascade is safe
+    /// to retry — every backend treats an already-missing object as success
+    /// (local-fs checks existence; S3/Azure/GCS accept HTTP 404).
     fn delete_storage_for_items_by_filter(
         &self,
         store: &flowable_engine::persistence::runtime_store::RuntimeStore,
@@ -515,7 +568,13 @@ impl FlowableContentService {
         let items = repository::find_content_items_by_filter(store, predicate, params)?;
         for item in &items {
             if let Some(ref storage_id) = item.storage_id {
-                let _ = self.storage.delete(storage_id);
+                self.storage.delete(storage_id).map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Failed to delete content object '{storage_id}' of content item '{}': \
+                         {error}",
+                        item.id
+                    ))
+                })?;
             }
         }
         Ok(())

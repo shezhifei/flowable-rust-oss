@@ -256,9 +256,21 @@ impl ContentStorage for LocalFileSystemStorage {
         })?;
 
         let size = metadata.len();
-        let checksum = fs::read(&path)
-            .ok()
-            .map(|bytes| Self::compute_checksum(&bytes));
+        // Checksum is optional metadata, so a read failure after stat()
+        // succeeds degrades to None rather than failing the call — but it must
+        // be observable: the object exists but its bytes are unreadable.
+        let checksum = match fs::read(&path) {
+            Ok(bytes) => Some(Self::compute_checksum(&bytes)),
+            Err(error) => {
+                tracing::warn!(
+                    storage_id = %storage_id,
+                    path = %path.display(),
+                    "Content object metadata read succeeded but re-reading bytes for checksum \
+                     failed; reporting checksum as None: {error}"
+                );
+                None
+            }
+        };
         let stored_at = metadata
             .modified()
             .ok()
