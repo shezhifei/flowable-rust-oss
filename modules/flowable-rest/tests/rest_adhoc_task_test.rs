@@ -191,7 +191,8 @@ async fn process_instance_adhoc_task_endpoints_activate_and_complete_waiting_tas
     let mut session = store.create_session().unwrap();
     let process_instance = store
         .find_process_instance(&process_instance_id, &mut session)
-        .expect("process instance should remain queryable");
+        .expect("process instance should remain queryable")
+        .unwrap();
     assert!(process_instance.is_ended);
     let _ = session.rollback();
 }

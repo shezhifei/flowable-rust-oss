@@ -214,6 +214,7 @@ async fn process_instance_migrate_allows_same_definition_safe_noop() {
     let mut session = store.create_session().unwrap();
     let instance = store
         .find_process_instance(&process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     assert_eq!(instance.process_definition_id, process_definition_id);
     let _ = session.rollback();
@@ -268,6 +269,7 @@ async fn process_instance_migrate_waiting_user_task_to_v2_same_activity_and_cont
     let mut session = store.create_session().unwrap();
     let instance = store
         .find_process_instance(&process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     assert_eq!(instance.process_definition_id, v2_definition_id);
     assert_eq!(instance.process_definition_version, 2);
@@ -364,6 +366,7 @@ async fn process_instance_migrate_waiting_user_task_with_activity_mapping() {
         .unwrap();
     let instance = store
         .find_process_instance(&process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     assert!(instance.is_ended);
     let _ = session.rollback();
@@ -679,6 +682,7 @@ async fn process_definition_migrate_and_batch_migrate_validate_ids_and_safe_noop
     let mut session = store.create_session().unwrap();
     let instance = store
         .find_process_instance(&process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     assert_eq!(instance.process_definition_id, process_definition_id);
     let _ = session.rollback();

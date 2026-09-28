@@ -148,7 +148,6 @@ fn create_default_admin_with_default_password_is_rejected() {
 }
 
 #[test]
-#[test]
 fn platform_app_engine_rehydrates_cached_composition_via_deployment_manager() {
     use flowable_app_engine::{
         AppDefinition, AppDeploymentRequest, AppModel, AppPage, AppReference,
@@ -526,6 +525,7 @@ fn platform_fails_cmmn_bpmn_child_when_child_ends_with_uncaught_error_end_event(
     let mut session = store.create_session().expect("session");
     let process_instance = store
         .find_process_instance(&child_process_instance_id, &mut session)
+        .expect("query child process instance")
         .expect("child process instance still locatable");
     session.rollback().expect("rollback");
     assert!(
@@ -623,6 +623,7 @@ fn platform_fails_cmmn_bpmn_child_when_child_ends_with_uncaught_error_end_event_
     let mut session = store.create_session().expect("session");
     let process_instance = store
         .find_process_instance(&child_process_instance_id, &mut session)
+        .expect("query child process instance")
         .expect("child process instance still locatable");
     session.rollback().expect("rollback");
     assert!(process_instance.is_ended);
@@ -788,6 +789,7 @@ fn platform_deletes_cmmn_bpmn_child_and_triggers_failure_sentry() {
     let mut session = store.create_session().expect("session");
     let process_instance = store
         .find_process_instance(&child_process_instance_id, &mut session)
+        .expect("query child process instance")
         .expect("child process instance");
     session.rollback().expect("rollback");
     assert_eq!(
@@ -865,6 +867,7 @@ fn platform_terminates_cmmn_bpmn_child_via_change_state_and_triggers_failure_sen
     let mut session = store.create_session().expect("session");
     let ended_child = store
         .find_process_instance(&child_process_instance_id, &mut session)
+        .expect("query child process instance")
         .expect("child process instance still present after change-state");
     session.rollback().expect("rollback");
     assert!(ended_child.is_ended);
@@ -1038,6 +1041,7 @@ fn platform_cascade_delete_cmmn_deployment_removes_bpmn_child_process_instance()
         assert!(
             store
                 .find_process_instance(&child_process_instance_id, &mut session)
+                .expect("query child process instance before cascade")
                 .is_some(),
             "BPMN child must exist before cascade delete"
         );
@@ -1054,6 +1058,7 @@ fn platform_cascade_delete_cmmn_deployment_removes_bpmn_child_process_instance()
         assert!(
             store
                 .find_process_instance(&child_process_instance_id, &mut session)
+                .expect("query child process instance after cascade")
                 .is_none(),
             "BPMN child process instance must be removed by cascade cleanup"
         );

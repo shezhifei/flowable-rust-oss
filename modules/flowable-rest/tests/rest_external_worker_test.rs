@@ -234,6 +234,7 @@ async fn external_worker_endpoints_cover_fetch_query_failure_unlock_and_complete
     let process_definition_id = store
         .find_process_instance(&process_instance_id, &mut session)
         .unwrap()
+        .unwrap()
         .process_definition_id;
     let _ = session.rollback();
     time_source.advance_time(300_001);

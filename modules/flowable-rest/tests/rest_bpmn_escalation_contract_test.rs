@@ -129,6 +129,7 @@ async fn is_process_ended(engine: &ProcessEngine, process_instance_id: &str) -> 
     let mut session = store.create_session().unwrap();
     let result = store
         .find_process_instance(process_instance_id, &mut session)
+        .unwrap()
         .is_none_or(|pi| pi.is_ended);
     let _ = session.rollback();
     result

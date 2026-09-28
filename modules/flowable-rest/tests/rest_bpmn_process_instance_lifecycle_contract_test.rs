@@ -128,6 +128,7 @@ async fn delete_process_instance_terminates_single_runtime_instance() {
     assert!(
         store
             .find_process_instance(process_instance_id, &mut session)
+            .unwrap()
             .is_none()
     );
     assert!(
@@ -269,6 +270,7 @@ async fn put_process_instance_updates_name_and_business_key() {
     let mut session = store.create_session().unwrap();
     let stored = store
         .find_process_instance(process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     assert_eq!(stored.name.as_deref(), Some("Updated instance name"));
     assert_eq!(stored.business_key.as_deref(), Some("updated-business-key"));
@@ -354,6 +356,7 @@ async fn put_process_instance_can_clear_name_and_business_key() {
     let mut session = store.create_session().unwrap();
     let stored = store
         .find_process_instance(process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     assert!(stored.name.is_none());
     assert!(stored.business_key.is_none());
@@ -456,6 +459,7 @@ async fn put_process_instance_suspends_and_activates_instance_and_executions() {
         store
             .find_process_instance(process_instance_id, &mut session)
             .unwrap()
+            .unwrap()
             .is_suspended
     );
     assert!(
@@ -484,6 +488,7 @@ async fn put_process_instance_suspends_and_activates_instance_and_executions() {
     assert!(
         !store
             .find_process_instance(process_instance_id, &mut session)
+            .unwrap()
             .unwrap()
             .is_suspended
     );
@@ -535,6 +540,7 @@ async fn put_process_instance_rejects_activate_when_already_active() {
     assert!(
         !store
             .find_process_instance(process_instance_id, &mut session)
+            .unwrap()
             .unwrap()
             .is_suspended
     );
@@ -591,6 +597,7 @@ async fn put_process_instance_rejects_suspend_when_already_suspended() {
     assert!(
         store
             .find_process_instance(process_instance_id, &mut session)
+            .unwrap()
             .unwrap()
             .is_suspended
     );
@@ -675,6 +682,7 @@ async fn put_process_instance_rejects_ended_instance() {
     let mut session = store.create_session().unwrap();
     let mut stored = store
         .find_process_instance(process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     stored.is_ended = true;
     store.update_process_instance(&stored, &mut session);

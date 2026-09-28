@@ -229,6 +229,7 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
     let mut session = store.create_session().unwrap();
     let mut suspended_instance = store
         .find_process_instance(&process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     suspended_instance.is_suspended = true;
     store.update_process_instance(&suspended_instance, &mut session);
@@ -257,6 +258,7 @@ async fn runtime_process_instance_evaluate_conditions_triggers_conditional_waits
     let mut session = store.create_session().unwrap();
     let mut ended_instance = store
         .find_process_instance(&process_instance_id, &mut session)
+        .unwrap()
         .unwrap();
     ended_instance.is_suspended = false;
     ended_instance.is_ended = true;

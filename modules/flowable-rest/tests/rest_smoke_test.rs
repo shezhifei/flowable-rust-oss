@@ -135,7 +135,8 @@ async fn rest_http_smoke_test() {
     let mut session = store.create_session().unwrap();
     let stored_pi = store
         .find_process_instance(&process_instance_id, &mut session)
-        .expect("process instance should remain persisted");
+        .expect("process instance should remain persisted")
+        .unwrap();
     assert!(stored_pi.is_ended);
     let _ = session.rollback();
 }
