@@ -218,7 +218,9 @@ impl ProcessEngine {
         // default) so full multi-backend matrices can drive ProcessEngine::new without
         // rewriting every test constructor. Explicit new_with_memory_backend /
         // new_with_db_path paths remain isolated backends.
-        let config = ProcessEngineConfiguration::default();
+        // try_default fails fast when the mandatory embedded DMN/CMMN engines
+        // cannot be constructed (Java bean-construction failure aborts boot).
+        let config = ProcessEngineConfiguration::try_default()?;
         if !matches!(
             config.database.kind,
             crate::service::config::EngineDatabaseKind::Memory
@@ -254,7 +256,7 @@ impl ProcessEngine {
             name,
             Arc::new(crate::engine::time_source::SystemTimeSource),
             db_store,
-            Arc::new(ProcessEngineConfiguration::default()),
+            Arc::new(ProcessEngineConfiguration::try_default()?),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
         )?)
     }
@@ -268,7 +270,7 @@ impl ProcessEngine {
             name,
             Arc::new(crate::engine::time_source::SystemTimeSource),
             db_store,
-            Arc::new(ProcessEngineConfiguration::default()),
+            Arc::new(ProcessEngineConfiguration::try_default()?),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
         )?)
     }

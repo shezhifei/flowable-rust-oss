@@ -1017,6 +1017,61 @@ mod tests {
             300_000
         );
     }
+
+    #[test]
+    fn try_default_builds_embedded_dmn_and_cmmn_engines() {
+        // The typed startup path must boot with both embedded engines present;
+        // a `None` here would mean a construction failure was swallowed.
+        let config = super::ProcessEngineConfiguration::try_default()
+            .expect("default in-memory embedded engines construct");
+        assert!(
+            config.dmn_engine.is_some(),
+            "try_default must surface a constructed DMN engine"
+        );
+        assert!(
+            config.cmmn_engine.is_some(),
+            "try_default must surface a constructed CMMN engine"
+        );
+    }
+
+    #[test]
+    fn embedded_engine_construction_failure_aborts_with_dmn_cause() {
+        // The in-memory engines have no injectable failure path, so exercise the
+        // validation branch directly: a DMN construction failure must surface
+        // (not become `None`) and name the DMN engine.
+        let result = super::build_default_embedded_engines(
+            Err::<flowable_dmn_engine::DmnEngine, &str>("dmn boom"),
+            Ok::<flowable_cmmn_engine::CmmnEngine, &str>(
+                flowable_cmmn_engine::CmmnEngine::new_in_memory()
+                    .expect("in-memory CMMN engine constructs"),
+            ),
+        );
+        let error = result.expect_err("DMN construction failure must abort");
+        let message = error.to_string();
+        assert!(message.contains("DMN"), "unexpected message: {message}");
+        assert!(
+            message.contains("dmn boom"),
+            "unexpected message: {message}"
+        );
+    }
+
+    #[test]
+    fn embedded_engine_construction_failure_aborts_with_cmmn_cause() {
+        let result = super::build_default_embedded_engines(
+            Ok::<flowable_dmn_engine::DmnEngine, &str>(
+                flowable_dmn_engine::DmnEngine::new_in_memory()
+                    .expect("in-memory DMN engine constructs"),
+            ),
+            Err::<flowable_cmmn_engine::CmmnEngine, &str>("cmmn boom"),
+        );
+        let error = result.expect_err("CMMN construction failure must abort");
+        let message = error.to_string();
+        assert!(message.contains("CMMN"), "unexpected message: {message}");
+        assert!(
+            message.contains("cmmn boom"),
+            "unexpected message: {message}"
+        );
+    }
 }
 
 fn default_history_cleaning_time_cycle_config() -> String {
@@ -1034,6 +1089,62 @@ fn default_clean_instances_batch_size() -> u32 {
     100
 }
 
+/// Construct the default in-memory DMN engine used by [`ProcessEngineConfiguration`].
+///
+/// Java wires the DMN engine as a mandatory bean while the process engine is
+/// built: a construction failure aborts engine boot. The returned `Option`
+/// exists only to support the infallible [`Default`] trait; typed engine
+/// constructors go through [`ProcessEngineConfiguration::try_default`],
+/// which surfaces the failure instead of silently disabling DMN support.
+fn default_dmn_engine() -> Option<Arc<DmnEngine>> {
+    DmnEngine::new_in_memory().ok().map(Arc::new)
+}
+
+/// Construct the default in-memory CMMN engine used by [`ProcessEngineConfiguration`].
+///
+/// See [`default_dmn_engine`]: construction failure must abort typed engine
+/// construction ([`ProcessEngineConfiguration::try_default`]); the `Option`
+/// return is only there for the infallible [`Default`] trait used by tests and
+/// other convenience constructors.
+fn default_cmmn_engine() -> Option<Arc<CmmnEngine>> {
+    CmmnEngine::new_in_memory().ok().map(Arc::new)
+}
+
+/// Validate construction results of the mandatory embedded engines.
+///
+/// Java parity: both the DMN and CMMN engines are beans built while the
+/// process engine is constructed, so a construction failure is a startup
+/// failure (the engine must not boot with business-rule/case-task support
+/// silently disabled). Centralised here so the fail-fast branch is unit
+/// testable without a fault-injection hook into the in-memory engines.
+fn build_default_embedded_engines<E1, E2>(
+    dmn: Result<DmnEngine, E1>,
+    cmmn: Result<CmmnEngine, E2>,
+) -> Result<(Arc<DmnEngine>, Arc<CmmnEngine>), crate::error::FlowableError>
+where
+    E1: std::fmt::Display,
+    E2: std::fmt::Display,
+{
+    let dmn_engine = dmn.map_err(|error| {
+        crate::error::FlowableError::ExecutionError(format!(
+            "Failed to initialize default in-memory DMN engine for process engine: {error}"
+        ))
+    })?;
+    let cmmn_engine = cmmn.map_err(|error| {
+        crate::error::FlowableError::ExecutionError(format!(
+            "Failed to initialize default in-memory CMMN engine for process engine: {error}"
+        ))
+    })?;
+    Ok((Arc::new(dmn_engine), Arc::new(cmmn_engine)))
+}
+
+/// NOTE: `Default` cannot return a `Result`, so failure to construct the
+/// default in-memory DMN/CMMN engines is swallowed here and the corresponding
+/// fields become `None` (engines look disabled). Production/typed entry
+/// points must use [`ProcessEngineConfiguration::try_default`], which fails
+/// fast with the construction cause, mirroring Java bean construction
+/// failure at process-engine boot. This impl is intended for tests and other
+/// convenience constructors.
 impl Default for ProcessEngineConfiguration {
     fn default() -> Self {
         Self {
@@ -1047,9 +1158,9 @@ impl Default for ProcessEngineConfiguration {
             business_calendar_registry:
                 crate::engine::business_calendar::BusinessCalendarRegistry::default(),
             supported_script_languages: vec!["javascript".to_string()],
-            dmn_engine: DmnEngine::new_in_memory().ok().map(Arc::new),
+            dmn_engine: default_dmn_engine(),
             always_use_arrays_for_dmn_multi_hit_policies: true,
-            cmmn_engine: CmmnEngine::new_in_memory().ok().map(Arc::new),
+            cmmn_engine: default_cmmn_engine(),
             http_service: HttpServiceTaskConfiguration::default(),
             mail_service: MailServiceTaskConfiguration::default(),
             async_executor: AsyncExecutorConfiguration::default(),
@@ -1079,6 +1190,33 @@ impl Default for ProcessEngineConfiguration {
             outbound_event_dispatch:
                 crate::engine::outbound_event_dispatch::OutboundEventDispatchRegistry::new(),
         }
+    }
+}
+
+impl ProcessEngineConfiguration {
+    /// Fallible counterpart of [`Default::default`] for typed engine construction.
+    ///
+    /// Java constructs the DMN/CMMN engines as mandatory beans while building
+    /// the process engine; when either construction fails the engine does not
+    /// boot (a business-rule or case task would otherwise fail much later at
+    /// runtime). This constructor surfaces that startup failure with the
+    /// underlying cause instead of silently storing `None`.
+    ///
+    /// Every typed `ProcessEngine` constructor that uses the built-in
+    /// configuration routes through here. Callers supplying a custom
+    /// configuration remain responsible for the embedded engines themselves
+    /// (`None` keeps meaning "engine explicitly not configured", and the
+    /// DMN/CMMN behaviors fail with a typed error when then invoked).
+    pub fn try_default() -> Result<Self, crate::error::FlowableError> {
+        let (dmn_engine, cmmn_engine) = build_default_embedded_engines(
+            DmnEngine::new_in_memory(),
+            CmmnEngine::new_in_memory(),
+        )?;
+        Ok(Self {
+            dmn_engine: Some(dmn_engine),
+            cmmn_engine: Some(cmmn_engine),
+            ..Self::default()
+        })
     }
 }
 
