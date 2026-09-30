@@ -123,20 +123,31 @@ fn resolve_event_subscription(
 fn resolve_catch_configuration(
     command_context: &CommandContext,
     execution: &Execution,
-) -> Option<String> {
-    let process_definition_id = execution.process_definition_id.as_deref()?;
-    let activity_id = execution.activity_id.as_deref()?;
-    let model = command_context
+) -> Result<Option<String>, crate::error::FlowableError> {
+    let Some(process_definition_id) = execution.process_definition_id.as_deref() else {
+        return Ok(None);
+    };
+    let Some(activity_id) = execution.activity_id.as_deref() else {
+        return Ok(None);
+    };
+    let Some(model) = command_context
         .deployment_manager
-        .get_bpmn_model(process_definition_id)?;
-    let process = model.main_process.as_ref()?;
-    let flow_element = process.flow_element_map.get(activity_id)?;
+        .get_bpmn_model(process_definition_id)
+    else {
+        return Ok(None);
+    };
+    let Some(process) = model.main_process.as_ref() else {
+        return Ok(None);
+    };
+    let Some(flow_element) = process.flow_element_map.get(activity_id) else {
+        return Ok(None);
+    };
     match flow_element {
         FlowElementEnum::IntermediateCatchEvent(event) => correlation_key_from_base_element(
             &event.event.flow_node.flow_element.base_element,
             Some(execution),
         ),
-        _ => None,
+        _ => Ok(None),
     }
 }
 
@@ -240,7 +251,7 @@ impl ActivityBehavior for IntermediateCatchEventActivityBehavior {
                 category: resolve_job_category(
                     &event.event.flow_node.flow_element.base_element,
                     &evaluation_execution,
-                ),
+                )?,
                 ..Default::default()
             };
             command_context
@@ -282,7 +293,7 @@ impl ActivityBehavior for IntermediateCatchEventActivityBehavior {
                     }
                 };
 
-                let configuration = resolve_catch_configuration(command_context, execution);
+                let configuration = resolve_catch_configuration(command_context, execution)?;
                 // P125: ACTIVITY_*_WAITING when subscription is created.
                 // Java IntermediateCatch{Signal,Message,Conditional}EventActivityBehavior.execute.
                 let waiting_kind = event_subscription.kind.clone();

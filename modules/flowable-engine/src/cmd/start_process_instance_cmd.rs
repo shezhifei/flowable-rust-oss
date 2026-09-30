@@ -587,7 +587,9 @@ impl Command<ProcessInstance> for StartProcessInstanceAsyncCmd {
             .get_bpmn_model(&process_definition_id)
             .as_ref()
             .and_then(|model| model.main_process.as_ref())
-            .and_then(|process| resolve_job_category(&process.base_element, &root_execution));
+            .map(|process| resolve_job_category(&process.base_element, &root_execution))
+            .transpose()?
+            .flatten();
         command_context.runtime_store.insert_timer_job_state(
             &RuntimeTimerJobState {
                 timer_job_id: uuid::Uuid::new_v4().to_string(),

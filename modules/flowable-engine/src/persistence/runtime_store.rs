@@ -1,4 +1,4 @@
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::engine::query::Direction;
 use crate::engine::runtime_job_query::{RuntimeJobFamily, RuntimeJobQueryCriteria};
 use crate::engine::time_source::{SystemTimeSource, TimeSource, calculate_due_time};
@@ -182,8 +182,15 @@ pub(crate) fn evaluate_user_task_due_date(
     };
 
     let value = if raw_due_date.trim().starts_with("${") && raw_due_date.trim().ends_with('}') {
+        // A.2 #15 group S (UserTaskActivityBehavior.java:244): getValue has no
+        // catch — evaluation errors propagate.
         SimpleExpression::new(raw_due_date.trim().to_string())
-            .get_value(execution)
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Due date expression '{raw_due_date}' failed: {error}"
+                ))
+            })?
             .unwrap_or(Value::Null)
     } else {
         Value::String(raw_due_date.to_string())
@@ -1401,6 +1408,9 @@ impl RuntimeStore {
     /// LOCK_TIME_ < now`; zero affected rows raises
     /// `FlowableOptimisticLockingException`. Here the conflict is reported as
     /// `false` and the caller unacquires the job without executing it.
+    /// W5/R9: `Ok(true)` = lock acquired; `Ok(false)` = genuine lock-fail
+    /// (Duplicate / CAS miss / lock held). Storage errors are `Err` and must
+    /// NOT be disguised as lock-fail (Java PersistenceException propagates).
     pub fn lock_process_instance(
         &self,
         process_instance_id: &str,
@@ -1408,13 +1418,16 @@ impl RuntimeStore {
         lock_expiration_ms: i64,
         now: i64,
         session: &mut DbSession,
-    ) -> bool {
+    ) -> Result<bool, crate::error::FlowableError> {
         let existing: Option<ProcessInstanceLockState> = {
             match session.find("process_instance_locks", process_instance_id) {
                 Ok(found) => found,
                 Err(error) => {
-                    session.note_write_error(error);
-                    None
+                    // R9: storage error is not "no lock".
+                    session.note_write_error(error.clone());
+                    return Err(crate::error::FlowableError::ExecutionError(format!(
+                        "failed to read process instance lock '{process_instance_id}': {error}"
+                    )));
                 }
             }
         };
@@ -1427,17 +1440,28 @@ impl RuntimeStore {
                 };
                 // Plain INSERT: a concurrent first-locker must not be silently
                 // overwritten (mirrors the 0-rows-updated optimistic conflict).
-                session
-                    .insert_exclusive_with_extra(
-                        "process_instance_locks",
-                        process_instance_id,
-                        &state,
-                        &[
-                            ("lock_owner".into(), state.lock_owner.clone()),
-                            ("lock_time".into(), state.lock_time.map(|v| v.to_string())),
-                        ],
-                    )
-                    .is_ok()
+                match session.insert_exclusive_with_extra(
+                    "process_instance_locks",
+                    process_instance_id,
+                    &state,
+                    &[
+                        ("lock_owner".into(), state.lock_owner.clone()),
+                        ("lock_time".into(), state.lock_time.map(|v| v.to_string())),
+                    ],
+                ) {
+                    Ok(()) => Ok(true),
+                    // Duplicate = genuine lock-fail.
+                    Err(crate::persistence::storage_error::StorageError::DuplicateEntity {
+                        ..
+                    }) => Ok(false),
+                    // R9: storage error must NOT be disguised as lock-fail.
+                    Err(error) => {
+                        session.note_write_error(error.clone());
+                        Err(crate::error::FlowableError::ExecutionError(format!(
+                            "failed to acquire process instance lock '{process_instance_id}': {error}"
+                        )))
+                    }
+                }
             }
             Some(current) => {
                 // Free or expired locks may be taken over (LOCK_TIME_ stores
@@ -1447,7 +1471,7 @@ impl RuntimeStore {
                     Some(expiration) => expiration < now,
                 };
                 if !takeable {
-                    return false;
+                    return Ok(false);
                 }
                 let updated = ProcessInstanceLockState {
                     process_instance_id: process_instance_id.to_string(),
@@ -1458,19 +1482,26 @@ impl RuntimeStore {
                 let mut conditions: Vec<(String, Option<String>)> =
                     vec![("lock_owner".into(), current.lock_owner.clone())];
                 conditions.push(("lock_time".into(), current.lock_time.map(|v| v.to_string())));
-                session
-                    .cas_update(
-                        "process_instance_locks",
-                        process_instance_id,
-                        &json,
-                        &[
-                            ("lock_owner".into(), updated.lock_owner.clone()),
-                            ("lock_time".into(), updated.lock_time.map(|v| v.to_string())),
-                        ],
-                        &conditions,
-                    )
-                    .map(|affected| affected > 0)
-                    .unwrap_or(false)
+                // R9: CAS miss = genuine lock-fail; storage error → Err.
+                match session.cas_update(
+                    "process_instance_locks",
+                    process_instance_id,
+                    &json,
+                    &[
+                        ("lock_owner".into(), updated.lock_owner.clone()),
+                        ("lock_time".into(), updated.lock_time.map(|v| v.to_string())),
+                    ],
+                    &conditions,
+                ) {
+                    Ok(0) => Ok(false),
+                    Ok(_) => Ok(true),
+                    Err(error) => {
+                        session.note_write_error(error.clone());
+                        Err(crate::error::FlowableError::ExecutionError(format!(
+                            "failed to takeover process instance lock '{process_instance_id}': {error}"
+                        )))
+                    }
+                }
             }
         }
     }
@@ -2619,6 +2650,14 @@ impl RuntimeStore {
 
     // ── Task methods ──
 
+    /// True when the model text is a `${...}` / `#{...}` expression (already
+    /// processed by the F-group helper and must not be backfilled as-is).
+    fn is_expression_text(value: &str) -> bool {
+        let trimmed = value.trim();
+        (trimmed.starts_with("${") && trimmed.ends_with('}'))
+            || (trimmed.starts_with("#{") && trimmed.ends_with('}'))
+    }
+
     pub fn insert_task(
         &self,
         task: &crate::task::Task,
@@ -2640,6 +2679,10 @@ impl RuntimeStore {
                 &task.task_definition_key,
                 session,
             )?;
+            // W3/C4: do NOT backfill category/form_key from the model when the
+            // model value is an expression — the F-group helper has already
+            // evaluated it (and may have intentionally cleared the field on a
+            // legal null). Backfill only applies to literal model text.
             if task.assignee.is_none() {
                 task.assignee = props.assignee;
             }
@@ -2653,10 +2696,14 @@ impl RuntimeStore {
                 task.due_date = props.due_date;
             }
             if task.category.is_none() {
-                task.category = props.category;
+                task.category = props
+                    .category
+                    .filter(|c| !Self::is_expression_text(c));
             }
             if task.form_key.is_none() {
-                task.form_key = props.form_key;
+                task.form_key = props
+                    .form_key
+                    .filter(|f| !Self::is_expression_text(f));
             }
         }
         session.insert_with_extra(
@@ -6475,6 +6522,9 @@ impl RuntimeStore {
         }
     }
 
+    /// W5 / R9: `Ok(Some(token))` = acquired; `Ok(None)` = lost the race
+    /// (DuplicateEntity / CAS miss — a genuine lock-fail). A **storage** error
+    /// is `Err` and must not be disguised as "someone else holds the lock".
     pub fn acquire_coordinator_lease(
         &self,
         lease_id: &str,
@@ -6482,15 +6532,18 @@ impl RuntimeStore {
         now: i64,
         timeout_ms: i64,
         session: &mut DbSession,
-    ) -> Option<i64> {
+    ) -> Result<Option<i64>, crate::error::FlowableError> {
         let new_expiry = now + timeout_ms;
 
         let current_opt =
             match session.find::<TimerCoordinatorLease>("timer_coordinator_leases", lease_id) {
                 Ok(found) => found,
                 Err(error) => {
-                    session.note_write_error(error);
-                    None
+                    // R9: a read/storage failure is not a lock-fail.
+                    session.note_write_error(error.clone());
+                    return Err(crate::error::FlowableError::ExecutionError(format!(
+                        "failed to read timer coordinator lease '{lease_id}': {error}"
+                    )));
                 }
             };
 
@@ -6503,28 +6556,30 @@ impl RuntimeStore {
                     fencing_token: current.fencing_token,
                 };
                 let json = serde_json::to_string(&lease).unwrap_or_else(|_| "{}".to_string());
-                // Renew own lease
-                if session
-                    .cas_update(
-                        "timer_coordinator_leases",
-                        lease_id,
-                        &json,
-                        &[
-                            ("owner_node_id".into(), Some(owner_node_id.to_string())),
-                            ("expiry_time".into(), Some(new_expiry.to_string())),
-                            (
-                                "fencing_token".into(),
-                                Some(current.fencing_token.to_string()),
-                            ),
-                        ],
-                        &[("owner_node_id".into(), Some(owner_node_id.to_string()))],
-                    )
-                    .unwrap_or_default()
-                    > 0
-                {
-                    Some(current.fencing_token)
-                } else {
-                    None
+                // Renew own lease. R9: CAS miss (0 rows) = genuine lock-fail
+                // → Ok(None); storage error must NOT be disguised as lock-fail.
+                match session.cas_update(
+                    "timer_coordinator_leases",
+                    lease_id,
+                    &json,
+                    &[
+                        ("owner_node_id".into(), Some(owner_node_id.to_string())),
+                        ("expiry_time".into(), Some(new_expiry.to_string())),
+                        (
+                            "fencing_token".into(),
+                            Some(current.fencing_token.to_string()),
+                        ),
+                    ],
+                    &[("owner_node_id".into(), Some(owner_node_id.to_string()))],
+                ) {
+                    Ok(0) => Ok(None),
+                    Ok(_) => Ok(Some(current.fencing_token)),
+                    Err(error) => {
+                        session.note_write_error(error.clone());
+                        Err(crate::error::FlowableError::ExecutionError(format!(
+                            "failed to renew timer coordinator lease '{lease_id}': {error}"
+                        )))
+                    }
                 }
             } else {
                 // Empty owner (released lease) is treated as free for takeover when
@@ -6537,8 +6592,12 @@ impl RuntimeStore {
                     {
                         Ok(found) => found,
                         Err(error) => {
-                            session.note_write_error(error);
-                            None
+                            // R9: storage error is not a lock-fail.
+                            session.note_write_error(error.clone());
+                            return Err(crate::error::FlowableError::ExecutionError(format!(
+                                "failed to read timer worker node '{}': {error}",
+                                current.owner_node_id
+                            )));
                         }
                     }
                 };
@@ -6563,33 +6622,35 @@ impl RuntimeStore {
                         fencing_token: new_token,
                     };
                     let json = serde_json::to_string(&lease).unwrap_or_else(|_| "{}".to_string());
-                    if session
-                        .cas_update(
-                            "timer_coordinator_leases",
-                            lease_id,
-                            &json,
-                            &[
-                                ("owner_node_id".into(), Some(owner_node_id.to_string())),
-                                ("expiry_time".into(), Some(new_expiry.to_string())),
-                                ("fencing_token".into(), Some(new_token.to_string())),
-                            ],
-                            &[
-                                ("owner_node_id".into(), Some(current.owner_node_id.clone())),
-                                (
-                                    "fencing_token".into(),
-                                    Some(current.fencing_token.to_string()),
-                                ),
-                            ],
-                        )
-                        .unwrap_or_default()
-                        > 0
-                    {
-                        Some(new_token)
-                    } else {
-                        None
+                    // R9: CAS miss = genuine lock-fail; storage error → Err.
+                    match session.cas_update(
+                        "timer_coordinator_leases",
+                        lease_id,
+                        &json,
+                        &[
+                            ("owner_node_id".into(), Some(owner_node_id.to_string())),
+                            ("expiry_time".into(), Some(new_expiry.to_string())),
+                            ("fencing_token".into(), Some(new_token.to_string())),
+                        ],
+                        &[
+                            ("owner_node_id".into(), Some(current.owner_node_id.clone())),
+                            (
+                                "fencing_token".into(),
+                                Some(current.fencing_token.to_string()),
+                            ),
+                        ],
+                    ) {
+                        Ok(0) => Ok(None),
+                        Ok(_) => Ok(Some(new_token)),
+                        Err(error) => {
+                            session.note_write_error(error.clone());
+                            Err(crate::error::FlowableError::ExecutionError(format!(
+                                "failed to takeover timer coordinator lease '{lease_id}': {error}"
+                            )))
+                        }
                     }
                 } else {
-                    None
+                    Ok(None)
                 }
             }
         } else {
@@ -6614,18 +6675,17 @@ impl RuntimeStore {
                     ("fencing_token".into(), Some("1".to_string())),
                 ],
             ) {
-                Ok(()) => Some(1),
+                Ok(()) => Ok(Some(1)),
+                // R9: Duplicate = lost the race (genuine lock-fail).
                 Err(crate::persistence::storage_error::StorageError::DuplicateEntity {
                     ..
-                }) => None,
+                }) => Ok(None),
+                // R9: any other storage error must NOT be disguised as lock-fail.
                 Err(error) => {
-                    // Unexpected insert failure: surface via panic-free None so the
-                    // acquire path stays fallible without aborting the worker.
-                    tracing::error!(
-                        "failed to create timer coordinator lease '{}': {error}",
-                        lease_id
-                    );
-                    None
+                    session.note_write_error(error.clone());
+                    Err(crate::error::FlowableError::ExecutionError(format!(
+                        "failed to create timer coordinator lease '{lease_id}': {error}"
+                    )))
                 }
             }
         }
@@ -7201,11 +7261,13 @@ impl RuntimeStore {
         true
     }
 
+    /// W5 / R8: a blob write failure must surface. Java `DbSqlSession` throws
+    /// on SQL errors; there is no Java "swallow picture write" path.
     pub fn set_user_picture(
         &self,
         picture: crate::identity::entities::UserPicture,
         session: &mut DbSession,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         session
             .insert_blob(
                 "user_pictures",
@@ -7217,7 +7279,13 @@ impl RuntimeStore {
                 "bytes",
                 &picture.bytes,
             )
-            .unwrap_or_default();
+            .map_err(|error| {
+                session.note_write_error(error.clone());
+                crate::error::FlowableError::ExecutionError(format!(
+                    "failed to store user picture for '{}': {error}",
+                    picture.user_id
+                ))
+            })
     }
 
     pub fn get_user_picture(

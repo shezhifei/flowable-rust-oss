@@ -90,9 +90,12 @@ fn pending_async_job(engine: &ProcessEngine, pi_id: &str) -> RuntimeTimerJobStat
 fn seed_pi_lock(engine: &ProcessEngine, pi_id: &str, owner: &str, expiration: i64, now: i64) {
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();
+    let locked = store
+        .lock_process_instance(pi_id, owner, expiration, now, &mut session)
+        .expect("seed lock: storage errors must not be disguised as lock-fail");
     assert!(
-        store.lock_process_instance(pi_id, owner, expiration, now, &mut session),
-        "seeding the PI scope lock must succeed"
+        locked,
+        "seeding the PI scope lock must succeed (genuine lock-fail would be Ok(false))"
     );
     session.flush_and_commit().unwrap();
 }

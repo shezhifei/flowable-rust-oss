@@ -4,7 +4,7 @@ use crate::bpmn::behavior::boundary_event_activity_behavior::{
 use crate::bpmn::job_category::resolve_job_category;
 use crate::cmd::start_process_instance_cmd::StartProcessInstanceCmd;
 use crate::delegate::activity_behavior::ActivityBehavior;
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::engine::variable_service::variable_type_name;
 use crate::error::FlowableError;
 use crate::interceptor::command::Command;
@@ -51,15 +51,24 @@ fn expression_or_literal_string(
     }
 
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
-        return match SimpleExpression::new(trimmed.to_string()).get_value(execution) {
+        // A.2 #8-11 group S (CallActivityBehavior.java:343,125 / IOParameterUtil.java:74):
+        // evaluation errors propagate — never disguised as "could not be resolved".
+        return match SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Call activity {} expression '{}' failed: {error}",
+                    field_name, trimmed
+                ))
+            })? {
             Some(Value::String(value)) if !value.trim().is_empty() => Ok(value),
+            Some(Value::Null) | None => Err(FlowableError::ExecutionError(format!(
+                "Call activity {} expression '{}' could not be resolved",
+                field_name, trimmed
+            ))),
             Some(value) => Err(FlowableError::ExecutionError(format!(
                 "Call activity {} expression '{}' resolved to a non-string value: {}",
                 field_name, trimmed, value
-            ))),
-            None => Err(FlowableError::ExecutionError(format!(
-                "Call activity {} expression '{}' could not be resolved",
-                field_name, trimmed
             ))),
         };
     }
@@ -83,7 +92,15 @@ fn expression_or_literal_coerced(
     }
 
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
-        let resolved = match SimpleExpression::new(trimmed.to_string()).get_value(execution) {
+        // A.2 #8-9 group S: evaluation errors propagate (CallActivityBehavior.java:343,125).
+        let resolved = match SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Call activity {} expression '{}' failed: {error}",
+                    field_name, trimmed
+                ))
+            })? {
             Some(Value::String(value)) => value,
             Some(Value::Bool(b)) => b.to_string(),
             Some(Value::Number(n)) => n.to_string(),
@@ -340,23 +357,28 @@ fn parameter_target(
         .transpose()
 }
 
-fn parameter_value(parameter: &IOParameter, execution: &Execution) -> Value {
+fn parameter_value(parameter: &IOParameter, execution: &Execution) -> Result<Value, FlowableError> {
     if let Some(source_expression) = parameter.source_expression.as_deref() {
-        if let Some(value) =
-            SimpleExpression::new(source_expression.to_string()).get_value(execution)
-        {
-            return value;
-        }
-        return Value::Null;
+        // A.2 #10 group S (IOParameterUtil.java:74): `expression.getValue` has no
+        // catch — evaluation errors must propagate, not become Null.
+        let value = SimpleExpression::new(source_expression.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Call activity sourceExpression '{}' failed: {error}",
+                    source_expression
+                ))
+            })?;
+        return Ok(value.unwrap_or(Value::Null));
     }
 
     if let Some(source) = parameter.source.as_deref() {
-        return execution
+        return Ok(execution
             .process_variable(source.trim())
-            .unwrap_or(Value::Null);
+            .unwrap_or(Value::Null));
     }
 
-    Value::Null
+    Ok(Value::Null)
 }
 
 fn set_process_variable_with_history(
@@ -584,9 +606,17 @@ pub fn apply_call_activity_out_parameters(
             continue;
         };
         let value = if let Some(source_expression) = out_param.source_expression.as_deref() {
-            if let Some(value) = SimpleExpression::new(source_expression.to_string())
-                .get_value(&child_expression_execution)
-            {
+            // A.2 #11 group S (IOParameterUtil.processOut / CallActivityBehavior
+            // processOutParameters): no catch — evaluation errors propagate.
+            let evaluated = SimpleExpression::new(source_expression.to_string())
+                .get_value_strict(&child_expression_execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Call activity out sourceExpression '{}' failed: {error}",
+                        source_expression
+                    ))
+                })?;
+            if let Some(value) = evaluated {
                 value
             } else if let Some(property_name) = expression_property_name(source_expression) {
                 child_variables
@@ -744,7 +774,7 @@ impl ActivityBehavior for CallActivityBehavior {
         for in_param in &call_activity.in_parameters {
             // In params: sourceContainer is parent (evaluation_execution).
             if let Some(target) = parameter_target(in_param, &evaluation_execution)? {
-                let value = parameter_value(in_param, &evaluation_execution);
+                let value = parameter_value(in_param, &evaluation_execution)?;
                 if in_param.transient {
                     builder = builder.transient_variable(target, value);
                 } else {
@@ -846,7 +876,7 @@ impl ActivityBehavior for CallActivityBehavior {
                         category: resolve_job_category(
                             &boundary_event.event.flow_node.flow_element.base_element,
                             &evaluation_execution,
-                        ),
+                        )?,
                         ..Default::default()
                     },
                     &mut command_context.session,
@@ -871,7 +901,7 @@ impl ActivityBehavior for CallActivityBehavior {
                 crate::bpmn::behavior::boundary_event_activity_behavior::resolve_boundary_configuration(
                     boundary_event,
                     Some(execution),
-                );
+                )?;
             crate::bpmn::behavior::boundary_event_activity_behavior::insert_boundary_event_state_with_waiting(
                 command_context,
                 RuntimeBoundaryEventState {

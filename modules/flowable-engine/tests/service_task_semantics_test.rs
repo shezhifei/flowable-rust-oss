@@ -166,8 +166,7 @@ const DELEGATE_EXPRESSION_SERVICE_TASK_XML: &str = r#"<?xml version="1.0" encodi
         <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="delegateTask1" />
         <serviceTask id="delegateTask1"
                      name="Invoke Local Delegate"
-                     flowable:delegateExpression="${delegateName}"
-                     flowable:resultVariableName="delegateResult">
+                     flowable:delegateExpression="${delegateName}">
             <extensionElements>
                 <flowable:field name="literalGreeting" stringValue="hello" />
                 <flowable:field name="customerFromExpression" expression="${customerId}" />
@@ -192,8 +191,7 @@ const TRIGGERABLE_DELEGATE_EXPRESSION_SERVICE_TASK_XML: &str = r#"<?xml version=
         <serviceTask id="delegateTask1"
                      name="Invoke Triggerable Delegate"
                      flowable:delegateExpression="${delegateName}"
-                     flowable:triggerable="true"
-                     flowable:resultVariableName="delegateResult">
+                     flowable:triggerable="true">
             <extensionElements>
                 <flowable:field name="literalGreeting" stringValue="hello" />
                 <flowable:field name="customerFromExpression" expression="${customerId}" />
@@ -214,8 +212,7 @@ const TRIGGERABLE_CLASS_SERVICE_TASK_XML: &str = r#"<?xml version="1.0" encoding
         <serviceTask id="delegateTask1"
                      name="Invoke Triggerable Class Delegate"
                      flowable:class="com.example.TriggerableDelegate"
-                     flowable:triggerable="true"
-                     flowable:resultVariableName="delegateResult">
+                     flowable:triggerable="true">
             <extensionElements>
                 <flowable:field name="literalGreeting" stringValue="class-hello" />
                 <flowable:field name="customerFromExpression" expression="${customerId}" />
@@ -1618,11 +1615,10 @@ fn delegate_expression_service_task_executes_registered_local_delegate_with_fiel
         execution.persistent_process_variable("delegateFieldCopy"),
         Some(json!("C-987"))
     );
-    assert_eq!(
-        execution
-            .persistent_process_variable("delegateResult")
-            .and_then(|value| value["fields"]["literalGreeting"].as_str().map(Value::from)),
-        Some(json!("hello"))
+    // T4: class/delegateExpression does not write resultVariableName (S-SKIP).
+    assert!(
+        execution.persistent_process_variable("delegateResult").is_none(),
+        "delegateExpression must not write resultVariableName"
     );
 
     let runtime_store = command_context.runtime_store();
@@ -1681,10 +1677,10 @@ fn validator_rejects_unsupported_delegate_implementation_type() {
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:flowable="http://flowable.org/bpmn"
              targetNamespace="Examples">
-    <process id="expressionDelegateProcess">
+    <process id="unsupportedDelegateProcess">
         <startEvent id="startEvent1" />
         <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="delegateTask1" />
-        <serviceTask id="delegateTask1" flowable:expression="${doWork()}">
+        <serviceTask id="delegateTask1" flowable:class="${notARegistryKey}">
             <extensionElements>
                 <flowable:field name="literalGreeting" stringValue="hello" />
             </extensionElements>
@@ -1696,14 +1692,84 @@ fn validator_rejects_unsupported_delegate_implementation_type() {
     );
 
     let err = UnsupportedModelValidator::validate(&model, &ProcessEngineConfiguration::default())
-        .expect_err("expression implementation type remains outside the owned subset");
+        .expect_err("class implementation must be a registry key, not an expression");
 
     assert!(
-        err.to_string()
-            .contains("only supports class or delegateExpression")
-            && err.to_string().contains("expression"),
-        "expected structured delegate implementation rejection, got {err}"
+        err.to_string().contains("registry key")
+            || err.to_string().contains("class"),
+        "expected class implementation rejection, got {err}"
     );
+}
+
+#[test]
+fn validator_allows_expression_service_task_with_result_variable_name() {
+    // Java ServiceTaskValidator.verifyImplementation:49 allows expression;
+    // verifyResultVariableName:97-103 only rejects class/delegateExpression.
+    let converter = BpmnXMLConverter::new();
+    let model = converter.convert_to_bpmn_model(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="Examples">
+    <process id="expressionOkProcess">
+        <startEvent id="startEvent1" />
+        <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="exprTask1" />
+        <serviceTask id="exprTask1"
+                     flowable:expression="${40+2}"
+                     flowable:resultVariableName="r2out" />
+        <sequenceFlow id="flow2" sourceRef="exprTask1" targetRef="endEvent1" />
+        <endEvent id="endEvent1" />
+    </process>
+</definitions>"#,
+    );
+
+    UnsupportedModelValidator::validate(&model, &ProcessEngineConfiguration::default())
+        .expect("expression + resultVariableName must deploy (Java-aligned)");
+}
+
+#[test]
+fn validator_allows_expression_service_task_without_result_variable_name() {
+    let converter = BpmnXMLConverter::new();
+    let model = converter.convert_to_bpmn_model(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="Examples">
+    <process id="expressionNoResultProcess">
+        <startEvent id="startEvent1" />
+        <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="exprTask1" />
+        <serviceTask id="exprTask1" flowable:expression="${40+2}" />
+        <sequenceFlow id="flow2" sourceRef="exprTask1" targetRef="endEvent1" />
+        <endEvent id="endEvent1" />
+    </process>
+</definitions>"#,
+    );
+
+    UnsupportedModelValidator::validate(&model, &ProcessEngineConfiguration::default())
+        .expect("expression without resultVariableName must deploy");
+}
+
+#[test]
+fn validator_rejects_expression_service_task_with_non_el_text() {
+    let converter = BpmnXMLConverter::new();
+    let model = converter.convert_to_bpmn_model(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="Examples">
+    <process id="expressionBadProcess">
+        <startEvent id="startEvent1" />
+        <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="exprTask1" />
+        <serviceTask id="exprTask1" flowable:expression="doWork" />
+        <sequenceFlow id="flow2" sourceRef="exprTask1" targetRef="endEvent1" />
+        <endEvent id="endEvent1" />
+    </process>
+</definitions>"#,
+    );
+
+    let err = UnsupportedModelValidator::validate(&model, &ProcessEngineConfiguration::default())
+        .expect_err("bare non-EL expression text must be rejected");
+    assert!(err.to_string().contains("expression"), "got {err}");
 }
 
 #[test]
@@ -2298,12 +2364,9 @@ fn triggerable_delegate_expression_executes_but_does_not_leave_until_trigger() {
     let (mut command_context, mut execution) = run_triggerable_local_delegate_until_waiting(false)
         .expect("triggerable delegateExpression should execute the local delegate");
 
-    assert_eq!(
-        execution
-            .persistent_process_variable("delegateResult")
-            .and_then(|value| value["delegate"].as_str().map(Value::from)),
-        Some(json!("recording")),
-        "delegate must run during execute even when triggerable"
+    assert!(
+        execution.persistent_process_variable("delegateResult").is_none(),
+        "triggerable delegateExpression must not write resultVariableName (S-SKIP)"
     );
     assert_eq!(execution.activity_id.as_deref(), Some("delegateTask1"));
 
@@ -2341,11 +2404,9 @@ fn triggerable_class_service_task_executes_but_does_not_leave_until_trigger() {
     let (mut command_context, mut execution) = run_triggerable_local_delegate_until_waiting(true)
         .expect("triggerable class should execute the registered local delegate");
 
-    assert_eq!(
-        execution
-            .persistent_process_variable("delegateResult")
-            .and_then(|value| value["fields"]["literalGreeting"].as_str().map(Value::from)),
-        Some(json!("class-hello"))
+    assert!(
+        execution.persistent_process_variable("delegateResult").is_none(),
+        "triggerable class must not write resultVariableName (S-SKIP)"
     );
 
     let tasks_empty = {

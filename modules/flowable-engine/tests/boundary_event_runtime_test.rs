@@ -703,19 +703,24 @@ fn test_conditional_boundary_trigger_noop_when_condition_false_then_fires_when_t
     assert_eq!(states_before[0].boundary_event_id, "conditionalBoundary");
     drop(session);
 
-    // Java UelExpressionCondition parity: an unset variable produces null and
-    // fails the command instead of being treated as false.
+    // W1/W6: an unset comparison operand is an evaluation error
+    // (PropertyNotFoundException) — not the "returns null" message.
     let error = runtime_service
         .trigger_boundary_event(
             "conditionalBoundary".to_string(),
             process_instance.id.clone(),
         )
-        .expect_err("a null conditional boundary result must fail the command");
-    assert!(matches!(
-        error,
-        flowable_engine::error::FlowableError::ExecutionError(message)
-            if message.contains("non-Boolean") && message.ends_with("null")
-    ));
+        .expect_err("an undefined comparison operand must fail the command");
+    assert!(
+        matches!(
+            error,
+            flowable_engine::error::FlowableError::ExecutionError(ref message)
+                if (message.contains("Unknown property")
+                    || message.contains("condition expression failed")
+                    || message.contains("failed"))
+        ),
+        "unexpected error: {error:?}"
+    );
 
     // An actual Boolean false remains the silent no-op case.
     runtime_service

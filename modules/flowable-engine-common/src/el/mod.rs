@@ -7,6 +7,8 @@ pub mod expression;
 pub mod method_registry;
 pub mod variable_container;
 
-pub use expression::{Expression, SimpleExpression, evaluate_composite_expression};
+pub use expression::{
+    Expression, ExpressionEvalError, SimpleExpression, evaluate_composite_expression,
+};
 pub use method_registry::{ExpressionMethodRegistry, with_expression_method_registry};
 pub use variable_container::{MapVariableContainer, VariableContainer};

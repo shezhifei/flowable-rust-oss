@@ -12,10 +12,10 @@
 //!   ignored, but `expression.getValue(execution)` exceptions escape and fail
 //!   the command (the surrounding transaction rolls back).
 //! - `ExpressionTaskListener.java:31-34` — same contract for task listeners.
-//!
-//! Undefined variables remain lenient (null) and must NOT fail the listener;
-//! only a real evaluation failure (here: a registered bean method returning
-//! `Err`) propagates as `FlowableError::ExecutionError`.
+//! - `JuelExpression.java:53-54` — an undefined variable raises
+//!   `PropertyNotFoundException` → `FlowableException`, so it MUST fail the
+//!   command (research §2.1.2 / W1). Only a defined-null variable is a legal
+//!   null.
 
 use flowable_engine::el::method_registry::ExpressionMethodRegistry;
 use flowable_engine::engine::process_engine::ProcessEngine;
@@ -165,17 +165,18 @@ fn successful_bean_method_expression_execution_listener_runs() {
     assert_eq!(audit.entries(), vec!["start-event".to_string()]);
 }
 
-/// An undefined variable in a listener expression resolves to lenient null
-/// (Java EL's unresolved-variable convention) and the listener succeeds.
+/// W1: an undefined variable in a listener expression is `PropertyNotFoundException`
+/// in Java (`JuelExpression.java:53-54`) and must fail the command — not resolve
+/// to a silent null. (Research §2.1.2; flips the old lenient-null assertion.)
 #[test]
-fn undefined_variable_in_expression_listener_is_lenient_null() {
+fn undefined_variable_in_expression_listener_fails_command() {
     let audit = AuditBean::default();
     let engine = engine_with(&audit, "p1a-exec-undefined");
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:flowable="http://flowable.org/bpmn"
              targetNamespace="Examples">
-  <process id="lenientUndefinedListenerProcess" isExecutable="true">
+  <process id="undefinedListenerProcess" isExecutable="true">
     <startEvent id="startEvent1">
       <extensionElements>
         <flowable:executionListener event="start"
@@ -188,7 +189,7 @@ fn undefined_variable_in_expression_listener_is_lenient_null() {
 </definitions>"#;
     let definition_id = deploy(&engine, "undefined-exec-listener.bpmn20.xml", xml);
 
-    engine
+    let error = engine
         .get_runtime_service()
         .start_process_instance(
             engine
@@ -196,7 +197,12 @@ fn undefined_variable_in_expression_listener_is_lenient_null() {
                 .create_process_instance_builder()
                 .process_definition_id(definition_id),
         )
-        .expect("an undefined variable must stay lenient null, not fail the listener");
+        .expect_err("an undefined variable must fail the command (Java PropertyNotFoundException)");
+    let message = error.to_string();
+    assert!(
+        message.contains("thisVariableIsNeverDefined") || message.contains("Unknown property"),
+        "error should identify the unknown property, got: {message}"
+    );
     assert!(audit.entries().is_empty());
 }
 

@@ -16,7 +16,7 @@
 //!
 //! EL evaluation happens **before** P16 `prepare_repeat` / cycle anchoring.
 
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::engine::business_calendar::{
     BusinessCalendarRegistry, CYCLE_CALENDAR_NAME, DUE_DATE_CALENDAR_NAME, DURATION_CALENDAR_NAME,
 };
@@ -88,8 +88,15 @@ fn evaluate_timer_field_value(
     }
 
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
+        // A.2 #7 group S (TimerDeclarationImpl.java:124,143,160): evaluation
+        // errors propagate as command failures.
         let value = SimpleExpression::new(trimmed.to_string())
-            .get_value(execution)
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Timer {field_name} expression '{trimmed}' failed: {error}"
+                ))
+            })?
             .ok_or_else(|| {
                 FlowableError::ExecutionError(format!(
                     "Timer {field_name} expression '{trimmed}' could not be evaluated"
@@ -587,8 +594,11 @@ mod tests {
             Utc::now(),
         )
         .unwrap_err();
+        // W1: undefined variable is PropertyNotFoundException, not a soft null.
         assert!(
-            err.to_string().contains("could not be evaluated") || err.to_string().contains("null"),
+            err.to_string().contains("Unknown property")
+                || err.to_string().contains("could not be evaluated")
+                || err.to_string().contains("null"),
             "unexpected error: {err}"
         );
     }

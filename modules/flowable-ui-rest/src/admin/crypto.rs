@@ -27,7 +27,16 @@ pub struct PasswordCipher {
 
 impl Default for PasswordCipher {
     fn default() -> Self {
-        Self::from_specs(DEFAULT_IV, DEFAULT_SECRET).expect("default AES specs are 16 bytes")
+        // E4 SC3 exemption: DEFAULT_IV / DEFAULT_SECRET are compile-time
+        // 16-byte constants; from_specs cannot fail for them. Public entry
+        // `from_specs`/`from_env` return Result (fail-closed).
+        #[allow(
+            clippy::expect_used,
+            reason = "E4: Default uses compile-time 16-byte constants; from_specs is infallible here"
+        )]
+        let cipher =
+            Self::from_specs(DEFAULT_IV, DEFAULT_SECRET).expect("default AES specs are 16 bytes");
+        cipher
     }
 }
 

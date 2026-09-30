@@ -31,8 +31,7 @@ const ASYNC_DELEGATE_PROCESS_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"
         <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="asyncDelegateTask" />
         <serviceTask id="asyncDelegateTask"
                      name="Async Delegate Task"
-                     flowable:class="asyncGreetingDelegate"
-                     flowable:resultVariableName="asyncResult">
+                     flowable:class="asyncGreetingDelegate">
             <extensionElements>
                 <flowable:field name="greeting" stringValue="hello-async" />
             </extensionElements>
@@ -309,12 +308,12 @@ fn async_service_task_waits_for_future_then_process_completes() {
     let vars = runtime_service
         .get_variables(process_instance.id.clone())
         .unwrap();
-    assert_eq!(
-        vars.get("asyncResult")
-            .and_then(|v| v.get("greeting"))
-            .and_then(|v| v.as_str()),
-        Some("hello-async"),
-        "WaitForFutureOperation should apply resultVariableName before taking outgoing flows"
+    // T4 / M1: class + resultVariableName is a deploy error (Java
+    // ServiceTaskValidator:97-103); the fixture no longer configures a result
+    // variable, and ClassDelegate must not invent one (S-SKIP).
+    assert!(
+        vars.get("asyncResult").is_none(),
+        "class/delegateExpression must not write resultVariableName (S-SKIP)"
     );
 
     let runtime_store = engine.get_runtime_store();

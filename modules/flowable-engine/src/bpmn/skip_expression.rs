@@ -1,4 +1,4 @@
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::error::FlowableError;
 use crate::runtime::execution::Execution;
 use serde_json::Value;
@@ -46,14 +46,21 @@ pub(crate) fn should_skip_flow_element(
         return Ok(false);
     }
 
-    match SimpleExpression::new(skip_expression.to_string()).get_value(execution) {
-        Some(Value::Bool(value)) => Ok(value),
-        Some(value) => Err(FlowableError::ExecutionError(format!(
+    // A.2 #6 / SkipExpressionUtil.java:42-48: the skip *expression* is group S —
+    // evaluation errors (undefined variable, unknown method, parse failure)
+    // propagate. Only the enable-flag *variable* is lenient (null = disabled).
+    match SimpleExpression::new(skip_expression.to_string()).get_value_strict(execution) {
+        Ok(Some(Value::Bool(value))) => Ok(value),
+        Ok(Some(value)) => Err(FlowableError::ExecutionError(format!(
             "{element_type} '{}' skipExpression must evaluate to a boolean, got {value}",
             activity_id.unwrap_or("<unknown>")
         ))),
-        None => Err(FlowableError::ExecutionError(format!(
+        Ok(None) => Err(FlowableError::ExecutionError(format!(
             "{element_type} '{}' skipExpression did not resolve to a boolean: {skip_expression}",
+            activity_id.unwrap_or("<unknown>")
+        ))),
+        Err(error) => Err(FlowableError::ExecutionError(format!(
+            "{element_type} '{}' skipExpression failed: {error}",
             activity_id.unwrap_or("<unknown>")
         ))),
     }

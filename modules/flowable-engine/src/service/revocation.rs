@@ -39,6 +39,12 @@ impl TokenRevocationRegistry {
     pub fn new_in_memory() -> Self {
         // In-memory backend creation is infallible in practice; fail fast with
         // context instead of a bare unwrap.
+        // E3 SC3 exemption: test-only constructor; Java 8 has no token
+        // revocation API. Not on the production route path.
+        #[allow(
+            clippy::expect_used,
+            reason = "E3: new_in_memory() is a test convenience; in-memory DbStore is infallible"
+        )]
         let db_store = std::sync::Arc::new(
             crate::persistence::db_store::DbStore::new_in_memory()
                 .expect("in-memory revocation store must initialize"),

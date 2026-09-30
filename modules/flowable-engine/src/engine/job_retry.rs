@@ -6,7 +6,7 @@
 // Do not add more without an audit note.
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::engine::time_source::parse_iso8601_duration;
 use crate::error::FlowableError;
 use crate::runtime::execution::Execution;
@@ -36,8 +36,16 @@ fn resolve_cycle_text(raw_value: &str, execution: &Execution) -> Result<String, 
     if !(trimmed.starts_with("${") && trimmed.ends_with('}')) {
         return Ok(trimmed.to_string());
     }
+    // A.2 #42 group S: retry-cycle expression evaluation/parse failures must
+    // fail the command (not resolve to a silent no-value).
     let value = SimpleExpression::new(trimmed.to_string())
-        .get_value(execution)
+        .get_value_strict(execution)
+        .map_err(|error| {
+            FlowableError::ExecutionError(format!(
+                "failedJobRetryTimeCycle expression '{trimmed}' failed for execution '{}': {error}",
+                execution.id
+            ))
+        })?
         .ok_or_else(|| {
             FlowableError::ExecutionError(format!(
                 "failedJobRetryTimeCycle expression '{trimmed}' resolved to no value for execution '{}'",

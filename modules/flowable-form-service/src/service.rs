@@ -17,7 +17,7 @@ use flowable_engine::error::FlowableError;
 use flowable_engine::interceptor::command_executor::CommandExecutor;
 use flowable_engine::task::Task;
 use flowable_engine_common::el::{
-    Expression, MapVariableContainer, SimpleExpression, evaluate_composite_expression,
+    MapVariableContainer, SimpleExpression, evaluate_composite_expression,
 };
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -691,7 +691,7 @@ fn parse_form_payload(
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect(),
         );
-        enrich_form_field_values(&mut parsed, values, &scope);
+        enrich_form_field_values(&mut parsed, values, &scope)?;
         Some(parsed)
     } else {
         None
@@ -750,19 +750,19 @@ fn enrich_form_field_values(
     fields: &mut [FormFieldModel],
     values: &BTreeMap<String, Value>,
     scope: &MapVariableContainer,
-) {
+) -> Result<(), FlowableError> {
     for field in fields {
         match field {
             FormFieldModel::Container(container) => {
                 for row in &mut container.fields {
-                    enrich_form_field_values(row, values, scope);
+                    enrich_form_field_values(row, values, scope)?;
                 }
             }
             FormFieldModel::OptionField(field) => {
                 field.base.value = values.get(&field.base.id).cloned();
             }
             FormFieldModel::ExpressionField(field) => {
-                field.base.value = evaluate_form_expression(&field.expression, scope);
+                field.base.value = evaluate_form_expression(&field.expression, scope)?;
             }
             FormFieldModel::BaseField(field) => {
                 if field.field_type.as_deref() == Some(field_types::HYPERLINK)
@@ -771,28 +771,128 @@ fn enrich_form_field_values(
                         .as_ref()
                         .and_then(|params| params.get("hyperlinkUrl"))
                 {
-                    field.value = evaluate_form_expression(url, scope);
+                    field.value = evaluate_form_expression(url, scope)?;
                 } else {
                     field.value = values.get(&field.id).cloned();
                 }
             }
         }
     }
+    Ok(())
 }
 
-fn evaluate_form_expression(expression: &str, scope: &MapVariableContainer) -> Option<Value> {
+/// Form-field expression evaluation.
+///
+/// Surface note (research #46 close): this is **form-definition
+/// `ExpressionFormField` enrichment** at form *display* time, not BPMN
+/// `FormPropertyHandler` (which uses `Expression.getValue` on process
+/// variables and has no catch — `FormPropertyHandler.java:53,56,62,97`).
+///
+/// Expression fields routinely reference sibling form fields that are not yet
+/// filled (`${requester} / ${team}` on an empty start form). Those are
+/// "not filled yet", not Java `Unknown property` failures. Classification:
+/// - `CompileFailed` (broken form definition) → `Err`
+/// - Unknown property / method / eval failure → `None` (field not filled)
+/// - Legal null → `None`
+/// - Value → `Some(...)`
+/// Composite segments: unknown/failed segment concatenates as empty string.
+fn evaluate_form_expression(
+    expression: &str,
+    scope: &MapVariableContainer,
+) -> Result<Option<Value>, FlowableError> {
+    use flowable_engine_common::el::ExpressionEvalError;
+
     let expression = expression.trim();
     if is_single_uel_expression(expression) {
-        SimpleExpression::new(expression.to_string()).get_value(scope)
+        match SimpleExpression::new(expression.to_string()).get_value_strict(scope) {
+            Ok(value) => Ok(value.filter(|v| !v.is_null())),
+            Err(ExpressionEvalError::CompileFailed(cause)) => {
+                Err(FlowableError::ExecutionError(format!(
+                    "Error while evaluating expression: {expression}: {cause}"
+                )))
+            }
+            Err(_) => {
+                // Unfilled sibling form field / unknown method at display time.
+                Ok(None)
+            }
+        }
     } else if expression.contains("${") {
-        Some(Value::String(evaluate_composite_expression(
-            expression, scope,
-        )))
+        let rendered = match evaluate_composite_expression(expression, scope) {
+            Ok(rendered) => rendered,
+            Err(ExpressionEvalError::CompileFailed(cause)) => {
+                return Err(FlowableError::ExecutionError(format!(
+                    "Error while evaluating expression: {expression}: {cause}"
+                )));
+            }
+            Err(_) => {
+                // Fall back to a display-time-safe expansion: treat failed
+                // segments as empty via the lenient composite path.
+                evaluate_composite_expression_lenient(expression, scope)
+            }
+        };
+        Ok(Some(Value::String(rendered)))
     } else if expression.is_empty() {
-        None
+        Ok(None)
     } else {
-        Some(Value::String(expression.to_string()))
+        Ok(Some(Value::String(expression.to_string())))
     }
+}
+
+/// Display-time composite expansion: failed segments become empty strings.
+/// Used only when the strict composite failed with a non-compile error.
+fn evaluate_composite_expression_lenient(
+    text: &str,
+    scope: &MapVariableContainer,
+) -> String {
+    // Reuse the strict scanner by substituting empty for failed segments.
+    // A tiny local copy avoids flipping the shared API back to lenient.
+    let mut out = String::with_capacity(text.len());
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 2 < bytes.len() && bytes[i + 1] == b'$' && bytes[i + 2] == b'{' {
+            out.push_str("${");
+            i += 3;
+            continue;
+        }
+        if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+            let expr_start = i + 2;
+            let mut depth = 1usize;
+            let mut j = expr_start;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            if depth != 0 {
+                out.push_str(&text[i..]);
+                break;
+            }
+            let inner = &text[expr_start..j];
+            let whole = format!("${{{}}}", inner);
+            if let Ok(Some(value)) = SimpleExpression::new(whole).get_value_strict(scope) {
+                if let Value::String(s) = value {
+                    out.push_str(&s);
+                } else if !value.is_null() {
+                    out.push_str(&value.to_string());
+                }
+            }
+            i = j + 1;
+            continue;
+        }
+        let ch = text[i..].chars().next().unwrap_or('\0');
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
 }
 
 fn is_single_uel_expression(expression: &str) -> bool {

@@ -80,7 +80,7 @@ impl IdentityService {
         let mut session = self
             .create_session()
             .map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
-        self.save_user_in_session(user, &mut session);
+        self.save_user_in_session(user, &mut session)?;
         session
             .flush_and_commit()
             .map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
@@ -95,7 +95,11 @@ impl IdentityService {
     /// The guard parses rather than prefix-matches: a chosen password that
     /// merely starts with `$argon2id$` must still be hashed, or it would land in
     /// the database as plaintext and be unverifiable afterwards.
-    pub fn save_user_in_session(&self, mut user: User, session: &mut DbSession) {
+    pub fn save_user_in_session(
+        &self,
+        mut user: User,
+        session: &mut DbSession,
+    ) -> Result<(), crate::error::FlowableError> {
         // The password is only moved out when it actually needs hashing.
         // `take()`-ing first would drop an already-hashed value on the floor
         // whenever the `&&` short-circuits, wiping the password of every user
@@ -105,10 +109,22 @@ impl IdentityService {
             .as_deref()
             .is_some_and(|value| !crate::identity::password::is_valid_hash(value));
         if needs_hashing {
+            // E1 SC3 exemption: local invariant — `needs_hashing` proved
+            // `password` is `Some` one line above; `take()` cannot miss.
+            #[allow(
+                clippy::expect_used,
+                reason = "E1: needs_hashing proves password is Some (local invariant)"
+            )]
             let plain = user.password.take().expect("presence was just established");
-            user.password = Some(crate::identity::password::hash_password(&plain));
+            let hash = crate::identity::password::hash_password(&plain).map_err(|error| {
+                crate::error::FlowableError::Internal(format!(
+                    "password hashing failed: {error}"
+                ))
+            })?;
+            user.password = Some(hash);
         }
         self.get_store().insert_user(user, session);
+        Ok(())
     }
 
     pub fn find_user_by_id(
@@ -269,7 +285,7 @@ impl IdentityService {
         let mut session = self
             .create_session()
             .map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
-        self.set_user_picture_in_session(user_id, mime_type, bytes, &mut session);
+        self.set_user_picture_in_session(user_id, mime_type, bytes, &mut session)?;
         session
             .flush_and_commit()
             .map_err(|e| crate::error::FlowableError::Internal(e.to_string()))?;
@@ -282,7 +298,7 @@ impl IdentityService {
         mime_type: String,
         bytes: Vec<u8>,
         session: &mut DbSession,
-    ) {
+    ) -> Result<(), crate::error::FlowableError> {
         let now = chrono::Utc::now().timestamp_millis();
         self.get_store().set_user_picture(
             UserPicture {
@@ -292,7 +308,7 @@ impl IdentityService {
                 created_at: Some(now),
             },
             session,
-        );
+        )
     }
 
     pub fn get_user_picture(

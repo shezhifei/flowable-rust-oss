@@ -2609,7 +2609,9 @@ fn import_directory_bundle(
     let imported_membership_count = bundle.memberships.len();
 
     for user in bundle.users {
-        identity_service.save_user_in_session(user, &mut session);
+        identity_service
+            .save_user_in_session(user, &mut session)
+            .map_err(|e| PlatformBootstrapError::new(e.to_string()))?;
     }
     for group in bundle.groups {
         identity_service.save_group_in_session(group, &mut session);

@@ -182,10 +182,11 @@ pub(crate) fn resolve_boundary_event_subscription(
 
 /// Runtime correlation configuration for a boundary event.
 /// Java `BoundaryEventRegistryEventActivityBehavior.java:68`.
+/// A.2 #4 group S: evaluation errors propagate (CorrelationUtil getValue).
 pub(crate) fn resolve_boundary_configuration(
     boundary_event: &BoundaryEvent,
     variable_scope: Option<&dyn VariableContainer>,
-) -> Option<String> {
+) -> Result<Option<String>, crate::error::FlowableError> {
     correlation_key_from_base_element(
         &boundary_event.event.flow_node.flow_element.base_element,
         variable_scope,

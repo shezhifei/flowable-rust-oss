@@ -2183,17 +2183,19 @@ mod tests {
         let engine = Arc::new(ProcessEngine::new("idm-privilege-test".to_string()).unwrap());
         let identity = engine.get_identity_service();
         let mut session = engine.get_runtime_store().create_session().unwrap();
-        identity.save_user_in_session(
-            User {
-                id: "u1".to_string(),
-                first_name: None,
-                last_name: None,
-                email: None,
-                password: None,
-                tenant_id: None,
-            },
-            &mut session,
-        );
+        identity
+            .save_user_in_session(
+                User {
+                    id: "u1".to_string(),
+                    first_name: None,
+                    last_name: None,
+                    email: None,
+                    password: None,
+                    tenant_id: None,
+                },
+                &mut session,
+            )
+            .unwrap();
         identity.save_group_in_session(
             Group {
                 id: "g1".to_string(),

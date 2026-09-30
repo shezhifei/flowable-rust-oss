@@ -4,8 +4,8 @@ use crate::agenda::future_operations::{
     plan_wait_for_future, resolve_pending_future_registry,
 };
 use crate::bpmn::fault::{
-    EngineFault, clear_boundaries_for_execution, propagate_bpmn_error,
-    register_error_boundaries_for_execution, uncaught_bpmn_error,
+    EngineFault, clear_boundaries_for_execution, handle_exception_with_map_exceptions,
+    propagate_bpmn_error, register_error_boundaries_for_execution, uncaught_bpmn_error,
 };
 use crate::bpmn::http_handler::{
     HTTP_HANDLER_REGISTRY_CACHE_KEY, HttpHandlerRegistry, HttpRequestHandler,
@@ -16,7 +16,7 @@ use crate::bpmn::http_task::{
     RustHttpProjection, parse_status_codes, project_java_request_variables,
 };
 use crate::delegate::activity_behavior::{ActivityBehavior, TriggerableActivityBehavior};
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::persistence::runtime_store::{
@@ -163,6 +163,27 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
         command_context: &mut CommandContext,
     ) -> Result<(), FlowableError> {
         let service_task = self.resolve_service_task(execution, command_context)?;
+        match self.execute_service_task_body(&service_task, execution, command_context) {
+            Ok(()) => Ok(()),
+            // Java ServiceTaskExpressionActivityBehavior.handleException:113-115 →
+            // ErrorPropagation.handleException(..., mapExceptions).
+            Err(error) => handle_exception_with_map_exceptions(
+                error,
+                execution,
+                &service_task.task.activity.map_exceptions,
+                command_context,
+            ),
+        }
+    }
+}
+
+impl ServiceTaskActivityBehavior {
+    fn execute_service_task_body(
+        &self,
+        service_task: &ServiceTask,
+        execution: &mut Execution,
+        command_context: &mut CommandContext,
+    ) -> Result<(), FlowableError> {
         let evaluation_execution =
             crate::engine::variable_service::evaluation_execution(command_context, execution);
         if crate::bpmn::skip_expression::should_skip_flow_element(
@@ -185,28 +206,28 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
             .map(str::to_lowercase)
             .unwrap_or_default();
 
-        apply_service_task_in_parameters(&service_task, execution)?;
+        apply_service_task_in_parameters(service_task, execution)?;
 
         match task_type.as_str() {
             "http" => {
                 register_error_boundaries_for_execution(execution, command_context)?;
-                let spec = build_http_task_spec(&service_task, execution, command_context)?;
+                let spec = build_http_task_spec(service_task, execution, command_context)?;
                 if command_context.is_automatic_job_execution()
                     || spec.execution_mode(command_context.http_runtime.mode())
                         == HttpExecutionMode::ParallelInSameTransaction
                 {
                     execute_async_http_service_task(
-                        &service_task,
+                        service_task,
                         spec,
                         execution,
                         command_context,
                     )?;
                     return Ok(());
                 }
-                match execute_http_service_task(&service_task, spec, execution, command_context)? {
+                match execute_http_service_task(service_task, spec, execution, command_context)? {
                     HttpServiceTaskExecution::Completed(result) => {
                         apply_service_task_result_and_out_parameters(
-                            &service_task,
+                            service_task,
                             execution,
                             Some(result),
                         )?;
@@ -223,12 +244,12 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
                          shell_tasks_enabled = true to enable shell tasks \
                          (security deviation from Java; Java ShellActivityBehavior is \
                          enabled by default).",
-                        activity_id(&service_task)
+                        activity_id(service_task)
                     )));
                 }
-                let result = execute_shell_service_task(&service_task, execution, command_context)?;
+                let result = execute_shell_service_task(service_task, execution, command_context)?;
                 apply_service_task_result_and_out_parameters(
-                    &service_task,
+                    service_task,
                     execution,
                     Some(result),
                 )?;
@@ -243,18 +264,18 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
             // payload (and outParameters) rather than writing a Rust-only super-set
             // variable; outbox (MailOutboxRecord) already holds the sent content.
             "mail" => {
-                let _ = execute_mail_service_task(&service_task, execution, command_context)?;
+                let _ = execute_mail_service_task(service_task, execution, command_context)?;
             }
             // Java DmnActivityBehavior.java:58-195 — serviceTask flowable:type="dmn"
             "dmn" => {
-                execute_dmn_service_task(&service_task, execution, command_context)?;
+                execute_dmn_service_task(service_task, execution, command_context)?;
             }
             "send-event" => {
                 if let Some(result) =
-                    execute_send_event_service_task(&service_task, execution, command_context)?
+                    execute_send_event_service_task(service_task, execution, command_context)?
                 {
                     apply_service_task_result_and_out_parameters(
-                        &service_task,
+                        service_task,
                         execution,
                         Some(result),
                     )?;
@@ -270,16 +291,16 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
             // create path in external_worker_service::create_external_worker_service_task_job.
             "external-worker" => {
                 crate::engine::external_worker_service::create_external_worker_service_task_job(
-                    &service_task,
+                    service_task,
                     execution,
                     command_context,
                 )?;
                 return Ok(());
             }
             _ => {
-                if is_local_delegate_service_task(&service_task) {
+                if is_local_delegate_service_task(service_task) {
                     if try_execute_async_local_delegate_service_task(
-                        &service_task,
+                        service_task,
                         execution,
                         command_context,
                         &evaluation_execution,
@@ -288,25 +309,62 @@ impl ActivityBehavior for ServiceTaskActivityBehavior {
                         return Ok(());
                     }
                     let result = execute_local_delegate_service_task(
-                        &service_task,
+                        service_task,
                         execution,
                         command_context,
                         &evaluation_execution,
                     )?;
-                    apply_service_task_result_and_out_parameters(
-                        &service_task,
+                    // ANCHOR :317 — class/delegateExpression WRITE POINT
+                    // (was mis-anchored as ":330" in earlier research).
+                    // T4 / M1: class & delegateExpression do NOT consume
+                    // resultVariableName (Java ClassDelegate execute is void;
+                    // Factory :202-215 never passes the name). Java
+                    // ServiceTaskValidator:97-103 rejects the combination at
+                    // deploy; runtime is S-SKIP as defense-in-depth.
+                    apply_service_task_result_and_out_parameters_with_mode(
+                        service_task,
                         execution,
                         Some(result),
+                        ResultWriteMode::Skip,
                     )?;
                     // Java: if (triggerable) do not leave — wait for external trigger.
                     if service_task.triggerable {
+                        // ANCHOR :330 — triggerable persistence update
+                        // (NOT the class/delegate result write).
                         command_context
                             .execution_entity_manager
                             .update(execution, &mut command_context.session)?;
                         return Ok(());
                     }
+                } else if service_task.implementation_type.as_deref() == Some("expression") {
+                    // P1-1 R2: ServiceTaskExpressionActivityBehavior:93-99 —
+                    // evaluate and write result including null (S-WRITE-NULL).
+                    let expression_text = service_task.implementation.as_deref().unwrap_or("");
+                    let value =
+                        SimpleExpression::new(expression_text.to_string()).get_value_strict(execution)
+                            .map_err(|error| {
+                                FlowableError::ExecutionError(format!(
+                                    "Service task '{}' expression '{}' failed: {}",
+                                    activity_id(service_task),
+                                    expression_text,
+                                    error
+                                ))
+                            })?;
+                    apply_service_task_result_and_out_parameters_with_mode(
+                        service_task,
+                        execution,
+                        value,
+                        ResultWriteMode::WriteIncludingNull,
+                    )?;
                 } else {
-                    apply_service_task_result_and_out_parameters(&service_task, execution, None)?;
+                    // ANCHOR :355-361 — empty / other implementation: S-SKIP
+                    // (no resultVariable consumer).
+                    apply_service_task_result_and_out_parameters_with_mode(
+                        service_task,
+                        execution,
+                        None,
+                        ResultWriteMode::Skip,
+                    )?;
                 }
             }
         }
@@ -593,8 +651,14 @@ fn resolve_local_delegate_name(
     }
 
     // delegateExpression: evaluate `${name}` to a string registry key.
+    // A.2 #17-28 group S / R1c: evaluation errors propagate (no silent null).
     let resolved = SimpleExpression::new(implementation.to_string())
-        .get_value(execution)
+        .get_value_strict(execution)
+        .map_err(|error| {
+            FlowableError::ExecutionError(format!(
+                "Delegate expression service task '{activity_id}' delegateExpression '{implementation}' failed: {error}"
+            ))
+        })?
         .ok_or_else(|| {
             FlowableError::ExecutionError(format!(
                 "Delegate expression service task '{}' could not resolve delegateExpression '{}'",
@@ -649,16 +713,27 @@ fn field_extension_value(
         .filter(|value| !value.is_empty());
     match (string_value, expression) {
         (Some(value), None) => Ok(Value::String(value.to_string())),
-        (None, Some(expression)) => SimpleExpression::new(expression.to_string())
-            .get_value(execution)
-            .ok_or_else(|| {
-                FlowableError::ExecutionError(format!(
-                    "Delegate expression service task '{}' could not resolve field '{}' expression '{}'",
-                    activity_id(service_task),
-                    field.field_name.as_deref().unwrap_or_default(),
-                    expression
-                ))
-            }),
+        (None, Some(expression)) => {
+            // A.2 #17-28 group S / R1c: field expression evaluation errors propagate.
+            SimpleExpression::new(expression.to_string())
+                .get_value_strict(execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Delegate expression service task '{}' field '{}' expression '{}' failed: {error}",
+                        activity_id(service_task),
+                        field.field_name.as_deref().unwrap_or_default(),
+                        expression
+                    ))
+                })?
+                .ok_or_else(|| {
+                    FlowableError::ExecutionError(format!(
+                        "Delegate expression service task '{}' could not resolve field '{}' expression '{}'",
+                        activity_id(service_task),
+                        field.field_name.as_deref().unwrap_or_default(),
+                        expression
+                    ))
+                })
+        }
         _ => Err(FlowableError::ExecutionError(format!(
             "Delegate expression service task '{}' field '{}' must define exactly one of stringValue or expression",
             activity_id(service_task),
@@ -733,8 +808,16 @@ fn execute_send_event_service_task(
             })?;
 
         let value = if let Some(source_expression) = parameter.source_expression.as_deref() {
+            // A.2 #17-28 group S / R1c: evaluation errors propagate.
             SimpleExpression::new(source_expression.to_string())
-                .get_value(execution)
+                .get_value_strict(execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Send event service task '{}' sourceExpression '{}' failed: {error}",
+                        activity_id(service_task),
+                        source_expression
+                    ))
+                })?
                 .ok_or_else(|| {
                     FlowableError::ExecutionError(format!(
                         "Send event service task '{}' could not resolve sourceExpression '{}'",
@@ -874,7 +957,7 @@ fn execute_send_event_service_task(
                 .flow_element
                 .base_element,
             Some(execution),
-        );
+        )?;
         store.insert_event_wait_state(
             &RuntimeEventWaitState {
                 wait_kind: RuntimeEventWaitKind::SendEventTask,
@@ -1270,8 +1353,15 @@ fn http_handler_definition(
         })?;
         let implementation = if implementation_type.eq_ignore_ascii_case("delegateExpression") {
             let expression = handler.implementation.as_deref().unwrap_or_default();
+            // A.2 #17-28 group S / R1c: evaluation errors propagate.
             SimpleExpression::new(expression.to_string())
-                .get_value(execution)
+                .get_value_strict(execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "HTTP {} handler delegateExpression '{}' failed: {error}",
+                        element_name, expression
+                    ))
+                })?
                 .and_then(|value| value.as_str().map(str::to_string))
                 .ok_or_else(|| {
                     FlowableError::ExecutionError(format!(
@@ -1299,8 +1389,15 @@ fn http_handler_definition(
     let (implementation_type, implementation) = if let Some(value) = attribute("class") {
         ("class".to_string(), value)
     } else if let Some(value) = attribute("delegateExpression") {
+        // A.2 #17-28 group S / R1c: evaluation errors propagate.
         let resolved = SimpleExpression::new(value.clone())
-            .get_value(execution)
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "HTTP {} handler delegateExpression '{}' failed: {error}",
+                    element_name, value
+                ))
+            })?
             .and_then(|value| value.as_str().map(str::to_string))
             .ok_or_else(|| {
                 FlowableError::ExecutionError(format!(
@@ -1339,14 +1436,23 @@ fn resolve_typed_http_handler_fields(
             })?;
         let value = match (field.string_value.as_deref(), field.expression.as_deref()) {
             (Some(value), None) => Value::String(value.trim().to_string()),
-            (None, Some(expression)) => SimpleExpression::new(expression.trim().to_string())
-                .get_value(execution)
-                .ok_or_else(|| {
-                    FlowableError::ExecutionError(format!(
-                        "HTTP handler field '{}' expression '{}' could not be resolved",
-                        name, expression
-                    ))
-                })?,
+            (None, Some(expression)) => {
+                // A.2 #17-28 group S / R1c: evaluation errors propagate.
+                SimpleExpression::new(expression.trim().to_string())
+                    .get_value_strict(execution)
+                    .map_err(|error| {
+                        FlowableError::ExecutionError(format!(
+                            "HTTP handler field '{}' expression '{}' failed: {error}",
+                            name, expression
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        FlowableError::ExecutionError(format!(
+                            "HTTP handler field '{}' expression '{}' could not be resolved",
+                            name, expression
+                        ))
+                    })?
+            }
             _ => {
                 return Err(FlowableError::ExecutionError(format!(
                     "HTTP handler field '{}' must define exactly one of stringValue or expression",
@@ -1482,8 +1588,15 @@ fn resolve_http_handler_fields(
             .or_else(|| field.element_text.clone())
             .unwrap_or_default();
         let value = if raw.trim().starts_with("${") && raw.trim().ends_with('}') {
+            // A.2 #17-28 group S / R1c: evaluation errors propagate.
             SimpleExpression::new(raw.trim().to_string())
-                .get_value(execution)
+                .get_value_strict(execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "HTTP handler field '{}' expression '{}' failed: {error}",
+                        name, raw
+                    ))
+                })?
                 .ok_or_else(|| {
                     FlowableError::ExecutionError(format!(
                         "HTTP handler field '{}' expression '{}' could not be resolved",
@@ -1519,7 +1632,7 @@ fn build_http_task_spec(
     let url = required_http_extension_text(service_task, "requestUrl", "HTTP", execution)?;
     let headers =
         parse_http_string_map_extension(service_task, "requestHeaders", "HTTP", execution)?;
-    let request_body = resolve_http_extension_value(service_task, "requestBody", execution)
+    let request_body = resolve_http_extension_value(service_task, "requestBody", execution)?
         .map(|value| match value {
             Value::String(raw) => parse_json_or_string(&raw),
             value => value,
@@ -1875,9 +1988,9 @@ pub(crate) fn execute_dmn_service_task(
     let evaluation_execution =
         crate::engine::variable_service::evaluation_execution(command_context, execution);
     let decision_key_value =
-        evaluate_dmn_expression_or_literal(&active_decision_key, &evaluation_execution);
-    let final_decision_key = match decision_key_value {
-        Some(Value::String(s)) if !s.is_empty() => s,
+        evaluate_dmn_expression_or_literal(&active_decision_key, &evaluation_execution)?;
+    let final_decision_key = match &decision_key_value {
+        Some(Value::String(s)) if !s.is_empty() => s.clone(),
         Some(Value::String(_)) | None => {
             return Err(FlowableError::ExecutionError(format!(
                 "decisionTableReferenceKey expression resolves to an empty value: {}",
@@ -1887,7 +2000,7 @@ pub(crate) fn execute_dmn_service_task(
         Some(other) => {
             return Err(FlowableError::ExecutionError(format!(
                 "decisionTableReferenceKey expression does not resolve to a string: {}",
-                value_debug_label(Some(&other))
+                value_debug_label(Some(other))
             )));
         }
     };
@@ -2043,8 +2156,9 @@ fn maybe_throw_on_no_hits(
     } else if throw_error_string.eq_ignore_ascii_case("false") {
         false
     } else {
-        // Java :132-138 — evaluate as expression; Boolean true → throw
-        match evaluate_dmn_expression_or_literal(throw_error_string, evaluation_execution) {
+        // Java :132-138 — evaluate as expression; Boolean true → throw.
+        // Evaluation errors propagate (group S / R1c).
+        match evaluate_dmn_expression_or_literal(throw_error_string, evaluation_execution)? {
             Some(Value::Bool(true)) => true,
             _ => false,
         }
@@ -2084,14 +2198,26 @@ fn find_dmn_field<'a>(service_task: &'a ServiceTask, name: &str) -> Option<&'a F
 
 /// Evaluate EL when text is `${...}` / `#{...}`; otherwise treat as literal string.
 /// Mirrors Java ExpressionManager treating plain text as a string literal expression.
-fn evaluate_dmn_expression_or_literal(text: &str, execution: &Execution) -> Option<Value> {
+///
+/// A.2 #17-28 group S / R1c: evaluation errors propagate (Java `getValue` has
+/// no catch on the service-task expression path).
+fn evaluate_dmn_expression_or_literal(
+    text: &str,
+    execution: &Execution,
+) -> Result<Option<Value>, crate::error::FlowableError> {
     let trimmed = text.trim();
     if (trimmed.starts_with("${") && trimmed.ends_with('}'))
         || (trimmed.starts_with("#{") && trimmed.ends_with('}'))
     {
-        SimpleExpression::new(trimmed.to_string()).get_value(execution)
+        SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                crate::error::FlowableError::ExecutionError(format!(
+                    "service task expression '{trimmed}' failed: {error}"
+                ))
+            })
     } else {
-        Some(Value::String(trimmed.to_string()))
+        Ok(Some(Value::String(trimmed.to_string())))
     }
 }
 
@@ -2124,11 +2250,11 @@ pub(crate) fn execute_mail_service_task(
         ));
     }
 
-    let ignore_exception = optional_mail_extension_text(service_task, "ignoreException", execution)
+    let ignore_exception = optional_mail_extension_text(service_task, "ignoreException", execution)?
         .map(|v| v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     let exception_variable_name =
-        optional_mail_extension_text(service_task, "exceptionVariableName", execution);
+        optional_mail_extension_text(service_task, "exceptionVariableName", execution)?;
 
     match build_and_send_mail(service_task, execution, command_context) {
         Ok(result) => Ok(result),
@@ -2149,13 +2275,13 @@ fn build_and_send_mail(
 ) -> Result<Value, FlowableError> {
     // Java BaseMailActivityDelegate: all fields are Expressions; evaluate ${...} against execution.
     // `to` may be empty when cc/bcc supply recipients (Java parseRecipients).
-    let to = optional_mail_extension_text(service_task, "to", execution).unwrap_or_default();
+    let to = optional_mail_extension_text(service_task, "to", execution)?.unwrap_or_default();
     let to_recipients = split_recipients(&to);
-    let cc = optional_mail_extension_text(service_task, "cc", execution).unwrap_or_default();
+    let cc = optional_mail_extension_text(service_task, "cc", execution)?.unwrap_or_default();
     let cc_recipients = split_recipients(&cc);
-    let bcc = optional_mail_extension_text(service_task, "bcc", execution).unwrap_or_default();
+    let bcc = optional_mail_extension_text(service_task, "bcc", execution)?.unwrap_or_default();
     let bcc_recipients = split_recipients(&bcc);
-    let from = optional_mail_extension_text(service_task, "from", execution)
+    let from = optional_mail_extension_text(service_task, "from", execution)?
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| command_context.config.mail_service.default_from.clone());
     let subject = required_mail_extension_text(service_task, "subject", execution)?;
@@ -2177,11 +2303,11 @@ fn build_and_send_mail(
     }
     let text = text.unwrap_or_default();
 
-    let charset = optional_mail_extension_text(service_task, "charset", execution);
+    let charset = optional_mail_extension_text(service_task, "charset", execution)?;
 
     // Java BaseMailActivityDelegate.addHeader:134-147 — newline-separated "Name: value".
     let headers = parse_mail_headers(
-        optional_mail_extension_text(service_task, "headers", execution).as_deref(),
+        optional_mail_extension_text(service_task, "headers", execution)?.as_deref(),
     )?;
 
     // Java BaseMailActivityDelegate.addAttachments:149-167 — expression → collection/value.
@@ -2340,13 +2466,13 @@ fn resolve_mail_body_field(
             }
             other => value_to_plain_string(&other),
         };
-        return Ok(Some(evaluate_mail_body_template(&template, execution)));
+        return Ok(Some(evaluate_mail_body_template(&template, execution)?));
     }
     // Literal text/html fields are also JUEL expressions in Java
     // (BaseMailActivityDelegate.java:100-105 getStringFromField(text/html)).
     // Use the same composite evaluator so mixed templates expand.
     if let Some(raw) = raw_mail_extension_text(service_task, literal_field) {
-        let expanded = evaluate_mail_body_template(&raw, execution);
+        let expanded = evaluate_mail_body_template(&raw, execution)?;
         let trimmed = expanded.trim();
         if trimmed.is_empty() {
             return Ok(None);
@@ -2361,11 +2487,19 @@ fn resolve_mail_body_field(
 /// P134: JUEL composite semantics (`ExpressionManager.createExpression`) —
 /// mixed text like `"Hello ${gender}!"` is expanded segment-by-segment.
 /// Applies to textVar/htmlVar templates and literal text/html fields
-/// (Java `BaseMailActivityDelegate.java:94-105`). Pure `${…}` and pure
-/// literals behave as before (empty on failed pure expression).
-fn evaluate_mail_body_template(template: &str, execution: &Execution) -> String {
+/// (Java `BaseMailActivityDelegate.java:94-105`). Segment evaluation errors
+/// propagate (Java `getValue` throws); legal-null segments concatenate as "".
+fn evaluate_mail_body_template(
+    template: &str,
+    execution: &Execution,
+) -> Result<String, FlowableError> {
     use flowable_engine_common::el::evaluate_composite_expression;
-    evaluate_composite_expression(template, execution)
+    evaluate_composite_expression(template, execution).map_err(|error| {
+        FlowableError::ExecutionError(format!(
+            "Mail body template evaluation failed: {}",
+            error.to_java_message(template)
+        ))
+    })
 }
 
 fn value_to_plain_string(value: &Value) -> String {
@@ -2421,7 +2555,7 @@ fn resolve_mail_attachments(
     service_task: &ServiceTask,
     execution: &Execution,
 ) -> Result<Vec<MailAttachment>, FlowableError> {
-    let Some(value) = resolve_http_extension_value(service_task, "attachments", execution) else {
+    let Some(value) = resolve_http_extension_value(service_task, "attachments", execution)? else {
         return Ok(Vec::new());
     };
     if value.is_null() {
@@ -2561,7 +2695,7 @@ fn required_mail_extension_text(
     name: &str,
     execution: &Execution,
 ) -> Result<String, FlowableError> {
-    optional_mail_extension_text(service_task, name, execution).ok_or_else(|| {
+    optional_mail_extension_text(service_task, name, execution)?.ok_or_else(|| {
         FlowableError::ExecutionError(format!(
             "Mail service task is missing required extension '{}'",
             name
@@ -2573,8 +2707,8 @@ fn optional_mail_extension_text(
     service_task: &ServiceTask,
     name: &str,
     execution: &Execution,
-) -> Option<String> {
-    resolve_http_extension_value(service_task, name, execution).and_then(|value| match value {
+) -> Result<Option<String>, FlowableError> {
+    Ok(resolve_http_extension_value(service_task, name, execution)?.and_then(|value| match value {
         Value::String(value) => {
             let trimmed = value.trim();
             if trimmed.is_empty() {
@@ -2586,7 +2720,7 @@ fn optional_mail_extension_text(
         Value::Number(value) => Some(value.to_string()),
         Value::Bool(value) => Some(value.to_string()),
         _ => None,
-    })
+    }))
 }
 
 fn apply_service_task_in_parameters(
@@ -2595,7 +2729,7 @@ fn apply_service_task_in_parameters(
 ) -> Result<(), FlowableError> {
     for parameter in &service_task.in_parameters {
         let target = parameter_target(service_task, parameter, "inParameter")?;
-        let value = parameter_value(parameter, execution, None);
+        let value = parameter_value(parameter, execution, None)?;
         execution.set_local_variable(target.to_string(), value);
     }
     Ok(())
@@ -2606,21 +2740,81 @@ fn apply_service_task_result_and_out_parameters(
     execution: &mut Execution,
     result: Option<Value>,
 ) -> Result<(), FlowableError> {
-    if let (Some(result_variable_name), Some(result)) =
-        (service_task.result_variable_name.as_ref(), result.as_ref())
-    {
-        if service_task.store_result_variable_as_transient {
-            execution.set_transient_variable(result_variable_name.clone(), result.clone());
-        } else if service_task.use_local_scope_for_result_variable {
-            execution.set_local_variable(result_variable_name.clone(), result.clone());
-        } else {
-            execution.set_process_variable(result_variable_name.clone(), result.clone());
-        }
+    apply_service_task_result_and_out_parameters_with_mode(
+        service_task,
+        execution,
+        result,
+        ResultWriteMode::WriteIncludingNull,
+    )
+}
+
+/// P1-1 three-state result-variable write.
+///
+/// | state | trigger | Java |
+/// |---|---|---|
+/// | **S-WRITE-VAL** | name set + `Some(v)` | `setVariable(result, v)` |
+/// | **S-WRITE-NULL** | name set + `None` | `setVariable(result, null)` (overwrite) |
+/// | **S-SKIP** | no name, or `Skip` | variable is not created/modified |
+///
+/// Java `ServiceTaskExpressionActivityBehavior:117-132` and
+/// `ScriptTaskActivityBehavior:150-151` write whenever the name is set —
+/// including null. Class/delegateExpression do **not** consume
+/// `resultVariableName` (`ClassDelegate` / Factory `:202-215`) and Java
+/// deployment rejects the combination (`ServiceTaskValidator:97-103`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResultWriteMode {
+    /// Expression / script / HTTP / shell / send-event return-value paths.
+    WriteIncludingNull,
+    /// class / delegateExpression / mail / empty implementation — S-SKIP.
+    Skip,
+}
+
+pub(crate) fn write_result_variable(
+    execution: &mut Execution,
+    result_variable_name: Option<&str>,
+    result: Option<Value>,
+    mode: ResultWriteMode,
+    store_transient: bool,
+    use_local_scope: bool,
+) {
+    let Some(result_variable_name) = result_variable_name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    else {
+        return;
+    };
+    if mode == ResultWriteMode::Skip {
+        return;
     }
+    // S-WRITE-NULL: absent result is written as Null (Java setVariable(name, null)).
+    let value = result.unwrap_or(Value::Null);
+    if store_transient {
+        execution.set_transient_variable(result_variable_name.to_string(), value);
+    } else if use_local_scope {
+        execution.set_local_variable(result_variable_name.to_string(), value);
+    } else {
+        execution.set_process_variable(result_variable_name.to_string(), value);
+    }
+}
+
+fn apply_service_task_result_and_out_parameters_with_mode(
+    service_task: &ServiceTask,
+    execution: &mut Execution,
+    result: Option<Value>,
+    mode: ResultWriteMode,
+) -> Result<(), FlowableError> {
+    write_result_variable(
+        execution,
+        service_task.result_variable_name.as_deref(),
+        result.clone(),
+        mode,
+        service_task.store_result_variable_as_transient,
+        service_task.use_local_scope_for_result_variable,
+    );
 
     for parameter in &service_task.out_parameters {
         let target = parameter_target(service_task, parameter, "outParameter")?;
-        let value = parameter_value(parameter, execution, result.as_ref());
+        let value = parameter_value(parameter, execution, result.as_ref())?;
         execution.set_process_variable(target.to_string(), value);
     }
 
@@ -2651,32 +2845,41 @@ fn parameter_value(
     parameter: &IOParameter,
     execution: &Execution,
     result: Option<&Value>,
-) -> Value {
+) -> Result<Value, FlowableError> {
     if let Some(source_expression) = parameter.source_expression.as_deref() {
         return expression_value_from_context(source_expression, execution, result);
     }
 
     if let Some(source) = parameter.source.as_deref() {
-        return source_value_from_context(source, execution, result);
+        return Ok(source_value_from_context(source, execution, result));
     }
 
-    Value::Null
+    Ok(Value::Null)
 }
 
 fn expression_value_from_context(
     source_expression: &str,
     execution: &Execution,
     result: Option<&Value>,
-) -> Value {
-    if let Some(value) = SimpleExpression::new(source_expression.to_string()).get_value(execution) {
-        return value;
+) -> Result<Value, FlowableError> {
+    // A.2 #17-28 group S / R1c (IOParameterUtil.java:74): evaluation errors
+    // propagate — never disguised as Null.
+    let evaluated = SimpleExpression::new(source_expression.to_string())
+        .get_value_strict(execution)
+        .map_err(|error| {
+            FlowableError::ExecutionError(format!(
+                "Service task sourceExpression '{source_expression}' failed: {error}"
+            ))
+        })?;
+    if let Some(value) = evaluated {
+        return Ok(value);
     }
 
     if let Some(property_name) = expression_property_name(source_expression) {
-        return source_value_from_context(property_name, execution, result);
+        return Ok(source_value_from_context(property_name, execution, result));
     }
 
-    Value::Null
+    Ok(Value::Null)
 }
 
 fn source_value_from_context(source: &str, execution: &Execution, result: Option<&Value>) -> Value {
@@ -2780,7 +2983,7 @@ fn required_http_extension_text(
     label: &str,
     execution: &Execution,
 ) -> Result<String, FlowableError> {
-    resolve_http_extension_value(service_task, name, execution)
+    resolve_http_extension_value(service_task, name, execution)?
         .and_then(|value| match value {
             Value::String(value) if !value.trim().is_empty() => Some(value.trim().to_string()),
             Value::Number(value) => Some(value.to_string()),
@@ -2799,7 +3002,7 @@ fn resolve_http_extension_value(
     service_task: &ServiceTask,
     name: &str,
     execution: &Execution,
-) -> Option<Value> {
+) -> Result<Option<Value>, FlowableError> {
     if let Some(field) = service_task
         .task
         .activity
@@ -2808,15 +3011,28 @@ fn resolve_http_extension_value(
         .find(|field| field.field_name.as_deref() == Some(name))
     {
         if let Some(expression) = field.expression.as_deref() {
-            return SimpleExpression::new(expression.trim().to_string()).get_value(execution);
+            // A.2 #17-28 group S / R1c: evaluation errors propagate.
+            return SimpleExpression::new(expression.trim().to_string())
+                .get_value_strict(execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Service task extension '{name}' expression '{expression}' failed: {error}"
+                    ))
+                });
         }
         if let Some(raw) = field.string_value.as_deref().map(str::trim) {
             if raw.starts_with("${") && raw.ends_with('}') {
-                return SimpleExpression::new(raw.to_string()).get_value(execution);
+                return SimpleExpression::new(raw.to_string())
+                    .get_value_strict(execution)
+                    .map_err(|error| {
+                        FlowableError::ExecutionError(format!(
+                            "Service task extension '{name}' expression '{raw}' failed: {error}"
+                        ))
+                    });
             }
-            return Some(Value::String(raw.to_string()));
+            return Ok(Some(Value::String(raw.to_string())));
         }
-        return None;
+        return Ok(None);
     }
 
     if let Some(raw) = extension_elements(service_task, name)
@@ -2825,11 +3041,17 @@ fn resolve_http_extension_value(
     {
         let raw = raw.trim();
         if raw.starts_with("${") && raw.ends_with('}') {
-            return SimpleExpression::new(raw.to_string()).get_value(execution);
+            return SimpleExpression::new(raw.to_string())
+                .get_value_strict(execution)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Service task extension '{name}' expression '{raw}' failed: {error}"
+                    ))
+                });
         }
-        return Some(Value::String(raw.to_string()));
+        return Ok(Some(Value::String(raw.to_string())));
     }
-    None
+    Ok(None)
 }
 
 fn parse_http_string_map_extension(
@@ -2838,7 +3060,7 @@ fn parse_http_string_map_extension(
     label: &str,
     execution: &Execution,
 ) -> Result<Map<String, Value>, FlowableError> {
-    let Some(value) = resolve_http_extension_value(service_task, name, execution) else {
+    let Some(value) = resolve_http_extension_value(service_task, name, execution)? else {
         return Ok(Map::new());
     };
     let parsed = match value {

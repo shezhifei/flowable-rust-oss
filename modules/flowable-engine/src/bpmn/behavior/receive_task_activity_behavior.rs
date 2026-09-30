@@ -75,28 +75,38 @@ fn resolve_message_ref_for_receive_task(
 fn resolve_receive_task_configuration(
     command_context: &CommandContext,
     execution: &Execution,
-) -> Option<String> {
-    let process_definition_id = execution.process_definition_id.as_deref()?;
-    let activity_id = execution.activity_id.as_deref()?;
-    let model = command_context
+) -> Result<Option<String>, crate::error::FlowableError> {
+    let Some(process_definition_id) = execution.process_definition_id.as_deref() else {
+        return Ok(None);
+    };
+    let Some(activity_id) = execution.activity_id.as_deref() else {
+        return Ok(None);
+    };
+    let Some(model) = command_context
         .deployment_manager
-        .get_bpmn_model(process_definition_id)?;
-    model
+        .get_bpmn_model(process_definition_id)
+    else {
+        return Ok(None);
+    };
+    let Some(flow_element) = model
         .main_process
         .as_ref()
         .and_then(|process| process.flow_element_map.get(activity_id))
-        .and_then(|flow_element| match flow_element {
-            FlowElementEnum::ReceiveTask(receive_task) => correlation_key_from_base_element(
-                &receive_task
-                    .task
-                    .activity
-                    .flow_node
-                    .flow_element
-                    .base_element,
-                Some(execution),
-            ),
-            _ => None,
-        })
+    else {
+        return Ok(None);
+    };
+    match flow_element {
+        FlowElementEnum::ReceiveTask(receive_task) => correlation_key_from_base_element(
+            &receive_task
+                .task
+                .activity
+                .flow_node
+                .flow_element
+                .base_element,
+            Some(execution),
+        ),
+        _ => Ok(None),
+    }
 }
 
 pub struct ReceiveTaskActivityBehavior;
@@ -150,7 +160,7 @@ impl ReceiveTaskActivityBehavior {
 
         // Correlation from flowable:eventCorrelationParameter
         // (ReceiveEventTaskActivityBehavior.java:77 / CorrelationUtil.java:30-67).
-        let configuration = resolve_receive_task_configuration(command_context, execution);
+        let configuration = resolve_receive_task_configuration(command_context, execution)?;
         command_context.runtime_store.insert_event_wait_state(
             &RuntimeEventWaitState {
                 wait_kind: RuntimeEventWaitKind::ReceiveTask,
@@ -369,7 +379,7 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
                             category: resolve_job_category(
                                 &boundary_event.event.flow_node.flow_element.base_element,
                                 &evaluation_execution,
-                            ),
+                            )?,
                             ..Default::default()
                         },
                         &mut command_context.session,
@@ -391,7 +401,7 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
                 };
 
                 let configuration =
-                    resolve_boundary_configuration(&boundary_event, Some(execution));
+                    resolve_boundary_configuration(&boundary_event, Some(execution))?;
                 let state = RuntimeBoundaryEventState {
                     boundary_event_id: boundary_event_id.clone(),
                     attached_activity_id: activity_id.clone(),
@@ -416,7 +426,7 @@ impl ActivityBehavior for ReceiveTaskActivityBehavior {
         command_context
             .execution_entity_manager
             .update(execution, &mut command_context.session)?;
-        let configuration = resolve_receive_task_configuration(command_context, execution);
+        let configuration = resolve_receive_task_configuration(command_context, execution)?;
         command_context.runtime_store.insert_event_wait_state(
             &RuntimeEventWaitState {
                 wait_kind: RuntimeEventWaitKind::ReceiveTask,
@@ -597,7 +607,7 @@ fn register_event_subprocess_subscriptions(
                         let category = resolve_job_category(
                             &start_event.event.flow_node.flow_element.base_element,
                             &evaluation_execution,
-                        );
+                        )?;
                         // P17: EL-evaluate event-subprocess timer fields.
                         let schedule = crate::bpmn::timer_util::resolve_timer_schedule(
                             timer_def.time_date.as_ref(),

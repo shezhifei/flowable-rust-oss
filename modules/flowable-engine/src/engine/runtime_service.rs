@@ -3162,7 +3162,7 @@ fn enable_event_subprocess_start_event(
                 let category = crate::bpmn::job_category::resolve_job_category(
                     &start_event.event.flow_node.flow_element.base_element,
                     &root_execution,
-                );
+                )?;
                 command_context
                     .runtime_store
                     .insert_event_subprocess_timer_subscription(
@@ -3622,7 +3622,7 @@ pub(crate) fn condition_is_true(
 ) -> Result<bool, crate::error::FlowableError> {
     use crate::el::condition::Condition;
 
-    let expression = Box::new(SimpleExpression::new(expression_text.to_string()));
+    let expression = SimpleExpression::new(expression_text.to_string());
     crate::el::uel_expression_condition::UelExpressionCondition::new(expression)
         .evaluate(None, execution)
 }

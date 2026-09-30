@@ -7,34 +7,42 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
 use crate::el::condition::Condition;
-use crate::el::expression::Expression;
+use crate::el::expression::SimpleExpression;
 use flowable_engine_common::el::VariableContainer;
 
 pub struct UelExpressionCondition {
-    expression: Box<dyn Expression>,
+    expression: SimpleExpression,
 }
 
 impl UelExpressionCondition {
-    pub fn new(expression: Box<dyn Expression>) -> Self {
+    pub fn new(expression: SimpleExpression) -> Self {
         Self { expression }
     }
 }
 
 impl Condition for UelExpressionCondition {
+    /// Java `UelExpressionCondition.evaluate` (UelExpressionCondition.java:36-45)
+    /// three-way classification (A.2 #43 / W6):
+    /// 1. evaluation error → propagate (never disguised as null);
+    /// 2. null result → `condition expression returns null (elementId: …)`;
+    /// 3. non-Boolean → `condition expression returns non-Boolean (elementId: …)`.
     fn evaluate(
         &self,
         element_id: Option<&str>,
         scope: &dyn VariableContainer,
     ) -> Result<bool, crate::error::FlowableError> {
-        match self.expression.get_value(scope) {
-            Some(serde_json::Value::Bool(value)) => Ok(value),
-            Some(value) => Err(crate::error::FlowableError::ExecutionError(format!(
-                "Condition expression returns non-Boolean (elementId: {:?}): {}",
-                element_id, value
+        match self.expression.get_value_strict(scope) {
+            Err(error) => Err(crate::error::FlowableError::ExecutionError(format!(
+                "condition expression failed (elementId: {element_id:?}): {error}"
             ))),
-            None => Err(crate::error::FlowableError::ExecutionError(format!(
-                "Condition expression returns non-Boolean (elementId: {:?}): null",
-                element_id
+            Ok(Some(serde_json::Value::Bool(value))) => Ok(value),
+            Ok(Some(serde_json::Value::Null)) | Ok(None) => {
+                Err(crate::error::FlowableError::ExecutionError(format!(
+                    "condition expression returns null (elementId: {element_id:?})"
+                )))
+            }
+            Ok(Some(value)) => Err(crate::error::FlowableError::ExecutionError(format!(
+                "condition expression returns non-Boolean (elementId: {element_id:?}): {value}"
             ))),
         }
     }
@@ -49,7 +57,7 @@ mod tests {
     use serde_json::json;
 
     fn condition(expression: &str) -> UelExpressionCondition {
-        UelExpressionCondition::new(Box::new(SimpleExpression::new(expression.to_string())))
+        UelExpressionCondition::new(SimpleExpression::new(expression.to_string()))
     }
 
     #[test]
@@ -67,17 +75,35 @@ mod tests {
     }
 
     #[test]
-    fn null_result_is_an_execution_error() {
-        let error = condition("${missing}")
-            .evaluate(Some("flow1"), &Execution::default())
+    fn defined_null_result_is_null_message() {
+        let execution = Execution {
+            variables: [("maybe".to_string(), json!(null))].into(),
+            ..Default::default()
+        };
+        let error = condition("${maybe}")
+            .evaluate(Some("flow1"), &execution)
             .expect_err("a null condition result must fail the command");
 
         assert!(matches!(
             error,
             FlowableError::ExecutionError(message)
-                if message.contains("non-Boolean")
+                if message.contains("returns null")
                     && message.contains("flow1")
-                    && message.ends_with("null")
+        ));
+    }
+
+    #[test]
+    fn undefined_variable_is_eval_error_not_null() {
+        // W1/W6: evaluation error must not be disguised as the null message.
+        let error = condition("${missing}")
+            .evaluate(Some("flow1"), &Execution::default())
+            .expect_err("an undefined variable must fail the command");
+
+        assert!(matches!(
+            error,
+            FlowableError::ExecutionError(message)
+                if (message.contains("Unknown property") || message.contains("condition expression failed"))
+                    && message.contains("flow1")
         ));
     }
 

@@ -175,20 +175,48 @@ impl ActivityBehavior for UserTaskActivityBehavior {
             }
         }
 
+        // W3 / A.2 #16b group F: name/category/formKey follow Java
+        // handleName/handleCategory/handleFormKey — eval failure falls back to
+        // the model text + warn; parse/compile failure propagates (N4-1).
+        //
+        // C4: a successful evaluation to null must NOT be replaced by
+        // activity_id (Java `task.setName(null)`). `Task.name` is a plain
+        // `String`, so Java null is represented as the empty string here —
+        // distinct from the model-default fallback to activity_id which only
+        // applies when the model carries no name attribute at all.
+        let model_had_name = !task_name.is_empty() && task_name != activity_id;
+        let resolved_name =
+            resolve_user_task_f_field("name", Some(task_name.as_str()), &evaluation_execution)?;
+        let task_name_for_new = match resolved_name {
+            Some(name) => name,
+            None if model_had_name => {
+                // Legal null EL result → Java setName(null) → empty in Rust.
+                String::new()
+            }
+            None => activity_id.clone(),
+        };
         let mut task = Task::new(
             Uuid::new_v4().to_string(),
             process_instance_id.clone(),
             execution.id.clone(),
             activity_id.clone(),
-            task_name.clone(),
+            task_name_for_new,
         );
         task.tenant_id = execution.tenant_id.clone();
-        task.category = model_category;
-        task.form_key = model_form_key;
+        task.category = resolve_user_task_f_field(
+            "category",
+            model_category.as_deref(),
+            &evaluation_execution,
+        )?;
+        task.form_key = resolve_user_task_f_field(
+            "formKey",
+            model_form_key.as_deref(),
+            &evaluation_execution,
+        )?;
         if let Some(assignee) = resolve_user_task_assignment_expression(
             model_assignee.as_deref(),
             &evaluation_execution,
-        ) {
+        )? {
             task.assignee = Some(assignee);
         }
         // P86a: Java `UserTaskActivityBehavior.handleAssignments:363-371` sets
@@ -198,7 +226,7 @@ impl ActivityBehavior for UserTaskActivityBehavior {
         // the subsequent `record_task_updated` would see None on the runtime
         // task and append a spurious null-owner historic identity link.
         if let Some(owner) =
-            resolve_user_task_assignment_expression(model_owner.as_deref(), &evaluation_execution)
+            resolve_user_task_assignment_expression(model_owner.as_deref(), &evaluation_execution)?
         {
             task.owner = Some(owner);
         }
@@ -207,15 +235,12 @@ impl ActivityBehavior for UserTaskActivityBehavior {
             &evaluation_execution,
             command_context.runtime_store.time_source().now(),
         )?;
-        // P97: carry the model priority on the task entity itself (Java
-        // `TaskHelper.insertTask` resolves it onto the entity before insert).
-        // Previously only insert_task's throwaway clone got the resolved
-        // value, so HistoryManager snapshots saw None and the historic row
-        // lost the priority once the silent store-side sync was removed.
+        // C6 / A.2 #16c group S: priority follows Java handlePriority:274-291 —
+        // getValue has no catch, evaluation errors propagate; non-numeric result
+        // is FlowableIllegalArgumentException.
         if task.priority.is_none() {
-            task.priority = model_priority
-                .as_deref()
-                .and_then(|priority| priority.trim().parse::<i32>().ok());
+            task.priority =
+                resolve_user_task_priority(model_priority.as_deref(), &evaluation_execution)?;
         }
 
         command_context
@@ -367,7 +392,7 @@ impl ActivityBehavior for UserTaskActivityBehavior {
                         category: resolve_job_category(
                             &boundary_event.event.flow_node.flow_element.base_element,
                             &evaluation_execution,
-                        ),
+                        )?,
                         ..Default::default()
                     };
                     command_context
@@ -398,7 +423,7 @@ impl ActivityBehavior for UserTaskActivityBehavior {
                     crate::bpmn::behavior::boundary_event_activity_behavior::resolve_boundary_configuration(
                         &boundary_event,
                         Some(execution),
-                    );
+                    )?;
                 let state = RuntimeBoundaryEventState {
                     boundary_event_id: boundary_event_id.clone(),
                     attached_activity_id: activity_id.clone(),
@@ -439,23 +464,141 @@ impl ActivityBehavior for UserTaskActivityBehavior {
 /// Evaluates a user-task assignee/owner model expression (literal or `${...}`).
 /// Shared by assignee and owner — Java `handleAssignments` uses the same
 /// expression-manager path for both (`UserTaskActivityBehavior.java:346-371`).
+///
+/// A.2 #16a group S: assignee/owner `getValue` has no catch — evaluation
+/// errors propagate. (name/description/category/formKey are group F and must
+/// NOT use this helper.)
 fn resolve_user_task_assignment_expression(
     model_value: Option<&str>,
     execution: &Execution,
-) -> Option<String> {
-    let raw = model_value.map(str::trim).filter(|v| !v.is_empty())?;
+) -> Result<Option<String>, crate::error::FlowableError> {
+    let Some(raw) = model_value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
     if raw.starts_with("${") && raw.ends_with('}') {
-        use crate::el::expression::{Expression, SimpleExpression};
-        SimpleExpression::new(raw.to_string())
-            .get_value(execution)
-            .and_then(|v| match v {
-                serde_json::Value::String(s) => Some(s),
-                serde_json::Value::Number(n) => Some(n.to_string()),
-                serde_json::Value::Bool(b) => Some(b.to_string()),
-                _ => None,
-            })
+        use crate::el::expression::SimpleExpression;
+        let value = SimpleExpression::new(raw.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                crate::error::FlowableError::ExecutionError(format!(
+                    "user task assignment expression '{raw}' failed: {error}"
+                ))
+            })?;
+        Ok(value.and_then(|v| match v {
+            serde_json::Value::String(s) => Some(s),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            serde_json::Value::Bool(b) => Some(b.to_string()),
+            _ => None,
+        }))
     } else {
-        Some(raw.to_string())
+        Ok(Some(raw.to_string()))
+    }
+}
+
+/// F-group (research §2.2 / W3): user-task name / category / formKey follow
+/// Java `UserTaskActivityBehavior.handleName:208-221` (and handleCategory /
+/// handleFormKey): evaluate via `createExpression(…).getValue`, and on
+/// `FlowableException` fall back to the **model text** + `warn` — never empty
+/// string, never propagate an eval error.
+///
+/// N4-1 typing: a parse/compile failure (`ExpressionEvalError::CompileFailed`,
+/// Java `ELException` from `createExpression`) **propagates**; only eval-time
+/// failures are caught and turned into the fallback.
+///
+/// A successful evaluation to null clears the field (Java leaves the local
+/// `String name = null`) — it does not substitute empty text.
+fn resolve_user_task_f_field(
+    field_label: &str,
+    model_value: Option<&str>,
+    execution: &Execution,
+) -> Result<Option<String>, crate::error::FlowableError> {
+    let Some(raw) = model_value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+
+    // Literal text: Java createExpression("My Task").getValue() returns the
+    // literal itself (no EL), so keep the model text unchanged.
+    if !(raw.starts_with("${") && raw.ends_with('}')) {
+        return Ok(Some(raw.to_string()));
+    }
+
+    use crate::el::expression::SimpleExpression;
+    match SimpleExpression::new(raw.to_string()).get_value_strict(execution) {
+        Ok(Some(serde_json::Value::Null)) | Ok(None) => {
+            // Legal null: clear the field (do NOT substitute empty string).
+            Ok(None)
+        }
+        Ok(Some(value)) => Ok(Some(value_to_field_string(&value))),
+        Err(error) if error.is_compile_failure() => {
+            // N4-1: parse/compile failure is createExpression ELException —
+            // not a catchable FlowableException. Propagate.
+            Err(crate::error::FlowableError::ExecutionError(format!(
+                "user task {field_label} expression '{raw}' failed to compile: {error}"
+            )))
+        }
+        Err(error) => {
+            // Eval-time FlowableException → Java catch → fallback + warn.
+            tracing::warn!(
+                "property not found in task {field_label} expression '{raw}': {error}"
+            );
+            Ok(Some(raw.to_string()))
+        }
+    }
+}
+
+/// Java `Object.toString()` mapping for F-group field values.
+fn value_to_field_string(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// C6 / A.2 #16c group S: user-task priority follows Java
+/// `handlePriority:274-291` — `getValue` has no catch (evaluation errors
+/// propagate); a non-numeric result is `FlowableIllegalArgumentException`.
+fn resolve_user_task_priority(
+    model_value: Option<&str>,
+    execution: &Execution,
+) -> Result<Option<i32>, crate::error::FlowableError> {
+    let Some(raw) = model_value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+
+    // Literal numeric text parses directly (Java Integer.valueOf).
+    if !raw.starts_with("${") && !raw.starts_with("#{") {
+        return raw
+            .parse::<i32>()
+            .map(Some)
+            .map_err(|_| crate::error::FlowableError::ExecutionError(format!(
+                "Priority does not resolve to a number: {raw}"
+            )));
+    }
+
+    use crate::el::expression::SimpleExpression;
+    match SimpleExpression::new(raw.to_string()).get_value_strict(execution) {
+        Ok(Some(serde_json::Value::Number(n))) => n
+            .as_i64()
+            .map(|v| Some(v as i32))
+            .ok_or_else(|| crate::error::FlowableError::ExecutionError(format!(
+                "Priority does not resolve to a number: {n}"
+            ))),
+        Ok(Some(serde_json::Value::String(s))) => s
+            .trim()
+            .parse::<i32>()
+            .map(Some)
+            .map_err(|_| crate::error::FlowableError::ExecutionError(format!(
+                "Priority does not resolve to a number: {s}"
+            ))),
+        Ok(Some(serde_json::Value::Null)) | Ok(None) => Ok(None),
+        Ok(Some(other)) => Err(crate::error::FlowableError::ExecutionError(format!(
+            "Priority expression does not resolve to a number: {other}"
+        ))),
+        Err(error) => Err(crate::error::FlowableError::ExecutionError(format!(
+            "Priority expression '{raw}' failed: {error}"
+        ))),
     }
 }
 
@@ -664,7 +807,7 @@ fn register_event_subprocess_subscriptions(
                         let category = resolve_job_category(
                             &start_event.event.flow_node.flow_element.base_element,
                             &evaluation_execution,
-                        );
+                        )?;
                         let schedule = crate::bpmn::timer_util::resolve_timer_schedule(
                             timer_def.time_date.as_ref(),
                             timer_def.time_duration.as_ref(),

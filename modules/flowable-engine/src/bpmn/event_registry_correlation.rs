@@ -30,7 +30,7 @@ use crate::persistence::db_session::DbSession;
 use crate::persistence::runtime_store::RuntimeStore;
 use crate::runtime::process_instance::ProcessInstance;
 use flowable_bpmn_model::model::{BaseElement, ExtensionElement};
-use flowable_engine_common::el::expression::{Expression, SimpleExpression};
+use flowable_engine_common::el::expression::SimpleExpression;
 use flowable_engine_common::el::variable_container::VariableContainer;
 use indexmap::IndexMap;
 use md5::{Digest, Md5};
@@ -175,10 +175,10 @@ pub fn correlation_parameters_from_extensions_named(
     extensions: &IndexMap<String, Vec<ExtensionElement>>,
     element_name: &str,
     variable_scope: Option<&dyn VariableContainer>,
-) -> BTreeMap<String, Option<String>> {
+) -> Result<BTreeMap<String, Option<String>>, crate::error::FlowableError> {
     let mut params = BTreeMap::new();
     let Some(elements) = extensions.get(element_name) else {
-        return params;
+        return Ok(params);
     };
     for el in elements {
         let Some(name) = extension_attr(el, "name").filter(|s| !s.is_empty()) else {
@@ -188,7 +188,7 @@ pub fn correlation_parameters_from_extensions_named(
         let value = match value_expression {
             Some(expr) if !expr.is_empty() => {
                 if let Some(scope) = variable_scope {
-                    Some(evaluate_correlation_value(&expr, scope))
+                    Some(evaluate_correlation_value(&expr, scope)?)
                 } else {
                     // Deploy-time path: CorrelationUtil.java:53-54
                     Some(expr)
@@ -198,14 +198,14 @@ pub fn correlation_parameters_from_extensions_named(
         };
         params.insert(name, value);
     }
-    params
+    Ok(params)
 }
 
 /// Collect `eventCorrelationParameter` name→value map from extension elements.
 pub fn correlation_parameters_from_extensions(
     extensions: &IndexMap<String, Vec<ExtensionElement>>,
     variable_scope: Option<&dyn VariableContainer>,
-) -> BTreeMap<String, Option<String>> {
+) -> Result<BTreeMap<String, Option<String>>, crate::error::FlowableError> {
     correlation_parameters_from_extensions_named(
         extensions,
         ELEMENT_EVENT_CORRELATION_PARAMETER,
@@ -229,15 +229,28 @@ pub fn correlation_params_from_payload(payload: &Value) -> BTreeMap<String, Opti
     params
 }
 
-fn evaluate_correlation_value(expression: &str, scope: &dyn VariableContainer) -> String {
+fn evaluate_correlation_value(
+    expression: &str,
+    scope: &dyn VariableContainer,
+) -> Result<String, crate::error::FlowableError> {
     // Prefer UEL evaluation for `${...}`; plain literals pass through
     // (Java ExpressionManager also returns plain strings for non-UEL text).
+    // A.2 #4 group S: correlation-key evaluation failures must fail the
+    // command (getValue family, no catch) — never fall back to the raw text.
     if expression.starts_with("${") && expression.ends_with('}') {
-        if let Some(value) = SimpleExpression::new(expression.to_string()).get_value(scope) {
-            return json_value_to_correlation_string(&value);
-        }
+        let value = SimpleExpression::new(expression.to_string())
+            .get_value_strict(scope)
+            .map_err(|error| {
+                crate::error::FlowableError::ExecutionError(format!(
+                    "Correlation parameter value expression '{expression}' failed: {error}"
+                ))
+            })?;
+        return Ok(match value {
+            Some(value) => json_value_to_correlation_string(&value),
+            None => String::new(),
+        });
     }
-    expression.to_string()
+    Ok(expression.to_string())
 }
 
 fn json_value_to_correlation_string(value: &Value) -> String {
@@ -257,13 +270,13 @@ pub fn correlation_key_from_extensions_named(
     extensions: &IndexMap<String, Vec<ExtensionElement>>,
     element_name: &str,
     variable_scope: Option<&dyn VariableContainer>,
-) -> Option<String> {
+) -> Result<Option<String>, crate::error::FlowableError> {
     let params =
-        correlation_parameters_from_extensions_named(extensions, element_name, variable_scope);
+        correlation_parameters_from_extensions_named(extensions, element_name, variable_scope)?;
     if params.is_empty() {
-        return None;
+        return Ok(None);
     }
-    Some(generate_correlation_key(&params))
+    Ok(Some(generate_correlation_key(&params)))
 }
 
 /// Correlation key for a flow element's `eventCorrelationParameter` map, or
@@ -273,7 +286,7 @@ pub fn correlation_key_from_extensions_named(
 pub fn correlation_key_from_extensions(
     extensions: &IndexMap<String, Vec<ExtensionElement>>,
     variable_scope: Option<&dyn VariableContainer>,
-) -> Option<String> {
+) -> Result<Option<String>, crate::error::FlowableError> {
     correlation_key_from_extensions_named(
         extensions,
         ELEMENT_EVENT_CORRELATION_PARAMETER,
@@ -285,7 +298,7 @@ pub fn correlation_key_from_extensions(
 pub fn correlation_key_from_base_element(
     base: &BaseElement,
     variable_scope: Option<&dyn VariableContainer>,
-) -> Option<String> {
+) -> Result<Option<String>, crate::error::FlowableError> {
     correlation_key_from_extensions(&base.extension_elements, variable_scope)
 }
 
@@ -295,7 +308,7 @@ pub fn correlation_key_from_base_element(
 pub fn trigger_event_correlation_key_from_base_element(
     base: &BaseElement,
     variable_scope: Option<&dyn VariableContainer>,
-) -> Option<String> {
+) -> Result<Option<String>, crate::error::FlowableError> {
     correlation_key_from_extensions_named(
         &base.extension_elements,
         ELEMENT_TRIGGER_EVENT_CORRELATION_PARAMETER,

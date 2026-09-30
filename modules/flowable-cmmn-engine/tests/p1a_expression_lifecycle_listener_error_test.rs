@@ -168,16 +168,16 @@ fn successful_bean_method_expression_lifecycle_listener_runs() {
     );
 }
 
-/// An undefined variable in an expression listener resolves to lenient null
-/// and the transition succeeds — the aligned Java behaviour for an
-/// unresolved variable, as opposed to a method failure.
+/// W1: an undefined variable in an expression listener is
+/// `PropertyNotFoundException` in Java (`JuelExpression.java:53-54`) and must
+/// fail the command — not resolve to a silent null.
 #[test]
-fn undefined_variable_in_expression_lifecycle_listener_is_lenient_null() {
+fn undefined_variable_in_expression_lifecycle_listener_fails_command() {
     const XML: &str = r#"
 <definitions xmlns="http://www.omg.org/spec/CMMN/20151109/MODEL"
              xmlns:flowable="http://flowable.org/cmmn"
              targetNamespace="http://flowable.org/cmmn">
-  <case id="lenientUndefinedExpressionListenerCase" name="Lenient undefined case">
+  <case id="undefinedExpressionListenerCase" name="Undefined case">
     <extensionElements>
       <flowable:caseLifecycleListener expression="${thisVariableIsNeverDefined}" />
     </extensionElements>
@@ -195,13 +195,18 @@ fn undefined_variable_in_expression_lifecycle_listener_is_lenient_null() {
     deploy(&engine, "p1a-cmmn-undefined", XML);
     let case_instance = engine
         .start_case_instance_by_key(
-            "lenientUndefinedExpressionListenerCase",
+            "undefinedExpressionListenerCase",
             CmmnCaseInstanceStartRequest::new(),
         )
-        .expect("start case");
+        .expect("start case (listener fires on completion, not on start)");
     let task_id = only_active_task_id(&engine, &case_instance.id);
-    engine
+    let error = engine
         .complete_human_task(&task_id, CmmnHumanTaskCompletionRequest::new())
-        .expect("undefined variable must stay lenient null, not fail the transition");
+        .expect_err("an undefined variable must fail the command (Java PropertyNotFoundException)");
+    let message = error.to_string();
+    assert!(
+        message.contains("thisVariableIsNeverDefined") || message.contains("Unknown property"),
+        "error should identify the unknown property, got: {message}"
+    );
     assert!(audit.entries().is_empty());
 }

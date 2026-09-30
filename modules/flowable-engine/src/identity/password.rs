@@ -48,17 +48,21 @@ pub fn is_valid_hash(stored: &str) -> bool {
 }
 
 /// Hash a plaintext password into an argon2id PHC string. The salt comes from
-/// `uuid` v4's getrandom-backed RNG (no additional rand dependency). Never
-/// returns an error: the parameter set is compile-time constant and valid.
-pub fn hash_password(plain: &str) -> String {
+/// `uuid` v4's getrandom-backed RNG (no additional rand dependency).
+///
+/// Returns `Result` for API purity (P3 residual). In practice the parameter
+/// set is compile-time constant and valid, so `Err` is unreachable — but
+/// callers no longer need to rely on `expect` panic invariants.
+pub fn hash_password(plain: &str) -> Result<String, String> {
     let salt_bytes = *uuid::Uuid::new_v4().as_bytes();
-    let salt = SaltString::encode_b64(&salt_bytes).expect("16 random bytes are a valid salt");
-    let params =
-        argon2::Params::new(M_COST, T_COST, P_COST, None).expect("argon2 parameter set is valid");
+    let salt = SaltString::encode_b64(&salt_bytes)
+        .map_err(|e| format!("salt encode failed: {e}"))?;
+    let params = argon2::Params::new(M_COST, T_COST, P_COST, None)
+        .map_err(|e| format!("argon2 params invalid: {e}"))?;
     argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
         .hash_password(plain.as_bytes(), &salt)
-        .expect("argon2 hashing with valid params cannot fail")
-        .to_string()
+        .map(|hash| hash.to_string())
+        .map_err(|e| format!("argon2 hashing failed: {e}"))
 }
 
 /// Verify `plain` against a stored value.
@@ -99,7 +103,7 @@ mod tests {
 
     #[test]
     fn hash_round_trip_verifies() {
-        let hash = hash_password("correct horse battery staple");
+        let hash = hash_password("correct horse battery staple").expect("hash should succeed");
         assert!(is_hash(&hash));
         assert!(verify_password("correct horse battery staple", &hash));
         assert!(!verify_password("wrong", &hash));
@@ -107,8 +111,8 @@ mod tests {
 
     #[test]
     fn hashes_are_salted_and_unique() {
-        let a = hash_password("same-password");
-        let b = hash_password("same-password");
+        let a = hash_password("same-password").expect("hash a");
+        let b = hash_password("same-password").expect("hash b");
         assert_ne!(a, b);
         assert!(verify_password("same-password", &a));
         assert!(verify_password("same-password", &b));
@@ -122,7 +126,7 @@ mod tests {
 
     #[test]
     fn is_valid_hash_accepts_only_parseable_hashes() {
-        assert!(is_valid_hash(&hash_password("x")));
+        assert!(is_valid_hash(&hash_password("x").expect("hash x")));
         // Claims the prefix but is not a PHC string: must not be mistaken for
         // an already-hashed value on the write path.
         assert!(!is_valid_hash("$argon2id$not-a-valid-hash"));
@@ -140,7 +144,7 @@ mod tests {
         assert!(!is_valid_hash(chosen), "but it is not a real hash");
 
         // What the write path does with it, and that login still works.
-        let stored = hash_password(chosen);
+        let stored = hash_password(chosen).expect("hash chosen");
         assert!(is_valid_hash(&stored));
         assert!(verify_password(chosen, &stored));
         assert!(!verify_password("hunter2", &stored));

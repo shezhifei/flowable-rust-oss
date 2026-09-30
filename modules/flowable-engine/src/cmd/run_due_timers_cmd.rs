@@ -92,13 +92,14 @@ impl Command<Option<i64>> for AcquireCoordinatorLeaseCmd {
         let session = command_context.session();
 
         let now = store.time_source().now().timestamp_millis();
-        Ok(store.acquire_coordinator_lease(
+        // W5/R9: storage errors propagate; Ok(None) is a genuine lock-fail.
+        store.acquire_coordinator_lease(
             "timer-coordinator",
             self.node_id.as_ref(),
             now,
             self.timeout_ms,
             session,
-        ))
+        )
     }
 }
 
@@ -833,13 +834,14 @@ impl Command<bool> for LockExclusiveJobScopeCmd {
             .job
             .lock_expiration_time
             .unwrap_or(now + async_job_lock_time_ms);
-        Ok(store.lock_process_instance(
+        // R9: storage errors propagate; Ok(false) is a genuine lock-fail.
+        store.lock_process_instance(
             &self.job.process_instance_id,
             &lock_owner,
             lock_expiration,
             now,
             session,
-        ))
+        )
     }
 }
 

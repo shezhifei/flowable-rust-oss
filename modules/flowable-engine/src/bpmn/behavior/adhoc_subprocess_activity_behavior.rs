@@ -599,7 +599,7 @@ pub fn try_auto_complete_adhoc_after_child_leave(
         crate::engine::variable_service::evaluation_execution(command_context, child_execution);
     let expression = crate::el::expression::SimpleExpression::new(condition_text.to_string());
     let condition =
-        crate::el::uel_expression_condition::UelExpressionCondition::new(Box::new(expression));
+        crate::el::uel_expression_condition::UelExpressionCondition::new(expression);
     use crate::el::condition::Condition;
     let complete_adhoc = condition.evaluate(adhoc_id.as_deref(), &eval_exec)?;
     if !complete_adhoc {

@@ -3,7 +3,7 @@ use crate::cmd::task_variable_cmd::{
     MutateTaskVariablesCmd, RemoveTaskVariablesCmd, TaskVariableMutation, TaskVariableScope,
     VariableMutationMode, remove_task_variables,
 };
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::interceptor::command::Command;
 use crate::interceptor::command_context::CommandContext;
 use crate::interceptor::command_executor::{CommandExecutor, DefaultCommandExecutor};
@@ -1277,7 +1277,7 @@ pub(crate) fn complete_task_internal(
                     );
 
                     if mi.sequential {
-                        let complete_condition = multi_instance_completion_condition_satisfied(
+                        let complete_condition = crate::bpmn::behavior::multi_instance_support::multi_instance_completion_condition_satisfied(
                             command_context,
                             &mi,
                             &p,
@@ -1348,7 +1348,7 @@ pub(crate) fn complete_task_internal(
                             "nrOfActiveInstances".to_string(),
                             nr_of_active.into(),
                         );
-                        if multi_instance_completion_condition_satisfied(command_context, &mi, &p)?
+                        if crate::bpmn::behavior::multi_instance_support::multi_instance_completion_condition_satisfied(command_context, &mi, &p)?
                         {
                             cancel_remaining_multi_instance_children(
                                 command_context,
@@ -1368,7 +1368,7 @@ pub(crate) fn complete_task_internal(
                     // ParallelMultiInstanceBehavior.java:302-319 — pass whether
                     // the completion condition was already satisfied above.
                     let with_condition =
-                        multi_instance_completion_condition_satisfied(command_context, &mi, &p)?;
+                        crate::bpmn::behavior::multi_instance_support::multi_instance_completion_condition_satisfied(command_context, &mi, &p)?;
                     command_context
                         .execution_entity_manager
                         .update(&p, &mut command_context.session)?;
@@ -1521,16 +1521,16 @@ fn apply_multi_instance_variable_aggregation(
         return Ok(());
     }
 
-    let Some(target_variable) = resolve_aggregation_target(aggregation, child_execution) else {
+    let Some(target_variable) = resolve_aggregation_target(aggregation, child_execution)? else {
         return Ok(());
     };
 
     let mut item = Map::new();
     for variable in &aggregation.definitions {
-        if let Some(target) = resolve_aggregation_variable_target(variable, child_execution) {
+        if let Some(target) = resolve_aggregation_variable_target(variable, child_execution)? {
             item.insert(
                 target,
-                resolve_aggregation_variable_value(variable, child_execution, task),
+                resolve_aggregation_variable_value(variable, child_execution, task)?,
             );
         }
     }
@@ -1560,46 +1560,63 @@ fn apply_multi_instance_variable_aggregation(
 fn resolve_aggregation_target(
     aggregation: &VariableAggregationDefinition,
     execution: &crate::runtime::execution::Execution,
-) -> Option<String> {
-    aggregation
+) -> Result<Option<String>, crate::error::FlowableError> {
+    if let Some(target) = aggregation
         .target
         .as_deref()
         .map(str::trim)
         .filter(|target| !target.is_empty())
         .map(ToOwned::to_owned)
-        .or_else(|| expression_string_value(aggregation.target_expression.as_deref(), execution))
+    {
+        return Ok(Some(target));
+    }
+    expression_string_value(aggregation.target_expression.as_deref(), execution)
 }
 
 fn resolve_aggregation_variable_target(
     variable: &VariableAggregationDefinitionVariable,
     execution: &crate::runtime::execution::Execution,
-) -> Option<String> {
-    variable
+) -> Result<Option<String>, crate::error::FlowableError> {
+    if let Some(target) = variable
         .target
         .as_deref()
         .map(str::trim)
         .filter(|target| !target.is_empty())
         .map(ToOwned::to_owned)
-        .or_else(|| expression_string_value(variable.target_expression.as_deref(), execution))
-        .or_else(|| {
-            variable
-                .source
-                .as_deref()
-                .map(str::trim)
-                .filter(|source| !source.is_empty())
-                .map(ToOwned::to_owned)
-        })
+    {
+        return Ok(Some(target));
+    }
+    if let Some(from_expression) =
+        expression_string_value(variable.target_expression.as_deref(), execution)?
+    {
+        return Ok(Some(from_expression));
+    }
+    Ok(variable
+        .source
+        .as_deref()
+        .map(str::trim)
+        .filter(|source| !source.is_empty())
+        .map(ToOwned::to_owned))
 }
 
 fn resolve_aggregation_variable_value(
     variable: &VariableAggregationDefinitionVariable,
     execution: &crate::runtime::execution::Execution,
     task: &Task,
-) -> Value {
-    if let Some(source_expression) = variable.source_expression.as_ref()
-        && let Some(value) = SimpleExpression::new(source_expression.clone()).get_value(execution)
-    {
-        return value;
+) -> Result<Value, crate::error::FlowableError> {
+    if let Some(source_expression) = variable.source_expression.as_ref() {
+        // A.2 #39 group S: aggregation sourceExpression evaluation errors
+        // must surface (getValue family, no catch).
+        let value = SimpleExpression::new(source_expression.clone())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                crate::error::FlowableError::ExecutionError(format!(
+                    "Multi-instance variable aggregation sourceExpression '{source_expression}' failed: {error}"
+                ))
+            })?;
+        if let Some(value) = value {
+            return Ok(value);
+        }
     }
 
     let Some(source) = variable
@@ -1608,53 +1625,41 @@ fn resolve_aggregation_variable_value(
         .map(str::trim)
         .filter(|source| !source.is_empty())
     else {
-        return Value::Null;
+        return Ok(Value::Null);
     };
 
-    task.local_variable(source)
+    Ok(task
+        .local_variable(source)
         .or_else(|| execution.process_variable(source))
-        .unwrap_or(Value::Null)
+        .unwrap_or(Value::Null))
 }
 
 fn expression_string_value(
     expression: Option<&str>,
     execution: &crate::runtime::execution::Execution,
-) -> Option<String> {
-    let expression = expression?.trim();
-    if expression.is_empty() {
-        return None;
-    }
-
-    match SimpleExpression::new(expression.to_string()).get_value(execution)? {
-        Value::String(value) => Some(value),
-        value if !value.is_null() => Some(value.to_string()),
-        _ => None,
-    }
-}
-
-fn multi_instance_completion_condition_satisfied(
-    command_context: &mut CommandContext,
-    mi: &MultiInstanceLoopCharacteristics,
-    execution: &crate::runtime::execution::Execution,
-) -> Result<bool, crate::error::FlowableError> {
-    let Some(condition) = &mi.completion_condition else {
-        return Ok(false);
+) -> Result<Option<String>, crate::error::FlowableError> {
+    let Some(expression) = expression.map(str::trim).filter(|e| !e.is_empty()) else {
+        return Ok(None);
     };
 
-    // Java parity: the completion condition is evaluated with
-    // `expressionManager.createExpression(…).getValue(execution)`, and EL
-    // variable resolution walks the VariableScope parent chain (see the P4-7a
-    // evaluation execution).
-    let evaluation_execution =
-        crate::engine::variable_service::evaluation_execution(command_context, execution);
-    match SimpleExpression::new(condition.clone()).get_value(&evaluation_execution) {
-        Some(serde_json::Value::Bool(value)) => Ok(value),
-        Some(value) => Err(crate::error::FlowableError::Generic(format!(
-            "Multi-instance completionCondition must evaluate to a boolean, got {value}"
-        ))),
-        None => Ok(false),
-    }
+    // A.2 #40 group S: targetExpression evaluation errors must surface.
+    let value = SimpleExpression::new(expression.to_string())
+        .get_value_strict(execution)
+        .map_err(|error| {
+            crate::error::FlowableError::ExecutionError(format!(
+                "Multi-instance variable aggregation targetExpression '{expression}' failed: {error}"
+            ))
+        })?;
+    Ok(match value {
+        Some(Value::String(value)) => Some(value),
+        Some(value) if !value.is_null() => Some(value.to_string()),
+        _ => None,
+    })
 }
+
+// MI completionCondition is intentionally a single shared implementation
+// (`multi_instance_support::multi_instance_completion_condition_satisfied`).
+// The former task_service copy was a C1 drift source; do not reintroduce it.
 
 fn cancel_remaining_multi_instance_children(
     command_context: &mut CommandContext,

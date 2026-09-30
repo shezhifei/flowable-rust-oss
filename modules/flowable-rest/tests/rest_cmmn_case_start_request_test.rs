@@ -132,11 +132,15 @@ async fn cmmn_case_start_validates_id_key_and_tenant() {
         .unwrap();
     assert_eq!(response.status().as_u16(), 400);
 
-    // Valid start by key returns 201.
+    // Valid start by key returns 201. The fixture human task resolves
+    // `${assignee}` strictly (W1), so supply it as a variable.
     let response = client
         .post(format!("{base_url}/cmmn-runtime/case-instances"))
         .basic_auth("admin", Some("test"))
-        .json(&json!({ "caseDefinitionKey": "startCase" }))
+        .json(&json!({
+            "caseDefinitionKey": "startCase",
+            "variables": { "assignee": "alice" }
+        }))
         .send()
         .await
         .unwrap();
@@ -206,12 +210,15 @@ async fn cmmn_case_start_return_variables_outcome_and_override_tenant() {
     deploy_case(&base_url, &client).await;
 
     // returnVariables=true includes the case variables in the response.
+    // `${assignee}` resolves strictly (W1); supply it as a transient variable so
+    // only the persisted `priority` shows up in the returned variables list.
     let response = client
         .post(format!("{base_url}/cmmn-runtime/case-instances"))
         .basic_auth("admin", Some("test"))
         .json(&json!({
             "caseDefinitionKey": "startCase",
             "variables": { "priority": "high" },
+            "transientVariables": { "assignee": "alice" },
             "returnVariables": true
         }))
         .send()
@@ -232,6 +239,7 @@ async fn cmmn_case_start_return_variables_outcome_and_override_tenant() {
         .basic_auth("admin", Some("test"))
         .json(&json!({
             "caseDefinitionKey": "startCase",
+            "variables": { "assignee": "alice" },
             "outcome": "approved"
         }))
         .send()
@@ -245,6 +253,7 @@ async fn cmmn_case_start_return_variables_outcome_and_override_tenant() {
         .basic_auth("admin", Some("test"))
         .json(&json!({
             "caseDefinitionKey": "startCase",
+            "variables": { "assignee": "alice" },
             "overrideDefinitionTenantId": "tenant-override"
         }))
         .send()

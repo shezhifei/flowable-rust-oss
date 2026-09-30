@@ -125,11 +125,14 @@ fn override_definition_tenant_id_sets_case_instance_tenant() {
 
     // Java CaseInstanceHelperImpl.java:325-326 — the override replaces the case
     // instance tenant; the definition lookup still uses the request tenant.
+    // The shared expression model resolves `${assignee}` strictly (W1), so the
+    // start request must supply it — here via a transient variable.
     let instance = engine
         .start_case_instance_by_key(
             "p102Override",
             CmmnCaseInstanceStartRequest::new()
-                .with_override_definition_tenant_id("tenant-override"),
+                .with_override_definition_tenant_id("tenant-override")
+                .with_transient_variables(json!({ "assignee": "alice" })),
         )
         .expect("case instance");
     assert_eq!(instance.tenant_id.as_deref(), Some("tenant-override"));
@@ -151,10 +154,14 @@ fn outcome_is_accepted_and_dropped() {
         )
         .expect("deployment");
 
+    // The shared expression model resolves `${assignee}` strictly (W1), so the
+    // start request must supply it — here via a transient variable.
     let instance = engine
         .start_case_instance_by_key(
             "p102Outcome",
-            CmmnCaseInstanceStartRequest::new().with_outcome("approved"),
+            CmmnCaseInstanceStartRequest::new()
+                .with_outcome("approved")
+                .with_transient_variables(json!({ "assignee": "alice" })),
         )
         .expect("case instance");
     assert_eq!(

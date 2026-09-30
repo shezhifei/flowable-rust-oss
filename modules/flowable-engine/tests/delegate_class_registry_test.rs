@@ -29,8 +29,7 @@ const CLASS_DELEGATE_SERVICE_TASK_XML: &str = r#"<?xml version="1.0" encoding="U
         <sequenceFlow id="flow1" sourceRef="startEvent1" targetRef="delegateTask1" />
         <serviceTask id="delegateTask1"
                      name="Invoke Class Delegate"
-                     flowable:class="com.example.MyDelegate"
-                     flowable:resultVariableName="delegateResult">
+                     flowable:class="com.example.MyDelegate">
             <extensionElements>
                 <flowable:field name="greeting" stringValue="hello-from-class" />
             </extensionElements>
@@ -119,12 +118,12 @@ fn class_implementation_resolves_via_local_delegate_registry() {
         Some(&json!("delegateTask1:hello-from-class")),
         "registered class delegate should write a process-variable side effect"
     );
-    assert_eq!(
-        vars.get("delegateResult")
-            .and_then(|v| v.get("delegate"))
-            .and_then(|v| v.as_str()),
-        Some(MY_DELEGATE_CLASS),
-        "resultVariableName should capture the delegate return value"
+    // T4 / M1: class + resultVariableName is a deploy error (Java
+    // ServiceTaskValidator:97-103) and ClassDelegate never writes the result —
+    // the fixture no longer configures a result variable.
+    assert!(
+        vars.get("delegateResult").is_none(),
+        "class/delegateExpression must not invent a resultVariable write (S-SKIP)"
     );
 
     let tasks = task_service

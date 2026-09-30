@@ -32,7 +32,7 @@ use crate::timer_util::{
     next_repeat_expression, prepare_repeat, resolve_next_due, resolve_timer_due,
 };
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
-use flowable_engine_common::el::{Expression, MapVariableContainer, SimpleExpression};
+use flowable_engine_common::el::{MapVariableContainer, SimpleExpression};
 use flowable_persistence::entity::cmmn_case_instance::{
     CmmnCaseInstanceDataManager, CmmnCaseInstanceEntity,
 };
@@ -4948,54 +4948,67 @@ fn case_variable_scope(case_instance: &CmmnCaseInstance) -> MapVariableContainer
 /// Evaluate a raw availableCondition string.
 ///
 /// - `${…}` → SimpleExpression against case variables; only a JSON boolean
-///   `true` counts as available (Java AbstractEvaluationCriteriaOperation
-///   non-boolean / null / failed evaluation → unavailable).
+///   `true` counts as available. A.2 #1 group S: evaluation errors propagate
+///   (Java AbstractEvaluationCriteriaOperation:590 `expression.getValue` has
+///   no catch); non-boolean / null → unavailable.
 /// - otherwise → existing CMMN if-part dialect (C7 parity).
 fn evaluate_available_condition_expression(
     expression: &str,
     case_instance: &CmmnCaseInstance,
-) -> bool {
+) -> Result<bool, CmmnError> {
     let trimmed = expression.trim();
     if is_uel_expression(trimmed) {
         let scope = case_variable_scope(case_instance);
-        matches!(
-            SimpleExpression::new(trimmed.to_string()).get_value(&scope),
-            Some(Value::Bool(true))
-        )
+        let value = SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(&scope)
+            .map_err(|error| {
+                CmmnError::execution(format!(
+                    "availableCondition '{trimmed}' failed: {error}"
+                ))
+            })?;
+        Ok(matches!(value, Some(Value::Bool(true))))
     } else {
         match CmmnSentryIfPartExpression::parse(trimmed) {
-            Ok(parsed) => matches!(evaluate_if_part_condition(&parsed, case_instance), Ok(true)),
-            Err(_) => false,
+            Ok(parsed) => Ok(matches!(evaluate_if_part_condition(&parsed, case_instance), Ok(true))),
+            Err(_) => Ok(false),
         }
     }
 }
 
 /// Resolve a human-task attribute: `${…}` via SimpleExpression, else literal.
-/// SimpleExpression capability is the upper bound (P69); unresolved EL yields None.
+/// A.2 #2 group S: evaluation errors propagate (ExpressionPlanItemLifecycleListener
+/// family, no catch); legal null / unresolved → None.
 fn resolve_el_or_literal_string(
     raw: Option<&str>,
     case_instance: &CmmnCaseInstance,
-) -> Option<String> {
-    let raw = raw?.trim();
-    if raw.is_empty() {
-        return None;
-    }
+) -> Result<Option<String>, CmmnError> {
+    let Some(raw) = raw.map(str::trim).filter(|r| !r.is_empty()) else {
+        return Ok(None);
+    };
     if !is_uel_expression(raw) {
-        return Some(raw.to_string());
+        return Ok(Some(raw.to_string()));
     }
     let scope = case_variable_scope(case_instance);
-    match SimpleExpression::new(raw.to_string()).get_value(&scope) {
+    let value = SimpleExpression::new(raw.to_string())
+        .get_value_strict(&scope)
+        .map_err(|error| {
+            CmmnError::execution(format!("Expression '{raw}' failed: {error}"))
+        })?;
+    Ok(match value {
         Some(Value::String(s)) => Some(s),
         Some(Value::Number(n)) => Some(n.to_string()),
         Some(Value::Bool(b)) => Some(b.to_string()),
         Some(Value::Null) | None => None,
         Some(other) => Some(other.to_string()),
-    }
+    })
 }
 
 /// Evaluate each candidate entry; if an entry is UEL, evaluate then comma-split
 /// (Java handleCandidateUsers/Groups after expression resolution).
-fn resolve_candidate_list(entries: &[String], case_instance: &CmmnCaseInstance) -> Vec<String> {
+fn resolve_candidate_list(
+    entries: &[String],
+    case_instance: &CmmnCaseInstance,
+) -> Result<Vec<String>, CmmnError> {
     let mut resolved = Vec::new();
     for entry in entries {
         let trimmed = entry.trim();
@@ -5003,7 +5016,7 @@ fn resolve_candidate_list(entries: &[String], case_instance: &CmmnCaseInstance) 
             continue;
         }
         if is_uel_expression(trimmed) {
-            if let Some(value) = resolve_el_or_literal_string(Some(trimmed), case_instance) {
+            if let Some(value) = resolve_el_or_literal_string(Some(trimmed), case_instance)? {
                 for part in value.split(',') {
                     let part = part.trim();
                     if !part.is_empty() {
@@ -5015,7 +5028,7 @@ fn resolve_candidate_list(entries: &[String], case_instance: &CmmnCaseInstance) 
             resolved.push(trimmed.to_string());
         }
     }
-    resolved
+    Ok(resolved)
 }
 
 /// Maximum AST evaluation depth for CMMN ifPart expressions.
@@ -6938,11 +6951,11 @@ fn create_human_task_instance(
         // priority/dueDate/category are expression-resolved against case variables
         // when written as `${…}` (P69 SimpleExpression); non-expression literals
         // stay verbatim (C10 fallback).
-        assignee: resolve_el_or_literal_string(human_task.assignee.as_deref(), case_instance),
-        owner: resolve_el_or_literal_string(human_task.owner.as_deref(), case_instance),
-        priority: resolve_el_or_literal_string(human_task.priority.as_deref(), case_instance),
-        due_date: resolve_el_or_literal_string(human_task.due_date.as_deref(), case_instance),
-        category: resolve_el_or_literal_string(human_task.category.as_deref(), case_instance),
+        assignee: resolve_el_or_literal_string(human_task.assignee.as_deref(), case_instance)?,
+        owner: resolve_el_or_literal_string(human_task.owner.as_deref(), case_instance)?,
+        priority: resolve_el_or_literal_string(human_task.priority.as_deref(), case_instance)?,
+        due_date: resolve_el_or_literal_string(human_task.due_date.as_deref(), case_instance)?,
+        category: resolve_el_or_literal_string(human_task.category.as_deref(), case_instance)?,
         delegation_state: None,
         task_local_variables: Map::new(),
     };
@@ -6992,10 +7005,10 @@ fn create_human_task_candidate_identity_links(
     case_instance: &CmmnCaseInstance,
 ) -> Result<(), CmmnError> {
     let link_manager = CmmnIdentityLinkDataManager::new();
-    for user_id in resolve_candidate_list(&human_task.candidate_users, case_instance) {
+    for user_id in resolve_candidate_list(&human_task.candidate_users, case_instance)? {
         insert_human_task_candidate_link(session, &link_manager, task_id, Some(&user_id), None)?;
     }
-    for group_id in resolve_candidate_list(&human_task.candidate_groups, case_instance) {
+    for group_id in resolve_candidate_list(&human_task.candidate_groups, case_instance)? {
         insert_human_task_candidate_link(session, &link_manager, task_id, None, Some(&group_id))?;
     }
     Ok(())
@@ -7204,12 +7217,13 @@ fn activate_event_listener(
 ) -> Result<(), CmmnError> {
     // Java: AbstractEvaluationCriteriaOperation.java:584-604 - a non-empty availableCondition
     // gates the listener: only a Boolean true result makes it available (and creates its
-    // event subscription). A failing or non-boolean evaluation counts as false, so the
-    // listener stays unavailable; it is re-evaluated when case variables change
+    // event subscription). UEL (`${…}`) evaluation errors propagate (no catch in Java);
+    // a non-boolean or null result counts as false, so the listener stays unavailable;
+    // it is re-evaluated when case variables change
     // (reevaluate_event_listener_available_conditions). `${…}` uses SimpleExpression (P69);
-    // non-UEL text keeps the C7 if-part dialect.
+    // non-UEL text keeps the C7 if-part dialect (lenient Err→false).
     if let Some(condition) = &event_listener.available_condition
-        && !evaluate_available_condition_expression(condition, case_instance)
+        && !evaluate_available_condition_expression(condition, case_instance)?
     {
         return Ok(());
     }
@@ -7237,7 +7251,7 @@ fn activate_event_listener(
             .as_ref()
             .map(|change_type| serde_json::json!({ "changeType": change_type }).to_string())
     } else {
-        correlation_configuration_for_listener(event_listener, case_instance)
+        correlation_configuration_for_listener(event_listener, case_instance)?
     };
     let subscription = CmmnEventSubscription {
         id: format!("cmmn-event-subscription:{}", Uuid::new_v4()),
@@ -7316,7 +7330,7 @@ fn schedule_timer_event_listener(
     // Java `resolveTimerExpression` (:223-227): `${…}` is evaluated via the expression
     // manager; a literal ISO-8601 value is used as-is.
     let resolved =
-        resolve_el_or_literal_string(Some(expression), case_instance).ok_or_else(|| {
+        resolve_el_or_literal_string(Some(expression), case_instance)?.ok_or_else(|| {
             CmmnError::validation(format!(
                 "Timer expression '{}' did not resolve for timerEventListener '{}'",
                 expression, event_listener.id
@@ -7432,36 +7446,41 @@ fn timer_job_for_plan_item_exists(
 fn correlation_configuration_for_listener(
     event_listener: &CmmnEventListener,
     case_instance: &CmmnCaseInstance,
-) -> Option<String> {
+) -> Result<Option<String>, CmmnError> {
     if event_listener.event_correlation_parameters.is_empty() {
-        return None;
+        return Ok(None);
     }
     let mut params = std::collections::BTreeMap::new();
     for param in &event_listener.event_correlation_parameters {
-        let value = evaluate_correlation_value_expression(&param.value, case_instance);
+        let value = evaluate_correlation_value_expression(&param.value, case_instance)?;
         params.insert(param.name.clone(), value);
     }
-    Some(generate_correlation_key(&params))
+    Ok(Some(generate_correlation_key(&params)))
 }
 
 /// Evaluate a correlation value expression against case variables.
 /// Java ExpressionManager on the plan-item scope (getCorrelationKey:172-174).
+/// A.2 #3 group S: evaluation errors propagate.
 fn evaluate_correlation_value_expression(
     expression: &str,
     case_instance: &CmmnCaseInstance,
-) -> Option<String> {
+) -> Result<Option<String>, CmmnError> {
     let trimmed = expression.trim();
     if trimmed.is_empty() {
-        return None;
+        return Ok(None);
     }
     if is_uel_expression(trimmed) {
         let scope = case_variable_scope(case_instance);
-        match SimpleExpression::new(trimmed.to_string()).get_value(&scope) {
-            Some(value) => Some(json_value_to_correlation_string(&value)),
-            None => None,
-        }
+        let value = SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(&scope)
+            .map_err(|error| {
+                CmmnError::execution(format!(
+                    "Correlation parameter value expression '{trimmed}' failed: {error}"
+                ))
+            })?;
+        Ok(value.map(|value| json_value_to_correlation_string(&value)))
     } else {
-        Some(trimmed.to_string())
+        Ok(Some(trimmed.to_string()))
     }
 }
 
@@ -8077,7 +8096,7 @@ fn reevaluate_event_listener_available_conditions(
         let Some(condition) = event_listener.available_condition.as_ref() else {
             continue;
         };
-        let satisfied = evaluate_available_condition_expression(condition, case_instance);
+        let satisfied = evaluate_available_condition_expression(condition, case_instance)?;
         let existing_subscription = subscriptions.iter().find(|subscription| {
             subscription.plan_item_instance_id.as_deref() == Some(plan_item.id.as_str())
         });

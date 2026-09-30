@@ -125,12 +125,19 @@ impl ActivityBehavior for ScriptTaskActivityBehavior {
         // a typed BpmnError (or equivalent) with errorCode.
         let result = engine.execute(language, script_text, &mut context)?;
 
-        // Write result variable if configured
-        if let Some(ref var_name) = result_variable
-            && let Some(ref val) = result
-        {
-            execution.set_process_variable(var_name.clone(), val.clone());
-        }
+        // P1-1 R1 three-state write (Java ScriptTaskActivityBehavior:150-151):
+        // `if (resultVariable != null) setVariable(resultVariable, result)` —
+        // a configured name ALWAYS writes, including Null when the script has
+        // no completion expression (Ok(None)) or returns an explicit null.
+        // R1-SKIP (no resultVariable) must not create the variable.
+        crate::bpmn::behavior::service_task_activity_behavior::write_result_variable(
+            execution,
+            result_variable.as_deref(),
+            result,
+            crate::bpmn::behavior::service_task_activity_behavior::ResultWriteMode::WriteIncludingNull,
+            false,
+            false,
+        );
 
         // Auto-store all variables produced by the script
         if auto_store || result_variable.is_none() {

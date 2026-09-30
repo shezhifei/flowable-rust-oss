@@ -491,11 +491,17 @@ fn needs_roll(token: &Token, config: &UiAuthConfig) -> bool {
 
 /// Replaces a token that has passed `refresh_age` with a freshly issued one.
 ///
-/// Deviation from Java: the superseded row is deleted. Java's `createToken` only
-/// inserts, so every roll leaves the previous series valid until `max_age` and
-/// accumulates rows for the lifetime of the session. Deleting closes the window
-/// in which a previously captured cookie still authenticates, and stops the
-/// table growing once per refresh interval per session.
+/// Deviations from Java (both intentional, residual-closed):
+/// 1. The superseded row is deleted. Java's `createToken` only inserts, so every
+///    roll leaves the previous series valid until `max_age` and accumulates rows
+///    for the lifetime of the session. Deleting closes the window in which a
+///    previously captured cookie still authenticates, and stops the table
+///    growing once per refresh interval per session.
+/// 2. On replacement failure the existing cookie is retained (see
+///    `replacement_or_retain`). Java
+///    `CustomPersistentRememberMeServices.java:112-122` lets the exception fail
+///    autologin. Retaining a still-valid cookie is the safer failure mode (no
+///    forced logout during a storage blip) and is logged for observability.
 fn roll_token(
     engine: &Arc<ProcessEngine>,
     previous: &Token,

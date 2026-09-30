@@ -4,7 +4,7 @@ use crate::cmd::trigger_boundary_event_cmd::{
 };
 use crate::cmd::trigger_intermediate_catch_event_cmd::TriggerTimerIntermediateCatchEventCmd;
 use crate::cmd::trigger_start_event_subscription_cmd::TriggerEventSubprocessByEventCmd;
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::engine::external_worker_service::{
     ExternalWorkerBpmnErrorRequest, ExternalWorkerCmmnTerminateRequest,
     ExternalWorkerFailureRequest, ExternalWorkerFetchAndLockRequest, ExternalWorkerJob,
@@ -182,7 +182,7 @@ impl Command<Vec<ExternalWorkerJob>> for FetchAndLockExternalWorkerJobsCmd {
             // `InternalJobManager#resolveVariablesForExternalWorkerJob`
             // (DefaultInternalJobManager.java:79-109): project in-parameters
             // or full process variables onto the acquired job payload.
-            let variables = resolve_variables_for_external_worker_job(command_context, &timer_job);
+            let variables = resolve_variables_for_external_worker_job(command_context, &timer_job)?;
             jobs.push(map_runtime_timer_job(timer_job, variables));
         }
 
@@ -250,13 +250,13 @@ impl Command<()> for CompleteExternalWorkerJobCmd {
 fn resolve_variables_for_external_worker_job(
     command_context: &mut CommandContext,
     timer_job: &RuntimeTimerJobState,
-) -> std::collections::HashMap<String, serde_json::Value> {
+) -> Result<std::collections::HashMap<String, serde_json::Value>, FlowableError> {
     let execution = match command_context
         .runtime_store
         .find_execution(&timer_job.execution_id, &mut command_context.session)
     {
         Some(e) => e,
-        None => return std::collections::HashMap::new(),
+        None => return Ok(std::collections::HashMap::new()),
     };
 
     if let Some(service_task) = find_external_worker_service_task(command_context, &execution) {
@@ -271,7 +271,20 @@ fn resolve_variables_for_external_worker_job(
                 let value = if let Some(source) = param.source.as_ref() {
                     execution.process_variable(source)
                 } else if let Some(expr) = param.source_expression.as_ref() {
-                    SimpleExpression::new(expr.clone()).get_value(&execution)
+                    // A.2 #37 group S (ExternalWorkerTaskActivityBehavior.java:98,119
+                    // / DefaultInternalJobManager resolveVariables): evaluation
+                    // errors propagate — never silently dropped.
+                    Some(
+                        SimpleExpression::new(expr.clone())
+                            .get_value_strict(&execution)
+                            .map_err(|error| {
+                                FlowableError::ExecutionError(format!(
+                                    "External worker in sourceExpression '{}' failed: {error}",
+                                    expr
+                                ))
+                            })?
+                            .unwrap_or(serde_json::Value::Null),
+                    )
                 } else {
                     None
                 };
@@ -281,15 +294,15 @@ fn resolve_variables_for_external_worker_job(
                     }
                 }
             }
-            return variables;
+            return Ok(variables);
         }
         if service_task.do_not_include_variables {
-            return std::collections::HashMap::new();
+            return Ok(std::collections::HashMap::new());
         }
     }
 
     // Full process-visible variables (Java executionEntity.getVariables()).
-    execution.process_variables()
+    Ok(execution.process_variables())
 }
 
 /// Java `ExternalWorkerJobCompleteCmd#runJobLogic` out-parameter / variables writeback
@@ -335,8 +348,19 @@ fn apply_external_worker_complete_variables(
                 } else if let Some(expr) = param.source_expression.as_ref() {
                     // Evaluate expression against a synthetic container of
                     // the worker-supplied variables (limited EL: ${varName}).
+                    // A.2 #38 group S: evaluation errors propagate.
                     let temp = temporary_variable_execution(variables);
-                    SimpleExpression::new(expr.clone()).get_value(&temp)
+                    Some(
+                        SimpleExpression::new(expr.clone())
+                            .get_value_strict(&temp)
+                            .map_err(|error| {
+                                FlowableError::ExecutionError(format!(
+                                    "External worker out sourceExpression '{}' failed: {error}",
+                                    expr
+                                ))
+                            })?
+                            .unwrap_or(serde_json::Value::Null),
+                    )
                 } else {
                     None
                 };

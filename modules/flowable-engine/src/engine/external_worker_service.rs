@@ -3,7 +3,7 @@ use crate::cmd::external_worker_cmd::{
     FetchAndLockExternalWorkerJobsCmd, HandleExternalWorkerFailureCmd,
     TerminateExternalWorkerJobWithCmmnCmd, UnlockExternalWorkerJobCmd,
 };
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::interceptor::command_executor::{CommandExecutor, DefaultCommandExecutor};
@@ -119,10 +119,10 @@ pub(crate) fn create_external_worker_service_task_job(
         interceptor.before_create(&mut before);
     }
 
-    let category = before
-        .job_category
-        .as_deref()
-        .and_then(|text| evaluate_job_category_text(text, &evaluation_execution));
+    let category = match before.job_category.as_deref() {
+        Some(text) => evaluate_job_category_text(text, &evaluation_execution)?,
+        None => None,
+    };
 
     let topic_expression = before
         .job_topic_expression
@@ -231,15 +231,26 @@ fn first_job_category_extension_text(service_task: &ServiceTask) -> Option<&str>
     if text.is_empty() { None } else { Some(text) }
 }
 
-fn evaluate_job_category_text(text: &str, execution: &Execution) -> Option<String> {
+fn evaluate_job_category_text(
+    text: &str,
+    execution: &Execution,
+) -> Result<Option<String>, FlowableError> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return None;
+        return Ok(None);
     }
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
-        let value = SimpleExpression::new(trimmed.to_string()).get_value(execution)?;
-        return match value {
-            Value::String(s) => {
+        // A.2 #35-38 group S (ExternalWorkerTaskActivityBehavior.java:98,119):
+        // evaluation errors propagate — never disguised as "no category".
+        let value = SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "External worker jobCategory expression '{trimmed}' failed: {error}"
+                ))
+            })?;
+        return Ok(match value {
+            Some(Value::String(s)) => {
                 let t = s.trim();
                 if t.is_empty() {
                     None
@@ -247,13 +258,13 @@ fn evaluate_job_category_text(text: &str, execution: &Execution) -> Option<Strin
                     Some(t.to_string())
                 }
             }
-            Value::Number(n) => Some(n.to_string()),
-            Value::Bool(b) => Some(b.to_string()),
-            Value::Null => None,
-            _ => None,
-        };
+            Some(Value::Number(n)) => Some(n.to_string()),
+            Some(Value::Bool(b)) => Some(b.to_string()),
+            Some(Value::Null) | None => None,
+            Some(_) => None,
+        });
     }
-    Some(trimmed.to_string())
+    Ok(Some(trimmed.to_string()))
 }
 
 fn evaluate_topic_expression(
@@ -265,7 +276,14 @@ fn evaluate_topic_expression(
         return Ok(String::new());
     }
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
-        match SimpleExpression::new(trimmed.to_string()).get_value(execution) {
+        // A.2 #36 group S: evaluation errors propagate (same getValue family).
+        match SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "External worker topic expression '{trimmed}' failed: {error}"
+                ))
+            })? {
             Some(Value::String(s)) => Ok(s),
             Some(Value::Number(n)) => Ok(n.to_string()),
             Some(Value::Bool(b)) => Ok(b.to_string()),

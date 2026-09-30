@@ -249,8 +249,8 @@ fn invoke_registered_listener(
 /// Evaluate an `expression` listener body. The result is discarded — Java's
 /// `ExpressionPlanItemLifecycleListener` ignores it too — but evaluation
 /// errors are propagated (Java lets them escape and roll the transition
-/// back). An undefined variable or an unregistered method stays a lenient
-/// null and succeeds; a registered method that fails returns an error.
+/// back). Strict entry (research §2.1.2): undefined variables, unknown
+/// properties/methods and parse failures are all `Err`.
 fn evaluate_expression_listener(
     implementation: &str,
     context: &CmmnLifecycleListenerContext,

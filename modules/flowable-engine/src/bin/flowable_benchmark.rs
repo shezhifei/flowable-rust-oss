@@ -2,6 +2,10 @@
 // set up, drive or read its fixture must abort loudly rather than report a number.
 // This file has no `#[cfg(test)]` block, so the workspace ratchet
 // (`[workspace.lints.clippy] unwrap_used = "warn"`) is exempted for the whole file.
+//
+// Residual closure (P3 bin unwrap): converting every site to `anyhow`/`Result`
+// would only re-wrap "fixture must exist" panics as exits without changing
+// benchmark semantics. Non-production tool; grandfathered with this audit note.
 // Do not add more without an audit note.
 #![allow(clippy::unwrap_used)]
 

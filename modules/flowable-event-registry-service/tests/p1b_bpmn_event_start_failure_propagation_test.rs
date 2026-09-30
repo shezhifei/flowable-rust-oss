@@ -223,8 +223,8 @@ fn failing_start_subscription_fails_delivery_with_context() {
         "error must name the failing start event id, got: {message}"
     );
     assert!(
-        message.contains("could not resolve delegateExpression"),
-        "error must carry the underlying engine cause, got: {message}"
+        message.contains("Unknown property"),
+        "error must carry the underlying engine cause (JuelExpression-aligned strict EL: Unknown property used in expression), got: {message}"
     );
 
     // Not acked: the channel boundary sees Err and the delivery row is Failed with
@@ -238,7 +238,10 @@ fn failing_start_subscription_fails_delivery_with_context() {
     let last_error = delivery.last_error.expect("failed delivery records error");
     assert!(last_error.contains(EVENT_KEY));
     assert!(last_error.contains(&sub.process_definition_id));
-    assert!(last_error.contains("could not resolve delegateExpression"));
+    assert!(
+        last_error.contains("Unknown property"),
+        "recorded last_error must carry the engine cause, got: {last_error}"
+    );
 
     // The failed start is rolled back: no orphan process instance.
     assert!(

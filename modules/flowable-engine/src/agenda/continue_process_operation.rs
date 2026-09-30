@@ -563,7 +563,7 @@ fn schedule_async_continuation_job(
         category: resolve_job_category(
             flow_element_base_element(flow_element),
             &evaluation_execution,
-        ),
+        )?,
         // Java ContinueProcessOperation.java:190: createAsyncJob(job, flowNode.isExclusive()).
         exclusive: is_exclusive(flow_element),
         ..Default::default()
@@ -630,7 +630,7 @@ fn schedule_async_after_job(
         category: resolve_job_category(
             flow_element_base_element(flow_element),
             &evaluation_execution,
-        ),
+        )?,
         // Java TakeOutgoingSequenceFlowsOperation.java:143:
         // createAsyncJob(job, flowNode.isAsynchronousLeaveExclusive()).
         exclusive: is_async_leave_exclusive(flow_element),

@@ -3138,15 +3138,37 @@ fn load_bpmn_model_for_process_definition(
     };
     // Propagate storage errors reading the deployment resource; only a genuinely absent
     // or undecodable resource yields None (best-effort model load).
+    //
+    // Historical import is intentionally best-effort for model *decode*: source
+    // databases may contain BPMN this converter cannot parse (enterprise
+    // extensions, corrupt rows). A decode failure is logged and treated as
+    // "no model" so the import continues with the remaining entities rather
+    // than aborting the whole migration — Java's own historical tools degrade
+    // the same way. Storage I/O errors still propagate above.
     let Some(bytes) =
         deployment_manager.get_deployment_resource_bytes(deployment_id, resource_name, session)?
     else {
         return Ok(None);
     };
     let Ok(xml) = std::str::from_utf8(&bytes) else {
+        tracing::warn!(
+            deployment_id = %deployment_id,
+            resource_name = %resource_name,
+            "historical migration: deployment resource is not valid UTF-8; skipping model load"
+        );
         return Ok(None);
     };
-    Ok(converter.try_convert_to_bpmn_model(xml).ok())
+    match converter.try_convert_to_bpmn_model(xml) {
+        Ok(model) => Ok(Some(model)),
+        Err(error) => {
+            tracing::warn!(
+                deployment_id = %deployment_id,
+                resource_name = %resource_name,
+                "historical migration: BPMN model decode failed (best-effort skip): {error}"
+            );
+            Ok(None)
+        }
+    }
 }
 
 /// P64: import-time timer-start extraction resolves through the same business
@@ -3238,11 +3260,14 @@ fn extract_event_start_subscriptions(
                 .base_element
                 .extension_elements;
             // P93: deploy-time correlation key (CorrelationUtil.java:53-54).
+            // Deploy-time never evaluates EL (scope=None), so Result is Ok here.
             let configuration =
                 crate::bpmn::event_registry_correlation::correlation_key_from_base_element(
                     &start_event.event.flow_node.flow_element.base_element,
                     None,
-                );
+                )
+                .ok()
+                .flatten();
 
             let mut registered_standard = false;
             for event_def in &start_event.event.event_definitions {

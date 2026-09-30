@@ -90,7 +90,7 @@ impl Command<()> for TriggerCaseTaskCmd {
                     );
                 }
             };
-            map_out_parameters_from_case_variables(case_task, &self.variables)
+            map_out_parameters_from_case_variables(case_task, &self.variables)?
         } else {
             self.variables.clone()
         };

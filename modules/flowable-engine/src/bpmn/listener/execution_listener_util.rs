@@ -1,7 +1,7 @@
 use crate::bpmn::listener::listener_registry::{
     EXECUTION_LISTENER_REGISTRY_CACHE_KEY, ExecutionListenerContext, LocalExecutionListenerRegistry,
 };
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::runtime::execution::Execution;
@@ -87,8 +87,8 @@ fn invoke_execution_listener(
             // Java ExpressionExecutionListener.notify (ExpressionExecutionListener.java:34-37):
             // the expression return value is ignored, but an evaluation
             // exception escapes and fails the command (transaction rolls
-            // back). Use the strict entry so a registered method failure —
-            // not an undefined variable, which stays lenient null — surfaces.
+            // back). Strict entry (research §2.1.2): undefined variables,
+            // unknown properties/methods and parse failures are all `Err`.
             SimpleExpression::new(implementation.to_string())
                 .get_value_strict(evaluation_execution)
                 .map_err(|error| {
@@ -144,8 +144,15 @@ fn resolve_listener_name(
 
     // delegateExpression: resolve `${name}` or bare name to a string key.
     if implementation.starts_with("${") && implementation.ends_with('}') {
+        // A.2 #31-34 group S (ExpressionExecutionListener.java:36 family):
+        // delegateExpression evaluation errors must surface as command failures.
         let value = SimpleExpression::new(implementation.to_string())
-            .get_value(execution)
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "executionListener delegateExpression '{implementation}' failed: {error}"
+                ))
+            })?
             .ok_or_else(|| {
                 FlowableError::ExecutionError(format!(
                     "executionListener could not resolve delegateExpression '{}'",
@@ -191,14 +198,23 @@ fn resolve_field_extensions(
             .filter(|v| !v.is_empty());
         let value = match (string_value, expression) {
             (Some(v), None) => Value::String(v.to_string()),
-            (None, Some(expr)) => SimpleExpression::new(expr.to_string())
-                .get_value(execution)
-                .ok_or_else(|| {
-                    FlowableError::ExecutionError(format!(
-                        "executionListener field '{}' expression '{}' could not be resolved",
-                        name, expr
-                    ))
-                })?,
+            (None, Some(expr)) => {
+                // A.2 #31 group S: field expression evaluation errors surface.
+                SimpleExpression::new(expr.to_string())
+                    .get_value_strict(execution)
+                    .map_err(|error| {
+                        FlowableError::ExecutionError(format!(
+                            "executionListener field '{}' expression '{}' failed: {error}",
+                            name, expr
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        FlowableError::ExecutionError(format!(
+                            "executionListener field '{}' expression '{}' could not be resolved",
+                            name, expr
+                        ))
+                    })?
+            }
             (Some(_), Some(_)) => {
                 return Err(FlowableError::ExecutionError(format!(
                     "executionListener field '{}' cannot have both stringValue and expression",

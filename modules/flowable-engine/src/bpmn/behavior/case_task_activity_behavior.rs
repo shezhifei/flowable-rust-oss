@@ -8,7 +8,7 @@
 
 use crate::agenda::FlowableEngineAgenda;
 use crate::delegate::activity_behavior::ActivityBehavior;
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::engine::variable_service::variable_type_name;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
@@ -71,7 +71,15 @@ fn expression_or_literal_coerced(
         )));
     }
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
-        let resolved = match SimpleExpression::new(trimmed.to_string()).get_value(execution) {
+        // A.2 #12-14 group S (CaseTaskActivityBehavior.java:124 / IOParameterUtil:74):
+        // evaluation errors propagate — never disguised as "could not be resolved".
+        let resolved = match SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Case service task {field_name} expression '{trimmed}' failed: {error}"
+                ))
+            })? {
             Some(Value::String(value)) => value,
             Some(Value::Bool(b)) => b.to_string(),
             Some(Value::Number(n)) => n.to_string(),
@@ -128,44 +136,59 @@ fn resolve_business_key(
 }
 
 /// Java `IOParameterUtil.processInParameters` (:89) — build child variable map from declared in-params.
-fn map_in_parameters(case_task: &CaseServiceTask, execution: &Execution) -> Map<String, Value> {
+fn map_in_parameters(
+    case_task: &CaseServiceTask,
+    execution: &Execution,
+) -> Result<Map<String, Value>, FlowableError> {
     let mut mapped = Map::new();
     for parameter in case_task.in_parameters() {
-        let Some(target) = parameter_target_name(parameter, execution) else {
+        let Some(target) = parameter_target_name(parameter, execution)? else {
             continue;
         };
-        let value = parameter_value(parameter, execution);
+        let value = parameter_value(parameter, execution)?;
         mapped.insert(target, value);
     }
-    mapped
+    Ok(mapped)
 }
 
-fn parameter_target_name(parameter: &IOParameter, execution: &Execution) -> Option<String> {
+fn parameter_target_name(
+    parameter: &IOParameter,
+    execution: &Execution,
+) -> Result<Option<String>, FlowableError> {
     if let Some(target) = parameter.target.as_deref() {
         let trimmed = target.trim();
         if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
+            return Ok(Some(trimmed.to_string()));
         }
     }
     if let Some(target_expression) = parameter.target_expression.as_deref() {
+        // A.2 #12-14 group S: targetExpression evaluation errors must surface
+        // (IOParameterUtil.java:85-87 `expression.getValue` has no catch).
         return expression_or_literal_coerced(target_expression, execution, "targetExpression")
-            .ok();
+            .map(Some);
     }
-    None
+    Ok(None)
 }
 
-fn parameter_value(parameter: &IOParameter, execution: &Execution) -> Value {
+fn parameter_value(parameter: &IOParameter, execution: &Execution) -> Result<Value, FlowableError> {
     if let Some(source_expression) = parameter.source_expression.as_deref() {
-        return SimpleExpression::new(source_expression.to_string())
-            .get_value(execution)
-            .unwrap_or(Value::Null);
+        // A.2 #13 group S (IOParameterUtil.java:74): evaluation errors propagate.
+        let value = SimpleExpression::new(source_expression.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "Case service task sourceExpression '{}' failed: {error}",
+                    source_expression
+                ))
+            })?;
+        return Ok(value.unwrap_or(Value::Null));
     }
     if let Some(source) = parameter.source.as_deref() {
-        return execution
+        return Ok(execution
             .process_variable(source.trim())
-            .unwrap_or(Value::Null);
+            .unwrap_or(Value::Null));
     }
-    Value::Null
+    Ok(Value::Null)
 }
 
 fn set_process_variable_with_history(
@@ -248,7 +271,7 @@ pub fn trigger_case_task_and_leave(
 pub fn map_out_parameters_from_case_variables(
     case_task: &CaseServiceTask,
     case_variables: &Map<String, Value>,
-) -> Map<String, Value> {
+) -> Result<Map<String, Value>, FlowableError> {
     let mut mapped = Map::new();
     // Minimal VariableContainer for target/source expressions over case vars.
     let case_exec = Execution {
@@ -259,13 +282,20 @@ pub fn map_out_parameters_from_case_variables(
         ..Default::default()
     };
     for parameter in case_task.out_parameters() {
-        let Some(target) = parameter_target_name(parameter, &case_exec) else {
+        let Some(target) = parameter_target_name(parameter, &case_exec)? else {
             continue;
         };
         let value = if let Some(source_expression) = parameter.source_expression.as_deref() {
-            SimpleExpression::new(source_expression.to_string())
-                .get_value(&case_exec)
-                .unwrap_or(Value::Null)
+            // A.2 #14 group S (IOParameterUtil:83): evaluation errors propagate.
+            let evaluated = SimpleExpression::new(source_expression.to_string())
+                .get_value_strict(&case_exec)
+                .map_err(|error| {
+                    FlowableError::ExecutionError(format!(
+                        "Case service task out sourceExpression '{}' failed: {error}",
+                        source_expression
+                    ))
+                })?;
+            evaluated.unwrap_or(Value::Null)
         } else if let Some(source) = parameter.source.as_deref() {
             case_variables
                 .get(source.trim())
@@ -276,7 +306,7 @@ pub fn map_out_parameters_from_case_variables(
         };
         mapped.insert(target, value);
     }
-    mapped
+    Ok(mapped)
 }
 
 impl ActivityBehavior for CaseTaskActivityBehavior {
@@ -342,7 +372,7 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
             })
             .transpose()?;
 
-        let in_parameters = map_in_parameters(&case_task, &evaluation_execution);
+        let in_parameters = map_in_parameters(&case_task, &evaluation_execution)?;
 
         // Java generates id first then starts with predefined id (:91, :113-115).
         let case_instance_id = format!("cmmn-case-instance:{}", Uuid::new_v4());
@@ -413,7 +443,7 @@ impl ActivityBehavior for CaseTaskActivityBehavior {
         // If the child case already completed synchronously, map outs and leave now.
         if case_instance.state == CmmnCaseInstanceState::Completed {
             let out_vars =
-                map_out_parameters_from_case_variables(&case_task, &case_instance.variables);
+                map_out_parameters_from_case_variables(&case_task, &case_instance.variables)?;
             for (name, value) in out_vars {
                 set_process_variable_with_history(command_context, execution, name, value)?;
             }

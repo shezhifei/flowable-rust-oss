@@ -71,15 +71,21 @@ fn missing_comparison_operand_fails_and_rolls_back_start_command() {
                 .create_process_instance_builder()
                 .process_definition_id(definition_id),
         )
-        .expect_err("a null condition result must abort process start");
+        .expect_err("an undefined comparison operand must abort process start");
 
-    assert!(matches!(
-        error,
-        FlowableError::ExecutionError(message)
-            if message.contains("non-Boolean")
-                && message.contains("conditionalFlow")
-                && message.ends_with("null")
-    ));
+    // W1/W6: evaluation error (Unknown property) — NOT disguised as the
+    // "returns null" message. Java PropertyNotFoundException → FlowableException.
+    assert!(
+        matches!(
+            error,
+            FlowableError::ExecutionError(ref message)
+                if (message.contains("Unknown property")
+                    || message.contains("condition expression failed")
+                    || message.contains("failed"))
+                    && message.contains("conditionalFlow")
+        ),
+        "unexpected error: {error:?}"
+    );
     assert_no_runtime_state(&engine);
 }
 

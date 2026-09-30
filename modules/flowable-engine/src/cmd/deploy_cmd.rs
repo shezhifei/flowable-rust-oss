@@ -107,7 +107,7 @@ pub(crate) fn extract_timer_start_subscriptions(
                     let category = resolve_job_category(
                         &start_event.event.flow_node.flow_element.base_element,
                         &empty_execution,
-                    );
+                    )?;
                     // EL first, then P16 prepare_repeat inside resolve_timer_schedule.
                     let schedule = timer_util::resolve_timer_schedule_for_start(
                         timer_def.time_date.as_ref(),
@@ -186,10 +186,13 @@ fn extract_event_start_subscriptions(
                 .extension_elements;
             // Deploy-time correlation key: CorrelationUtil with execution=null
             // stores raw value expressions (CorrelationUtil.java:53-54).
+            // Deploy-time never evaluates EL (scope=None), so Result is Ok here.
             let configuration = correlation_key_from_base_element(
                 &start_event.event.flow_node.flow_element.base_element,
                 None,
-            );
+            )
+            .ok()
+            .flatten();
 
             // Java EventSubscriptionManager.insertEventRegistryEvent:224-249 —
             // process-level start with flowable:eventType (and no event definitions).

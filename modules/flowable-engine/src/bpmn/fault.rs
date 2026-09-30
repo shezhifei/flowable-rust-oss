@@ -110,7 +110,7 @@ pub(crate) fn register_error_boundaries_for_execution(
             crate::bpmn::behavior::boundary_event_activity_behavior::resolve_boundary_configuration(
                 &boundary,
                 Some(execution),
-            );
+            )?;
         crate::bpmn::behavior::boundary_event_activity_behavior::insert_boundary_event_state_with_waiting(
             command_context,
             RuntimeBoundaryEventState {
@@ -196,6 +196,227 @@ pub(crate) fn propagate_bpmn_error(
         .execution_entity_manager
         .update(execution, &mut command_context.session)?;
     Ok(false)
+}
+
+/// Synthetic Java-style class name for a Rust [`FlowableError`].
+///
+/// `flowable:mapException` entries carry Java `class=` FQCNs. Rust errors have
+/// no JVM Class object, so we expose a stable type-name mapping that BPMN
+/// authors can target (`java.lang.Exception` matches every variant via
+/// `andChildren`). Errors that embed a Java-style class in their message are
+/// also matched by [`find_matching_exception_mapping`] via substring.
+fn java_class_name(error: &FlowableError) -> &'static str {
+    match error.primary_error() {
+        FlowableError::InvalidBpmnXml { .. } => {
+            "org.flowable.common.engine.api.FlowableIllegalStateException"
+        }
+        FlowableError::UnsupportedElement { .. } => {
+            "org.flowable.common.engine.api.FlowableIllegalStateException"
+        }
+        FlowableError::DeploymentValidationError(_) => {
+            "org.flowable.common.engine.api.FlowableIllegalStateException"
+        }
+        FlowableError::BadRequest(_) => {
+            "org.flowable.common.engine.api.FlowableIllegalArgumentException"
+        }
+        FlowableError::Forbidden(_) => "org.flowable.common.engine.api.FlowableSecurityException",
+        FlowableError::Conflict(_) => "org.flowable.common.engine.api.FlowableConflictException",
+        FlowableError::ExecutionError(_) => "org.flowable.engine.FlowableException",
+        FlowableError::UnrecoverableJobError(_) => {
+            "org.flowable.job.api.FlowableUnrecoverableJobException"
+        }
+        FlowableError::NotFound(_) => {
+            "org.flowable.common.engine.api.FlowableObjectNotFoundException"
+        }
+        FlowableError::Internal(_) => "java.lang.RuntimeException",
+        FlowableError::Generic(_) => "java.lang.Exception",
+        FlowableError::Caused(_) => "java.lang.Exception",
+    }
+}
+
+/// True when `child` is `parent` or a subclass of `parent` in the synthetic
+/// hierarchy (Java `Class.isAssignableFrom` for `andChildren="true"`).
+fn is_assignable_from(parent: &str, child: &str) -> bool {
+    if parent == child {
+        return true;
+    }
+    const ROOT: &str = "java.lang.Exception";
+    const RUNTIME: &str = "java.lang.RuntimeException";
+    const FLOWABLE_EX: &str = "org.flowable.engine.FlowableException";
+    const ILLEGAL_STATE: &str = "org.flowable.common.engine.api.FlowableIllegalStateException";
+    const ILLEGAL_ARG: &str = "org.flowable.common.engine.api.FlowableIllegalArgumentException";
+    const OBJECT_NOT_FOUND: &str = "org.flowable.common.engine.api.FlowableObjectNotFoundException";
+    const CONFLICT: &str = "org.flowable.common.engine.api.FlowableConflictException";
+    const SECURITY: &str = "org.flowable.common.engine.api.FlowableSecurityException";
+
+    match parent {
+        ROOT => true,
+        RUNTIME => matches!(child, RUNTIME | ILLEGAL_STATE | ILLEGAL_ARG),
+        FLOWABLE_EX => matches!(child, FLOWABLE_EX | OBJECT_NOT_FOUND | CONFLICT | SECURITY),
+        _ => false,
+    }
+}
+
+/// Java `ErrorPropagation.findMatchingExceptionMapping:394-446`.
+///
+/// Matching rules (in order):
+/// 1. First entry with empty `class_name` and non-empty `error_code` is the
+///    default mapping (honours optional `root_cause`).
+/// 2. Exact `class_name` match against the synthetic Java class name, or
+///    `class_name` appearing in the error message (Java-style FQCNs embedded
+///    by delegates). Honours optional `root_cause`.
+/// 3. `and_children`: `is_assignable_from` on the synthetic hierarchy.
+/// 4. Fall back to the default mapping.
+pub(crate) fn find_matching_exception_mapping(
+    error: &FlowableError,
+    exception_map: &[flowable_bpmn_model::model::MapExceptionEntry],
+) -> Option<String> {
+    use flowable_bpmn_model::model::MapExceptionEntry;
+
+    let class_name = java_class_name(error);
+    let message = error.to_string();
+    let root_cause_name = root_cause_class_name(error);
+    let mut default_exception_mapping: Option<String> = None;
+
+    for MapExceptionEntry {
+        class_name: entry_class,
+        error_code,
+        and_children,
+        root_cause,
+    } in exception_map
+    {
+        let Some(error_code) = error_code.as_deref().filter(|code| !code.is_empty()) else {
+            continue;
+        };
+        let entry_class = entry_class.as_deref().unwrap_or_default();
+        let root_cause = root_cause.as_deref().unwrap_or_default();
+
+        // Default mapping: no class specified.
+        if entry_class.is_empty() && default_exception_mapping.is_none() {
+            if !root_cause.is_empty() {
+                if root_cause_name == Some(root_cause) {
+                    default_exception_mapping = Some(error_code.to_string());
+                }
+                continue;
+            }
+            default_exception_mapping = Some(error_code.to_string());
+            continue;
+        }
+
+        if entry_class.is_empty() {
+            continue;
+        }
+
+        let class_matches = entry_class == class_name
+            || message.contains(entry_class)
+            || (*and_children && is_assignable_from(entry_class, class_name));
+
+        if !class_matches {
+            continue;
+        }
+
+        if !root_cause.is_empty() {
+            if root_cause_name == Some(root_cause) {
+                return Some(error_code.to_string());
+            }
+            continue;
+        }
+        return Some(error_code.to_string());
+    }
+
+    default_exception_mapping
+}
+
+/// Best-effort root-cause class name from a [`FlowableError`] cause chain.
+fn root_cause_class_name(error: &FlowableError) -> Option<&'static str> {
+    let mut current = error;
+    loop {
+        match current {
+            FlowableError::Caused(chain) => current = chain.cause(),
+            other => return Some(java_class_name(other)),
+        }
+    }
+}
+
+/// Java `ErrorPropagation.mapException:359-391` (activity-local half).
+///
+/// If `exception_map` maps `error` to an error code, propagate it as a BPMN
+/// error and return `true`. Returns `false` when nothing matched so the caller
+/// can surface the original error.
+pub(crate) fn try_map_exception(
+    error: &FlowableError,
+    execution: &mut Execution,
+    exception_map: &[flowable_bpmn_model::model::MapExceptionEntry],
+    command_context: &mut CommandContext,
+) -> Result<bool, FlowableError> {
+    let Some(error_code) = find_matching_exception_mapping(error, exception_map) else {
+        return Ok(false);
+    };
+    propagate_bpmn_error(execution, &error_code, command_context)
+}
+
+/// Java `ErrorPropagation.handleException:488-508` without the BpmnError type
+/// (Rust has no `BpmnError` throwable; HTTP path already handles EngineFault).
+///
+/// Walks the activity `map_exceptions` first, then parent call-activity
+/// `map_exceptions` (Java `mapException:365-388`). Returns the original error
+/// when nothing maps.
+pub(crate) fn handle_exception_with_map_exceptions(
+    error: FlowableError,
+    execution: &mut Execution,
+    activity_map_exceptions: &[flowable_bpmn_model::model::MapExceptionEntry],
+    command_context: &mut CommandContext,
+) -> Result<(), FlowableError> {
+    if try_map_exception(&error, execution, activity_map_exceptions, command_context)? {
+        return Ok(());
+    }
+
+    // Java mapException: walk parent process / call-activity mapExceptions.
+    if let Some(call_maps) = find_call_activity_map_exceptions(execution, command_context) {
+        if try_map_exception(&error, execution, &call_maps, command_context)? {
+            return Ok(());
+        }
+    }
+
+    Err(error)
+}
+
+/// Collect `map_exceptions` from the nearest call-activity that started this
+/// process instance (Java `mapException:365-388`).
+fn find_call_activity_map_exceptions(
+    execution: &Execution,
+    command_context: &mut CommandContext,
+) -> Option<Vec<flowable_bpmn_model::model::MapExceptionEntry>> {
+    let process_instance_id = execution.process_instance_id.as_deref()?;
+    let root = command_context
+        .runtime_store
+        .find_execution(process_instance_id, &mut command_context.session)?;
+    let super_execution_id = root.super_execution_id.as_ref()?;
+    let super_execution = command_context.runtime_store.find_execution(
+        super_execution_id,
+        &mut command_context.session,
+    )?;
+    let activity_id = super_execution.activity_id.as_deref()?;
+    let super_model = command_context
+        .deployment_manager
+        .get_bpmn_model(super_execution.process_definition_id.as_deref()?)?;
+    let process = super_model.main_process.as_ref()?;
+    for flow_element in &process.flow_elements {
+        if let FlowElementEnum::CallActivity(call) = flow_element {
+            let call_id = call
+                .activity
+                .flow_node
+                .flow_element
+                .base_element
+                .id
+                .as_deref()
+                .unwrap_or_default();
+            if call_id == activity_id && !call.activity.map_exceptions.is_empty() {
+                return Some(call.activity.map_exceptions.clone());
+            }
+        }
+    }
+    None
 }
 
 /// Try event-subprocess + error-boundary catches inside a single process instance.
@@ -703,5 +924,88 @@ fn flow_element_id(element: &FlowElementEnum) -> Option<String> {
             .id
             .clone(),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flowable_bpmn_model::model::MapExceptionEntry;
+
+    fn entry(class: &str, code: &str, and_children: bool) -> MapExceptionEntry {
+        MapExceptionEntry {
+            class_name: Some(class.to_string()),
+            error_code: Some(code.to_string()),
+            and_children,
+            root_cause: None,
+        }
+    }
+
+    #[test]
+    fn map_exception_exact_class_match() {
+        let error = FlowableError::ExecutionError("boom".to_string());
+        let map = vec![entry(
+            "org.flowable.engine.FlowableException",
+            "mappedCode",
+            false,
+        )];
+        assert_eq!(
+            find_matching_exception_mapping(&error, &map),
+            Some("mappedCode".to_string())
+        );
+    }
+
+    #[test]
+    fn map_exception_default_when_no_class() {
+        let error = FlowableError::ExecutionError("boom".to_string());
+        let map = vec![MapExceptionEntry {
+            class_name: None,
+            error_code: Some("defaultCode".to_string()),
+            and_children: false,
+            root_cause: None,
+        }];
+        assert_eq!(
+            find_matching_exception_mapping(&error, &map),
+            Some("defaultCode".to_string())
+        );
+    }
+
+    #[test]
+    fn map_exception_and_children_matches_superclass() {
+        let error = FlowableError::BadRequest("bad".to_string());
+        // java.lang.Exception + andChildren matches every synthetic class.
+        let map = vec![entry("java.lang.Exception", "anyError", true)];
+        assert_eq!(
+            find_matching_exception_mapping(&error, &map),
+            Some("anyError".to_string())
+        );
+    }
+
+    #[test]
+    fn map_exception_no_match_returns_none() {
+        let error = FlowableError::NotFound("missing".to_string());
+        let map = vec![entry(
+            "com.acme.InsufficientFundsException",
+            "fundsError",
+            false,
+        )];
+        assert_eq!(find_matching_exception_mapping(&error, &map), None);
+    }
+
+    #[test]
+    fn map_exception_message_substring_match() {
+        // Delegates may embed a Java-style FQCN in the message.
+        let error = FlowableError::ExecutionError(
+            "com.acme.InsufficientFundsException: balance too low".to_string(),
+        );
+        let map = vec![entry(
+            "com.acme.InsufficientFundsException",
+            "fundsError",
+            false,
+        )];
+        assert_eq!(
+            find_matching_exception_mapping(&error, &map),
+            Some("fundsError".to_string())
+        );
     }
 }

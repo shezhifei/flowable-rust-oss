@@ -1,4 +1,5 @@
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
+use crate::error::FlowableError;
 use crate::runtime::execution::Execution;
 use flowable_bpmn_model::model::{BaseElement, FlowElementEnum};
 use serde_json::Value;
@@ -7,15 +8,19 @@ use serde_json::Value;
 /// `TimerUtil` semantics:
 /// - first non-empty `jobCategory` extension wins
 /// - literal text is returned unchanged
-/// - `${...}` expressions are evaluated against the execution
+/// - `${...}` expressions are evaluated strictly against the execution
+///   (A.2 #5, group S — evaluation errors propagate)
 /// - string / number / bool results become unquoted strings
 /// - null / missing / unsupported values map to `None`
 pub(crate) fn resolve_job_category(
     base_element: &BaseElement,
     execution: &Execution,
-) -> Option<String> {
-    let text = first_job_category_text(base_element)?;
-    resolve_job_category_text(text, execution)
+) -> Result<Option<String>, FlowableError> {
+    let text = first_job_category_text(base_element);
+    match text {
+        Some(text) => resolve_job_category_text(text, execution),
+        None => Ok(None),
+    }
 }
 
 /// Exhaustive helper so async-before/async-after paths do not duplicate nested
@@ -123,20 +128,30 @@ fn first_job_category_text(base_element: &BaseElement) -> Option<&str> {
     if text.is_empty() { None } else { Some(text) }
 }
 
-fn resolve_job_category_text(text: &str, execution: &Execution) -> Option<String> {
+fn resolve_job_category_text(
+    text: &str,
+    execution: &Execution,
+) -> Result<Option<String>, FlowableError> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     if trimmed.starts_with("${") && trimmed.ends_with('}') {
-        let value = SimpleExpression::new(trimmed.to_string()).get_value(execution)?;
-        return category_value_to_string(&value);
+        // A.2 #5 group S: jobCategory expression evaluation errors propagate.
+        let value = SimpleExpression::new(trimmed.to_string())
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "jobCategory expression '{trimmed}' failed: {error}"
+                ))
+            })?;
+        return Ok(category_value_to_string(&value.unwrap_or(Value::Null)));
     }
 
     // Literal category text is returned unchanged (Java ExpressionManager
     // treats non-expression text as a fixed value).
-    Some(trimmed.to_string())
+    Ok(Some(trimmed.to_string()))
 }
 
 fn category_value_to_string(value: &Value) -> Option<String> {
@@ -191,7 +206,7 @@ mod tests {
         let base = base_with_categories(&["orders"]);
         let execution = Execution::default();
         assert_eq!(
-            resolve_job_category(&base, &execution).as_deref(),
+            resolve_job_category(&base, &execution).unwrap().as_deref(),
             Some("orders")
         );
     }
@@ -203,7 +218,7 @@ mod tests {
         vars.insert("categoryValue".to_string(), json!("orders"));
         let execution = execution_with(vars);
         assert_eq!(
-            resolve_job_category(&base, &execution).as_deref(),
+            resolve_job_category(&base, &execution).unwrap().as_deref(),
             Some("orders")
         );
     }
@@ -214,7 +229,9 @@ mod tests {
         let mut number_vars = HashMap::new();
         number_vars.insert("categoryValue".to_string(), json!(42));
         assert_eq!(
-            resolve_job_category(&base_number, &execution_with(number_vars)).as_deref(),
+            resolve_job_category(&base_number, &execution_with(number_vars))
+                .unwrap()
+                .as_deref(),
             Some("42")
         );
 
@@ -222,30 +239,41 @@ mod tests {
         let mut bool_vars = HashMap::new();
         bool_vars.insert("categoryValue".to_string(), json!(true));
         assert_eq!(
-            resolve_job_category(&base_bool, &execution_with(bool_vars)).as_deref(),
+            resolve_job_category(&base_bool, &execution_with(bool_vars))
+                .unwrap()
+                .as_deref(),
             Some("true")
         );
     }
 
     #[test]
-    fn missing_or_null_expression_resolves_to_none() {
+    fn defined_null_expression_resolves_to_none() {
         let base = base_with_categories(&["${categoryValue}"]);
-        let execution = Execution::default();
-        assert_eq!(resolve_job_category(&base, &execution), None);
-
         let mut vars = HashMap::new();
         vars.insert("categoryValue".to_string(), Value::Null);
-        assert_eq!(resolve_job_category(&base, &execution_with(vars)), None);
+        assert_eq!(
+            resolve_job_category(&base, &execution_with(vars)).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn undefined_expression_is_error() {
+        // A.2 #5 group S: undefined variable in a jobCategory expression must
+        // propagate (Java getValue → PropertyNotFoundException).
+        let base = base_with_categories(&["${categoryValue}"]);
+        let execution = Execution::default();
+        assert!(resolve_job_category(&base, &execution).is_err());
     }
 
     #[test]
     fn empty_text_resolves_to_none() {
         let base = base_with_categories(&["   "]);
         let execution = Execution::default();
-        assert_eq!(resolve_job_category(&base, &execution), None);
+        assert_eq!(resolve_job_category(&base, &execution).unwrap(), None);
 
         let base_empty = base_with_categories(&[""]);
-        assert_eq!(resolve_job_category(&base_empty, &execution), None);
+        assert_eq!(resolve_job_category(&base_empty, &execution).unwrap(), None);
     }
 
     #[test]
@@ -253,7 +281,7 @@ mod tests {
         let base = base_with_categories(&["first", "second"]);
         let execution = Execution::default();
         assert_eq!(
-            resolve_job_category(&base, &execution).as_deref(),
+            resolve_job_category(&base, &execution).unwrap().as_deref(),
             Some("first")
         );
     }
@@ -262,6 +290,6 @@ mod tests {
     fn missing_extension_resolves_to_none() {
         let base = BaseElement::default();
         let execution = Execution::default();
-        assert_eq!(resolve_job_category(&base, &execution), None);
+        assert_eq!(resolve_job_category(&base, &execution).unwrap(), None);
     }
 }

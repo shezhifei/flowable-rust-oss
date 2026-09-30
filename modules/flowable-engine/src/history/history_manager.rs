@@ -221,6 +221,7 @@ impl HistoryManager {
         self.is_history_level_at_least(HistoryLevel::Full, process_definition_id, session)
     }
 
+    #[allow(dead_code)]
     fn record_full_extras(
         &self,
         process_definition_id: Option<&str>,

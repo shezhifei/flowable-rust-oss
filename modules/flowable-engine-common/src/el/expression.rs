@@ -9,11 +9,83 @@
 use crate::el::variable_container::VariableContainer;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub trait Expression {
     fn get_value(&self, scope: &dyn VariableContainer) -> Option<serde_json::Value>;
 }
+
+/// Typed strict-evaluation failure, mirroring the Java exception split behind
+/// `JuelExpression.getValue` (JuelExpression.java:53-60) plus the
+/// `createExpression` compile step (DefaultExpressionManager.java:90).
+///
+/// F-group callers (user-task name/description/category/formKey) must
+/// distinguish `CompileFailed` (Java `ELException` from `createExpression` —
+/// propagates) from the eval-time `FlowableException` family (catch → fallback
+/// to the model text + warn). See research N4-1.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExpressionEvalError {
+    /// parse/compile failed before evaluation (Java createExpression).
+    CompileFailed(String),
+    /// Undefined variable or unresolvable property on a non-null base
+    /// (Java PropertyNotFoundException → FlowableException "Unknown property…").
+    UnknownProperty(String),
+    /// Unregistered method / bean has no such method
+    /// (Java MethodNotFoundException → FlowableException "Unknown method…").
+    UnknownMethod(String),
+    /// Registered method failed mid-evaluation, or another evaluation error
+    /// (Java FlowableException / ExpressionException).
+    EvalFailed(String),
+}
+
+impl ExpressionEvalError {
+    /// Java-style message for the strict entry (`JuelExpression.java:53-60`).
+    /// `expression_text` is the full expression source.
+    pub fn to_java_message(&self, expression_text: &str) -> String {
+        match self {
+            ExpressionEvalError::CompileFailed(cause) => {
+                format!("Error while evaluating expression: {expression_text}: {cause}")
+            }
+            ExpressionEvalError::UnknownProperty(name) => {
+                format!("Unknown property used in expression: {expression_text} ({name})")
+            }
+            ExpressionEvalError::UnknownMethod(name) => {
+                format!("Unknown method used in expression: {expression_text} ({name})")
+            }
+            ExpressionEvalError::EvalFailed(cause) => {
+                format!("Error while evaluating expression: {expression_text}: {cause}")
+            }
+        }
+    }
+
+    /// True when Java would `createExpression`-fail (propagate) rather than
+    /// `getValue`-fail into a catchable `FlowableException` (fallback).
+    pub fn is_compile_failure(&self) -> bool {
+        matches!(self, ExpressionEvalError::CompileFailed(_))
+    }
+}
+
+impl fmt::Display for ExpressionEvalError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExpressionEvalError::CompileFailed(cause) => {
+                write!(formatter, "Error while evaluating expression: {cause}")
+            }
+            ExpressionEvalError::UnknownProperty(name) => {
+                write!(formatter, "Unknown property used in expression: {name}")
+            }
+            ExpressionEvalError::UnknownMethod(name) => {
+                write!(formatter, "Unknown method used in expression: {name}")
+            }
+            ExpressionEvalError::EvalFailed(cause) => {
+                write!(formatter, "Error while evaluating expression: {cause}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ExpressionEvalError {}
 
 /// Maximum number of compiled expressions kept in the global cache. Once the
 /// limit is hit, the cache is cleared to amortize the cost of large process
@@ -309,53 +381,174 @@ impl SimpleExpression {
         )
     }
 
-    fn arithmetic_op(left: &Value, right: &Value, op: char) -> Option<Value> {
+    /// JSON string sentinels for IEEE non-finite arithmetic results
+    /// (P1-2 / M2). `serde_json::Number` cannot hold ∞/NaN; Java returns
+    /// `Double` here (`NumberOperations.div:128`, `mod:136`). `to_f64`
+    /// parses these sentinels back (`"Infinity"` / `"-Infinity"` / `"NaN"`
+    /// are valid `f64::from_str` inputs — no leading space).
+    pub(crate) fn nonfinite_sentinel(result: f64) -> Value {
+        if result.is_nan() {
+            Value::String("NaN".to_string())
+        } else if result == f64::INFINITY {
+            Value::String("Infinity".to_string())
+        } else if result == f64::NEG_INFINITY {
+            Value::String("-Infinity".to_string())
+        } else if result.fract() == 0.0 && result >= i64::MIN as f64 && result <= i64::MAX as f64 {
+            Value::Number(serde_json::Number::from(result as i64))
+        } else {
+            serde_json::Number::from_f64(result)
+                .map(Value::Number)
+                .unwrap_or(Value::String(result.to_string()))
+        }
+    }
+
+    /// Internal BigDecimal/BigInteger marker for the Java
+    /// `isBigDecimalOrBigInteger` path (`NumberOperations.div:125-126`,
+    /// `mod:135-136`). `serde_json::Value` cannot represent BigDecimal;
+    /// tests construct this tag for A-DIV-BD-0 / A-MOD-BD-0 (M3: 表达式层
+    /// 内部构造).
+    #[cfg_attr(not(test), allow(dead_code, reason = "BD operand constructor used by gold-standard tests"))]
+    pub(crate) fn big_decimal_operand(text: &str) -> Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "__flowable_bd".to_string(),
+            Value::String(text.to_string()),
+        );
+        Value::Object(map)
+    }
+
+    fn as_big_decimal(value: &Value) -> Option<f64> {
+        match value {
+            Value::Object(map) => map
+                .get("__flowable_bd")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok()),
+            _ => None,
+        }
+    }
+
+    /// Java `isFloatOrDoubleOrDotEe` (NumberOperations.mod:135): Float /
+    /// Double, or a String containing `.` / `e` / `E`. Drives the Double-`%`
+    /// branch (A-MOD-DBL-0 / A-MOD-BD-0 → NaN).
+    fn is_float_or_double_like(value: &Value) -> bool {
+        match value {
+            Value::Number(n) => n
+                .as_f64()
+                .is_some_and(|f| f.fract() != 0.0 || n.as_i64().is_none() && n.as_u64().is_none()),
+            Value::String(s) => {
+                let t = s.trim();
+                t.contains('.') || t.contains('e') || t.contains('E')
+            }
+            _ => false,
+        }
+    }
+
+    /// Gold-standard arithmetic (P1-2), aligned with Java
+    /// `NumberOperations.div/mod` (flowable-engine-8).
+    ///
+    /// | case | result |
+    /// |---|---|
+    /// | Long/Integer/Double `/` 0 | `Value::String("Infinity"\|"-Infinity"\|"NaN")` |
+    /// | BigDecimal `/` 0 | `Err` (ELException) |
+    /// | Long `%` 0 | `Err` (ELException) |
+    /// | BigDecimal / float / double `%` 0 | `Value::String("NaN")` |
+    /// | type-coerce failure | `Err` (never disguised as Null) |
+    /// | any non-finite (incl. overflow / composition) | string sentinel |
+    fn arithmetic_op(left: &Value, right: &Value, op: char) -> Result<Value, String> {
+        let left_bd = Self::as_big_decimal(left);
+        let right_bd = Self::as_big_decimal(right);
+        let either_bd = left_bd.is_some() || right_bd.is_some();
+
+        // Long/Integer path for + - * % (Java Long arithmetic).
+        // X1: Java `Long` +,-,* wrap on overflow (two's complement,
+        // NumberOperations.add/sub/mul :80,:99,:118). Use wrapping_* so a
+        // silent wrap is NOT promoted to f64 and NOT an Err.
         if matches!(op, '+' | '-' | '*' | '%') {
             if let (Value::Number(lhs), Value::Number(rhs)) = (left, right) {
                 if let (Some(lhs), Some(rhs)) = (lhs.as_i64(), rhs.as_i64()) {
-                    return Some(Value::Number(match op {
-                        '+' => lhs.checked_add(rhs)?.into(),
-                        '-' => lhs.checked_sub(rhs)?.into(),
-                        '*' => lhs.checked_mul(rhs)?.into(),
-                        '%' if rhs != 0 => (lhs % rhs).into(),
-                        _ => return None,
-                    }));
+                    match op {
+                        '+' => return Ok(Value::Number(lhs.wrapping_add(rhs).into())),
+                        '-' => return Ok(Value::Number(lhs.wrapping_sub(rhs).into())),
+                        '*' => return Ok(Value::Number(lhs.wrapping_mul(rhs).into())),
+                        '%' => {
+                            if rhs == 0 {
+                                // Java NumberOperations.mod:141 Long%0 → throw
+                                return Err("ELException: / by zero".to_string());
+                            }
+                            return Ok(Value::Number((lhs % rhs).into()));
+                        }
+                        _ => {}
+                    }
                 }
                 if let (Some(lhs), Some(rhs)) = (lhs.as_u64(), rhs.as_u64()) {
-                    return Some(Value::Number(match op {
-                        '+' => lhs.checked_add(rhs)?.into(),
-                        '*' => lhs.checked_mul(rhs)?.into(),
-                        '%' if rhs != 0 => (lhs % rhs).into(),
-                        _ => return None,
-                    }));
+                    match op {
+                        '+' => return Ok(Value::Number(lhs.wrapping_add(rhs).into())),
+                        '*' => return Ok(Value::Number(lhs.wrapping_mul(rhs).into())),
+                        '%' => {
+                            if rhs == 0 {
+                                return Err("ELException: / by zero".to_string());
+                            }
+                            return Ok(Value::Number((lhs % rhs).into()));
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
-        let l = Self::to_f64(left)?;
-        let r = Self::to_f64(right)?;
-        let result = match op {
-            '+' => l + r,
-            '-' => l - r,
-            '*' => l * r,
+
+        let l = match left_bd.or_else(|| Self::to_f64(left)) {
+            Some(v) => v,
+            None => {
+                return Err(format!(
+                    "ELException: cannot coerce left operand to number for '{op}'"
+                ));
+            }
+        };
+        let r = match right_bd.or_else(|| Self::to_f64(right)) {
+            Some(v) => v,
+            None => {
+                return Err(format!(
+                    "ELException: cannot coerce right operand to number for '{op}'"
+                ));
+            }
+        };
+
+        match op {
             '/' => {
-                if r == 0.0 {
-                    return Some(Value::Null);
+                if either_bd && r == 0.0 {
+                    // Java BigDecimal.divide → ArithmeticException / ELException
+                    return Err("ELException: BigDecimal divide by zero".to_string());
                 }
-                l / r
+                // Long/Integer/Double: IEEE division → ±∞ / NaN sentinels
+                Ok(Self::nonfinite_sentinel(l / r))
             }
             '%' => {
-                if r == 0.0 {
-                    return Some(Value::Null);
+                let double_mod = either_bd
+                    || Self::is_float_or_double_like(left)
+                    || Self::is_float_or_double_like(right);
+                if double_mod {
+                    // Java NumberOperations.mod:135-136 Double% → NaN on %0
+                    return Ok(Self::nonfinite_sentinel(l % r));
                 }
-                l % r
+                if r == 0.0 {
+                    return Err("ELException: / by zero".to_string());
+                }
+                Ok(Self::nonfinite_sentinel(l % r))
             }
-            _ => return None,
-        };
-        // Try to return integer if possible
-        if result.fract() == 0.0 && result >= i64::MIN as f64 && result <= i64::MAX as f64 {
-            Some(Value::Number(serde_json::Number::from(result as i64)))
-        } else {
-            serde_json::Number::from_f64(result).map(Value::Number)
+            '+' | '-' | '*' => {
+                let result = match op {
+                    '+' => l + r,
+                    '-' => l - r,
+                    '*' => l * r,
+                    other => {
+                        return Err(format!(
+                            "ELException: unknown arithmetic operator '{other}'"
+                        ));
+                    }
+                };
+                Ok(Self::nonfinite_sentinel(result))
+            }
+            other => Err(format!("ELException: unknown arithmetic operator '{other}'")),
         }
     }
 
@@ -388,27 +581,31 @@ impl SimpleExpression {
             // below keeps them apart.
             return outcome.and_then(Result::ok);
         }
-        Self::invoke_builtin_method(receiver, method, args)
+        // Lenient keeps historic "no such method → null" (via the bytecode
+        // path's `.unwrap_or(Null)` / AST `None` short-circuit).
+        Self::invoke_builtin_method(receiver, method, args).or(Some(Value::Null))
     }
 
     /// Strict method dispatch used by [`SimpleExpression::get_value_strict`].
     ///
-    /// Returns:
-    /// - `Ok(Some(value))` — a built-in method or a registered method produced
-    ///   `value` (built-in "no such method" stays `Some(Value::Null)`, matching
-    ///   the historic lenient behaviour).
-    /// - `Ok(None)` — the receiver is a bean/static-type marker but neither
-    ///   the bean nor the method is registered (Java UEL's unresolved-method
-    ///   branch); the caller keeps treating this as null, not as an error.
-    /// - `Err(message)` — the receiver and method were registered but the
-    ///   method execution returned an error. Java wraps the target exception
-    ///   in an `ExpressionException`; the error message here carries the same
-    ///   receiver/method context.
+    /// Contract (research §2.1.2 / AstMethod.java:83-101):
+    /// - `Ok(Some(Value::Null))` — **legal null**: receiver base is `Value::Null`
+    ///   (`AstMethod` `answerNullIfBaseIsNull`).
+    /// - `Ok(Some(value))` — a built-in or registered method produced `value`.
+    /// - `Err(UnknownMethod)` — bean/static receiver with an unregistered
+    ///   method, or a built-in "no such method" on a non-null receiver
+    ///   (`MethodNotFoundException`).
+    /// - `Err(EvalFailed)` — the method was found but its execution failed
+    ///   (`JuelExpression.java:59-60`).
     fn invoke_method_strict(
         receiver: &Value,
         method: &str,
         args: &[Value],
-    ) -> Result<Option<Value>, String> {
+    ) -> Result<Option<Value>, ExpressionEvalError> {
+        // AstMethod.java:85-88 — base == null returns null (legal null).
+        if receiver.is_null() {
+            return Ok(Some(Value::Null));
+        }
         if let Some((receiver_name, is_static_type)) =
             crate::el::method_registry::marker_receiver(receiver)
         {
@@ -419,19 +616,42 @@ impl SimpleExpression {
                 registry.invoke_bean(receiver_name, method, args)
             };
             return match outcome {
-                None => Ok(None),
+                None => Err(ExpressionEvalError::UnknownMethod(format!(
+                    "{receiver_name}.{method}"
+                ))),
                 Some(Ok(value)) => Ok(Some(value)),
-                Some(Err(message)) => Err(format!(
+                Some(Err(message)) => Err(ExpressionEvalError::EvalFailed(format!(
                     "error evaluating '{receiver_name}.{method}(...)': {message}"
-                )),
+                ))),
             };
         }
-        Ok(Self::invoke_builtin_method(receiver, method, args))
+        match Self::invoke_builtin_method(receiver, method, args) {
+            Some(value) => Ok(Some(value)),
+            // Built-in "no such method" on a non-null base → MethodNotFoundException.
+            None => Err(ExpressionEvalError::UnknownMethod(format!(
+                "{}.{}",
+                Self::type_label(receiver),
+                method
+            ))),
+        }
     }
 
-    /// Built-in methods available on plain JSON values (no registry involved;
-    /// these never fail, so they behave identically on the lenient and strict
-    /// paths).
+    /// Short type label used in `UnknownMethod` messages.
+    fn type_label(value: &Value) -> &'static str {
+        match value {
+            Value::Null => "null",
+            Value::Bool(_) => "Boolean",
+            Value::Number(_) => "Number",
+            Value::String(_) => "String",
+            Value::Array(_) => "List",
+            Value::Object(_) => "Map",
+        }
+    }
+
+    /// Built-in methods available on plain JSON values (no registry involved).
+    /// Returns `None` when the method does not exist on the receiver — strict
+    /// callers turn that into `UnknownMethod`; lenient callers keep collapsing
+    /// it to null. Methods that exist but yield null return `Some(Value::Null)`.
     fn invoke_builtin_method(receiver: &Value, method: &str, args: &[Value]) -> Option<Value> {
         match receiver {
             Value::String(s) => match method {
@@ -496,7 +716,7 @@ impl SimpleExpression {
                         Some(Value::String(chars[start..end].iter().collect()))
                     }
                 }
-                _ => Some(Value::Null),
+                _ => None,
             },
             Value::Number(n) => match method {
                 "abs" if args.is_empty() => match n.as_f64() {
@@ -515,16 +735,18 @@ impl SimpleExpression {
                     Some(v) => Some(Value::Number(serde_json::Number::from(v.round() as i64))),
                     None => Some(Value::Null),
                 },
-                _ => Some(Value::Null),
+                _ => None,
             },
             Value::Array(arr) => match method {
                 "size" | "length" if args.is_empty() => {
                     Some(Value::Number(serde_json::Number::from(arr.len() as i64)))
                 }
                 "isEmpty" if args.is_empty() => Some(Value::Bool(arr.is_empty())),
-                _ => Some(Value::Null),
+                _ => None,
             },
-            Value::Bool(_) | Value::Null | Value::Object(_) => Some(Value::Null),
+            // Bool/Map receivers have no built-in methods. Null is handled by
+            // the caller (AstMethod base==null) and never reaches here.
+            Value::Bool(_) | Value::Null | Value::Object(_) => None,
         }
     }
 
@@ -753,32 +975,32 @@ impl ExpressionAst {
             ExpressionAst::Add(left, right) => {
                 let l = left.evaluate(scope)?;
                 let r = right.evaluate(scope)?;
-                if let Some(result) = SimpleExpression::arithmetic_op(&l, &r, '+') {
-                    Some(result)
-                } else {
-                    // String concatenation fallback for +
-                    None
+                match SimpleExpression::arithmetic_op(&l, &r, '+') {
+                    Ok(result) => Some(result),
+                    // String concatenation fallback for +; arithmetic errors
+                    // stay None on the lenient path (never disguised as Null).
+                    Err(_) => None,
                 }
             }
             ExpressionAst::Sub(left, right) => {
                 let l = left.evaluate(scope)?;
                 let r = right.evaluate(scope)?;
-                Some(SimpleExpression::arithmetic_op(&l, &r, '-').unwrap_or(Value::Null))
+                SimpleExpression::arithmetic_op(&l, &r, '-').ok()
             }
             ExpressionAst::Mul(left, right) => {
                 let l = left.evaluate(scope)?;
                 let r = right.evaluate(scope)?;
-                Some(SimpleExpression::arithmetic_op(&l, &r, '*').unwrap_or(Value::Null))
+                SimpleExpression::arithmetic_op(&l, &r, '*').ok()
             }
             ExpressionAst::Div(left, right) => {
                 let l = left.evaluate(scope)?;
                 let r = right.evaluate(scope)?;
-                Some(SimpleExpression::arithmetic_op(&l, &r, '/').unwrap_or(Value::Null))
+                SimpleExpression::arithmetic_op(&l, &r, '/').ok()
             }
             ExpressionAst::Mod(left, right) => {
                 let l = left.evaluate(scope)?;
                 let r = right.evaluate(scope)?;
-                Some(SimpleExpression::arithmetic_op(&l, &r, '%').unwrap_or(Value::Null))
+                SimpleExpression::arithmetic_op(&l, &r, '%').ok()
             }
             ExpressionAst::Not(operand) => {
                 let v = operand.evaluate(scope)?;
@@ -786,11 +1008,7 @@ impl ExpressionAst {
             }
             ExpressionAst::Neg(operand) => {
                 let v = operand.evaluate(scope)?;
-                if let Some(n) = SimpleExpression::to_f64(&v) {
-                    serde_json::Number::from_f64(-n).map(Value::Number)
-                } else {
-                    Some(Value::Null)
-                }
+                SimpleExpression::to_f64(&v).map(|n| SimpleExpression::nonfinite_sentinel(-n))
             }
             ExpressionAst::Empty(operand) => {
                 let v = operand.evaluate(scope)?;
@@ -821,13 +1039,14 @@ impl ExpressionAst {
 
     /// Strict counterpart of [`ExpressionAst::evaluate`].
     ///
-    /// `Ok(None)` preserves the lenient outcomes (undefined variable,
-    /// unregistered method); `Err(_)` is produced only when a *registered*
-    /// method fails while evaluating, mirroring Java UEL where the target
-    /// method exception escapes as an `ExpressionException` while an
-    /// unresolved method resolves to null.
+    /// Contract (research §2.1.2): undefined variables, unknown properties and
+    /// unregistered methods are `Err`; legal null is only a defined-null
+    /// variable value or `AstMethod`/`AstProperty` with a null base.
     #[allow(dead_code)]
-    fn evaluate_strict(&self, scope: &dyn VariableContainer) -> Result<Option<Value>, String> {
+    fn evaluate_strict(
+        &self,
+        scope: &dyn VariableContainer,
+    ) -> Result<Option<Value>, ExpressionEvalError> {
         // Unwrap a required sub-evaluation: a lenient `None` from a child
         // short-circuits the whole node to `Ok(None)`; an `Err` propagates.
         macro_rules! require {
@@ -842,7 +1061,10 @@ impl ExpressionAst {
 
         let result = match self {
             ExpressionAst::Literal(v) => Some(v.clone()),
-            ExpressionAst::Variable(name) => SimpleExpression::resolve_variable(scope, name),
+            ExpressionAst::Variable(name) => match SimpleExpression::resolve_variable(scope, name) {
+                Some(v) => Some(v),
+                None => return Err(ExpressionEvalError::UnknownProperty(name.clone())),
+            },
             ExpressionAst::Conditional(condition, when_true, when_false) => {
                 let condition_value = require!(condition.evaluate_strict(scope));
                 if SimpleExpression::is_truthy(&condition_value) {
@@ -906,29 +1128,45 @@ impl ExpressionAst {
                 let l = require!(left.evaluate_strict(scope));
                 let r = require!(right.evaluate_strict(scope));
                 match SimpleExpression::arithmetic_op(&l, &r, '+') {
-                    Some(result) => Some(result),
-                    None => None,
+                    Ok(result) => Some(result),
+                    // String concatenation has no dedicated path here; a hard
+                    // arithmetic failure is surfaced (P1-2: never Null).
+                    Err(cause) => {
+                        return Err(ExpressionEvalError::EvalFailed(cause));
+                    }
                 }
             }
             ExpressionAst::Sub(left, right) => {
                 let l = require!(left.evaluate_strict(scope));
                 let r = require!(right.evaluate_strict(scope));
-                Some(SimpleExpression::arithmetic_op(&l, &r, '-').unwrap_or(Value::Null))
+                Some(
+                    SimpleExpression::arithmetic_op(&l, &r, '-')
+                        .map_err(ExpressionEvalError::EvalFailed)?,
+                )
             }
             ExpressionAst::Mul(left, right) => {
                 let l = require!(left.evaluate_strict(scope));
                 let r = require!(right.evaluate_strict(scope));
-                Some(SimpleExpression::arithmetic_op(&l, &r, '*').unwrap_or(Value::Null))
+                Some(
+                    SimpleExpression::arithmetic_op(&l, &r, '*')
+                        .map_err(ExpressionEvalError::EvalFailed)?,
+                )
             }
             ExpressionAst::Div(left, right) => {
                 let l = require!(left.evaluate_strict(scope));
                 let r = require!(right.evaluate_strict(scope));
-                Some(SimpleExpression::arithmetic_op(&l, &r, '/').unwrap_or(Value::Null))
+                Some(
+                    SimpleExpression::arithmetic_op(&l, &r, '/')
+                        .map_err(ExpressionEvalError::EvalFailed)?,
+                )
             }
             ExpressionAst::Mod(left, right) => {
                 let l = require!(left.evaluate_strict(scope));
                 let r = require!(right.evaluate_strict(scope));
-                Some(SimpleExpression::arithmetic_op(&l, &r, '%').unwrap_or(Value::Null))
+                Some(
+                    SimpleExpression::arithmetic_op(&l, &r, '%')
+                        .map_err(ExpressionEvalError::EvalFailed)?,
+                )
             }
             ExpressionAst::Not(operand) => {
                 let v = require!(operand.evaluate_strict(scope));
@@ -936,10 +1174,13 @@ impl ExpressionAst {
             }
             ExpressionAst::Neg(operand) => {
                 let v = require!(operand.evaluate_strict(scope));
-                if let Some(n) = SimpleExpression::to_f64(&v) {
-                    serde_json::Number::from_f64(-n).map(Value::Number)
-                } else {
-                    Some(Value::Null)
+                match SimpleExpression::to_f64(&v) {
+                    Some(n) => Some(SimpleExpression::nonfinite_sentinel(-n)),
+                    None => {
+                        return Err(ExpressionEvalError::EvalFailed(format!(
+                            "ELException: cannot coerce operand to number for unary minus"
+                        )));
+                    }
                 }
             }
             ExpressionAst::Empty(operand) => {
@@ -949,14 +1190,11 @@ impl ExpressionAst {
             ExpressionAst::Index(base, property) => {
                 let base_v = require!(base.evaluate_strict(scope));
                 let prop_v = require!(property.evaluate_strict(scope));
-                Some(SimpleExpression::index_value(&base_v, &prop_v))
+                Some(CompiledExpression::index_strict(&base_v, &prop_v)?)
             }
             ExpressionAst::Property(base, name) => {
                 let v = require!(base.evaluate_strict(scope));
-                Some(match v {
-                    Value::Object(map) => map.get(name).cloned().unwrap_or(Value::Null),
-                    _ => Value::Null,
-                })
+                Some(CompiledExpression::property_strict(&v, name)?)
             }
             ExpressionAst::MethodCall(base, method, args_ast) => {
                 let receiver = require!(base.evaluate_strict(scope));
@@ -1089,31 +1327,42 @@ impl CompiledExpression {
                 Instruction::Add => {
                     let r = stack.pop()?;
                     let l = stack.pop()?;
-                    if let Some(result) = SimpleExpression::arithmetic_op(&l, &r, '+') {
-                        stack.push(result);
-                    } else {
-                        return None;
+                    match SimpleExpression::arithmetic_op(&l, &r, '+') {
+                        Ok(result) => stack.push(result),
+                        Err(_) => return None,
                     }
                 }
                 Instruction::Sub => {
                     let r = stack.pop()?;
                     let l = stack.pop()?;
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '-').unwrap_or(Value::Null));
+                    match SimpleExpression::arithmetic_op(&l, &r, '-') {
+                        Ok(result) => stack.push(result),
+                        Err(_) => return None,
+                    }
                 }
                 Instruction::Mul => {
                     let r = stack.pop()?;
                     let l = stack.pop()?;
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '*').unwrap_or(Value::Null));
+                    match SimpleExpression::arithmetic_op(&l, &r, '*') {
+                        Ok(result) => stack.push(result),
+                        Err(_) => return None,
+                    }
                 }
                 Instruction::Div => {
                     let r = stack.pop()?;
                     let l = stack.pop()?;
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '/').unwrap_or(Value::Null));
+                    match SimpleExpression::arithmetic_op(&l, &r, '/') {
+                        Ok(result) => stack.push(result),
+                        Err(_) => return None,
+                    }
                 }
                 Instruction::Mod => {
                     let r = stack.pop()?;
                     let l = stack.pop()?;
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '%').unwrap_or(Value::Null));
+                    match SimpleExpression::arithmetic_op(&l, &r, '%') {
+                        Ok(result) => stack.push(result),
+                        Err(_) => return None,
+                    }
                 }
                 Instruction::Not => {
                     let v = stack.pop()?;
@@ -1122,13 +1371,9 @@ impl CompiledExpression {
                 Instruction::Neg => {
                     let v = stack.pop()?;
                     if let Some(n) = SimpleExpression::to_f64(&v) {
-                        stack.push(
-                            serde_json::Number::from_f64(-n)
-                                .map(Value::Number)
-                                .unwrap_or(Value::Null),
-                        );
+                        stack.push(SimpleExpression::nonfinite_sentinel(-n));
                     } else {
-                        stack.push(Value::Null);
+                        return None;
                     }
                 }
                 Instruction::Empty => {
@@ -1188,12 +1433,53 @@ impl CompiledExpression {
         stack.pop()
     }
 
-    /// Strict counterpart of [`CompiledExpression::execute`] used by
-    /// [`SimpleExpression::get_value_strict`]. The only `Err` this returns is
-    /// a registered bean/static method failing mid-evaluation (Java wraps the
-    /// target exception as an `ExpressionException`); undefined variables and
-    /// unregistered methods stay `Ok(None)`/null as on the lenient path.
-    fn execute_strict(&self, scope: &dyn VariableContainer) -> Result<Option<Value>, String> {
+    /// Property access shared by the bytecode and AST strict paths.
+    ///
+    /// Java resolver chain:
+    /// - `AstProperty.eval` (AstProperty.java:67-71): base == null → null
+    ///   (legal null, not an error).
+    /// - `MapELResolver.getValue` (MapELResolver.java:55-61): Map/JSON object
+    ///   missing key resolves to null (setPropertyResolved).
+    /// - `ListELResolver` / `ArrayELResolver`: out-of-range index → null.
+    /// - `CouldNotResolvePropertyELResolver` (CouldNotResolvePropertyELResolver.java:34-35):
+    ///   non-null base no resolver claims → PropertyNotFoundException.
+    fn property_strict(base: &Value, name: &str) -> Result<Value, ExpressionEvalError> {
+        match base {
+            Value::Null => Ok(Value::Null),
+            Value::Object(map) => Ok(map.get(name).cloned().unwrap_or(Value::Null)),
+            Value::Array(_) => Err(ExpressionEvalError::UnknownProperty(format!(
+                "{name} on List"
+            ))),
+            other => Err(ExpressionEvalError::UnknownProperty(format!(
+                "{name} on {}",
+                SimpleExpression::type_label(other)
+            ))),
+        }
+    }
+
+    /// Bracket access `base[property]` on the strict path. Index-type rules
+    /// stay lenient (ListELResolver/MapELResolver return null for a missing
+    /// key / OOB index); a non-null primitive base is unresolvable → Err.
+    fn index_strict(base: &Value, property: &Value) -> Result<Value, ExpressionEvalError> {
+        match base {
+            Value::Null => Ok(Value::Null),
+            Value::Array(_) | Value::Object(_) => Ok(SimpleExpression::index_value(base, property)),
+            other => Err(ExpressionEvalError::UnknownProperty(format!(
+                "[{property}] on {}",
+                SimpleExpression::type_label(other)
+            ))),
+        }
+    }
+
+    /// Strict counterpart of [`CompiledExpression::execute`].
+    ///
+    /// Contract (research §2.1.2): undefined variables, unknown properties and
+    /// unregistered methods are `Err`; legal null is only a defined-null
+    /// variable value or `AstMethod`/`AstProperty` with a null base.
+    fn execute_strict(
+        &self,
+        scope: &dyn VariableContainer,
+    ) -> Result<Option<Value>, ExpressionEvalError> {
         let mut stack: Vec<Value> = Vec::with_capacity(16);
         let mut pc = 0;
 
@@ -1226,10 +1512,13 @@ impl CompiledExpression {
                 }
                 Instruction::LoadVar(idx) => {
                     let name = &self.string_pool[*idx];
-                    // Undefined variable stays a lenient null.
+                    // Undefined variable → PropertyNotFoundException.
+                    // Defined-null stays `Value::Null` (legal null).
                     match SimpleExpression::resolve_variable(scope, name) {
                         Some(v) => stack.push(v),
-                        None => return Ok(None),
+                        None => {
+                            return Err(ExpressionEvalError::UnknownProperty(name.clone()));
+                        }
                     }
                 }
                 Instruction::Pop => {
@@ -1274,31 +1563,42 @@ impl CompiledExpression {
                 Instruction::Add => {
                     let r = pop_required!();
                     let l = pop_required!();
-                    if let Some(result) = SimpleExpression::arithmetic_op(&l, &r, '+') {
-                        stack.push(result);
-                    } else {
-                        return Ok(None);
+                    match SimpleExpression::arithmetic_op(&l, &r, '+') {
+                        Ok(result) => stack.push(result),
+                        Err(cause) => return Err(ExpressionEvalError::EvalFailed(cause)),
                     }
                 }
                 Instruction::Sub => {
                     let r = pop_required!();
                     let l = pop_required!();
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '-').unwrap_or(Value::Null));
+                    stack.push(
+                        SimpleExpression::arithmetic_op(&l, &r, '-')
+                            .map_err(ExpressionEvalError::EvalFailed)?,
+                    );
                 }
                 Instruction::Mul => {
                     let r = pop_required!();
                     let l = pop_required!();
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '*').unwrap_or(Value::Null));
+                    stack.push(
+                        SimpleExpression::arithmetic_op(&l, &r, '*')
+                            .map_err(ExpressionEvalError::EvalFailed)?,
+                    );
                 }
                 Instruction::Div => {
                     let r = pop_required!();
                     let l = pop_required!();
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '/').unwrap_or(Value::Null));
+                    stack.push(
+                        SimpleExpression::arithmetic_op(&l, &r, '/')
+                            .map_err(ExpressionEvalError::EvalFailed)?,
+                    );
                 }
                 Instruction::Mod => {
                     let r = pop_required!();
                     let l = pop_required!();
-                    stack.push(SimpleExpression::arithmetic_op(&l, &r, '%').unwrap_or(Value::Null));
+                    stack.push(
+                        SimpleExpression::arithmetic_op(&l, &r, '%')
+                            .map_err(ExpressionEvalError::EvalFailed)?,
+                    );
                 }
                 Instruction::Not => {
                     let v = pop_required!();
@@ -1306,14 +1606,14 @@ impl CompiledExpression {
                 }
                 Instruction::Neg => {
                     let v = pop_required!();
-                    if let Some(n) = SimpleExpression::to_f64(&v) {
-                        stack.push(
-                            serde_json::Number::from_f64(-n)
-                                .map(Value::Number)
-                                .unwrap_or(Value::Null),
-                        );
-                    } else {
-                        stack.push(Value::Null);
+                    match SimpleExpression::to_f64(&v) {
+                        Some(n) => stack.push(SimpleExpression::nonfinite_sentinel(-n)),
+                        None => {
+                            return Err(ExpressionEvalError::EvalFailed(
+                                "ELException: cannot coerce operand to number for unary minus"
+                                    .to_string(),
+                            ));
+                        }
                     }
                 }
                 Instruction::Empty => {
@@ -1323,7 +1623,7 @@ impl CompiledExpression {
                 Instruction::Index => {
                     let prop = pop_required!();
                     let base = pop_required!();
-                    stack.push(SimpleExpression::index_value(&base, &prop));
+                    stack.push(Self::index_strict(&base, &prop)?);
                 }
                 Instruction::JumpIfTrue(target) => {
                     if let Some(top) = stack.last()
@@ -1348,10 +1648,7 @@ impl CompiledExpression {
                 Instruction::Property(idx) => {
                     let name = &self.string_pool[*idx];
                     let v = pop_required!();
-                    stack.push(match v {
-                        Value::Object(map) => map.get(name).cloned().unwrap_or(Value::Null),
-                        _ => Value::Null,
-                    });
+                    stack.push(Self::property_strict(&v, name)?);
                 }
                 Instruction::MethodCall(idx, arg_count) => {
                     let method = &self.string_pool[*idx];
@@ -1362,8 +1659,6 @@ impl CompiledExpression {
                     args.reverse();
                     let receiver = pop_required!();
                     match SimpleExpression::invoke_method_strict(&receiver, method, &args)? {
-                        // Unregistered receiver/method: lenient null, matching
-                        // the bytecode path's historic `.unwrap_or(Null)`.
                         Some(value) => stack.push(value),
                         None => stack.push(Value::Null),
                     }
@@ -2125,23 +2420,26 @@ impl<'a> ExpressionParser<'a> {
 /// `ValueExpression`s do (`ExpressionManager.createExpression` on
 /// `"Hello ${gender}!"`).
 ///
-/// Rules:
+/// Rules (W1 / research §2.1.4 — S semantics):
 /// - Literal text is copied as-is.
 /// - `\${` is an escaped dollar-brace and yields the two characters `${`
 ///   (the backslash is consumed).
 /// - `${…}` segments are compiled with the existing `ExpressionParser` +
-///   `Compiler` and evaluated against `scope`. Nested braces are tracked so
-///   `${fn({a:1})}` boundaries are correct; our UEL subset may still reject
-///   the inner syntax, but scanning is brace-aware.
-/// - A segment that fails to parse/evaluate contributes an empty string —
-///   aligned with pure-expression `get_value` → `None` treated as empty by
-///   mail body templates (`evaluate_mail_body_template`).
-/// - Pure whole-string `${…}` and pure literals are both handled here so
-///   call sites can use one evaluator for mail text/html/textVar/htmlVar.
+///   `Compiler` and evaluated strictly against `scope`. Nested braces are
+///   tracked so `${fn({a:1})}` boundaries are correct; our UEL subset may
+///   still reject the inner syntax, but scanning is brace-aware.
+/// - A segment that fails to parse/evaluate is `Err` (Java
+///   `createExpression`/`getValue` throws; the whole composite fails).
+/// - A **legal null** segment (defined-null variable / null base) contributes
+///   an empty string — JUEL string concatenation of null is "".
+/// - Unclosed `${` is `CompileFailed` (Java parse failure).
 ///
 /// Other EL call sites must keep using [`SimpleExpression`] so pure
 /// `${…}` / literal paths are unchanged.
-pub fn evaluate_composite_expression(text: &str, scope: &dyn VariableContainer) -> String {
+pub fn evaluate_composite_expression(
+    text: &str,
+    scope: &dyn VariableContainer,
+) -> Result<String, ExpressionEvalError> {
     let mut out = String::with_capacity(text.len());
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -2175,18 +2473,20 @@ pub fn evaluate_composite_expression(text: &str, scope: &dyn VariableContainer) 
                 j += 1;
             }
             if depth != 0 {
-                // Unclosed `${` — treat remaining text as literal (JUEL would
-                // fail at parse; we degrade to literal to avoid hard errors
-                // on malformed mail bodies).
-                out.push_str(&text[i..]);
-                break;
+                // Unclosed `${` — Java `createExpression` fails at parse.
+                return Err(ExpressionEvalError::CompileFailed(format!(
+                    "unclosed '${{' in composite expression: {text}"
+                )));
             }
             let inner = &text[expr_start..j];
             let whole = format!("${{{}}}", inner);
-            let segment = SimpleExpression::new(whole)
-                .get_value(scope)
-                .map(|v| value_to_composite_string(&v))
-                .unwrap_or_default();
+            // Strict segment evaluation: error ≠ legal-null. Legal null
+            // concatenates as empty string (JUEL); errors propagate.
+            let segment = match SimpleExpression::new(whole).get_value_strict(scope) {
+                Ok(Some(value)) => value_to_composite_string(&value),
+                Ok(None) => String::new(),
+                Err(error) => return Err(error),
+            };
             out.push_str(&segment);
             i = j + 1;
             continue;
@@ -2197,7 +2497,7 @@ pub fn evaluate_composite_expression(text: &str, scope: &dyn VariableContainer) 
         out.push(ch);
         i += ch.len_utf8();
     }
-    out
+    Ok(out)
 }
 
 fn value_to_composite_string(value: &Value) -> String {
@@ -2217,28 +2517,35 @@ impl SimpleExpression {
     /// lets `expression.getValue(...)` exceptions escape and roll the command
     /// back).
     ///
+    /// Contract (research §2.1.2):
     /// - `Ok(Some(value))` — the expression evaluated to `value`.
-    /// - `Ok(None)` — lenient null: an undefined variable, an unparseable
-    ///   expression or an unregistered method (Java UEL's unresolved
-    ///   property/method branch). Existing condition/sequence-flow callers
-    ///   depend on this and keep using the trait `get_value` entry.
-    /// - `Err(message)` — evaluation itself failed: currently a registered
-    ///   bean/static method returned an error, which Java wraps as
-    ///   `ExpressionException` and propagates.
-    pub fn get_value_strict(&self, scope: &dyn VariableContainer) -> Result<Option<Value>, String> {
+    /// - `Ok(Some(Value::Null))` — **legal null**: a defined-null variable, or
+    ///   `AstMethod`/`AstProperty` with a null base.
+    /// - `Err(UnknownProperty)` — undefined variable / unresolvable property
+    ///   (`PropertyNotFoundException` → FlowableException).
+    /// - `Err(UnknownMethod)` — unregistered method (`MethodNotFoundException`).
+    /// - `Err(EvalFailed)` — registered method failed mid-evaluation.
+    /// - `Err(CompileFailed)` — parse/compile failed (`createExpression`).
+    pub fn get_value_strict(
+        &self,
+        scope: &dyn VariableContainer,
+    ) -> Result<Option<Value>, ExpressionEvalError> {
         let fast_path = self
             .cached_fast_path
             .get_or_init(|| Self::detect_fast_path(&self.expression_text));
         if let Some(fp) = fast_path {
-            return Ok(Self::eval_fast_path(fp, scope));
+            return Self::eval_fast_path_strict(fp, scope);
         }
-        // Parse/compile failure stays a lenient null (same as `get_value`):
-        // malformed expressions are a pre-existing soft-fail case and not an
-        // evaluation error; only a registered method failing is `Err`.
+        // Parse/compile failure is a typed CompileFailed (Java createExpression
+        // / ELException) so F-group callers can propagate it instead of
+        // catching it as a eval-time FlowableException.
         let compiled = self.compiled();
         match compiled.as_ref() {
             Some(compiled) => compiled.execute_strict(scope),
-            None => Ok(None),
+            None => Err(ExpressionEvalError::CompileFailed(format!(
+                "could not parse or compile '{}'",
+                self.expression_text
+            ))),
         }
     }
 
@@ -2258,6 +2565,34 @@ impl SimpleExpression {
             }
             compile_global(text)
         })
+    }
+
+    /// Evaluate a detected [`FastPath`] on the strict path. Undefined operands
+    /// are `UnknownProperty` (Java `ExclusiveGatewayTest` / research §2.1.2).
+    fn eval_fast_path_strict(
+        fast_path: &FastPath,
+        scope: &dyn VariableContainer,
+    ) -> Result<Option<Value>, ExpressionEvalError> {
+        match fast_path {
+            FastPath::Variable(name) => match Self::resolve_variable(scope, name) {
+                Some(v) => Ok(Some(v)),
+                None => Err(ExpressionEvalError::UnknownProperty(name.clone())),
+            },
+            FastPath::Comparison {
+                var,
+                literal,
+                negate,
+            } => {
+                // Comparison operands must resolve. An undefined variable is
+                // PropertyNotFoundException, not a silent null comparison.
+                let var_val = match Self::resolve_variable(scope, var) {
+                    Some(v) => v,
+                    None => return Err(ExpressionEvalError::UnknownProperty(var.clone())),
+                };
+                let eq = SimpleExpression::values_equal(&var_val, literal);
+                Ok(Some(Value::Bool(if *negate { !eq } else { eq })))
+            }
+        }
     }
 
     /// Evaluate a detected [`FastPath`]. Pure variable lookup and simple
@@ -2319,7 +2654,7 @@ mod tests {
 
     fn eval_composite(text: &str, variables: HashMap<String, Value>) -> String {
         let scope = MapVariableContainer::from_map(variables);
-        evaluate_composite_expression(text, &scope)
+        evaluate_composite_expression(text, &scope).expect("composite should evaluate")
     }
 
     #[test]
@@ -2343,13 +2678,34 @@ mod tests {
     }
 
     #[test]
-    fn composite_expression_failed_segment_becomes_empty() {
-        // Missing variable → pure SimpleExpression returns None → empty segment.
+    fn composite_expression_failed_segment_is_error() {
+        // Missing variable → UnknownProperty (Java getValue throws); the whole
+        // composite fails. Legal-null still concatenates as empty string.
         let mut vars = HashMap::new();
         vars.insert("known".to_string(), Value::from("ok"));
+        vars.insert("nullVar".to_string(), Value::Null);
+        let scope = MapVariableContainer::from_map(vars.clone());
+        let err = evaluate_composite_expression("A=${known};B=${missing};C", &scope)
+            .expect_err("undefined segment must fail the composite");
+        assert!(
+            matches!(err, ExpressionEvalError::UnknownProperty(_)),
+            "expected UnknownProperty, got: {err:?}"
+        );
+        // Legal null → empty segment.
         assert_eq!(
-            eval_composite("A=${known};B=${missing};C", vars),
+            eval_composite("A=${known};B=${nullVar};C", vars),
             "A=ok;B=;C"
+        );
+    }
+
+    #[test]
+    fn composite_expression_unclosed_brace_is_compile_failed() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+        let err = evaluate_composite_expression("Hello ${unclosed", &scope)
+            .expect_err("unclosed ${ must be CompileFailed");
+        assert!(
+            matches!(err, ExpressionEvalError::CompileFailed(_)),
+            "expected CompileFailed, got: {err:?}"
         );
     }
 
@@ -3013,7 +3369,7 @@ mod tests {
         assert_eq!(eval(&ok, HashMap::new()), Some(Value::Bool(true)));
     }
 
-    // ── P1-C: strict evaluation (registered-method errors propagate) ──────────
+    // ── P1-C / W1: strict evaluation contract (research §2.1.2) ───────────────
 
     use crate::el::method_registry::{ExpressionMethodRegistry, with_expression_method_registry};
 
@@ -3045,13 +3401,14 @@ mod tests {
             let error = failing
                 .get_value_strict(&scope)
                 .expect_err("failing registered method must be an Err");
+            let rendered = error.to_string();
             assert!(
-                error.contains("auditBean.fail"),
-                "error should name receiver and method, got: {error}"
+                rendered.contains("auditBean.fail"),
+                "error should name receiver and method, got: {rendered}"
             );
             assert!(
-                error.contains("intentional audit failure"),
-                "error should carry the method message, got: {error}"
+                rendered.contains("intentional audit failure"),
+                "error should carry the method message, got: {rendered}"
             );
 
             // A successful method on the same bean still evaluates normally.
@@ -3068,58 +3425,58 @@ mod tests {
         });
     }
 
-    /// Undefined variables and unregistered methods stay lenient null on the
-    /// strict entry — only a registered method actually failing is `Err`.
-    /// This is the semantics expression listeners rely on (Java resolves
-    /// missing variables/methods to null but a target exception escapes).
+    /// W1 contract flip (research §2.1.2): undefined variables and unregistered
+    /// methods are `Err` on the strict entry — the old lenient-null behaviour
+    /// is gone. Legal null is only a defined-null variable or AstMethod with a
+    /// null base.
     #[test]
-    fn p1c_strict_keeps_undefined_variable_and_missing_method_lenient() {
+    fn p1c_strict_undefined_variable_and_missing_method_are_errors() {
         let scope = MapVariableContainer::from_map(HashMap::new());
 
-        // Fast path (pure variable lookup): undefined variable → Ok(None).
+        // Fast path (pure variable lookup): undefined variable → UnknownProperty.
         assert_eq!(
             SimpleExpression::new("${notDefined}".to_string()).get_value_strict(&scope),
-            Ok(None)
+            Err(ExpressionEvalError::UnknownProperty("notDefined".to_string()))
         );
 
-        // No bean of that name registered: method call resolves to null, not error.
+        // No bean of that name registered: the identifier itself is unknown.
         assert_eq!(
             SimpleExpression::new("${ghostBean.run()}".to_string()).get_value_strict(&scope),
-            Ok(None)
+            Err(ExpressionEvalError::UnknownProperty("ghostBean".to_string()))
         );
 
         let registry = ExpressionMethodRegistry::new();
         with_expression_method_registry(&registry, || {
-            // Bean exists but this particular method does not → the bytecode
-            // path's historic lenient behaviour is to push Null (not to fail
-            // and not to void the whole expression).
+            // Bean exists but this particular method does not → UnknownMethod.
             registry.register_bean_method("auditBean", "present", |_| Ok(Value::Null));
             assert_eq!(
                 SimpleExpression::new("${auditBean.absent()}".to_string()).get_value_strict(&scope),
-                Ok(Some(Value::Null))
+                Err(ExpressionEvalError::UnknownMethod("auditBean.absent".to_string()))
             );
         });
     }
 
-    /// AST interpreter path: same strict/lenient distinction as the bytecode
-    /// path (`ExpressionAst::evaluate_strict` mirrors `evaluate`).
+    /// AST interpreter path: same strict contract as the bytecode path.
     #[test]
     fn p1c_ast_strict_path_matches_bytecode_semantics() {
         let scope = MapVariableContainer::from_map(HashMap::new());
 
-        let unregistered = ExpressionParser::new("auditBean.fail()")
+        let unregistered = ExpressionParser::new("ghostBean.fail()")
             .parse_expression()
             .expect("fixture expression must parse");
         assert_eq!(
             unregistered.evaluate_strict(&scope),
-            Ok(None),
-            "unregistered bean is lenient null on the AST path too"
+            Err(ExpressionEvalError::UnknownProperty("ghostBean".to_string())),
+            "unregistered bean identifier is UnknownProperty on the AST path too"
         );
 
         let undefined = ExpressionParser::new("missingVariable + 1")
             .parse_expression()
             .expect("fixture expression must parse");
-        assert_eq!(undefined.evaluate_strict(&scope), Ok(None));
+        assert_eq!(
+            undefined.evaluate_strict(&scope),
+            Err(ExpressionEvalError::UnknownProperty("missingVariable".to_string()))
+        );
 
         let registry = failing_method_registry();
         with_expression_method_registry(&registry, || {
@@ -3129,7 +3486,319 @@ mod tests {
             let error = failing
                 .evaluate_strict(&scope)
                 .expect_err("AST strict path must propagate the method error");
-            assert!(error.contains("intentional audit failure"), "got: {error}");
+            assert!(
+                error.to_string().contains("intentional audit failure"),
+                "got: {error}"
+            );
         });
+    }
+
+    /// `${null}` literal must be legal null on the strict path.
+    #[test]
+    fn w1_strict_null_literal_is_legal_null() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+        assert_eq!(
+            SimpleExpression::new("${null}".to_string()).get_value_strict(&scope),
+            Ok(Some(Value::Null)),
+            "null literal is legal null"
+        );
+    }
+
+    /// §2.1.2 behaviour table: legal null is ONLY a defined-null variable or
+    /// AstMethod/AstProperty with a null base. Everything else unresolved is
+    /// Err. Lenient `get_value` is unchanged.
+    #[test]
+    fn w1_strict_contract_behaviour_table() {
+        let mut vars = HashMap::new();
+        vars.insert("definedNull".to_string(), Value::Null);
+        vars.insert("definedValue".to_string(), Value::from("ok"));
+        vars.insert("person".to_string(), serde_json::json!({"name": "Ada"}));
+        vars.insert("emptyList".to_string(), serde_json::json!([]));
+        let scope = MapVariableContainer::from_map(vars.clone());
+        let registry = ExpressionMethodRegistry::new();
+        registry.register_bean_method("auditBean", "echo", |args| {
+            Ok(args.first().cloned().unwrap_or(Value::Null))
+        });
+
+        with_expression_method_registry(&registry, || {
+            // ── legal null (2 rows + AstProperty base==null, AstProperty.java:69-71)
+            assert_eq!(
+                SimpleExpression::new("${definedNull}".to_string()).get_value_strict(&scope),
+                Ok(Some(Value::Null)),
+                "defined-null variable is legal null"
+            );
+            assert_eq!(
+                SimpleExpression::new("${definedNull.m()}".to_string()).get_value_strict(&scope),
+                Ok(Some(Value::Null)),
+                "AstMethod base==null is legal null"
+            );
+            assert_eq!(
+                SimpleExpression::new("${definedNull.prop}".to_string()).get_value_strict(&scope),
+                Ok(Some(Value::Null)),
+                "AstProperty base==null is legal null"
+            );
+
+            // ── success
+            assert_eq!(
+                SimpleExpression::new("${definedValue}".to_string()).get_value_strict(&scope),
+                Ok(Some(Value::from("ok")))
+            );
+            assert_eq!(
+                SimpleExpression::new("${auditBean.echo('hi')}".to_string())
+                    .get_value_strict(&scope),
+                Ok(Some(Value::from("hi")))
+            );
+
+            // ── undefined variable / unknown property
+            assert_eq!(
+                SimpleExpression::new("${nope}".to_string()).get_value_strict(&scope),
+                Err(ExpressionEvalError::UnknownProperty("nope".to_string()))
+            );
+            assert_eq!(
+                SimpleExpression::new("${nope}".to_string()).get_value_strict(&scope),
+                Err(ExpressionEvalError::UnknownProperty("nope".to_string()))
+            );
+            // Property on a non-null primitive base → CouldNotResolve → Err.
+            assert!(matches!(
+                SimpleExpression::new("${definedValue.missingProp}".to_string()).get_value_strict(&scope),
+                Err(ExpressionEvalError::UnknownProperty(_))
+            ));
+
+            // Map/JSON missing key is MapELResolver legal null (not CouldNotResolve).
+            assert_eq!(
+                SimpleExpression::new("${person.missing}".to_string()).get_value_strict(&scope),
+                Ok(Some(Value::Null)),
+                "MapELResolver missing key resolves to null"
+            );
+
+            // ── unregistered method
+            assert_eq!(
+                SimpleExpression::new("${auditBean.absent()}".to_string()).get_value_strict(&scope),
+                Err(ExpressionEvalError::UnknownMethod("auditBean.absent".to_string()))
+            );
+            assert!(matches!(
+                SimpleExpression::new("${definedValue.nope()}".to_string()).get_value_strict(&scope),
+                Err(ExpressionEvalError::UnknownMethod(_))
+            ));
+
+            // ── parse/compile failure
+            let compile_err = SimpleExpression::new("${1 +}".to_string())
+                .get_value_strict(&scope)
+                .expect_err("parse failure must be Err");
+            assert!(
+                compile_err.is_compile_failure(),
+                "parse failure must be CompileFailed, got: {compile_err:?}"
+            );
+
+            // Lenient entry is unchanged: undefined/unregistered stays null.
+            assert_eq!(
+                SimpleExpression::new("${nope}".to_string()).get_value(&scope),
+                None
+            );
+            assert_eq!(
+                SimpleExpression::new("${auditBean.absent()}".to_string()).get_value(&scope),
+                Some(Value::Null)
+            );
+        });
+    }
+
+    /// Comparison operands that are undefined are Err on the strict path
+    /// (research: "comparison 中操作数未定义亦 Err，对齐网关").
+    #[test]
+    fn w1_strict_comparison_undefined_operand_is_error() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+        assert_eq!(
+            SimpleExpression::new("${missing == 'a'}".to_string()).get_value_strict(&scope),
+            Err(ExpressionEvalError::UnknownProperty("missing".to_string()))
+        );
+        assert_eq!(
+            SimpleExpression::new("${missing != 'a'}".to_string()).get_value_strict(&scope),
+            Err(ExpressionEvalError::UnknownProperty("missing".to_string()))
+        );
+        // Lenient keeps the null-preserving behaviour for conditions.
+        assert_eq!(
+            SimpleExpression::new("${missing != 'a'}".to_string()).get_value(&scope),
+            None
+        );
+    }
+
+    /// N4-1: CompileFailed is distinguishable from eval-time failures so the
+    /// F group can propagate parse errors while catching eval errors.
+    #[test]
+    fn w1_compile_failure_is_typed_distinct_from_eval_failure() {
+        let scope = MapVariableContainer::from_map(HashMap::new());
+        let compile = SimpleExpression::new("${1 +}".to_string())
+            .get_value_strict(&scope)
+            .expect_err("malformed expression");
+        assert!(compile.is_compile_failure());
+
+        let eval = SimpleExpression::new("${nope}".to_string())
+            .get_value_strict(&scope)
+            .expect_err("undefined variable");
+        assert!(!eval.is_compile_failure());
+        assert!(matches!(eval, ExpressionEvalError::UnknownProperty(_)));
+    }
+
+    fn eval_strict(expr: &str) -> Result<Option<Value>, ExpressionEvalError> {
+        eval_strict_with(expr, HashMap::new())
+    }
+
+    fn eval_strict_with(
+        expr: &str,
+        variables: HashMap<String, Value>,
+    ) -> Result<Option<Value>, ExpressionEvalError> {
+        let scope = MapVariableContainer::from_map(variables);
+        SimpleExpression::new(expr.to_string()).get_value_strict(&scope)
+    }
+
+    // ── P1-2 arithmetic gold standard (A-DIV / A-MOD / A-TYPE-FAIL) ──────────
+
+    #[test]
+    fn a_div_long_0_is_infinity_sentinel_not_null() {
+        // `${1/0}` — Java NumberOperations.div:128 Double/ → +∞
+        assert_eq!(
+            eval_strict("${1/0}"),
+            Ok(Some(Value::String("Infinity".to_string())))
+        );
+        assert_ne!(
+            eval_strict("${1/0}"),
+            Ok(Some(Value::Null)),
+            "1/0 ≠ Null is a CP hard condition"
+        );
+    }
+
+    #[test]
+    fn a_div_double_0_is_infinity_sentinel() {
+        assert_eq!(
+            eval_strict("${1.0/0}"),
+            Ok(Some(Value::String("Infinity".to_string())))
+        );
+    }
+
+    #[test]
+    fn a_div_neg_long_0_is_neg_infinity_sentinel() {
+        // Exact spelling "-Infinity" (no leading space) so to_f64 can parse it back.
+        assert_eq!(
+            eval_strict("${(-1)/0}"),
+            Ok(Some(Value::String("-Infinity".to_string())))
+        );
+    }
+
+    #[test]
+    fn a_div_bd_0_is_err() {
+        // M3: BigDecimal operand via internal construct (expression-layer).
+        let mut vars = HashMap::new();
+        vars.insert("bd".to_string(), SimpleExpression::big_decimal_operand("1"));
+        let err = eval_strict_with("${bd/0}", vars).expect_err("BD /0 must Err (ELException)");
+        assert!(matches!(err, ExpressionEvalError::EvalFailed(_)));
+    }
+
+    #[test]
+    fn a_mod_long_0_is_err() {
+        // `${1%0}` — Java NumberOperations.mod:141 Long%0 → throw
+        let err = eval_strict("${1%0}").expect_err("Long %0 must Err, not Null");
+        assert!(matches!(err, ExpressionEvalError::EvalFailed(_)));
+        assert_ne!(eval_strict("${1%0}"), Ok(Some(Value::Null)));
+    }
+
+    #[test]
+    fn a_mod_bd_0_is_nan_sentinel_not_null() {
+        // Java NumberOperations.mod:135-136 BD% → Double% → NaN
+        let mut vars = HashMap::new();
+        vars.insert("bd".to_string(), SimpleExpression::big_decimal_operand("1"));
+        assert_eq!(
+            eval_strict_with("${bd%0}", vars),
+            Ok(Some(Value::String("NaN".to_string())))
+        );
+    }
+
+    #[test]
+    fn a_mod_double_0_is_nan_sentinel() {
+        assert_eq!(
+            eval_strict("${1.0%0}"),
+            Ok(Some(Value::String("NaN".to_string())))
+        );
+    }
+
+    #[test]
+    fn a_zero_over_zero_is_nan_sentinel() {
+        assert_eq!(
+            eval_strict("${0/0}"),
+            Ok(Some(Value::String("NaN".to_string())))
+        );
+    }
+
+    #[test]
+    fn a_nonfinite_overflow_and_composition_use_sentinels() {
+        // M2: all non-finite channels — overflow and composition must not be Null.
+        assert_eq!(
+            eval_strict("${1e308*10}"),
+            Ok(Some(Value::String("Infinity".to_string())))
+        );
+        assert_ne!(
+            eval_strict("${1e308*10}"),
+            Ok(Some(Value::Null)),
+            "overflow must not be disguised as Null"
+        );
+        assert_eq!(
+            eval_strict("${(1/0)+1}"),
+            Ok(Some(Value::String("Infinity".to_string())))
+        );
+        assert_ne!(eval_strict("${(1/0)+1}"), Ok(Some(Value::Null)));
+    }
+
+    #[test]
+    fn a_type_fail_is_err_not_null() {
+        // Type coerce failure → Err (禁止 unwrap_or(Null)).
+        let err = eval_strict("${1-'abc'}").expect_err("type coerce failure must Err");
+        assert!(matches!(err, ExpressionEvalError::EvalFailed(_)));
+        let err = eval_strict("${1*true}").expect_err("bool operand must Err");
+        assert!(matches!(err, ExpressionEvalError::EvalFailed(_)));
+    }
+
+    #[test]
+    fn a_long_overflow_wraps_like_java() {
+        // X1: Java NumberOperations Long +,-,* wrap (two's complement).
+        // i64::MAX + 1 → i64::MIN (wrap), not Err and not f64 promotion.
+        let max = Value::Number(serde_json::Number::from(i64::MAX));
+        let one = Value::Number(serde_json::Number::from(1_i64));
+        assert_eq!(
+            SimpleExpression::arithmetic_op(&max, &one, '+'),
+            Ok(Value::Number(serde_json::Number::from(i64::MIN))),
+            "Long overflow must wrap like Java"
+        );
+        let min = Value::Number(serde_json::Number::from(i64::MIN));
+        assert_eq!(
+            SimpleExpression::arithmetic_op(&min, &one, '-'),
+            Ok(Value::Number(serde_json::Number::from(i64::MAX)))
+        );
+    }
+
+    #[test]
+    fn a_to_f64_accepts_sentinels() {
+        // EL numeric consumption can parse the sentinels back.
+        assert_eq!(
+            SimpleExpression::to_f64(&Value::String("Infinity".to_string())),
+            Some(f64::INFINITY)
+        );
+        assert_eq!(
+            SimpleExpression::to_f64(&Value::String("-Infinity".to_string())),
+            Some(f64::NEG_INFINITY)
+        );
+        assert!(SimpleExpression::to_f64(&Value::String("NaN".to_string()))
+            .is_some_and(f64::is_nan));
+    }
+
+    #[test]
+    fn a_execute_strict_syncs_with_eval_strict() {
+        // 强制项 6: execute_strict path must agree (strict 全改).
+        let scope = MapVariableContainer::from_map(HashMap::new());
+        let compiled = compile_global("${1/0}").expect("compile ${1/0}");
+        assert_eq!(
+            compiled.execute_strict(&scope),
+            Ok(Some(Value::String("Infinity".to_string())))
+        );
+        let compiled = compile_global("${1%0}").expect("compile ${1%0}");
+        assert!(compiled.execute_strict(&scope).is_err());
     }
 }

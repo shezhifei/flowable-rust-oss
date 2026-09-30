@@ -3,7 +3,6 @@ use crate::agenda::continue_process_operation::{
     find_flow_element, flow_element_id, flow_element_type,
 };
 use crate::delegate::activity_behavior::ActivityBehavior;
-use crate::el::expression::Expression;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::runtime::execution::Execution;
@@ -148,7 +147,7 @@ impl MultiInstanceActivityBehavior {
         // so they compile the same way JUEL treats bare expression text.
         let evaluation_execution =
             crate::engine::variable_service::evaluation_execution(command_context, execution);
-        let value = evaluate_mi_expression(&expr_text, &evaluation_execution);
+        let value = evaluate_mi_expression(&expr_text, &evaluation_execution)?;
 
         match value {
             // Number → intValue() (covers Long/Integer/Double from EL)
@@ -198,7 +197,7 @@ impl MultiInstanceActivityBehavior {
             // as an expression (bare names and ${…} both evaluate as EL).
             let evaluation_execution =
                 crate::engine::variable_service::evaluation_execution(command_context, execution);
-            evaluate_mi_expression(input.trim(), &evaluation_execution)
+            evaluate_mi_expression(input.trim(), &evaluation_execution)?
         } else if let Some(cs) = self.mi_characteristics.collection_string.as_ref() {
             // collectionString is a raw string that may name a variable
             // (Java MultiInstanceActivityBehavior.java:549-550).
@@ -1432,10 +1431,15 @@ fn end_sequential_instance_child(
 /// Java `expressionManager.createExpression(text)` accepts both `${…}` and bare
 /// tokens (literals / variable names). `SimpleExpression` only compiles `${…}`,
 /// so bare text is wrapped as `${text}` before evaluation.
-fn evaluate_mi_expression(text: &str, scope: &Execution) -> Option<Value> {
+/// A.2 #29-30 group S (MultiInstanceActivityBehavior.java:544,565): MI
+/// cardinality / loop-expression evaluation errors propagate.
+fn evaluate_mi_expression(
+    text: &str,
+    scope: &Execution,
+) -> Result<Option<Value>, FlowableError> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return None;
+        return Ok(None);
     }
     let el_text = if trimmed.starts_with("${") && trimmed.ends_with('}') {
         trimmed.to_string()
@@ -1443,10 +1447,22 @@ fn evaluate_mi_expression(text: &str, scope: &Execution) -> Option<Value> {
         // e.g. "5" → "${5}", "approvers" → "${approvers}"
         format!("${{{}}}", trimmed)
     };
-    crate::el::expression::SimpleExpression::new(el_text).get_value(scope)
+    crate::el::expression::SimpleExpression::new(el_text)
+        .get_value_strict(scope)
+        .map_err(|error| {
+            FlowableError::ExecutionError(format!(
+                "Multi-instance expression '{trimmed}' failed: {error}"
+            ))
+        })
 }
 
-fn multi_instance_completion_condition_satisfied(
+/// Shared MI completionCondition evaluation (single implementation).
+///
+/// Java parity: `MultiInstanceActivityBehavior.java:390-394` +
+/// `UelExpressionCondition.java:36-45` — three-way classification where
+/// evaluation error ≠ null ≠ non-Boolean. Both the MI runtime path and the
+/// task-complete path must share this body so they cannot drift.
+pub fn multi_instance_completion_condition_satisfied(
     command_context: &mut CommandContext,
     mi: &MultiInstanceLoopCharacteristics,
     execution: &Execution,
@@ -1460,15 +1476,28 @@ fn multi_instance_completion_condition_satisfied(
     // variable resolution walks the VariableScope parent chain. Evaluate on the
     // P4-7a evaluation execution so process-level names (e.g. a threshold held
     // by the process-instance row) resolve.
+    //
+    // C1 / W6: three-way classification identical to `task_service.rs` and
+    // `UelExpressionCondition.java:36-45` — evaluation error ≠ null ≠ non-Boolean.
+    // Java `MultiInstanceActivityBehavior.java:390-394` throws when the result
+    // is not a Boolean (including null); `Ok(false)` is a swallowed error.
     let evaluation_execution =
         crate::engine::variable_service::evaluation_execution(command_context, execution);
     match crate::el::expression::SimpleExpression::new(condition.clone())
-        .get_value(&evaluation_execution)
+        .get_value_strict(&evaluation_execution)
     {
-        Some(Value::Bool(value)) => Ok(value),
-        Some(value) => Err(FlowableError::Generic(format!(
-            "Multi-instance completionCondition must evaluate to a boolean, got {value}"
+        Err(error) => Err(FlowableError::ExecutionError(format!(
+            "Multi-instance completionCondition failed (elementId: {:?}): {error}",
+            execution.activity_id
         ))),
-        None => Ok(false),
+        Ok(Some(Value::Bool(value))) => Ok(value),
+        Ok(Some(Value::Null)) | Ok(None) => Err(FlowableError::ExecutionError(format!(
+            "condition expression returns null (elementId: {:?})",
+            execution.activity_id
+        ))),
+        Ok(Some(value)) => Err(FlowableError::ExecutionError(format!(
+            "condition expression returns non-Boolean (elementId: {:?}): {value}",
+            execution.activity_id
+        ))),
     }
 }

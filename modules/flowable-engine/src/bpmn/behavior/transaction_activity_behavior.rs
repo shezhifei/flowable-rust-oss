@@ -205,7 +205,7 @@ impl ActivityBehavior for TransactionActivityBehavior {
                             category: resolve_job_category(
                                 &boundary_event.event.flow_node.flow_element.base_element,
                                 &evaluation_execution,
-                            ),
+                            )?,
                             ..Default::default()
                         },
                         &mut command_context.session,
@@ -230,7 +230,7 @@ impl ActivityBehavior for TransactionActivityBehavior {
                     crate::bpmn::behavior::boundary_event_activity_behavior::resolve_boundary_configuration(
                         &boundary_event,
                         Some(execution),
-                    );
+                    )?;
                 let state = RuntimeBoundaryEventState {
                     boundary_event_id: boundary_event_id.clone(),
                     attached_activity_id: activity_id.clone(),

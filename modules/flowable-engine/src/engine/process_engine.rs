@@ -283,14 +283,22 @@ impl ProcessEngine {
         time_source: Arc<dyn crate::engine::time_source::TimeSource>,
         db_store: Arc<crate::persistence::db_store::DbStore>,
     ) -> Self {
-        Self::try_build(
+        // E2 SC3 exemption: test/CLI convenience over `try_build`; production
+        // callers use the Result-returning entry points. Mirrors Java
+        // `buildProcessEngine()` startup-fatal. Production call count = 0.
+        #[allow(
+            clippy::expect_used,
+            reason = "E2: build() is test/CLI only; production uses try_build -> Result"
+        )]
+        let engine = Self::try_build(
             name,
             time_source,
             db_store,
             Arc::new(ProcessEngineConfiguration::default()),
             Arc::new(flowable_http_service::DeterministicHttpRuntime::default()),
         )
-        .expect("process engine construction failed")
+        .expect("process engine construction failed");
+        engine
     }
 
     pub fn try_build(

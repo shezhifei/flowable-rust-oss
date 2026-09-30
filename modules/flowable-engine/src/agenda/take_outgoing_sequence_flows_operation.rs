@@ -251,7 +251,7 @@ fn collect_matching_outgoing_flows(
 
         let mut condition_met = true;
         if let Some(ref expr_str) = flow.condition_expression {
-            let expression = Box::new(SimpleExpression::new(expr_str.clone()));
+            let expression = SimpleExpression::new(expr_str.clone());
             let condition = UelExpressionCondition::new(expression);
             condition_met = condition.evaluate(
                 Some(flow.flow_element.base_element.id.as_deref().unwrap_or("")),
@@ -479,7 +479,7 @@ fn select_exclusive_gateway_flow<'a>(
 
         let mut condition_met = true;
         if let Some(ref expr_str) = flow.condition_expression {
-            let expression = Box::new(SimpleExpression::new(expr_str.clone()));
+            let expression = SimpleExpression::new(expr_str.clone());
             let condition = UelExpressionCondition::new(expression);
             condition_met = condition.evaluate(
                 Some(flow.flow_element.base_element.id.as_deref().unwrap_or("")),

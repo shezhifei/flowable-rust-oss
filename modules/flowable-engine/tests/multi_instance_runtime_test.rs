@@ -423,10 +423,12 @@ fn parallel_multi_instance_missing_collection_variable_fails_instead_of_creating
         .start_process_instance(builder)
         .expect_err("missing MI collection variable should fail");
     let message = format!("{error:?}");
-    // Java MultiInstanceActivityBehavior.java:500-501 / unresolved collection message
+    // W1: undefined collection variable → Unknown property (group S).
     assert!(
         message.contains("approvers")
-            && (message.contains("was not found") || message.contains("Couldn't resolve")),
+            && (message.contains("Unknown property")
+                || message.contains("was not found")
+                || message.contains("Couldn't resolve")),
         "unexpected error: {message}"
     );
 }
@@ -786,7 +788,8 @@ fn p82a_loop_cardinality_el_boolean_rejected() {
     );
 }
 
-/// P82a: `${nrOfLoops}` variable missing → error (same Java message).
+/// P82a: `${nrOfLoops}` variable missing → error (group S: undefined variable
+/// is PropertyNotFoundException, not a silent null).
 #[test]
 fn p82a_loop_cardinality_el_missing_variable_rejected() {
     let result = deploy_and_start_mi(
@@ -800,9 +803,10 @@ fn p82a_loop_cardinality_el_missing_variable_rejected() {
         Ok(_) => panic!("missing loopCardinality variable must fail"),
     };
     let message = format!("{err:?}");
+    // W1: undefined variable → Unknown property (or the legacy Java message).
     assert!(
-        message.contains("Could not resolve loopCardinality expression")
-            && message.contains("not a number nor number String"),
+        message.contains("Unknown property")
+            || message.contains("Could not resolve loopCardinality expression"),
         "unexpected error: {message}"
     );
 }

@@ -4,7 +4,7 @@ use crate::bpmn::listener::execution_listener_util::{
 use crate::bpmn::listener::listener_registry::{
     LocalTaskListenerRegistry, TASK_LISTENER_REGISTRY_CACHE_KEY, TaskListenerContext,
 };
-use crate::el::expression::{Expression, SimpleExpression};
+use crate::el::expression::SimpleExpression;
 use crate::error::FlowableError;
 use crate::interceptor::command_context::CommandContext;
 use crate::runtime::execution::Execution;
@@ -72,9 +72,9 @@ fn invoke_task_listener(
         "expression" => {
             // Java ExpressionTaskListener.notify (ExpressionTaskListener.java:31-34):
             // the return value is discarded, but evaluation exceptions escape
-            // and fail the command. Undefined variables stay lenient null;
-            // only real evaluation failures (e.g. a registered method
-            // returning an error) are propagated.
+            // and fail the command. Strict entry (research §2.1.2): undefined
+            // variables, unknown properties/methods and parse failures are all
+            // `Err` (JuelExpression.java:53-60).
             SimpleExpression::new(implementation.to_string())
                 .get_value_strict(evaluation_execution)
                 .map_err(|error| {
@@ -128,8 +128,15 @@ fn resolve_listener_name(
     }
 
     if implementation.starts_with("${") && implementation.ends_with('}') {
+        // A.2 #31-34 group S (ExpressionExecutionListener.java:36 family):
+        // delegateExpression evaluation errors must surface as command failures.
         let value = SimpleExpression::new(implementation.to_string())
-            .get_value(execution)
+            .get_value_strict(execution)
+            .map_err(|error| {
+                FlowableError::ExecutionError(format!(
+                    "taskListener delegateExpression '{implementation}' failed: {error}"
+                ))
+            })?
             .ok_or_else(|| {
                 FlowableError::ExecutionError(format!(
                     "taskListener could not resolve delegateExpression '{}'",
@@ -175,14 +182,23 @@ fn resolve_field_extensions(
             .filter(|v| !v.is_empty());
         let value = match (string_value, expression) {
             (Some(v), None) => Value::String(v.to_string()),
-            (None, Some(expr)) => SimpleExpression::new(expr.to_string())
-                .get_value(execution)
-                .ok_or_else(|| {
-                    FlowableError::ExecutionError(format!(
-                        "taskListener field '{}' expression '{}' could not be resolved",
-                        name, expr
-                    ))
-                })?,
+            (None, Some(expr)) => {
+                // A.2 #31 group S: field expression evaluation errors surface.
+                SimpleExpression::new(expr.to_string())
+                    .get_value_strict(execution)
+                    .map_err(|error| {
+                        FlowableError::ExecutionError(format!(
+                            "taskListener field '{}' expression '{}' failed: {error}",
+                            name, expr
+                        ))
+                    })?
+                    .ok_or_else(|| {
+                        FlowableError::ExecutionError(format!(
+                            "taskListener field '{}' expression '{}' could not be resolved",
+                            name, expr
+                        ))
+                    })?
+            }
             (Some(_), Some(_)) => {
                 return Err(FlowableError::ExecutionError(format!(
                     "taskListener field '{}' cannot have both stringValue and expression",

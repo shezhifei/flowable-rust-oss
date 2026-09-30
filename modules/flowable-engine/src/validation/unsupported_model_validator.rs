@@ -65,6 +65,12 @@ impl UnsupportedModelValidator {
                             } else if type_lower == "send-event" {
                                 validate_send_event_service_task(st)?;
                             }
+                        } else if st.implementation_type.as_deref() == Some("expression") {
+                            // Java ServiceTaskValidator.verifyImplementation:49 —
+                            // expression is a first-class implementation type.
+                            // ServiceTaskExpressionActivityBehavior:63,117-132
+                            // CONSUMES resultVariableName (S-WRITE-NULL).
+                            validate_expression_service_task(st)?;
                         } else if st.implementation.is_some()
                             || st.implementation_type.is_some()
                             || !st.task.activity.field_extensions.is_empty()
@@ -380,6 +386,41 @@ fn collect_transaction_ids(flow_elements: &[FlowElementEnum], collected: &mut Ha
     }
 }
 
+/// Expression-type service task (`flowable:expression`).
+///
+/// Java `ServiceTaskValidator.verifyImplementation:49` treats
+/// `IMPLEMENTATION_TYPE_EXPRESSION` as valid, and
+/// `ServiceTaskExpressionActivityBehavior:63,117-132` **consumes**
+/// `resultVariableName` (S-WRITE-NULL). Unlike class/delegateExpression,
+/// resultVariableName is **allowed** here (Java `verifyResultVariableName:97-103`
+/// only rejects class/delegateExpression).
+fn validate_expression_service_task(service_task: &ServiceTask) -> Result<(), FlowableError> {
+    let implementation = service_task
+        .implementation
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            FlowableError::DeploymentValidationError(format!(
+                "Expression service task '{}' requires a non-empty flowable:expression value",
+                activity_id(service_task)
+            ))
+        })?;
+    // Owned-subset: simple `${...}` / `#{...}` EL form (same shape as
+    // delegateExpression). A bare literal is rejected so typos fail at deploy.
+    let is_simple_el = (implementation.starts_with("${") && implementation.ends_with('}'))
+        || (implementation.starts_with("#{") && implementation.ends_with('}'));
+    if !is_simple_el {
+        return Err(FlowableError::DeploymentValidationError(format!(
+            "Expression service task '{}' only supports simple ${{...}} or #{{...}} expression values in the owned subset",
+            activity_id(service_task)
+        )));
+    }
+    // resultVariableName / useLocalScope / storeTransient / triggerable /
+    // outParameters are all legal for expression (Java consumes them).
+    Ok(())
+}
+
 fn validate_delegate_expression_service_task(
     service_task: &ServiceTask,
 ) -> Result<(), FlowableError> {
@@ -417,6 +458,21 @@ fn validate_delegate_expression_service_task(
                 implementation_type
             ))
         })?;
+    // T4 / M1 (Java ServiceTaskValidator.verifyResultVariableName:97-103):
+    // 'resultVariableName' is a deployment ERROR on class / delegateExpression
+    // — not a silent ignore. Mirror the Java addError so migrations fail fast
+    // instead of silently dropping the write.
+    if service_task
+        .result_variable_name
+        .as_deref()
+        .map(|name| !name.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return Err(FlowableError::DeploymentValidationError(format!(
+            "'resultVariableName' not supported for service tasks using 'class' or 'delegateExpression' (service task '{}')",
+            activity_id(service_task)
+        )));
+    }
     if implementation_type == "delegateExpression" {
         // delegateExpression keeps the simple ${...} form rule.
         if !(implementation.starts_with("${") && implementation.ends_with('}')) {
