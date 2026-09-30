@@ -31,15 +31,23 @@ fn main() {
     let output = env::args_os()
         .nth(1)
         .map(PathBuf::from)
-        .expect("usage: export_bpmn_render_fixtures <output-directory>");
-    fs::create_dir_all(&output).expect("create render fixture output directory");
-    for entry in fs::read_dir(&output).expect("read render fixture output directory") {
-        let path = entry.expect("read render fixture entry").path();
+        .unwrap_or_else(|| {
+            fatal("usage: export_bpmn_render_fixtures <output-directory>".to_string())
+        });
+    fs::create_dir_all(&output)
+        .unwrap_or_else(|error| fatal(format!("create render fixture output directory: {error}")));
+    for entry in fs::read_dir(&output)
+        .unwrap_or_else(|error| fatal(format!("read render fixture output directory: {error}")))
+    {
+        let path = entry
+            .unwrap_or_else(|error| fatal(format!("read render fixture entry: {error}")))
+            .path();
         if path
             .extension()
             .is_some_and(|extension| extension == "json")
         {
-            fs::remove_file(path).expect("remove stale render fixture");
+            fs::remove_file(path)
+                .unwrap_or_else(|error| fatal(format!("remove stale render fixture: {error}")));
         }
     }
 
@@ -59,6 +67,14 @@ fn main() {
             .unwrap_or_else(|error| panic!("write {name}: {error}"));
         println!("wrote {name}");
     }
+}
+
+/// Startup-fatal process boundary: print the cause and exit non-zero,
+/// matching Java top-level fatal semantics (an exception in `main`
+/// propagates to the top level instead of being swallowed).
+fn fatal(message: String) -> ! {
+    eprintln!("{message}");
+    std::process::exit(1)
 }
 
 fn sanitize(value: &str) -> String {

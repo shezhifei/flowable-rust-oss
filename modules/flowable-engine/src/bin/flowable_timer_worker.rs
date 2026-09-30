@@ -419,7 +419,13 @@ fn install_shutdown_handler(shutdown_requested: Arc<AtomicBool>) {
     ctrlc::set_handler(move || {
         shutdown_requested.store(true, Ordering::SeqCst);
     })
-    .expect("Failed to install Ctrl-C handler");
+    .unwrap_or_else(|error| {
+        // Startup-fatal process boundary, matching Java top-level fatal
+        // semantics (buildProcessEngine/init exceptions propagate out of
+        // main): print the cause and exit non-zero instead of panicking.
+        eprintln!("Failed to install Ctrl-C handler: {error}");
+        std::process::exit(1);
+    });
 }
 
 pub(crate) fn run_worker_loop(

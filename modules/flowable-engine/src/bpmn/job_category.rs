@@ -1,3 +1,12 @@
+// Pre-existing `unwrap()` call(s) in the inline `#[cfg(test)]` module,
+// grandfathered by the workspace clippy ratchet
+// (`[workspace.lints.clippy] unwrap_used = "warn"` in the root Cargo.toml).
+// `unwrap()` is the intended assertion tool there (JUnit-equivalent); the
+// exemption is scoped with `cfg_attr(test, ...)` so it covers only this file's
+// test code — a NEW unwrap() in production code is still surfaced.
+// Do not add more without an audit note.
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use crate::el::expression::SimpleExpression;
 use crate::error::FlowableError;
 use crate::runtime::execution::Execution;
