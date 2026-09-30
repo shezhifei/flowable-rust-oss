@@ -177,7 +177,7 @@ fn interrupting_user_task_boundary_timer_worker_cleans_host_and_preserves_unrela
 
     time_source.advance_time(10 * 60 * 1000);
     drop(session);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1);
 
     let mut session = runtime_store.create_session().unwrap();

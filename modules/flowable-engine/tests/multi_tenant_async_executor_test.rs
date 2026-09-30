@@ -197,8 +197,9 @@ fn acquire_async_jobs_respects_tenant_filter() {
     let runtime = engine.get_runtime_service();
 
     // Tenant A filter acquires only A.
-    let acquired_a =
-        runtime.acquire_async_jobs_for_tenants(5_000, 10, &["tenant-a".to_string()], &[]);
+    let acquired_a = runtime
+        .acquire_async_jobs_for_tenants(5_000, 10, &["tenant-a".to_string()], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(
         acquired_a.len(),
         1,
@@ -213,8 +214,9 @@ fn acquire_async_jobs_respects_tenant_filter() {
             .unwrap()
     );
 
-    let acquired_b =
-        runtime.acquire_async_jobs_for_tenants(5_000, 10, &["tenant-b".to_string()], &[]);
+    let acquired_b = runtime
+        .acquire_async_jobs_for_tenants(5_000, 10, &["tenant-b".to_string()], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(acquired_b.len(), 1);
     assert_eq!(acquired_b[0].process_instance_id, pi_b);
     assert!(
@@ -224,7 +226,9 @@ fn acquire_async_jobs_respects_tenant_filter() {
     );
 
     // Empty tenant_ids (shared) acquires both.
-    let acquired_all = runtime.acquire_async_jobs_for_tenants(5_000, 10, &[], &[]);
+    let acquired_all = runtime
+        .acquire_async_jobs_for_tenants(5_000, 10, &[], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(
         acquired_all.len(),
         2,
@@ -419,7 +423,9 @@ fn unlock_owned_jobs_respects_lifecycle_owner_and_tenant_scope() {
     let pi_b = start_with_tenant(&engine, def_id, "tenant-b");
     let runtime = engine.get_runtime_service();
 
-    let acquired = runtime.acquire_async_jobs_for_tenants(5_000, 10, &[], &[]);
+    let acquired = runtime
+        .acquire_async_jobs_for_tenants(5_000, 10, &[], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(acquired.len(), 2);
     assert!(only_job_for_pi(&engine, &pi_a).lock_time.is_some());
     assert!(only_job_for_pi(&engine, &pi_b).lock_time.is_some());
@@ -432,8 +438,9 @@ fn unlock_owned_jobs_respects_lifecycle_owner_and_tenant_scope() {
     assert!(startup_a.lock_expiration_time.is_none());
     assert_eq!(startup_b.lock_owner.as_deref(), Some("tenant-a-executor"));
 
-    let reacquired_a =
-        runtime.acquire_async_jobs_for_tenants(5_000, 10, &["tenant-a".to_string()], &[]);
+    let reacquired_a = runtime
+        .acquire_async_jobs_for_tenants(5_000, 10, &["tenant-a".to_string()], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(reacquired_a.len(), 1);
     engine.start_timer_executor();
     assert_eq!(
@@ -525,7 +532,8 @@ fn shared_multi_tenant_explicit_unlock_is_shutdown_only_for_registered_tenants()
     let pi_c = start_with_tenant(&engine, def_id, "tenant-c");
     let acquired = engine
         .get_runtime_service()
-        .acquire_async_jobs_for_tenants(5_000, 10, &[], &[]);
+        .acquire_async_jobs_for_tenants(5_000, 10, &[], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(acquired.len(), 3);
 
     engine.start_timer_executor();

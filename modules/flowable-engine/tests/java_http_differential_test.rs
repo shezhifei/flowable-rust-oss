@@ -450,6 +450,7 @@ fn acquire_rust_owned_job(
     engine
         .get_runtime_service()
         .acquire_async_jobs_for_tenants(60_000, 16, &[], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch")
         .into_iter()
         .find(|job| job.process_instance_id == process_instance_id)
         .unwrap_or_else(|| {
@@ -700,7 +701,9 @@ fn acquire_rust_owned_job_with_runtime(
     runtime: &RuntimeService,
     process_instance_id: &str,
 ) {
-    let acquired = runtime.acquire_async_jobs_for_tenants(60_000, 16, &[], &[]);
+    let acquired = runtime
+        .acquire_async_jobs_for_tenants(60_000, 16, &[], &[])
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert!(
         acquired
             .iter()

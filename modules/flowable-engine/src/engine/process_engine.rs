@@ -656,10 +656,17 @@ impl ProcessEngine {
         }
     }
 
-    pub fn wake_up_message_by_message_ref(&self, process_instance_id: String, message_ref: String) {
-        let _ = self
-            .task_service
-            .wake_up_message_by_message_ref(process_instance_id, message_ref);
+    /// A message ref with no matching receive-task wait state is a no-op `Ok`
+    /// inside the command; anything else (storage failure, task completion
+    /// error) is a real command failure and must reach the caller, as Java
+    /// `RuntimeService.trigger`/`messageEventReceived` throw.
+    pub fn wake_up_message_by_message_ref(
+        &self,
+        process_instance_id: String,
+        message_ref: String,
+    ) -> Result<(), FlowableError> {
+        self.task_service
+            .wake_up_message_by_message_ref(process_instance_id, message_ref)
     }
 
     pub fn trigger_intermediate_catch_event_by_process_instance_id(
@@ -781,8 +788,10 @@ impl ProcessEngine {
         Arc::clone(&self.command_executor)
     }
 
-    pub fn run_due_timers(&self) -> Vec<String> {
-        self.runtime_service.run_due_timers().unwrap_or_default()
+    /// Runs one synchronous timer cycle. Java `AcquireTimerJobsCmd` has no catch,
+    /// so a failed acquisition is an `Err` — never an empty "nothing was due".
+    pub fn run_due_timers(&self) -> Result<Vec<String>, FlowableError> {
+        self.runtime_service.run_due_timers()
     }
 
     pub fn start_timer_executor(&self) {

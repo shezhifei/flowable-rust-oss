@@ -2392,7 +2392,10 @@ mod acquisition_limit_tests {
             assert_eq!(outcome.reset, 1);
         }
 
-        let async_after = engine.get_runtime_service().acquire_async_jobs(5_000, 10);
+        let async_after = engine
+            .get_runtime_service()
+            .acquire_async_jobs(5_000, 10)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         assert!(
             async_after
                 .iter()

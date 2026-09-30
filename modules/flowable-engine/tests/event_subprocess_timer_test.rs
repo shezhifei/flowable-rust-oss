@@ -156,7 +156,7 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
 
     // Fire 1
     time_source.advance_time(24 * 60 * 60 * 1000);
-    let fired1 = engine.run_due_timers();
+    let fired1 = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         fired1
             .iter()
@@ -191,6 +191,7 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
     assert!(
         engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("event_subprocess_timer:"))
     );
@@ -200,6 +201,7 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
     assert!(
         engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("event_subprocess_timer:"))
     );
@@ -220,6 +222,7 @@ fn non_interrupting_event_subprocess_timer_cycle_repeats() {
     assert!(
         !engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("event_subprocess_timer:")),
         "exhausted cycle must not fire again"

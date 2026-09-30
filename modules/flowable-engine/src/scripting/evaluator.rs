@@ -3,11 +3,18 @@ use crate::scripting::ast::*;
 use crate::scripting::secure_context::SecureScriptContext;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 
 /// Maximum loop iterations to prevent infinite loops.
 const MAX_LOOP_ITERATIONS: usize = 10_000;
 /// Maximum call stack depth to prevent stack overflow.
 const MAX_CALL_DEPTH: usize = 100;
+
+// A script return is successful control flow, not an execution error. Keeping
+// the value typed prevents error messages (or serialization failures) from being
+// mistaken for return values. Java ScriptingEngines.evaluate propagates script
+// exceptions separately from ScriptEvaluation.getResult().
+type StatementOutcome = ControlFlow<Value, Option<Value>>;
 
 /// A user-defined function captured during execution.
 #[derive(Debug, Clone)]
@@ -34,22 +41,13 @@ impl<'a> Evaluator<'a> {
 
     /// Execute a list of statements, returning the last expression value.
     pub fn execute(&mut self, statements: &[Statement]) -> Result<Option<Value>, FlowableError> {
-        let mut last = None;
-        for stmt in statements {
-            match self.execute_statement(stmt) {
-                Ok(val) => last = val,
-                Err(e) => {
-                    if let Some(value) = return_signal_value(&e) {
-                        return Ok(Some(value));
-                    }
-                    return Err(e);
-                }
-            }
+        match self.execute_block(statements)? {
+            ControlFlow::Continue(value) => Ok(value),
+            ControlFlow::Break(value) => Ok(Some(value)),
         }
-        Ok(last)
     }
 
-    fn execute_statement(&mut self, stmt: &Statement) -> Result<Option<Value>, FlowableError> {
+    fn execute_statement(&mut self, stmt: &Statement) -> Result<StatementOutcome, FlowableError> {
         match stmt {
             Statement::VarDecl { name, initializer } => {
                 let value = match initializer {
@@ -57,11 +55,11 @@ impl<'a> Evaluator<'a> {
                     None => Value::Null,
                 };
                 self.context.set_result_variable(name.clone(), value);
-                Ok(None)
+                Ok(ControlFlow::Continue(None))
             }
             Statement::ExpressionStmt(expr) => {
                 let val = self.evaluate_expression(expr)?;
-                Ok(Some(val))
+                Ok(ControlFlow::Continue(Some(val)))
             }
             Statement::IfStmt {
                 condition,
@@ -74,7 +72,7 @@ impl<'a> Evaluator<'a> {
                 } else if let Some(else_stmts) = else_body {
                     self.execute_block(else_stmts)
                 } else {
-                    Ok(None)
+                    Ok(ControlFlow::Continue(None))
                 }
             }
             Statement::ForStmt {
@@ -83,8 +81,10 @@ impl<'a> Evaluator<'a> {
                 update,
                 body,
             } => {
-                if let Some(init_stmt) = init {
-                    self.execute_statement(init_stmt)?;
+                if let Some(init_stmt) = init
+                    && let ControlFlow::Break(value) = self.execute_statement(init_stmt)?
+                {
+                    return Ok(ControlFlow::Break(value));
                 }
                 let mut iterations = 0;
                 loop {
@@ -99,16 +99,15 @@ impl<'a> Evaluator<'a> {
                             break;
                         }
                     }
-                    match self.execute_block(body) {
-                        Ok(_) => {}
-                        Err(e) => return Err(e),
+                    if let ControlFlow::Break(value) = self.execute_block(body)? {
+                        return Ok(ControlFlow::Break(value));
                     }
                     if let Some(upd) = update {
                         self.evaluate_expression(upd)?;
                     }
                     iterations += 1;
                 }
-                Ok(None)
+                Ok(ControlFlow::Continue(None))
             }
             Statement::WhileStmt { condition, body } => {
                 let mut iterations = 0;
@@ -122,10 +121,12 @@ impl<'a> Evaluator<'a> {
                     if !is_truthy(&val) {
                         break;
                     }
-                    self.execute_block(body)?;
+                    if let ControlFlow::Break(value) = self.execute_block(body)? {
+                        return Ok(ControlFlow::Break(value));
+                    }
                     iterations += 1;
                 }
-                Ok(None)
+                Ok(ControlFlow::Continue(None))
             }
             Statement::FunctionDecl { name, params, body } => {
                 self.functions.insert(
@@ -135,28 +136,28 @@ impl<'a> Evaluator<'a> {
                         body: body.clone(),
                     },
                 );
-                Ok(None)
+                Ok(ControlFlow::Continue(None))
             }
             Statement::ReturnStmt(value) => {
                 let val = match value {
                     Some(expr) => self.evaluate_expression(expr)?,
                     None => Value::Null,
                 };
-                Err(FlowableError::ExecutionError(format!(
-                    "__RETURN__:{}",
-                    serde_json::to_string(&val).unwrap_or_else(|_| "null".to_string())
-                )))
+                Ok(ControlFlow::Break(val))
             }
             Statement::Block(stmts) => self.execute_block(stmts),
         }
     }
 
-    fn execute_block(&mut self, stmts: &[Statement]) -> Result<Option<Value>, FlowableError> {
+    fn execute_block(&mut self, stmts: &[Statement]) -> Result<StatementOutcome, FlowableError> {
         let mut last = None;
         for stmt in stmts {
-            last = self.execute_statement(stmt)?;
+            match self.execute_statement(stmt)? {
+                ControlFlow::Continue(value) => last = value,
+                ControlFlow::Break(value) => return Ok(ControlFlow::Break(value)),
+            }
         }
-        Ok(last)
+        Ok(ControlFlow::Continue(last))
     }
 
     // ── Expression evaluation ───────────────────────────────
@@ -340,33 +341,15 @@ impl<'a> Evaluator<'a> {
             self.context.set_result_variable(param.clone(), val);
         }
 
-        // Execute body, catching return signals
-        let result = match self.execute_block(&func.body) {
-            Ok(val) => Ok(val.unwrap_or(Value::Null)),
-            Err(e) => {
-                let msg = format!("{}", e);
-                if msg.contains("__RETURN__:") {
-                    // Extract the JSON payload after __RETURN__:
-                    let json_str = msg.split_once("__RETURN__:").map(|x| x.1).unwrap_or("null");
-                    let val: Value = serde_json::from_str(json_str).unwrap_or(Value::Null);
-                    Ok(val)
-                } else {
-                    Err(e)
-                }
-            }
-        };
-
+        // Restore depth even when execution failed, then propagate that error
+        // unchanged. Only an explicit typed return terminates the function.
+        let result = self.execute_block(&func.body);
         self.call_depth -= 1;
-        result
+        match result? {
+            ControlFlow::Continue(value) => Ok(value.unwrap_or(Value::Null)),
+            ControlFlow::Break(value) => Ok(value),
+        }
     }
-}
-
-fn return_signal_value(error: &FlowableError) -> Option<Value> {
-    let FlowableError::ExecutionError(message) = error else {
-        return None;
-    };
-    let payload = message.strip_prefix("__RETURN__:")?;
-    serde_json::from_str(payload).ok()
 }
 
 // ── Helpers ─────────────────────────────────────────────────

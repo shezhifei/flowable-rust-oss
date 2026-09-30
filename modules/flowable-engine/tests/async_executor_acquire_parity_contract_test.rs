@@ -136,8 +136,8 @@ fn concurrent_run_due_timers_executes_intermediate_timer_exactly_once() {
 
     let e1 = Arc::clone(&engine1);
     let e2 = Arc::clone(&engine2);
-    let h1 = thread::spawn(move || e1.run_due_timers());
-    let h2 = thread::spawn(move || e2.run_due_timers());
+    let h1 = thread::spawn(move || e1.run_due_timers().expect("timer cycle must not fail"));
+    let h2 = thread::spawn(move || e2.run_due_timers().expect("timer cycle must not fail"));
     let r1 = h1.join().unwrap();
     let r2 = h2.join().unwrap();
     let total = r1.len() + r2.len();
@@ -292,7 +292,10 @@ fn deadletter_jobs_are_not_acquired_by_async_path() {
     );
     session.flush_and_commit().unwrap();
 
-    let acquired = engine.get_runtime_service().acquire_async_jobs(5_000, 10);
+    let acquired = engine
+        .get_runtime_service()
+        .acquire_async_jobs(5_000, 10)
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(acquired.len(), 1);
     assert_eq!(acquired[0].timer_job_id, "async-1");
     assert_ne!(

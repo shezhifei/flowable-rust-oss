@@ -382,7 +382,7 @@ fn suspended_definition_timer_start_skips_without_panic_and_reschedules_cycle() 
 
     time_source.advance_time(5_000);
     // Must not panic (previous path: StartProcessInstanceCmd.unwrap on suspended).
-    let triggered = engine.run_due_timers();
+    let triggered = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         triggered
             .iter()

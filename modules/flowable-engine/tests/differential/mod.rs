@@ -618,7 +618,7 @@ pub fn run_rust_operations_case(
             }
             "executeDueTimers" => {
                 // Fire every timer that is due under the logical clock.
-                let _ = engine.run_due_timers();
+                let _ = engine.run_due_timers().expect("timer cycle must not fail");
             }
             "deploy" => {
                 let bpmn_name = operation

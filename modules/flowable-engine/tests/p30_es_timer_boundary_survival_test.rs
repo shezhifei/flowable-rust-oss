@@ -127,7 +127,7 @@ fn interrupting_message_boundary_keeps_event_subprocess_timer_subscription() {
 
     // The subscription must still fire on schedule.
     time_source.advance_time(5 * 60 * 1000);
-    let fired = engine.run_due_timers();
+    let fired = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         fired
             .iter()
@@ -219,7 +219,7 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
 
     // Fire the interrupting timer boundary at +1m (ES timer due at +5m).
     time_source.advance_time(60 * 1000);
-    engine.run_due_timers();
+    engine.run_due_timers().expect("timer cycle must not fail");
 
     let tasks = engine
         .get_task_service()
@@ -250,7 +250,7 @@ fn interrupting_timer_boundary_keeps_event_subprocess_timer_subscription() {
 
     // The subscription must still fire on schedule (+4m more → +5m total).
     time_source.advance_time(4 * 60 * 1000);
-    let fired = engine.run_due_timers();
+    let fired = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         fired
             .iter()

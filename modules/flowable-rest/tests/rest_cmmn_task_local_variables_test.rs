@@ -458,3 +458,49 @@ async fn cmmn_task_local_variables_are_isolated_between_tasks() {
         .unwrap();
     assert_eq!(get_b["value"], json!("from-b"));
 }
+
+/// Java TaskVariableCollectionResource.createTaskVariable loads the task first
+/// (getTaskFromRequestWithoutAccessCheck → FlowableObjectNotFoundException → 404)
+/// and only then asks `hasVariableOnScope`. The duplicate probe used to be
+/// `load_plan_item_variable(..).is_ok()`, which read *any* failure — a missing
+/// task or a storage error — as "variable absent, go ahead and create".
+#[tokio::test]
+async fn cmmn_task_variable_create_on_missing_task_is_not_found_not_created() {
+    let (base_url, client) = spawn_server().await;
+    let (_case_id, task_ids) = deploy_and_start_case(&base_url, &client).await;
+
+    for scope in ["local", "global"] {
+        let response = client
+            .post(format!(
+                "{base_url}/cmmn-runtime/tasks/does-not-exist/variables"
+            ))
+            .basic_auth("admin", Some("test"))
+            .json(&json!([{ "name": "orphan", "type": "string", "value": "x", "scope": scope }]))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            reqwest::StatusCode::NOT_FOUND,
+            "scope={scope}"
+        );
+    }
+
+    // The duplicate check still answers 409 once the task exists.
+    let task_id = &task_ids[0];
+    let create = |value: &'static str| {
+        client
+            .post(format!("{base_url}/cmmn-runtime/tasks/{task_id}/variables"))
+            .basic_auth("admin", Some("test"))
+            .json(&json!([{ "name": "dup", "type": "string", "value": value, "scope": "local" }]))
+            .send()
+    };
+    assert_eq!(
+        create("first").await.unwrap().status(),
+        reqwest::StatusCode::CREATED
+    );
+    assert_eq!(
+        create("second").await.unwrap().status(),
+        reqwest::StatusCode::CONFLICT
+    );
+}

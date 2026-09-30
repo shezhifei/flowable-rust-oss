@@ -105,9 +105,9 @@ fn test_concurrent_timer_acquisition() {
     let e1 = Arc::clone(&engine1);
     let e2 = Arc::clone(&engine2);
 
-    let handle1 = thread::spawn(move || e1.run_due_timers());
+    let handle1 = thread::spawn(move || e1.run_due_timers().expect("timer cycle must not fail"));
 
-    let handle2 = thread::spawn(move || e2.run_due_timers());
+    let handle2 = thread::spawn(move || e2.run_due_timers().expect("timer cycle must not fail"));
 
     let res1 = handle1.join().unwrap();
     let res2 = handle2.join().unwrap();

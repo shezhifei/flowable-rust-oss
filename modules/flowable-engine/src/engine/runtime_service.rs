@@ -5147,11 +5147,14 @@ impl RuntimeService {
         self.command_executor.execute(&cmd)
     }
 
+    /// Java `AcquireJobsCmd.execute` has no catch: a storage failure escapes the
+    /// command, and only the acquisition runnable decides to log and back off.
+    /// An empty `Ok` therefore means "no due jobs", never "acquisition failed".
     pub fn acquire_async_jobs(
         &self,
         lock_duration_ms: i64,
         max_jobs: usize,
-    ) -> Vec<RuntimeTimerJobState> {
+    ) -> Result<Vec<RuntimeTimerJobState>, crate::error::FlowableError> {
         self.acquire_async_jobs_for_tenants(lock_duration_ms, max_jobs, &[], &[])
     }
 
@@ -5163,14 +5166,13 @@ impl RuntimeService {
         max_jobs: usize,
         tenant_ids: &[String],
         enabled_job_categories: &[String],
-    ) -> Vec<RuntimeTimerJobState> {
+    ) -> Result<Vec<RuntimeTimerJobState>, crate::error::FlowableError> {
         self.try_acquire_async_jobs_for_tenants(
             lock_duration_ms,
             max_jobs,
             tenant_ids,
             enabled_job_categories,
         )
-        .unwrap_or_default()
     }
 
     pub(crate) fn try_acquire_async_jobs_for_tenants(
@@ -5670,13 +5672,30 @@ impl RuntimeService {
         // Match TimerWorker: publish liveness before competing for the lease so
         // concurrent one-shot callers are not treated as dead nodes (when a
         // heartbeat-based early-takeover path is active).
-        let _ = self.heartbeat_timer_node("run_due_timers");
-        if let Ok(Some(token)) = self.acquire_coordinator_lease(300_000) {
+        // Best effort, exactly like TimerWorker::run_cycle: a failed heartbeat is
+        // logged and the cycle continues.
+        if let Err(error) = self.heartbeat_timer_node("run_due_timers") {
+            tracing::warn!("run_due_timers: timer-node heartbeat failed: {error}");
+        }
+        // Java LockManagerImpl.acquireLock (:100-126): optimistic-lock and plain
+        // FlowableException / RuntimeException failures are logged and treated
+        // as "lock not acquired" — the cycle is skipped, not failed. The previous
+        // `if let Ok(Some(..))` skipped too, but silently.
+        let lease = match self.acquire_coordinator_lease(300_000) {
+            Ok(lease) => lease,
+            Err(error) => {
+                tracing::warn!(
+                    "run_due_timers: failed to acquire coordinator lease; skipping cycle: {error}"
+                );
+                None
+            }
+        };
+        if let Some(token) = lease {
             let works = match self.acquire_timer_work(token) {
                 Ok(works) => works,
                 Err(error) => {
                     tracing::error!("failed to acquire timer work: {error}");
-                    let _ = self.release_coordinator_lease(token);
+                    self.release_coordinator_lease_logged(token);
                     return Err(error);
                 }
             };
@@ -5691,9 +5710,20 @@ impl RuntimeService {
             // its batch — release so another node can take over immediately.
             // All work above executed synchronously, so the fencing token is no
             // longer needed; a failed release degrades to lease expiry.
-            let _ = self.release_coordinator_lease(token);
+            self.release_coordinator_lease_logged(token);
         }
         Ok(executed)
+    }
+
+    /// Releasing is an optimisation (another node may take over before the
+    /// lease expires), so a failure must not mask the cycle's own outcome — but
+    /// it is logged instead of discarded, like TimerWorker's release path.
+    fn release_coordinator_lease_logged(&self, token: i64) {
+        if let Err(error) = self.release_coordinator_lease(token) {
+            tracing::warn!(
+                "run_due_timers: releasing coordinator lease failed; it will expire instead: {error}"
+            );
+        }
     }
 
     // ── Control Surface API ──

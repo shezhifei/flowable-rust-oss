@@ -221,8 +221,10 @@ fn test_message_wakeup_by_message_ref() {
     );
 
     // Try waking up with wrong message_ref
+    // A non-matching message ref is a no-op, not an error.
     process_engine
-        .wake_up_message_by_message_ref(process_instance.id.clone(), "wrongMessage".to_string());
+        .wake_up_message_by_message_ref(process_instance.id.clone(), "wrongMessage".to_string())
+        .unwrap();
 
     let tasks = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())
@@ -230,10 +232,9 @@ fn test_message_wakeup_by_message_ref() {
     assert_eq!(tasks.len(), 1); // Task should still be there
 
     // Now wake up with correct message_ref
-    process_engine.wake_up_message_by_message_ref(
-        process_instance.id.clone(),
-        "mySpecialMessage".to_string(),
-    );
+    process_engine
+        .wake_up_message_by_message_ref(process_instance.id.clone(), "mySpecialMessage".to_string())
+        .unwrap();
 
     let tasks_after = task_service
         .get_tasks_by_process_instance_id(process_instance.id.clone())

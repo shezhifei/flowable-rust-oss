@@ -533,6 +533,7 @@ mod tests {
         let our_ids: std::collections::HashSet<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         let acquired: Vec<_> = runtime_service
             .acquire_async_jobs(300_000, 64)
+            .expect("job acquisition must not report a storage failure as an empty batch")
             .into_iter()
             .filter(|j| our_ids.contains(j.timer_job_id.as_str()))
             .collect();
@@ -584,7 +585,9 @@ mod tests {
         let runtime_service = engine.get_runtime_service();
         // Acquire only our job: scan enough to outrun leftover shared-PG rows, then
         // keep the matching id (shared full-matrix isolation).
-        let acquired_all = runtime_service.acquire_async_jobs(300_000, 64);
+        let acquired_all = runtime_service
+            .acquire_async_jobs(300_000, 64)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         let acquired: Vec<_> = acquired_all
             .into_iter()
             .filter(|j| j.timer_job_id == fatal_id)
@@ -696,6 +699,7 @@ mod tests {
         let our_ids: std::collections::HashSet<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         let acquired: Vec<_> = runtime_service
             .acquire_async_jobs(300_000, 64)
+            .expect("job acquisition must not report a storage failure as an empty batch")
             .into_iter()
             .filter(|j| our_ids.contains(j.timer_job_id.as_str()))
             .collect();
@@ -770,6 +774,7 @@ mod tests {
         let our_ids: std::collections::HashSet<&str> = job_ids.iter().map(|s| s.as_str()).collect();
         let acquired: Vec<_> = runtime_service
             .acquire_async_jobs(300_000, 64)
+            .expect("job acquisition must not report a storage failure as an empty batch")
             .into_iter()
             .filter(|j| our_ids.contains(j.timer_job_id.as_str()))
             .collect();
@@ -904,8 +909,9 @@ mod tests {
         insert_async_jobs_with_categories(&engine, time_source.as_ref(), &jobs);
 
         let empty_categories: Vec<String> = Vec::new();
-        let all_jobs =
-            runtime_service.acquire_async_jobs_for_tenants(300_000, 10, &[], &empty_categories);
+        let all_jobs = runtime_service
+            .acquire_async_jobs_for_tenants(300_000, 10, &[], &empty_categories)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         assert_eq!(
             all_jobs.len(),
             5,
@@ -933,7 +939,9 @@ mod tests {
         let rs2 = engine2.get_runtime_service();
 
         let category_a = vec!["A".to_string()];
-        let a_jobs = rs2.acquire_async_jobs_for_tenants(300_000, 10, &[], &category_a);
+        let a_jobs = rs2
+            .acquire_async_jobs_for_tenants(300_000, 10, &[], &category_a)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         assert_eq!(
             a_jobs.len(),
             2,
@@ -963,7 +971,9 @@ mod tests {
         let rs3 = engine3.get_runtime_service();
 
         let category_ab = vec!["A".to_string(), "B".to_string()];
-        let ab_jobs = rs3.acquire_async_jobs_for_tenants(300_000, 10, &[], &category_ab);
+        let ab_jobs = rs3
+            .acquire_async_jobs_for_tenants(300_000, 10, &[], &category_ab)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         assert_eq!(
             ab_jobs.len(),
             2,
@@ -989,7 +999,9 @@ mod tests {
         let rs4 = engine4.get_runtime_service();
 
         let category_c = vec!["C".to_string()];
-        let c_jobs = rs4.acquire_async_jobs_for_tenants(300_000, 10, &[], &category_c);
+        let c_jobs = rs4
+            .acquire_async_jobs_for_tenants(300_000, 10, &[], &category_c)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         assert!(
             c_jobs.is_empty(),
             "filter=[C] with no matching jobs and only NULL-category jobs should return empty"

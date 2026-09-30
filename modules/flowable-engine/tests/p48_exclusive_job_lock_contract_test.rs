@@ -218,7 +218,7 @@ fn exclusive_job_executes_and_clears_pi_scope_lock() {
     let pi_id = deploy_and_start(&engine, async_task_process_xml(""));
     let job = pending_async_job(&engine, &pi_id);
 
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         executed.contains(&job.timer_job_id),
         "the exclusive async job must execute; executed={executed:?}"
@@ -251,7 +251,7 @@ fn foreign_live_pi_lock_defers_exclusive_job_and_releases_row_lock() {
     let now = now_ms(&time_source);
     seed_pi_lock(&engine, &pi_id, "other-executor", now + 3_600_000, now);
 
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         !executed.contains(&job.timer_job_id),
         "an exclusive job must not run while another owner holds a live scope lock"
@@ -285,7 +285,7 @@ fn expired_foreign_pi_lock_is_taken_over() {
     let now = now_ms(&time_source);
     seed_pi_lock(&engine, &pi_id, "dead-executor", now - 1, now - 3_600_000);
 
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         executed.contains(&job.timer_job_id),
         "an expired foreign scope lock must not block execution; executed={executed:?}"
@@ -312,7 +312,7 @@ fn non_exclusive_job_ignores_foreign_pi_lock() {
     let now = now_ms(&time_source);
     seed_pi_lock(&engine, &pi_id, "other-executor", now + 3_600_000, now);
 
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         executed.contains(&job.timer_job_id),
         "a non-exclusive job must execute regardless of the scope lock"
@@ -372,7 +372,7 @@ fn failed_exclusive_job_clears_pi_scope_lock() {
     let job = pending_async_job(&engine, &pi_id);
     assert!(job.exclusive);
 
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         !executed.contains(&job.timer_job_id),
         "the failing job must not report success"

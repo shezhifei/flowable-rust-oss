@@ -177,7 +177,7 @@ fn test_process_timer_start_event_creates_new_instance() {
 
     test_time.advance_time(15000);
 
-    let triggered = engine.run_due_timers();
+    let triggered = engine.run_due_timers().expect("timer cycle must not fail");
 
     assert!(
         triggered.iter().any(|id| id.contains("timer_start:")),
@@ -218,7 +218,7 @@ fn test_non_due_process_timer_start_does_nothing() {
 
     test_time.advance_time(5000);
 
-    let triggered = engine.run_due_timers();
+    let triggered = engine.run_due_timers().expect("timer cycle must not fail");
 
     assert!(
         !triggered.iter().any(|id| id.contains("timer_start:")),
@@ -250,7 +250,7 @@ fn test_timer_start_with_cycle_creates_instances() {
     engine.get_repository_service().deploy(builder).unwrap();
 
     test_time.advance_time(5000);
-    let triggered1 = engine.run_due_timers();
+    let triggered1 = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         triggered1.iter().any(|id| id.contains("timer_start:")),
         "First cycle should trigger timer start"
@@ -267,13 +267,13 @@ fn test_timer_start_with_cycle_creates_instances() {
 
     // Second and third fires must still produce instances (repeat).
     test_time.advance_time(5000);
-    let triggered2 = engine.run_due_timers();
+    let triggered2 = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         triggered2.iter().any(|id| id.contains("timer_start:")),
         "Second cycle should trigger timer start"
     );
     test_time.advance_time(5000);
-    let triggered3 = engine.run_due_timers();
+    let triggered3 = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         triggered3.iter().any(|id| id.contains("timer_start:")),
         "Third cycle should trigger timer start"
@@ -334,6 +334,7 @@ fn test_timer_start_with_r4_cycle_limit() {
     assert!(
         engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("timer_start:"))
     );
@@ -341,12 +342,13 @@ fn test_timer_start_with_r4_cycle_limit() {
     assert!(
         engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("timer_start:"))
     );
     // Exhausted — third fire must not start another instance.
     test_time.advance_time(5000);
-    let third = engine.run_due_timers();
+    let third = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         !third.iter().any(|id| id.contains("timer_start:")),
         "R2 cycle must stop after two fires"
@@ -399,7 +401,7 @@ fn test_multiple_start_events_coexistence() {
     );
 
     test_time.advance_time(15000);
-    let triggered = engine.run_due_timers();
+    let triggered = engine.run_due_timers().expect("timer cycle must not fail");
 
     assert!(
         triggered.iter().any(|id| id.contains("timer_start:")),
@@ -484,7 +486,7 @@ fn test_multiple_timer_start_events_are_acquired_independently() {
     );
 
     test_time.advance_time(15000);
-    let triggered = engine.run_due_timers();
+    let triggered = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         triggered
             .iter()

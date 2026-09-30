@@ -224,7 +224,7 @@ fn test_core_ga_user_task_boundary_event() {
 
     // Fire timer
     time_source.advance_time(2 * 60 * 60 * 1000);
-    engine.run_due_timers();
+    engine.run_due_timers().expect("timer cycle must not fail");
 
     let tasks = engine
         .get_task_service()
@@ -362,7 +362,7 @@ fn test_core_ga_timer_start_intermediate_boundary() {
 
     // trigger start timer
     time_source.advance_time(2 * 60 * 60 * 1000);
-    engine.run_due_timers();
+    engine.run_due_timers().expect("timer cycle must not fail");
 
     let __runtime_store = engine.get_runtime_store();
     let mut __runtime_session = __runtime_store.create_session().unwrap();
@@ -373,7 +373,7 @@ fn test_core_ga_timer_start_intermediate_boundary() {
 
     // trigger intermediate timer
     time_source.advance_time(2 * 60 * 60 * 1000);
-    engine.run_due_timers();
+    engine.run_due_timers().expect("timer cycle must not fail");
 
     let tasks = engine
         .get_task_service()
@@ -384,7 +384,7 @@ fn test_core_ga_timer_start_intermediate_boundary() {
 
     // trigger boundary timer
     time_source.advance_time(2 * 60 * 60 * 1000);
-    engine.run_due_timers();
+    engine.run_due_timers().expect("timer cycle must not fail");
 
     let store = engine.get_runtime_store();
     let mut session = store.create_session().unwrap();

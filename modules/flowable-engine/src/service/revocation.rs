@@ -35,15 +35,17 @@ impl TokenRevocationRegistry {
         Self { runtime_store }
     }
 
-    /// Creates an in-memory revocation registry, useful for tests.
+    /// Creates an in-memory revocation registry for unit tests.
+    ///
+    /// Compiled only under `cfg(test)`: it used to be reachable from production
+    /// through `ExternalAuthProvider::new`, where a pool/schema failure would
+    /// panic instead of surfacing as the typed startup error Java's
+    /// `buildProcessEngine()` throws. Production wires `new(runtime_store)`.
+    #[cfg(test)]
     pub fn new_in_memory() -> Self {
-        // In-memory backend creation is infallible in practice; fail fast with
-        // context instead of a bare unwrap.
-        // E3 SC3 exemption: test-only constructor; Java 8 has no token
-        // revocation API. Not on the production route path.
         #[allow(
             clippy::expect_used,
-            reason = "E3: new_in_memory() is a test convenience; in-memory DbStore is infallible"
+            reason = "E3: cfg(test)-only constructor; a failing test fixture should abort"
         )]
         let db_store = std::sync::Arc::new(
             crate::persistence::db_store::DbStore::new_in_memory()
@@ -124,7 +126,15 @@ impl TokenRevocationRegistry {
             Some(_expired) => {
                 self.runtime_store
                     .delete_token_revocation(jti, &mut session);
-                let _ = session.flush_and_commit();
+                // Best-effort cleanup: the entry is already expired, so the
+                // answer is NotRevoked either way; a failed commit only leaves a
+                // stale row for `evict_expired`. Log it instead of discarding.
+                if let Err(error) = session.flush_and_commit() {
+                    tracing::warn!(
+                        jti = %jti,
+                        "revocation check: deleting expired entry failed: {error}"
+                    );
+                }
                 RevocationStatus::NotRevoked
             }
             None => {

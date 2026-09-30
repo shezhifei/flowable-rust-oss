@@ -111,14 +111,16 @@ fn stress_timer_acquisition() {
         let lock_timeout_ms = 300_000;
 
         // Warm-up
-        let _ =
-            runtime_store.acquire_due_timer_jobs("owner1", now_ms, lock_timeout_ms, &mut session);
+        let _ = runtime_store
+            .acquire_due_timer_jobs("owner1", now_ms, lock_timeout_ms, &mut session)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         session.rollback().unwrap();
         let mut session = runtime_store.create_session().unwrap();
 
         let start = Instant::now();
-        let (acquired, _recovered, _conflicts) =
-            runtime_store.acquire_due_timer_jobs("owner2", now_ms, lock_timeout_ms, &mut session);
+        let (acquired, _recovered, _conflicts) = runtime_store
+            .acquire_due_timer_jobs("owner2", now_ms, lock_timeout_ms, &mut session)
+            .expect("job acquisition must not report a storage failure as an empty batch");
         let elapsed = start.elapsed();
         session.rollback().unwrap();
 

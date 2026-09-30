@@ -81,9 +81,21 @@ fn three_segment_r_start_period_fires() {
         .unwrap();
 
     // Intermediate catch with cycle still fires once when due (no repeat for intermediate).
-    assert_eq!(engine.run_due_timers().len(), 0);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        0
+    );
     time_source.advance_time(60 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let runtime_store = engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
@@ -196,7 +208,13 @@ fn end_date_stops_boundary_cycle_reschedule() {
     drop(session);
 
     time_source.advance_time(60 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let mut session = runtime_store.create_session().unwrap();
     let timers_after =
@@ -260,6 +278,7 @@ fn start_timer_with_end_date_stops_repeating() {
     assert!(
         engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("timer_start:"))
     );
@@ -268,12 +287,13 @@ fn start_timer_with_end_date_stops_repeating() {
     assert!(
         engine
             .run_due_timers()
+            .expect("timer cycle must not fail")
             .iter()
             .any(|id| id.contains("timer_start:"))
     );
     // Third would be +15s — past endDate → no more
     time_source.advance_time(5000);
-    let third = engine.run_due_timers();
+    let third = engine.run_due_timers().expect("timer cycle must not fail");
     assert!(
         !third.iter().any(|id| id.contains("timer_start:")),
         "endDate must stop further start-timer fires"

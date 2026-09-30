@@ -2696,14 +2696,10 @@ impl RuntimeStore {
                 task.due_date = props.due_date;
             }
             if task.category.is_none() {
-                task.category = props
-                    .category
-                    .filter(|c| !Self::is_expression_text(c));
+                task.category = props.category.filter(|c| !Self::is_expression_text(c));
             }
             if task.form_key.is_none() {
-                task.form_key = props
-                    .form_key
-                    .filter(|f| !Self::is_expression_text(f));
+                task.form_key = props.form_key.filter(|f| !Self::is_expression_text(f));
             }
         }
         session.insert_with_extra(
@@ -4962,13 +4958,16 @@ impl RuntimeStore {
         Ok(filter.iter().any(|t| t == &process_tenant))
     }
 
+    /// Java `AcquireTimerJobsCmd` / `AcquireJobsCmd` have no catch around the
+    /// select-and-lock: a storage failure must reach the caller instead of being
+    /// reported as "0 due jobs" (which also hides lease-stealing regressions).
     pub fn acquire_due_timer_jobs(
         &self,
         owner: &str,
         now: i64,
         lock_timeout_ms: i64,
         session: &mut DbSession,
-    ) -> (Vec<RuntimeTimerJobState>, usize, usize) {
+    ) -> Result<(Vec<RuntimeTimerJobState>, usize, usize), StorageError> {
         self.acquire_due_timer_jobs_filtered(owner, now, lock_timeout_ms, None, None, session)
     }
 
@@ -4984,7 +4983,7 @@ impl RuntimeStore {
         tenant_filter: Option<&[String]>,
         category_filter: Option<&[String]>,
         session: &mut DbSession,
-    ) -> (Vec<RuntimeTimerJobState>, usize, usize) {
+    ) -> Result<(Vec<RuntimeTimerJobState>, usize, usize), StorageError> {
         self.try_acquire_due_timer_jobs_filtered(
             owner,
             now,
@@ -4993,10 +4992,6 @@ impl RuntimeStore {
             category_filter,
             session,
         )
-        .unwrap_or_else(|error| {
-            tracing::warn!("timer-job acquisition storage operation failed: {error:?}");
-            (Vec::new(), 0, 0)
-        })
     }
 
     pub(crate) fn try_acquire_due_timer_jobs_filtered(

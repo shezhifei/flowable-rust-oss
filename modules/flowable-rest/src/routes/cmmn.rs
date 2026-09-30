@@ -4334,9 +4334,14 @@ pub async fn create_task_variables(
         shared_scope = Some(scope);
         // Java: creating an existing variable in the same scope → 409
         // (TaskVariableCollectionResource.java:174-176 hasVariableOnScope).
-        if load_plan_item_variable(runtime.as_ref(), &plan_item_instance_id, &name, Some(scope))
-            .is_ok()
-        {
+        // `hasVariableOnScope` answers a boolean only after the task was loaded
+        // (getTaskFromRequestWithoutAccessCheck → 404) and the variable query
+        // succeeded; a lookup failure must not read as "absent, go ahead".
+        let already_present =
+            list_variables_for_plan_item(runtime.as_ref(), &plan_item_instance_id, Some(scope))?
+                .iter()
+                .any(|variable| variable.name == name);
+        if already_present {
             return Err(ApiError::Conflict(format!(
                 "Variable '{name}' is already present on task '{plan_item_instance_id}'."
             )));

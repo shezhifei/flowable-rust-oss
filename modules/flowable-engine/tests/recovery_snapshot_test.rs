@@ -179,7 +179,7 @@ fn test_recovery_snapshot_timer_job() {
 
     time_source.advance_time(2 * 60 * 60 * 1000);
 
-    let dispatched = engine2.run_due_timers();
+    let dispatched = engine2.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(dispatched.len(), 1);
 
     let runtime_store = engine2.get_runtime_store();
@@ -236,7 +236,7 @@ fn test_recovery_snapshot_timer_start_subscription() {
     );
 
     time_source.advance_time(2 * 60 * 60 * 1000);
-    let dispatched = engine2.run_due_timers();
+    let dispatched = engine2.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(dispatched.len(), 1);
     let runtime_store = engine2.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();

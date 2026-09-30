@@ -928,7 +928,9 @@ fn async_and_history_acquisition_are_isolated() {
     session.flush_and_commit().unwrap();
 
     let runtime_service = engine.get_runtime_service();
-    let async_jobs = runtime_service.acquire_async_jobs(300_000, 10);
+    let async_jobs = runtime_service
+        .acquire_async_jobs(300_000, 10)
+        .expect("job acquisition must not report a storage failure as an empty batch");
     let history_jobs = runtime_service.acquire_history_jobs(300_000, 10).unwrap();
 
     assert!(

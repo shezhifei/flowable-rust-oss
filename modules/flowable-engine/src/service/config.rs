@@ -1953,10 +1953,10 @@ impl ServicePolicyConfig {
             profiles
         };
 
-        let ext_auth = ExternalAuthProvider::new(runtime_store.clone())
-            .with_jwks_cache(Arc::clone(&jwks_cache))
-            .with_revocation_registry(Arc::clone(&revocation_registry))
-            .with_rate_limiter(Arc::clone(&rate_limiter));
+        let ext_auth =
+            ExternalAuthProvider::new(runtime_store.clone(), Arc::clone(&revocation_registry))
+                .with_jwks_cache(Arc::clone(&jwks_cache))
+                .with_rate_limiter(Arc::clone(&rate_limiter));
 
         let auth_provider: Arc<dyn AuthProvider> = Arc::new(ext_auth);
 

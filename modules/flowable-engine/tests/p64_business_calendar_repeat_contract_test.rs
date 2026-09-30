@@ -265,7 +265,13 @@ fn repeat_fires_recompute_due_through_the_custom_calendar() {
 
     // Advance past the custom due, fire, and expect the calendar to recompute.
     clock.advance_time(90 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let second = single_timer_job(&engine, &pi.id);
     assert_eq!(
@@ -332,7 +338,10 @@ fn repeat_calendar_hard_error_rolls_back_the_fire_and_keeps_the_timer() {
 
     clock.advance_time(90 * 60 * 1000);
     assert_eq!(
-        engine.run_due_timers().len(),
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
         0,
         "a calendar hard error must fail the fire command, not complete it"
     );
@@ -405,7 +414,13 @@ fn end_date_rejection_stops_the_repeat() {
     // First fire at +90m is still within end (+100m); next candidate would be
     // +180m which the calendar rejects → no rescheduled job.
     clock.advance_time(90 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
     assert!(
         optional_timer_job(&engine, &pi.id).is_none(),
         "endDate rejection must retire the non-interrupting boundary timer"
@@ -448,7 +463,13 @@ fn repeat_exhaustion_retires_the_timer() {
     );
 
     clock.advance_time(30 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     // After first fire, R1 is next. Fire the remaining one; no third job.
     let mid = single_timer_job(&engine, &pi.id);
@@ -459,7 +480,13 @@ fn repeat_exhaustion_retires_the_timer() {
     );
 
     clock.advance_time(30 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
     assert!(
         optional_timer_job(&engine, &pi.id).is_none(),
         "R2 is exhausted after two fires"
@@ -525,7 +552,13 @@ fn calendar_name_expression_is_re_evaluated_after_a_variable_change() {
         .unwrap();
 
     clock.advance_time(300 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let second = single_timer_job(&engine, &pi.id);
     assert_eq!(
@@ -816,7 +849,13 @@ fn non_instant_end_date_and_iteration_bound_flow_through_the_production_path() {
     );
 
     clock.advance_time(90 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let second = single_timer_job(&engine, &pi.id);
     assert!(

@@ -585,12 +585,21 @@ fn intermediate_catch_timer_uses_the_custom_calendar() {
     // The ISO duration would have fired after 10 minutes; the calendar's 90 must win.
     clock.advance_time(11 * 60 * 1000);
     assert_eq!(
-        engine.run_due_timers().len(),
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
         0,
         "PT10M must not drive the schedule when a custom calendar is modelled"
     );
     clock.advance_time(80 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 }
 
 #[test]

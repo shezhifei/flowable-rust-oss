@@ -886,7 +886,10 @@ fn lock_expiry_reclaims_job_after_expiration() {
     }
 
     // Reclaimed job is acquirable again.
-    let acquired = engine.get_runtime_service().acquire_async_jobs(5_000, 10);
+    let acquired = engine
+        .get_runtime_service()
+        .acquire_async_jobs(5_000, 10)
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert!(
         acquired
             .iter()

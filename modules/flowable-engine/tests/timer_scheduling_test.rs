@@ -51,17 +51,17 @@ fn test_timer_scheduling_duration() {
     let pi = runtime_service.start_process_instance(pi_builder).unwrap();
 
     // Initial state: not due yet
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 0);
 
     // Advance time by 5 minutes, still not due
     time_source.advance_time(5 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 0);
 
     // Advance time by another 5 minutes, should be due
     time_source.advance_time(5 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1);
 
     let runtime_store = engine.get_runtime_store();
@@ -110,15 +110,27 @@ fn test_timer_scheduling_date() {
         .unwrap();
 
     // Current time is 12:00:00, target is 13:00:00
-    assert_eq!(engine.run_due_timers().len(), 0);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        0
+    );
 
     // Advance to 12:30:00
     time_source.advance_time(30 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 0);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        0
+    );
 
     // Advance to 13:00:00
     time_source.advance_time(30 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1);
 
     let runtime_store = engine.get_runtime_store();
@@ -168,10 +180,16 @@ fn test_timer_scheduling_cycle() {
         )
         .unwrap();
 
-    assert_eq!(engine.run_due_timers().len(), 0);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        0
+    );
 
     time_source.advance_time(60 * 60 * 1000); // 1 hour
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1); // First fire
 
     let runtime_store = engine.get_runtime_store();
@@ -234,7 +252,13 @@ fn test_non_interrupting_boundary_timer_cycle_repeats_while_host_waits() {
         .unwrap();
 
     time_source.advance_time(60 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let tasks_after_first_fire = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
@@ -279,7 +303,13 @@ fn test_non_interrupting_boundary_timer_cycle_repeats_while_host_waits() {
     drop(session);
 
     time_source.advance_time(60 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let tasks_after_second_fire = task_service
         .get_tasks_by_process_instance_id(pi.id.clone())
@@ -391,7 +421,10 @@ fn test_timer_boundary_job_is_removed_when_host_user_task_completes() {
 
     time_source.advance_time(60 * 60 * 1000);
     assert_eq!(
-        engine.run_due_timers().len(),
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
         0,
         "Expired boundary timer must not fire after its host activity completed"
     );
@@ -478,7 +511,7 @@ fn test_multiple_due_timers_in_one_sweep() {
 
     time_source.advance_time(15 * 60 * 1000); // Advance 15 mins, both are due
 
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 2);
 }
 
@@ -534,7 +567,13 @@ fn test_mixed_timer_message_signal_coexistence() {
         )
         .unwrap();
     time_source.advance_time(60 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 1);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        1
+    );
 
     let runtime_store = engine.get_runtime_store();
     let mut session = runtime_store.create_session().unwrap();
@@ -563,7 +602,13 @@ fn test_mixed_timer_message_signal_coexistence() {
 
     // Timer should be deleted because message triggered and interrupted
     time_source.advance_time(60 * 60 * 1000);
-    assert_eq!(engine.run_due_timers().len(), 0);
+    assert_eq!(
+        engine
+            .run_due_timers()
+            .expect("timer cycle must not fail")
+            .len(),
+        0
+    );
 
     let mut session2 = runtime_store.create_session().unwrap();
     assert!(

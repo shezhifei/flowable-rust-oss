@@ -19,22 +19,25 @@ pub struct ExternalAuthProvider {
 }
 
 impl ExternalAuthProvider {
-    pub fn new(runtime_store: RuntimeStore) -> Self {
+    /// The revocation registry is a required dependency: defaulting it to a
+    /// private in-memory store would open a throwaway SQLite pool on the
+    /// production startup path (and panic if that failed) only for the caller
+    /// to replace it, and a forgotten override would silently ignore every
+    /// persisted revocation.
+    pub fn new(
+        runtime_store: RuntimeStore,
+        revocation_registry: Arc<TokenRevocationRegistry>,
+    ) -> Self {
         Self {
             runtime_store,
             jwks_cache: Arc::new(JwksCache::new()),
-            revocation_registry: Arc::new(TokenRevocationRegistry::new_in_memory()),
+            revocation_registry,
             rate_limiter: None,
         }
     }
 
     pub fn with_jwks_cache(mut self, cache: Arc<JwksCache>) -> Self {
         self.jwks_cache = cache;
-        self
-    }
-
-    pub fn with_revocation_registry(mut self, registry: Arc<TokenRevocationRegistry>) -> Self {
-        self.revocation_registry = registry;
         self
     }
 
@@ -143,8 +146,15 @@ impl AuthProvider for ExternalAuthProvider {
         let mut matched_profile = None;
         // Fail-closed: unreadable profiles -> auth denied. Java's BasicAuthenticationProvider
         // has no try/catch around checkPassword, so a store error surfaces as a 500 there.
-        let Ok(mut session) = self.runtime_store.create_session() else {
-            return None;
+        let mut session = match self.runtime_store.create_session() {
+            Ok(session) => session,
+            Err(error) => {
+                tracing::error!(
+                    error = %error,
+                    "external auth: storage session unavailable; denying authentication"
+                );
+                return None;
+            }
         };
         // Java parity: a profile-query storage failure throws inside the command; this
         // path always denies auth, but it must not do so silently.

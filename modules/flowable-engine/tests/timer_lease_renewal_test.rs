@@ -120,12 +120,14 @@ fn test_timer_lease_renewal_prevents_false_stale_recovery() {
 
     // 6. Try to acquire as a different worker (simulated via runtime store call)
     let current_now = mock_time.now().timestamp_millis();
-    let (stolen_jobs, _, _) = runtime_store.acquire_due_timer_jobs(
-        "stealing_worker",
-        current_now,
-        lock_timeout_ms,
-        &mut session,
-    );
+    let (stolen_jobs, _, _) = runtime_store
+        .acquire_due_timer_jobs(
+            "stealing_worker",
+            current_now,
+            lock_timeout_ms,
+            &mut session,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
 
     // It should NOT be stolen because we renewed the lease 2 minutes ago, and timeout is 5 mins!
     assert_eq!(
@@ -144,6 +146,7 @@ fn test_timer_lease_renewal_prevents_false_stale_recovery() {
             lock_timeout_ms,
             &mut session,
         )
+        .expect("job acquisition must not report a storage failure as an empty batch")
         .0;
     assert!(
         still_locked.is_empty(),
@@ -158,12 +161,14 @@ fn test_timer_lease_renewal_prevents_false_stale_recovery() {
     assert_eq!(reset, 1, "reset must clear the expired renewed lease");
 
     let mut session = runtime_store.create_session().unwrap();
-    let (stolen_jobs, _, _) = runtime_store.acquire_due_timer_jobs(
-        "stealing_worker",
-        mock_time.now().timestamp_millis(),
-        lock_timeout_ms,
-        &mut session,
-    );
+    let (stolen_jobs, _, _) = runtime_store
+        .acquire_due_timer_jobs(
+            "stealing_worker",
+            mock_time.now().timestamp_millis(),
+            lock_timeout_ms,
+            &mut session,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
 
     // After reset, the job is acquirable again.
     assert_eq!(
@@ -276,12 +281,14 @@ fn test_manual_lease_renewal_extends_lock_multiple_times() {
         );
 
         // Verify a competitor cannot steal the job
-        let (stolen, _, _) = runtime_store.acquire_due_timer_jobs(
-            "competitor",
-            mock_time.now().timestamp_millis(),
-            lock_timeout_ms,
-            &mut session,
-        );
+        let (stolen, _, _) = runtime_store
+            .acquire_due_timer_jobs(
+                "competitor",
+                mock_time.now().timestamp_millis(),
+                lock_timeout_ms,
+                &mut session,
+            )
+            .expect("job acquisition must not report a storage failure as an empty batch");
         assert_eq!(
             stolen.len(),
             0,
@@ -302,6 +309,7 @@ fn test_manual_lease_renewal_extends_lock_multiple_times() {
             lock_timeout_ms,
             &mut session,
         )
+        .expect("job acquisition must not report a storage failure as an empty batch")
         .0;
     assert!(
         blocked.is_empty(),
@@ -316,12 +324,14 @@ fn test_manual_lease_renewal_extends_lock_multiple_times() {
     assert_eq!(reset, 1);
 
     let mut session = runtime_store.create_session().unwrap();
-    let (stolen, _, _) = runtime_store.acquire_due_timer_jobs(
-        "competitor",
-        mock_time.now().timestamp_millis(),
-        lock_timeout_ms,
-        &mut session,
-    );
+    let (stolen, _, _) = runtime_store
+        .acquire_due_timer_jobs(
+            "competitor",
+            mock_time.now().timestamp_millis(),
+            lock_timeout_ms,
+            &mut session,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
     assert_eq!(
         stolen.len(),
         1,

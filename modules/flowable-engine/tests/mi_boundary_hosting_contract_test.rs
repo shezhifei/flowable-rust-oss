@@ -411,7 +411,7 @@ fn interrupting_mi_receive_boundary_timer_cancels_whole_multi_instance() {
     );
 
     time.advance_time(60 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(
         executed.len(),
         1,
@@ -454,7 +454,7 @@ fn non_interrupting_mi_receive_boundary_timer_keeps_all_instances_alive() {
     );
 
     time.advance_time(60 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1);
 
     assert_eq!(
@@ -550,7 +550,7 @@ fn interrupting_mi_transaction_boundary_timer_cancels_whole_multi_instance() {
     assert_eq!(task_keys(&engine, &process_instance.id), vec!["txTask"; 3]);
 
     time.advance_time(60 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1, "exactly one boundary timer job exists");
 
     assert_eq!(
@@ -585,7 +585,7 @@ fn non_interrupting_mi_transaction_boundary_timer_keeps_all_instances_alive() {
     assert_eq!(task_keys(&engine, &process_instance.id), vec!["txTask"; 3]);
 
     time.advance_time(60 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1);
 
     assert_eq!(
@@ -641,7 +641,7 @@ fn interrupting_mi_subprocess_boundary_timer_cancels_whole_multi_instance() {
     );
 
     time.advance_time(60 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1, "exactly one boundary timer job exists");
 
     assert_eq!(
@@ -679,7 +679,7 @@ fn non_interrupting_mi_subprocess_boundary_timer_keeps_all_instances_alive() {
     );
 
     time.advance_time(60 * 60 * 1000);
-    let executed = engine.run_due_timers();
+    let executed = engine.run_due_timers().expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1);
 
     assert_eq!(

@@ -225,8 +225,8 @@ fn test_embedded_and_standalone_do_not_double_execute() {
         let e1 = Arc::clone(&engine_embedded);
         let e2 = Arc::clone(&engine_standalone);
 
-        let h1 = thread::spawn(move || e1.run_due_timers());
-        let h2 = thread::spawn(move || e2.run_due_timers());
+        let h1 = thread::spawn(move || e1.run_due_timers().expect("timer cycle must not fail"));
+        let h2 = thread::spawn(move || e2.run_due_timers().expect("timer cycle must not fail"));
 
         let res1 = h1.join().unwrap();
         let res2 = h2.join().unwrap();
@@ -241,8 +241,12 @@ fn test_embedded_and_standalone_do_not_double_execute() {
 
     if embedded_results.is_empty() && standalone_results.is_empty() {
         for _ in 0..40 {
-            let res1 = engine_embedded.run_due_timers();
-            let res2 = engine_standalone.run_due_timers();
+            let res1 = engine_embedded
+                .run_due_timers()
+                .expect("timer cycle must not fail");
+            let res2 = engine_standalone
+                .run_due_timers()
+                .expect("timer cycle must not fail");
             if !res1.is_empty() || !res2.is_empty() {
                 embedded_results = res1;
                 standalone_results = res2;
@@ -332,12 +336,14 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
     // Standalone worker acquires with its real runtime owner id.
     let store = engine.get_runtime_store();
     let mut acquire_session = store.create_session().unwrap();
-    let (standalone_acquired, _, _) = store.acquire_due_timer_jobs(
-        &standalone_owner,
-        mock_time.now().timestamp_millis(),
-        lease_timeout_ms,
-        &mut acquire_session,
-    );
+    let (standalone_acquired, _, _) = store
+        .acquire_due_timer_jobs(
+            &standalone_owner,
+            mock_time.now().timestamp_millis(),
+            lease_timeout_ms,
+            &mut acquire_session,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
     acquire_session.flush_and_commit().unwrap();
     assert_eq!(standalone_acquired.len(), 1);
     assert_eq!(
@@ -381,12 +387,15 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
 
     // Embedded engine tries to acquire the same job before the renewed lease expires.
     let mut embedded_session = engine.get_runtime_store().create_session().unwrap();
-    let (embedded_acquired, _, _) = engine.get_runtime_store().acquire_due_timer_jobs(
-        "embedded_engine_owner",
-        mock_time.now().timestamp_millis(),
-        lease_timeout_ms,
-        &mut embedded_session,
-    );
+    let (embedded_acquired, _, _) = engine
+        .get_runtime_store()
+        .acquire_due_timer_jobs(
+            "embedded_engine_owner",
+            mock_time.now().timestamp_millis(),
+            lease_timeout_ms,
+            &mut embedded_session,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
     embedded_session.rollback().unwrap();
     assert_eq!(
         embedded_acquired.len(),
@@ -397,12 +406,15 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
     // Even after the original lease window has elapsed, the renewed lease stays valid.
     mock_time.advance_time(600);
     let mut embedded_session2 = engine.get_runtime_store().create_session().unwrap();
-    let (embedded_acquired2, _, _) = engine.get_runtime_store().acquire_due_timer_jobs(
-        "embedded_engine_owner",
-        mock_time.now().timestamp_millis(),
-        lease_timeout_ms,
-        &mut embedded_session2,
-    );
+    let (embedded_acquired2, _, _) = engine
+        .get_runtime_store()
+        .acquire_due_timer_jobs(
+            "embedded_engine_owner",
+            mock_time.now().timestamp_millis(),
+            lease_timeout_ms,
+            &mut embedded_session2,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
     embedded_session2.rollback().unwrap();
     assert_eq!(
         embedded_acquired2.len(),
@@ -421,6 +433,7 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
             lease_timeout_ms,
             &mut embedded_session3,
         )
+        .expect("job acquisition must not report a storage failure as an empty batch")
         .0;
     embedded_session3.rollback().unwrap();
     assert!(
@@ -435,12 +448,15 @@ fn test_standalone_lease_renewal_uses_correct_owner() {
     assert_eq!(reset, 1, "reset must clear the expired renewed lease");
 
     let mut embedded_session4 = engine.get_runtime_store().create_session().unwrap();
-    let (embedded_acquired3, _, _) = engine.get_runtime_store().acquire_due_timer_jobs(
-        "embedded_engine_owner",
-        mock_time.now().timestamp_millis(),
-        lease_timeout_ms,
-        &mut embedded_session4,
-    );
+    let (embedded_acquired3, _, _) = engine
+        .get_runtime_store()
+        .acquire_due_timer_jobs(
+            "embedded_engine_owner",
+            mock_time.now().timestamp_millis(),
+            lease_timeout_ms,
+            &mut embedded_session4,
+        )
+        .expect("job acquisition must not report a storage failure as an empty batch");
     embedded_session4.rollback().unwrap();
     assert_eq!(
         embedded_acquired3.len(),
@@ -601,12 +617,16 @@ fn test_run_due_timers_releases_coordinator_lease_after_batch() {
 
     mock_time.advance_time(300_001);
 
-    let executed = engine_a.run_due_timers();
+    let executed = engine_a
+        .run_due_timers()
+        .expect("timer cycle must not fail");
     assert_eq!(executed.len(), 1, "engine A should execute the due timer");
 
     // Regression guard: repeated one-shot runs by the same engine keep working
     // (passes both before and after the release fix; no work remains due).
-    let executed_again = engine_a.run_due_timers();
+    let executed_again = engine_a
+        .run_due_timers()
+        .expect("timer cycle must not fail");
     assert!(
         executed_again.is_empty(),
         "second run_due_timers by the same engine must succeed with no work left"
